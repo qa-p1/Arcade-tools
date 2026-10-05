@@ -1,3 +1,7 @@
+pub mod link;
+pub mod manager;
+pub mod paths;
+pub mod platform;
 pub mod release;
 pub mod source;
 

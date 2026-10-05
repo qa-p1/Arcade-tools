@@ -21,8 +21,10 @@ directories = "6"
 tar = "0.4"
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Threading"] }
+
 [profile.release]
 codegen-units = 1
 lto = true
 strip = true
-
