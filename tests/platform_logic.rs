@@ -27,6 +27,20 @@ fn windows_installer_flags_and_paths_are_per_user_arguments() {
         plan.args,
         ["/S", "/D=/tmp/windows-logic/local/Programs/Arcade Look"]
     );
+    assert_eq!(plan.nsis_tail(), Some(plan.args[1].as_str()));
+    let uninstall = windows_uninstall(Kind::Nsis, &root).unwrap();
+    assert_eq!(
+        uninstall.args,
+        ["/S", "_?=/tmp/windows-logic/local/Programs/Arcade Look"]
+    );
+    assert_eq!(uninstall.nsis_tail(), Some(uninstall.args[1].as_str()));
+    for unsafe_root in [
+        Path::new("C:/Users/bad\"quote/Apps"),
+        Path::new("C:/Users/bad\nline/Apps"),
+    ] {
+        assert!(windows_install(&asset, Path::new("verified.exe"), unsafe_root).is_err());
+        assert!(windows_uninstall(Kind::Nsis, unsafe_root).is_err());
+    }
     asset.kind = Kind::Inno;
     asset.silent = Some(
         [
@@ -42,6 +56,7 @@ fn windows_installer_flags_and_paths_are_per_user_arguments() {
     let plan = windows_install(&asset, Path::new("verified.exe"), &root).unwrap();
     assert_eq!(plan.args[3], "/CURRENTUSER");
     assert!(plan.args[4].starts_with("/DIR="));
+    assert!(plan.nsis_tail().is_none());
     asset.silent = Some(vec!["/ALLUSERS".into()]);
     assert!(windows_install(&asset, Path::new("verified.exe"), &root).is_err());
     assert!(windows_uninstall(Kind::Inno, &root)

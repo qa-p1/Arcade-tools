@@ -12,9 +12,28 @@ pub struct CommandSpec {
     pub args: Vec<String>,
 }
 impl CommandSpec {
+    /// NSIS consumes its final path as an unquoted command-line tail, even with
+    /// spaces. Inno and the other commands use ordinary argument quoting.
+    pub fn nsis_tail(&self) -> Option<&str> {
+        self.args
+            .last()
+            .map(String::as_str)
+            .filter(|arg| arg.starts_with("/D=") || arg.starts_with("_?="))
+    }
     pub fn run(&self, paths: &Paths) -> Result<()> {
-        let out = Command::new(&self.program)
-            .args(&self.args)
+        let mut command = Command::new(&self.program);
+        #[cfg(windows)]
+        if let Some(tail) = self.nsis_tail() {
+            use std::os::windows::process::CommandExt;
+            command
+                .args(&self.args[..self.args.len() - 1])
+                .raw_arg(tail);
+        } else {
+            command.args(&self.args);
+        }
+        #[cfg(not(windows))]
+        command.args(&self.args);
+        let out = command
             .env("HOME", &paths.home)
             .env("XDG_CONFIG_HOME", &paths.config)
             .env("XDG_DATA_HOME", &paths.data)
@@ -65,16 +84,12 @@ pub fn windows_install(asset: &Asset, file: &Path, destination: &Path) -> Result
         ));
     }
     let mut args = expected.iter().map(|s| s.to_string()).collect::<Vec<_>>();
-    // NSIS requires /D to be the last argument. Command arguments, never a shell.
-    args.push(format!(
-        "{}{}",
-        if asset.kind == Kind::Nsis {
-            "/D="
-        } else {
-            "/DIR="
-        },
-        destination.display()
-    ));
+    // https://nsis.sourceforge.io/Docs/Chapter3.html#installerusage
+    args.push(if asset.kind == Kind::Nsis {
+        nsis_path_arg("/D=", destination)?
+    } else {
+        format!("/DIR={}", destination.display())
+    });
     Ok(CommandSpec {
         program: file.into(),
         args,
@@ -84,7 +99,9 @@ pub fn windows_uninstall(kind: Kind, root: &Path) -> Result<CommandSpec> {
     match kind {
         Kind::Nsis => Ok(CommandSpec {
             program: root.join("uninstall.exe"),
-            args: vec!["/S".into()],
+            // Prevent NSIS from detaching a temporary copy: wait for it before
+            // removing the installation directory and registry manifest.
+            args: vec!["/S".into(), nsis_path_arg("_?=", root)?],
         }),
         Kind::Inno => Ok(CommandSpec {
             program: root.join("unins000.exe"),
@@ -98,6 +115,18 @@ pub fn windows_uninstall(kind: Kind, root: &Path) -> Result<CommandSpec> {
             "No supported per-user uninstaller.",
         )),
     }
+}
+fn nsis_path_arg(prefix: &str, path: &Path) -> Result<String> {
+    let text = path
+        .to_str()
+        .ok_or_else(|| Error::new("paths", "Installer destination is not a Unicode path."))?;
+    if text.contains('"') || text.chars().any(char::is_control) {
+        return Err(Error::new(
+            "paths",
+            "Installer destination contains a quote or control character.",
+        ));
+    }
+    Ok(format!("{prefix}{text}"))
 }
 pub fn dmg_attach(file: &Path, mount: &Path) -> CommandSpec {
     CommandSpec {
@@ -358,6 +387,7 @@ pub fn launch_agent(id: &str, executable: &Path) -> String {
         .replace('"', "&quot;");
     format!("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\"><dict><key>Label</key><string>{id}</string><key>ProgramArguments</key><array><string>{quoted}</string><string>--background</string></array><key>RunAtLoad</key><true/></dict></plist>\n")
 }
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 fn backup(path: &Path) -> Result<()> {
     match fs::read(path) {
         Ok(bytes) => {
@@ -547,7 +577,8 @@ pub fn windows_run_name(id: &str) -> &'static str {
 pub fn autostart_enabled(paths: &Paths, id: &str) -> bool {
     #[cfg(windows)]
     {
-        return Command::new("reg.exe")
+        let _ = paths;
+        Command::new("reg.exe")
             .args([
                 "query",
                 r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run",
@@ -555,7 +586,7 @@ pub fn autostart_enabled(paths: &Paths, id: &str) -> bool {
                 windows_run_name(id),
             ])
             .output()
-            .is_ok_and(|r| r.status.success());
+            .is_ok_and(|r| r.status.success())
     }
     #[cfg(not(windows))]
     paths.autostart(id, Os::current()).is_file()
