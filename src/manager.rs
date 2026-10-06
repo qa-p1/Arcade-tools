@@ -462,7 +462,7 @@ impl Manager {
         {
             return Err(Error::new(
                 "busy",
-                "The app is busy. Let its jobs finish, then retry.",
+                arcade_link::LinkError::busy().user_message(manifest::app_name(id)),
             ));
         }
         let mode = status_mode(&status).or(request.mode);
@@ -576,7 +576,7 @@ pub fn me() -> PeerInfo {
 }
 fn check_cancel(cancel: &AtomicBool) -> Result<()> {
     if cancel.load(Ordering::SeqCst) {
-        Err(Error::new("cancelled", "Operation cancelled."))
+        Err(Error::new("cancelled", "Cancelled."))
     } else {
         Ok(())
     }

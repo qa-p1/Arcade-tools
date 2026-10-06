@@ -1,0 +1,9 @@
+{
+  "compilerOptions": {
+    "target": "ES2021", "module": "ESNext", "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["vite/client"], "moduleResolution": "bundler", "isolatedModules": true,
+    "noEmit": true, "strict": true, "noUnusedLocals": true, "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true, "skipLibCheck": true
+  },
+  "include": ["src-ui"]
+}

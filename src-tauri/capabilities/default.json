@@ -1,0 +1,5 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json", "identifier": "main",
+  "description": "Local manager commands and event delivery; all downloads stay in Rust",
+  "windows": ["main"], "permissions": ["core:default"]
+}

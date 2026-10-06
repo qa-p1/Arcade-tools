@@ -198,7 +198,7 @@ impl Source {
         let mut block = [0u8; 65536];
         loop {
             if cancel.load(Ordering::SeqCst) {
-                return Err(Error::new("cancelled", "Download cancelled."));
+                return Err(Error::new("cancelled", "Cancelled."));
             }
             let n = response.read(&mut block)?;
             if n == 0 {

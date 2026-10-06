@@ -1,0 +1,8 @@
+<!doctype html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Arcade Tools</title></head>
+<body><main><header><div><p class="eyebrow">ARCADE</p><h1>Your apps, in one place.</h1><p class="intro">Install, update and take care of your Arcade apps.</p></div><button id="refresh">Refresh</button></header>
+<div id="message" role="status" aria-live="polite">Loading your apps…</div><section id="apps" aria-label="Arcade apps"></section>
+<footer><label><input id="link" type="checkbox"> Connect with other Arcade apps</label><details><summary>Diagnostics</summary><pre id="diagnostics"></pre></details></footer>
+<div id="operation" hidden><span id="operation-text"></span><progress id="progress"></progress><button id="cancel">Cancel</button></div>
+</main><dialog id="confirm"><form method="dialog"><h2 id="confirm-title"></h2><p id="confirm-copy"></p><div id="confirm-extra"></div><div class="dialog-actions"><button value="cancel">Cancel</button><button id="confirm-action" class="primary" value="confirm">Continue</button></div></form></dialog>
+<script type="module" src="/src-ui/main.ts"></script></body></html>

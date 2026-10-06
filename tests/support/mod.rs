@@ -66,8 +66,7 @@ impl FakeRelease {
         for (name, bytes) in files {
             std::fs::write(dir.join(name), bytes).unwrap();
         }
-        let generator =
-            Path::new(env!("CARGO_MANIFEST_DIR")).join("../Arcade-link/tools/arcade-release.py");
+        let generator = Path::new(env!("CARGO_MANIFEST_DIR")).join("scripts/arcade-release.py");
         let out = std::process::Command::new("python3")
             .arg(generator)
             .args([

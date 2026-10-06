@@ -163,7 +163,8 @@ impl Paths {
         }
         let path = executable.canonicalize()?;
         if !self.isolated
-            && (path.starts_with("/tmp")
+            && (path.starts_with(std::env::temp_dir())
+                || path.starts_with("/tmp")
                 || path.starts_with("/var/tmp")
                 || path.starts_with("/run")
                 || path.starts_with("/Volumes")

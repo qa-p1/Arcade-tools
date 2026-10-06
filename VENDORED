@@ -1,0 +1,4 @@
+scripts/arcade-release.py is vendored unchanged from Arcade-link/tools/arcade-release.py
+Source: https://github.com/qa-p1/Arcade-link
+Commit: 539fa91 (539fa9174f88c3f95a9d84f41253ec2630f72021).
+License: MIT. Keep the canonical generator in sync deliberately; do not fork its schema.
