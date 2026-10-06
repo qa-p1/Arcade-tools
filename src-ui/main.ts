@@ -54,9 +54,9 @@ function failure(error: unknown): Failure {
   return { code: 'error', message: String(error) };
 }
 function say(text: string, error = false) { message.textContent = text; message.classList.toggle('error', error); report(); }
-async function attempt(action: () => Promise<void>) { try { await action(); } catch (error) { say(failure(error).message, true); } }
+async function attempt(action: () => Promise<void>, appName?: string) { try { await action(); } catch (error) { say(`${appName ? `${appName}: ` : ''}${failure(error).message}`, true); } }
 function button(text: string, action: () => Promise<void>, className = '') {
-  const n = node('button', text, className); n.disabled = busy; n.addEventListener('click', () => { void attempt(action); }); return n;
+  const n = node('button', text, className); n.disabled = busy; n.addEventListener('click', () => { void attempt(action, apps.find(a => a.id === n.closest('article')?.id)?.name); }); return n;
 }
 function selectApp(id: string) { selected = id; render(); document.getElementById(id)?.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
 
@@ -114,9 +114,9 @@ async function refresh() {
     if (refreshPending) { refreshPending = false; await refresh(); }
   }
 }
-function confirm(title: string, copy: string, action: string, extra: HTMLElement[] = []): Promise<boolean> {
+function confirm(title: string, copy: string, action: string, extra: HTMLElement[] = [], destructive = false): Promise<boolean> {
   element('#confirm-title').textContent = title; element('#confirm-copy').textContent = copy;
-  element('#confirm-action').textContent = action; element('#confirm-extra').replaceChildren(...extra);
+  element('#confirm-action').textContent = action; element('#confirm-action').className = destructive ? 'destructive' : 'primary'; element('#confirm-extra').replaceChildren(...extra);
   dialog.returnValue = ''; dialog.showModal();
   report();
   return new Promise(resolve => { dialog.addEventListener('close', () => { report(); resolve(dialog.returnValue === 'confirm'); }, { once: true }); });
@@ -153,7 +153,7 @@ async function confirmOperation(app: App, operation: Operation) {
     : operation === 'install' ? `Install the ${app.channel} release for your user account and open the app.`
     : `Download a fresh ${app.channel} release, close the app, and replace its installation. Settings and data are kept.`;
   const extras = operation === 'uninstall' ? [remove.label, folders] : operation === 'install' ? [background.label] : [];
-  if (!await confirm(title, copy, titles[operation], extras)) return;
+  if (!await confirm(title, copy, titles[operation], extras, operation === 'uninstall')) return;
   await runOperation({ id: app.id, operation, mode: operation === 'install' ? (background.input.checked ? 'background' : 'foreground') : null, removeData: remove.input.checked, appClosed: false });
 }
 async function runOperation(request: Request): Promise<void> {
@@ -161,7 +161,7 @@ async function runOperation(request: Request): Promise<void> {
   try {
     const text = await invoke<string>('operate', { request }); releases.delete(request.id); say(text);
   } catch (error) {
-    const problem = failure(error); say(problem.message, true);
+    const problem = failure(error); say(`${apps.find(a => a.id === request.id)?.name ?? request.id}: ${problem.message}`, true);
     busy = false; render(); element('#operation').hidden = true;
     if (problem.code === 'mode_required') {
       const label = node('label', 'Reopen the app '); const mode = node('select'); mode.setAttribute('aria-label', 'Reopen mode'); mode.append(node('option', 'In foreground'), node('option', 'In background'));
