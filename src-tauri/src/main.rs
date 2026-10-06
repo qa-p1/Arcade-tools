@@ -30,10 +30,16 @@ fn main() {
             client.call("app.quit", serde_json::json!({})).map(|_| ())
         });
         if let Err(error) = result {
+            if error.code == arcade_link::ErrorCode::NotRunning {
+                // The native single-instance channel remains available when
+                // the user disables Arcade Link in Tools.
+                desktop::run(true, true);
+                return;
+            }
             eprintln!("{}", error.user_message("Arcade Tools"));
             std::process::exit(1);
         }
         return;
     }
-    desktop::run(args.iter().any(|a| a == "--background"));
+    desktop::run(args.iter().any(|a| a == "--background"), false);
 }

@@ -361,11 +361,28 @@ async fn ui_rendered(app: AppHandle, report: Value) -> Result<()> {
     .await
 }
 
-pub fn run(background: bool) {
+fn request_close(app: &AppHandle) {
+    let state = desktop(app);
+    if state.active.load(Ordering::SeqCst) {
+        let _ = app.emit(
+            "manager-message",
+            "Wait for the current operation to finish before closing Arcade Tools.",
+        );
+    } else {
+        let app = app.clone();
+        std::thread::spawn(move || {
+            state.presence.lock().unwrap().take();
+            app.exit(0);
+        });
+    }
+}
+pub fn run(background: bool, quit: bool) {
     tauri::Builder::default()
         .manage(Arc::new(Desktop::new(background)))
         .plugin(tauri_plugin_single_instance::init(|app, args, _| {
-            if !args.iter().any(|a| a == "--background") {
+            if args.iter().any(|a| a == "--quit") {
+                request_close(app);
+            } else if !args.iter().any(|a| a == "--background") {
                 show(app, &desktop(app));
             }
         }))
@@ -373,7 +390,13 @@ pub fn run(background: bool) {
         .on_page_load(|window, payload| {
             audit(window.app_handle(), json!({"event":"page-load", "url":payload.url().as_str(), "stage":format!("{:?}", payload.event())}));
         })
-        .setup(|app| {
+        .setup(move |app| {
+            if quit {
+                // No existing instance: quit is a no-op, without initializing
+                // the manager or writing a manifest.
+                app.handle().exit(0);
+                return Ok(());
+            }
             let handle = app.handle().clone();
             let state = desktop(&handle);
             if !state.background.load(Ordering::SeqCst) {
@@ -407,19 +430,7 @@ pub fn run(background: bool) {
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
-                let app = window.app_handle().clone();
-                let state = desktop(&app);
-                if state.active.load(Ordering::SeqCst) {
-                    let _ = app.emit(
-                        "manager-message",
-                        "Wait for the current operation to finish before closing Arcade Tools.",
-                    );
-                } else {
-                    std::thread::spawn(move || {
-                        state.presence.lock().unwrap().take();
-                        app.exit(0);
-                    });
-                }
+                request_close(window.app_handle());
             }
         })
         .run(tauri::generate_context!())
