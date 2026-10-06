@@ -1,0 +1,157 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: Release channel (stable requires a matching version tag)
+        type: choice
+        options: [nightly, stable]
+        default: nightly
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tools-release
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-22.04
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      version: ${{ steps.release.outputs.version }}
+      channel: ${{ steps.release.outputs.channel }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate version and choose channel
+        id: release
+        env:
+          INPUT_CHANNEL: ${{ inputs.channel }}
+        run: |
+          python3 - <<'PY'
+          import json, os, tomllib
+          from pathlib import Path
+          version = json.loads(Path('src-tauri/tauri.conf.json').read_text())['version']
+          for path in ['Cargo.toml', 'src-tauri/Cargo.toml']:
+              assert tomllib.loads(Path(path).read_text())['package']['version'] == version, path
+          assert json.loads(Path('package.json').read_text())['version'] == version
+          channel = os.environ.get('INPUT_CHANNEL') or 'stable'
+          assert channel in ['stable', 'nightly']
+          if channel == 'stable':
+              assert os.environ['GITHUB_REF'] == 'refs/tags/v' + version, 'Stable release must use its version tag'
+              tag = 'v' + version
+          else:
+              tag = 'nightly'
+              version += '-nightly.' + os.environ['GITHUB_RUN_NUMBER']
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
+              out.write(f'tag={tag}\nversion={version}\nchannel={channel}\n')
+          PY
+
+  bundle:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            bundles: appimage
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bundles: nsis
+          - os: macos-latest
+            target: universal-apple-darwin
+            bundles: dmg
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: Arcade-tools
+    env:
+      CARGO_BUILD_JOBS: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: Arcade-tools
+      - uses: actions/checkout@v4
+        with:
+          repository: qa-p1/Arcade-link
+          ref: 539fa91
+          path: Arcade-link
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Both macOS architectures
+        if: runner.os == 'macOS'
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libssl-dev patchelf
+      - run: npm ci
+      - run: npm run typecheck
+      - name: Bundle using the OS webview
+        run: npm run tauri -- build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tools-installer-${{ matrix.os }}
+          path: |
+            Arcade-tools/target/${{ matrix.target }}/release/bundle/**/*.AppImage
+            Arcade-tools/target/${{ matrix.target }}/release/bundle/**/*.exe
+            Arcade-tools/target/${{ matrix.target }}/release/bundle/**/*.dmg
+          if-no-files-found: error
+
+  publish:
+    needs: [prepare, bundle]
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+      RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+      RELEASE_CHANNEL: ${{ needs.prepare.outputs.channel }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: tools-installer-*
+          merge-multiple: true
+          path: artifacts
+      - name: Prepare canonical release metadata
+        run: |
+          mkdir release-assets
+          python3 - <<'PY'
+          import shutil
+          from pathlib import Path
+          files = [p for p in Path('artifacts').rglob('*') if p.suffix.lower() in ['.appimage', '.exe', '.dmg']]
+          assert len(files) == 3, f'Expected three installers, found {files}'
+          for path in files:
+              shutil.copy2(path, Path('release-assets') / path.name.replace(' ', '-'))
+          PY
+          python3 scripts/arcade-release.py --id arcade.tools --version "$RELEASE_VERSION" \
+            --channel "$RELEASE_CHANNEL" --notes "https://github.com/$GH_REPO/releases/tag/$RELEASE_TAG" release-assets
+          (cd release-assets && sha256sum -c SHA256SUMS.txt)
+      - name: Publish the stable or rolling nightly release
+        run: |
+          if [ "$RELEASE_CHANNEL" = nightly ] && gh release view nightly >/dev/null 2>&1; then
+            gh api -X PATCH "repos/$GH_REPO/git/refs/tags/nightly" -f sha="$GITHUB_SHA" -F force=true
+            gh release upload nightly release-assets/* --clobber
+            gh release edit nightly --prerelease --latest=false --title "Arcade Tools nightly" --notes "Build $GITHUB_SHA. The manager is optional."
+          elif [ "$RELEASE_CHANNEL" = nightly ]; then
+            gh release create nightly release-assets/* --target "$GITHUB_SHA" --prerelease --latest=false \
+              --title "Arcade Tools nightly" --notes "Build $GITHUB_SHA. The manager is optional."
+          else
+            gh release create "$RELEASE_TAG" release-assets/* --verify-tag --latest \
+              --title "Arcade Tools $RELEASE_VERSION" --generate-notes
+          fi
