@@ -83,7 +83,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: qa-p1/Arcade-link
-          ref: 539fa91
+          ref: 07d7781d949ab070ed0a668fe990e49443b82533
           path: Arcade-link
       - uses: dtolnay/rust-toolchain@stable
       - name: Both macOS architectures
