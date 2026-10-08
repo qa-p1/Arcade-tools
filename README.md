@@ -84,9 +84,9 @@ ignore those environment variables. The check driver clicks the actual native GU
 and runs a real Lens instance for busy/update/quit behavior.
 
 Linux X11 is tested under private D-Bus/Xvfb. Linux Wayland is **not run** here.
-Windows and macOS are **build only**: their installer, location and login logic is
-unit tested on Linux and native CI jobs are defined; their native builds and real
-desktop runs have not been performed on this machine.
+Windows and macOS build and pass the test suite in CI (their installer, location
+and login logic is also unit-tested on Linux), but no real desktop run has been
+performed on them. Current status: [docs/STATUS.md](docs/STATUS.md).
 
 CI checks fmt, clippy, Rust tests and the frontend on Linux, Windows and macOS.
 The release workflow bundles NSIS, AppImage and universal macOS dmg installers,
