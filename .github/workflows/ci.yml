@@ -26,12 +26,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           path: Arcade-tools
-      # Owner action before publishing: create this repo and pin a tagged Link
-      # dependency. Until then the sibling checkout matches local path deps.
+      # Only for tools/e2e.py, the disposable desktop session the tests run
+      # in; the crate itself comes from the git tag in Cargo.toml.
       - uses: actions/checkout@v4
         with:
-          repository: qa-p1/Arcade-link
-          ref: 5e1b916b62beae60997ffe5fb2e9b31ac70b3f5e
+          repository: qa-p1/Arcade-Link
+          ref: v0.1.0
           path: Arcade-link
       - uses: dtolnay/rust-toolchain@stable
         with:

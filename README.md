@@ -59,7 +59,9 @@ shell; `python3 scripts/ui-size.py` checks it against a 17 KB uncompressed budge
 No update polling runs while idle. Registry changes arrive through a directory
 watch, and all discovery, network, IPC and installer work runs on worker threads.
 
-For local development, keep `Arcade-tools` and `Arcade-link` as sibling directories:
+Arcade Link comes from its `v0.1.0` git tag. The isolated test runner
+(`tools/e2e.py`) lives in the Link repository, so keep a checkout beside this
+one for the commands below:
 
 ```sh
 npm ci
@@ -91,6 +93,4 @@ The release workflow bundles NSIS, AppImage and universal macOS dmg installers,
 then uses the canonical generator in [VENDORED](VENDORED) to create
 `arcade-release.json` and `SHA256SUMS.txt`. Version tags publish stable releases;
 manual dispatch can publish the rolling nightly. Nothing has been published from
-this checkout. Before publishing, create the Tools/Link GitHub repositories and
-replace sibling path dependencies with a tagged Arcade Link dependency (and update
-the workflows' pinned Link checkout).
+this checkout.
