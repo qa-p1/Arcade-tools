@@ -23,10 +23,8 @@ fn windows_installer_flags_and_paths_are_per_user_arguments() {
         silent: Some(vec!["/S".into()]),
     };
     let plan = windows_install(&asset, Path::new("verified.exe"), &root).unwrap();
-    assert_eq!(
-        plan.args,
-        ["/S", "/D=/tmp/windows-logic/local/Programs/Arcade Look"]
-    );
+    let target = format!("/D={}", root.display());
+    assert_eq!(plan.args, ["/S", target.as_str()]);
     assert_eq!(plan.nsis_tail(), Some(plan.args[1].as_str()));
     let uninstall = windows_uninstall(Kind::Nsis, &root).unwrap();
     assert_eq!(

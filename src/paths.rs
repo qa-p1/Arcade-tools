@@ -162,8 +162,12 @@ impl Paths {
             return Err(Error::new("paths", "The installed executable is missing."));
         }
         let path = executable.canonicalize()?;
+        // Compare canonical with canonical: macOS's temp dir is a /var symlink
+        // into /private/var, and Windows canonical paths carry a \\?\ prefix.
+        let temp = std::env::temp_dir();
+        let temp = temp.canonicalize().unwrap_or(temp);
         if !self.isolated
-            && (path.starts_with(std::env::temp_dir())
+            && (path.starts_with(&temp)
                 || path.starts_with("/tmp")
                 || path.starts_with("/var/tmp")
                 || path.starts_with("/run")
