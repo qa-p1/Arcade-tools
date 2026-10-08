@@ -27,10 +27,8 @@ fn windows_installer_flags_and_paths_are_per_user_arguments() {
     assert_eq!(plan.args, ["/S", target.as_str()]);
     assert_eq!(plan.nsis_tail(), Some(plan.args[1].as_str()));
     let uninstall = windows_uninstall(Kind::Nsis, &root).unwrap();
-    assert_eq!(
-        uninstall.args,
-        ["/S", "_?=/tmp/windows-logic/local/Programs/Arcade Look"]
-    );
+    let target = format!("_?={}", root.display());
+    assert_eq!(uninstall.args, ["/S", target.as_str()]);
     assert_eq!(uninstall.nsis_tail(), Some(uninstall.args[1].as_str()));
     for unsafe_root in [
         Path::new("C:/Users/bad\"quote/Apps"),
