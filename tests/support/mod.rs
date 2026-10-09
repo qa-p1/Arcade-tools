@@ -100,7 +100,7 @@ impl FakeRelease {
             routes.insert(format!("/{route}"), std::fs::read(&p).unwrap());
             assets.push(serde_json::json!({"name": name, "browser_download_url": format!("{}{route}", self.url)}));
         }
-        let repo = arcade_link::manifest::releases_url(id)
+        let repo = arcade_tools_core::apps::releases_url(id)
             .trim_start_matches("https://github.com/")
             .trim_end_matches("/releases");
         let endpoint = if channel == "stable" {
