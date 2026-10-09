@@ -3,13 +3,32 @@
 use arcade_link::manifest::{self, ids};
 
 pub const SHELF: &str = "arcade.shelf";
-pub const APPS: [&str; 6] = [ids::BOX, ids::LENS, ids::LOOK, ids::WHEEL, ids::CLIPBOARD, SHELF];
+pub const APPS: [&str; 6] = [
+    ids::BOX,
+    ids::LENS,
+    ids::LOOK,
+    ids::WHEEL,
+    ids::CLIPBOARD,
+    SHELF,
+];
 pub fn app_name(id: &str) -> &str {
-    if id == SHELF { "Arcade Shelf" } else { manifest::app_name(id) }
+    if id == SHELF {
+        "Arcade Shelf"
+    } else {
+        manifest::app_name(id)
+    }
 }
 pub fn app_pitch(id: &str) -> &'static str {
-    if id == SHELF { "Collect, organize and transfer desktop content." } else { manifest::app_pitch(id) }
+    if id == SHELF {
+        "Collect, organize and transfer desktop content."
+    } else {
+        manifest::app_pitch(id)
+    }
 }
 pub fn releases_url(id: &str) -> &'static str {
-    if id == SHELF { "https://github.com/qa-p1/Arcade-Shelf/releases" } else { manifest::releases_url(id) }
+    if id == SHELF {
+        "https://github.com/qa-p1/Arcade-Shelf/releases"
+    } else {
+        manifest::releases_url(id)
+    }
 }

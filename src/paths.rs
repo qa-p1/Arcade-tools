@@ -1,7 +1,7 @@
+use crate::apps::app_name;
 use crate::release::Os;
 use crate::{Error, Result};
 use arcade_link::manifest::ids;
-use crate::apps::app_name;
 use arcade_link::paths::Locations;
 use std::path::{Component, Path, PathBuf};
 
@@ -56,7 +56,11 @@ impl Paths {
     }
     pub fn install_root(&self, id: &str, os: Os, tarball: bool) -> PathBuf {
         match os {
-            Os::Linux if tarball => self.data.join(if id == crate::apps::SHELF { "arcade-shelf" } else { "arcade-clipboard" }),
+            Os::Linux if tarball => self.data.join(if id == crate::apps::SHELF {
+                "arcade-shelf"
+            } else {
+                "arcade-clipboard"
+            }),
             Os::Linux => self.home.join("Applications/Arcade"),
             Os::Windows => self.local.join("Programs").join(app_name(id)),
             Os::Macos => self
@@ -69,7 +73,11 @@ impl Paths {
         let root = self.install_root(id, os, tarball);
         let slug = id.replace('.', "-");
         match os {
-            Os::Linux if tarball => root.join(if id == crate::apps::SHELF { "arcade-shelf" } else { "clipboard" }),
+            Os::Linux if tarball => root.join(if id == crate::apps::SHELF {
+                "arcade-shelf"
+            } else {
+                "clipboard"
+            }),
             Os::Linux => root.join(format!("{}.AppImage", app_name(id).replace(' ', "-"))),
             Os::Windows => root.join(format!(
                 "{}.exe",
@@ -143,10 +151,14 @@ impl Paths {
     }
     pub fn autostart(&self, id: &str, os: Os) -> PathBuf {
         match os {
-            Os::Linux => self
-                .config
-                .join("autostart")
-                .join(format!("{}.desktop", if id == crate::apps::SHELF { id.to_string() } else { id.replace('.', "-") })),
+            Os::Linux => self.config.join("autostart").join(format!(
+                "{}.desktop",
+                if id == crate::apps::SHELF {
+                    id.to_string()
+                } else {
+                    id.replace('.', "-")
+                }
+            )),
             Os::Macos => self.home.join("Library/LaunchAgents").join(format!(
                 "{}.plist",
                 match id {
@@ -158,7 +170,15 @@ impl Paths {
             Os::Windows => self
                 .roaming
                 .join("Microsoft/Windows/Start Menu/Programs/Startup")
-                .join(format!("{}.{}", app_name(id), if id == crate::apps::SHELF { "vbs" } else { "cmd" })),
+                .join(format!(
+                    "{}.{}",
+                    app_name(id),
+                    if id == crate::apps::SHELF {
+                        "vbs"
+                    } else {
+                        "cmd"
+                    }
+                )),
         }
     }
     pub fn check_persistent_executable(&self, executable: &Path) -> Result<()> {
