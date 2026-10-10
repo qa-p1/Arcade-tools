@@ -61,7 +61,7 @@ shell; `python3 scripts/ui-size.py` checks it against a 17 KB uncompressed budge
 No update polling runs while idle. Registry changes arrive through a directory
 watch, and all discovery, network, IPC and installer work runs on worker threads.
 
-Arcade Link comes from its `v0.1.0` git tag. The isolated test runner
+Arcade Link comes from its `v0.2.0` git tag. The isolated test runner
 (`tools/e2e.py`) lives in the Link repository, so keep a checkout beside this
 one for the commands below:
 

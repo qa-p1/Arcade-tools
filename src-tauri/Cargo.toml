@@ -16,7 +16,7 @@ tauri-build = { version = "2.7", features = [] }
 [dependencies]
 arcade-tools-core = { path = ".." }
 # The same Arcade Link tag as ../Cargo.toml.
-arcade-link = { git = "https://github.com/qa-p1/Arcade-Link", tag = "v0.1.0", features = ["watch"] }
+arcade-link = { git = "https://github.com/qa-p1/Arcade-Link", tag = "v0.2.0", features = ["watch"] }
 tauri = { version = "2.12", features = [] }
 tauri-plugin-single-instance = "2.5"
 tauri-plugin-opener = "2.7"
