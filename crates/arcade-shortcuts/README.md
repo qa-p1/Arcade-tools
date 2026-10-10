@@ -32,7 +32,11 @@ optional missing modules to detect their creation.
 
 `SandboxOptions` supplies canonical read roots, environment overrides and VM
 limits without changing process environment variables. Defaults are 64 MiB
-of Lua memory, 50 million instructions, and a 100 ms evaluation deadline.
+of Lua memory and a primary limit of 50 million instructions. A configurable
+two-second wall-clock backstop allows scheduling delays on busy machines.
+Time aborts explicitly mark config labels incomplete in `wm.warnings`; merging
+with runtime binds preserves every active registration, even when evaluation
+only captures part of the config. Resident callers can schedule a delayed retry.
 Sources, file-handle data, descriptor traversal and recorded binds have
 separate Rust-side bounds. Module errors and top-level errors preserve prior
 binds with warnings. Limit aborts cannot be swallowed by Lua `pcall`/`xpcall`.
