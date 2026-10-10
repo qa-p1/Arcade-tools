@@ -1,0 +1,410 @@
+{
+  "schema": 1,
+  "id": "libreoffice-writer",
+  "name": "LibreOffice Writer",
+  "checkedVersion": "26.8",
+  "sources": [
+    "https://help.libreoffice.org/latest/en-US/text/swriter/04/01020000.html",
+    "https://help.libreoffice.org/latest/en-US/text/shared/04/01010000.html"
+  ],
+  "match": {
+    "linux": {
+      "class": [
+        "libreoffice-writer"
+      ]
+    },
+    "windows": {
+      "exe": [
+        "swriter.exe"
+      ]
+    }
+  },
+  "groups": [
+    {
+      "title": "Document",
+      "context": "document",
+      "shortcuts": [
+        {
+          "id": "new-document",
+          "title": "Create a new document",
+          "keys": {
+            "default": "Ctrl+N",
+            "macos": "Super+N"
+          }
+        },
+        {
+          "id": "open-document",
+          "title": "Open a document",
+          "keys": {
+            "default": "Ctrl+O",
+            "macos": "Super+O"
+          }
+        },
+        {
+          "id": "save-document",
+          "title": "Save the document",
+          "keys": {
+            "default": "Ctrl+S",
+            "macos": "Super+S"
+          }
+        },
+        {
+          "id": "save-as",
+          "title": "Save with a new name",
+          "keys": {
+            "default": "Ctrl+Shift+S",
+            "macos": "Shift+Super+S"
+          }
+        },
+        {
+          "id": "print",
+          "title": "Print the document",
+          "keys": {
+            "default": "Ctrl+P",
+            "macos": "Super+P"
+          }
+        },
+        {
+          "id": "close-document",
+          "title": "Close the document",
+          "keys": {
+            "default": "Ctrl+W",
+            "macos": "Super+W"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Edit text",
+      "context": "editing",
+      "shortcuts": [
+        {
+          "id": "undo",
+          "title": "Undo the last action",
+          "keys": {
+            "default": "Ctrl+Z",
+            "macos": "Super+Z"
+          }
+        },
+        {
+          "id": "redo",
+          "title": "Redo the last action",
+          "keys": {
+            "default": "Ctrl+Y",
+            "macos": "Shift+Super+Z"
+          }
+        },
+        {
+          "id": "cut",
+          "title": "Cut the selection",
+          "keys": {
+            "default": "Ctrl+X",
+            "macos": "Super+X"
+          }
+        },
+        {
+          "id": "copy",
+          "title": "Copy the selection",
+          "keys": {
+            "default": "Ctrl+C",
+            "macos": "Super+C"
+          }
+        },
+        {
+          "id": "paste",
+          "title": "Paste from the clipboard",
+          "keys": {
+            "default": "Ctrl+V",
+            "macos": "Super+V"
+          }
+        },
+        {
+          "id": "select-all",
+          "title": "Select all text",
+          "keys": {
+            "default": "Ctrl+A",
+            "macos": "Super+A"
+          }
+        },
+        {
+          "id": "find-replace",
+          "title": "Find and replace text",
+          "keys": {
+            "default": "Ctrl+H",
+            "macos": "Super+H"
+          }
+        },
+        {
+          "id": "delete-word-left",
+          "title": "Delete the previous word",
+          "keys": {
+            "default": "Ctrl+Backspace",
+            "macos": "Alt+Backspace"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Format text",
+      "context": "formatting",
+      "shortcuts": [
+        {
+          "id": "bold",
+          "title": "Apply bold formatting",
+          "keys": {
+            "default": "Ctrl+B",
+            "macos": "Super+B"
+          }
+        },
+        {
+          "id": "italic",
+          "title": "Apply italic formatting",
+          "keys": {
+            "default": "Ctrl+I",
+            "macos": "Super+I"
+          }
+        },
+        {
+          "id": "underline",
+          "title": "Apply underline formatting",
+          "keys": {
+            "default": "Ctrl+U",
+            "macos": "Super+U"
+          }
+        },
+        {
+          "id": "align-left",
+          "title": "Align the paragraph left",
+          "keys": {
+            "default": "Ctrl+L",
+            "macos": "Super+L"
+          }
+        },
+        {
+          "id": "align-center",
+          "title": "Center the paragraph",
+          "keys": {
+            "default": "Ctrl+E",
+            "macos": "Super+E"
+          }
+        },
+        {
+          "id": "align-right",
+          "title": "Align the paragraph right",
+          "keys": {
+            "default": "Ctrl+R",
+            "macos": "Super+R"
+          }
+        },
+        {
+          "id": "align-justify",
+          "title": "Justify the paragraph",
+          "keys": {
+            "default": "Ctrl+J",
+            "macos": "Super+J"
+          }
+        },
+        {
+          "id": "superscript",
+          "title": "Apply superscript",
+          "keys": {
+            "default": "Ctrl+Shift+P",
+            "macos": "Shift+Super+P"
+          }
+        },
+        {
+          "id": "subscript",
+          "title": "Apply subscript",
+          "keys": {
+            "default": "Ctrl+Shift+B",
+            "macos": "Shift+Super+B"
+          }
+        },
+        {
+          "id": "body-text-style",
+          "title": "Apply the Body Text style",
+          "keys": {
+            "default": "Ctrl+0",
+            "macos": "Super+0"
+          }
+        },
+        {
+          "id": "heading-1",
+          "title": "Apply Heading 1 style",
+          "keys": {
+            "default": "Ctrl+1",
+            "macos": "Super+1"
+          }
+        },
+        {
+          "id": "heading-2",
+          "title": "Apply Heading 2 style",
+          "keys": {
+            "default": "Ctrl+2",
+            "macos": "Super+2"
+          }
+        },
+        {
+          "id": "heading-3",
+          "title": "Apply Heading 3 style",
+          "keys": {
+            "default": "Ctrl+3",
+            "macos": "Super+3"
+          }
+        },
+        {
+          "id": "heading-4",
+          "title": "Apply Heading 4 style",
+          "keys": {
+            "default": "Ctrl+4",
+            "macos": "Super+4"
+          }
+        },
+        {
+          "id": "heading-5",
+          "title": "Apply Heading 5 style",
+          "keys": {
+            "default": "Ctrl+5",
+            "macos": "Super+5"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Navigate and review",
+      "context": "navigation",
+      "shortcuts": [
+        {
+          "id": "navigator",
+          "title": "Show or hide the Navigator",
+          "keys": {
+            "default": "F5"
+          }
+        },
+        {
+          "id": "spelling",
+          "title": "Check spelling",
+          "keys": {
+            "default": "F7"
+          }
+        },
+        {
+          "id": "document-start",
+          "title": "Move to the start of the document",
+          "keys": {
+            "default": "Ctrl+Home",
+            "macos": "Super+Home"
+          }
+        },
+        {
+          "id": "document-end",
+          "title": "Move to the end of the document",
+          "keys": {
+            "default": "Ctrl+End",
+            "macos": "Super+End"
+          }
+        },
+        {
+          "id": "previous-word",
+          "title": "Move to the previous word",
+          "keys": {
+            "default": "Ctrl+Left",
+            "macos": "Alt+Left"
+          }
+        },
+        {
+          "id": "next-word",
+          "title": "Move to the next word",
+          "keys": {
+            "default": "Ctrl+Right",
+            "macos": "Alt+Right"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Insert and list",
+      "context": "insert",
+      "shortcuts": [
+        {
+          "id": "insert-field",
+          "title": "Insert a field",
+          "keys": {
+            "default": "Ctrl+F2",
+            "macos": "Super+F2"
+          }
+        },
+        {
+          "id": "insert-table",
+          "title": "Insert or edit a table",
+          "keys": {
+            "default": "Ctrl+F12",
+            "macos": "Super+F12"
+          }
+        },
+        {
+          "id": "line-break",
+          "title": "Insert a line break",
+          "keys": {
+            "default": "Shift+Enter",
+            "macos": "Shift+Enter"
+          }
+        },
+        {
+          "id": "page-break",
+          "title": "Insert a manual page break",
+          "keys": {
+            "default": "Ctrl+Enter",
+            "macos": "Super+Enter"
+          }
+        },
+        {
+          "id": "column-break",
+          "title": "Insert a column break",
+          "keys": {
+            "default": "Ctrl+Shift+Enter",
+            "macos": "Shift+Super+Enter"
+          }
+        },
+        {
+          "id": "ordered-list",
+          "title": "Toggle an ordered list",
+          "keys": {
+            "default": "F12",
+            "macos": "F12"
+          }
+        },
+        {
+          "id": "unordered-list",
+          "title": "Toggle an unordered list",
+          "keys": {
+            "default": "Shift+F12",
+            "macos": "Shift+F12"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Display",
+      "context": "view",
+      "shortcuts": [
+        {
+          "id": "nonprinting-characters",
+          "title": "Show or hide nonprinting characters",
+          "keys": {
+            "default": "Ctrl+F10",
+            "macos": "Super+F10"
+          }
+        },
+        {
+          "id": "update-fields",
+          "title": "Update fields",
+          "keys": {
+            "default": "F9",
+            "macos": "F9"
+          }
+        }
+      ]
+    }
+  ]
+}

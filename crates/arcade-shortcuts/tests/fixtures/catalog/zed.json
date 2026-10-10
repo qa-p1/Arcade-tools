@@ -1,0 +1,326 @@
+{
+  "schema": 1,
+  "id": "zed",
+  "name": "Zed",
+  "checkedVersion": "1.20.2",
+  "sources": [
+    "https://zed.dev/docs/key-bindings",
+    "https://raw.githubusercontent.com/zed-industries/zed/v1.20.2/assets/keymaps/default-linux.json",
+    "https://raw.githubusercontent.com/zed-industries/zed/v1.20.2/assets/keymaps/default-windows.json",
+    "https://raw.githubusercontent.com/zed-industries/zed/v1.20.2/assets/keymaps/default-macos.json",
+    "https://github.com/zed-industries/zed/releases/tag/v1.20.2"
+  ],
+  "match": {
+    "linux": {
+      "class": [
+        "dev.zed.Zed"
+      ]
+    },
+    "windows": {
+      "exe": [
+        "zed.exe"
+      ]
+    },
+    "macos": {
+      "bundle": [
+        "dev.zed.Zed"
+      ]
+    }
+  },
+  "groups": [
+    {
+      "title": "Editor",
+      "context": "editor",
+      "shortcuts": [
+        {
+          "id": "save",
+          "title": "Save the current file",
+          "keys": {
+            "default": "Ctrl+S",
+            "macos": "Super+S"
+          }
+        },
+        {
+          "id": "undo",
+          "title": "Undo the last edit",
+          "keys": {
+            "default": "Ctrl+Z",
+            "macos": "Super+Z"
+          }
+        },
+        {
+          "id": "redo",
+          "title": "Redo the last edit",
+          "keys": {
+            "default": "Ctrl+Shift+Z",
+            "macos": "Shift+Super+Z"
+          }
+        },
+        {
+          "id": "format",
+          "title": "Format the current file",
+          "keys": {
+            "default": "Ctrl+Shift+I",
+            "macos": "Shift+Super+I"
+          }
+        },
+        {
+          "id": "toggle-comments",
+          "title": "Toggle line comments",
+          "keys": {
+            "default": "Ctrl+Slash",
+            "macos": "Super+Slash"
+          }
+        },
+        {
+          "id": "select-next-match",
+          "title": "Select the next matching occurrence",
+          "keys": {
+            "default": "Ctrl+D",
+            "macos": "Super+D"
+          }
+        },
+        {
+          "id": "rename",
+          "title": "Rename the symbol",
+          "keys": {
+            "default": "F2",
+            "macos": "F2"
+          }
+        },
+        {
+          "id": "go-to-definition",
+          "title": "Go to the definition",
+          "keys": {
+            "default": "F12",
+            "macos": "F12"
+          }
+        },
+        {
+          "id": "show-hover",
+          "title": "Show hover information",
+          "keys": {
+            "default": "Ctrl+K Ctrl+I",
+            "macos": "Super+K Super+I"
+          }
+        },
+        {
+          "id": "completions",
+          "title": "Show completions",
+          "keys": {
+            "default": "Ctrl+Space",
+            "macos": "Ctrl+Space"
+          }
+        },
+        {
+          "id": "code-actions",
+          "title": "Show code actions",
+          "keys": {
+            "default": "Ctrl+Period",
+            "macos": "Super+Period"
+          }
+        },
+        {
+          "id": "move-line-up",
+          "title": "Move the current line up",
+          "keys": {
+            "default": "Alt+Up",
+            "macos": "Alt+Up"
+          }
+        },
+        {
+          "id": "move-line-down",
+          "title": "Move the current line down",
+          "keys": {
+            "default": "Alt+Down",
+            "macos": "Alt+Down"
+          }
+        },
+        {
+          "id": "delete-line",
+          "title": "Delete the current line",
+          "keys": {
+            "default": "Ctrl+Shift+K",
+            "macos": "Shift+Super+K"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Find",
+      "context": "search",
+      "shortcuts": [
+        {
+          "id": "find",
+          "title": "Find in the current file",
+          "keys": {
+            "default": "Ctrl+F",
+            "macos": "Super+F"
+          }
+        },
+        {
+          "id": "replace",
+          "title": "Replace in the current file",
+          "keys": {
+            "default": "Ctrl+H",
+            "macos": "Alt+Super+F"
+          }
+        },
+        {
+          "id": "find-next",
+          "title": "Go to the next match",
+          "keys": {
+            "default": "F3",
+            "macos": "Super+G"
+          }
+        },
+        {
+          "id": "find-previous",
+          "title": "Go to the previous match",
+          "keys": {
+            "default": "Shift+F3",
+            "macos": "Shift+Super+G"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Files and commands",
+      "context": "workspace",
+      "shortcuts": [
+        {
+          "id": "file-finder",
+          "title": "Find a file by name",
+          "keys": {
+            "default": "Ctrl+P",
+            "macos": "Super+P"
+          }
+        },
+        {
+          "id": "project-symbols",
+          "title": "Search project symbols",
+          "keys": {
+            "default": "Ctrl+T",
+            "macos": "Super+T"
+          }
+        },
+        {
+          "id": "command-palette",
+          "title": "Open the command palette",
+          "keys": {
+            "default": [
+              "Ctrl+Shift+P",
+              "F1"
+            ],
+            "macos": "Shift+Super+P"
+          }
+        },
+        {
+          "id": "new-file",
+          "title": "Create a new file",
+          "keys": {
+            "default": "Ctrl+N",
+            "macos": "Super+N"
+          }
+        },
+        {
+          "id": "new-window",
+          "title": "Open a new window",
+          "keys": {
+            "default": "Ctrl+Shift+N",
+            "macos": "Shift+Super+N"
+          }
+        },
+        {
+          "id": "settings",
+          "title": "Open Settings",
+          "keys": {
+            "default": "Ctrl+Comma",
+            "macos": "Super+Comma"
+          }
+        },
+        {
+          "id": "project-panel",
+          "title": "Focus the project panel",
+          "keys": {
+            "default": "Ctrl+Shift+E",
+            "macos": "Shift+Super+E"
+          }
+        },
+        {
+          "id": "git-panel",
+          "title": "Focus the Git panel",
+          "keys": {
+            "default": "Ctrl+Shift+G",
+            "macos": "Ctrl+Shift+G"
+          }
+        },
+        {
+          "id": "extensions",
+          "title": "Open Extensions",
+          "keys": {
+            "default": "Ctrl+Shift+X",
+            "macos": "Shift+Super+X"
+          }
+        },
+        {
+          "id": "project-search",
+          "title": "Search across the project",
+          "keys": {
+            "default": "Ctrl+Shift+F",
+            "macos": "Shift+Super+F"
+          }
+        },
+        {
+          "id": "terminal",
+          "title": "Toggle the terminal panel",
+          "keys": {
+            "default": "Ctrl+Backquote",
+            "macos": "Ctrl+Backquote"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Tabs",
+      "context": "tabs",
+      "shortcuts": [
+        {
+          "id": "next-tab",
+          "title": "Switch to the next tab",
+          "keys": {
+            "default": "Ctrl+Tab",
+            "macos": "Ctrl+Tab"
+          }
+        },
+        {
+          "id": "previous-tab",
+          "title": "Switch to the previous tab",
+          "keys": {
+            "default": "Ctrl+Shift+Tab",
+            "macos": "Ctrl+Shift+Tab"
+          }
+        },
+        {
+          "id": "reopen-tab",
+          "title": "Reopen the last closed tab",
+          "keys": {
+            "default": "Ctrl+Shift+T",
+            "macos": "Shift+Super+T"
+          }
+        },
+        {
+          "id": "close-tab",
+          "title": "Close the active tab",
+          "keys": {
+            "default": [
+              "Ctrl+W",
+              "Ctrl+F4"
+            ],
+            "macos": "Super+W"
+          }
+        }
+      ]
+    }
+  ]
+}

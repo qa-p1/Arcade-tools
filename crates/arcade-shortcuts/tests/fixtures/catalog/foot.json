@@ -1,0 +1,321 @@
+{
+  "schema": 1,
+  "id": "foot",
+  "name": "foot",
+  "checkedVersion": "1.27.0",
+  "sources": [
+    "https://manpages.debian.org/testing/foot/foot.ini.5.en.html"
+  ],
+  "match": {
+    "linux": {
+      "class": [
+        "foot",
+        "footclient"
+      ]
+    }
+  },
+  "groups": [
+    {
+      "title": "Terminal controls",
+      "context": "terminal",
+      "shortcuts": [
+        {
+          "id": "copy",
+          "title": "Copy the selection",
+          "keys": {
+            "default": "Ctrl+Shift+C"
+          }
+        },
+        {
+          "id": "paste",
+          "title": "Paste from the clipboard",
+          "keys": {
+            "default": "Ctrl+Shift+V"
+          }
+        },
+        {
+          "id": "paste-selection",
+          "title": "Paste from the primary selection",
+          "keys": {
+            "default": "Shift+Insert"
+          }
+        },
+        {
+          "id": "search-history",
+          "title": "Search terminal history",
+          "keys": {
+            "default": "Ctrl+Shift+R"
+          }
+        },
+        {
+          "id": "spawn-terminal",
+          "title": "Open a new terminal",
+          "keys": {
+            "default": "Ctrl+Shift+N"
+          }
+        },
+        {
+          "id": "open-url-mode",
+          "title": "Enter URL selection mode",
+          "keys": {
+            "default": "Ctrl+Shift+O"
+          }
+        },
+        {
+          "id": "previous-prompt",
+          "title": "Jump to the previous prompt",
+          "keys": {
+            "default": "Ctrl+Shift+Z"
+          },
+          "description": "Requires shell integration."
+        },
+        {
+          "id": "next-prompt",
+          "title": "Jump to the next prompt",
+          "keys": {
+            "default": "Ctrl+Shift+X"
+          },
+          "description": "Requires shell integration."
+        },
+        {
+          "id": "unicode-input",
+          "title": "Enter a Unicode character",
+          "keys": {
+            "default": "Ctrl+Shift+U"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Scrollback",
+      "context": "scrollback",
+      "shortcuts": [
+        {
+          "id": "page-up",
+          "title": "Scroll back one page",
+          "keys": {
+            "default": "Shift+PageUp"
+          }
+        },
+        {
+          "id": "page-down",
+          "title": "Scroll forward one page",
+          "keys": {
+            "default": "Shift+PageDown"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Font size",
+      "context": "font",
+      "shortcuts": [
+        {
+          "id": "font-increase",
+          "title": "Increase font size",
+          "keys": {
+            "default": [
+              "Ctrl+Equal",
+              "Ctrl+Shift+Equal",
+              "Ctrl+NumpadAdd"
+            ]
+          }
+        },
+        {
+          "id": "font-decrease",
+          "title": "Decrease font size",
+          "keys": {
+            "default": [
+              "Ctrl+Minus",
+              "Ctrl+NumpadSubtract"
+            ]
+          }
+        },
+        {
+          "id": "font-reset",
+          "title": "Reset font size",
+          "keys": {
+            "default": [
+              "Ctrl+0",
+              "Ctrl+Numpad0"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "title": "Search controls",
+      "context": "search",
+      "shortcuts": [
+        {
+          "id": "cancel-search",
+          "title": "Exit history search",
+          "keys": {
+            "default": [
+              "Escape",
+              "Ctrl+C",
+              "Ctrl+G"
+            ]
+          }
+        },
+        {
+          "id": "commit-search",
+          "title": "Finish history search",
+          "keys": {
+            "default": "Enter"
+          }
+        },
+        {
+          "id": "find-previous",
+          "title": "Find the previous match",
+          "keys": {
+            "default": "Ctrl+R"
+          }
+        },
+        {
+          "id": "find-next",
+          "title": "Find the next match",
+          "keys": {
+            "default": "Ctrl+S"
+          }
+        },
+        {
+          "id": "cursor-left",
+          "title": "Move left in the search field",
+          "keys": {
+            "default": [
+              "Left",
+              "Ctrl+B"
+            ]
+          }
+        },
+        {
+          "id": "cursor-right",
+          "title": "Move right in the search field",
+          "keys": {
+            "default": [
+              "Right",
+              "Ctrl+F"
+            ]
+          }
+        },
+        {
+          "id": "cursor-left-word",
+          "title": "Move left one word",
+          "keys": {
+            "default": [
+              "Ctrl+Left",
+              "Alt+B"
+            ]
+          }
+        },
+        {
+          "id": "cursor-right-word",
+          "title": "Move right one word",
+          "keys": {
+            "default": [
+              "Ctrl+Right",
+              "Alt+F"
+            ]
+          }
+        },
+        {
+          "id": "cursor-home",
+          "title": "Move to the start of the search text",
+          "keys": {
+            "default": [
+              "Home",
+              "Ctrl+A"
+            ]
+          }
+        },
+        {
+          "id": "cursor-end",
+          "title": "Move to the end of the search text",
+          "keys": {
+            "default": [
+              "End",
+              "Ctrl+E"
+            ]
+          }
+        },
+        {
+          "id": "delete-previous",
+          "title": "Delete the previous character",
+          "keys": {
+            "default": "Backspace"
+          }
+        },
+        {
+          "id": "delete-previous-word",
+          "title": "Delete the previous word",
+          "keys": {
+            "default": [
+              "Alt+Backspace",
+              "Ctrl+Backspace"
+            ]
+          }
+        },
+        {
+          "id": "delete-next",
+          "title": "Delete the next character",
+          "keys": {
+            "default": "Delete"
+          }
+        },
+        {
+          "id": "delete-next-word",
+          "title": "Delete the next word",
+          "keys": {
+            "default": [
+              "Alt+D",
+              "Ctrl+Delete"
+            ]
+          }
+        },
+        {
+          "id": "delete-to-start",
+          "title": "Delete search text before the cursor",
+          "keys": {
+            "default": "Ctrl+U"
+          }
+        },
+        {
+          "id": "delete-to-end",
+          "title": "Delete search text after the cursor",
+          "keys": {
+            "default": "Ctrl+K"
+          }
+        },
+        {
+          "id": "extend-right",
+          "title": "Extend the selection to the right",
+          "keys": {
+            "default": "Shift+Right"
+          }
+        },
+        {
+          "id": "extend-left",
+          "title": "Extend the selection to the left",
+          "keys": {
+            "default": "Shift+Left"
+          }
+        },
+        {
+          "id": "extend-down",
+          "title": "Extend the selection down one line",
+          "keys": {
+            "default": "Shift+Down"
+          }
+        },
+        {
+          "id": "extend-up",
+          "title": "Extend the selection up one line",
+          "keys": {
+            "default": "Shift+Up"
+          }
+        }
+      ]
+    }
+  ]
+}

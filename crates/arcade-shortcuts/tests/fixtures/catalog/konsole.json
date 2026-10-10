@@ -1,0 +1,274 @@
+{
+  "schema": 1,
+  "id": "konsole",
+  "name": "Konsole",
+  "checkedVersion": "26.08.2",
+  "sources": [
+    "https://docs.kde.org/trunk_kf6/en/konsole/konsole/commandreference.html",
+    "https://apps.kde.org/konsole/"
+  ],
+  "match": {
+    "linux": {
+      "class": [
+        "org.kde.konsole",
+        "konsole"
+      ]
+    }
+  },
+  "groups": [
+    {
+      "title": "Tabs and windows",
+      "context": "tabs",
+      "shortcuts": [
+        {
+          "id": "new-window",
+          "title": "Open a new window",
+          "keys": {
+            "default": "Ctrl+Shift+N"
+          }
+        },
+        {
+          "id": "new-tab",
+          "title": "Open a new tab",
+          "keys": {
+            "default": "Ctrl+Shift+T"
+          }
+        },
+        {
+          "id": "close-session",
+          "title": "Close the current session",
+          "keys": {
+            "default": "Ctrl+Shift+W"
+          }
+        },
+        {
+          "id": "close-window",
+          "title": "Close the window",
+          "keys": {
+            "default": "Ctrl+Shift+Q"
+          }
+        },
+        {
+          "id": "next-tab",
+          "title": "Switch to the next tab",
+          "keys": {
+            "default": "Shift+Right"
+          }
+        },
+        {
+          "id": "previous-tab",
+          "title": "Switch to the previous tab",
+          "keys": {
+            "default": "Shift+Left"
+          }
+        },
+        {
+          "id": "move-tab-left",
+          "title": "Move the tab left",
+          "keys": {
+            "default": "Ctrl+Alt+Left"
+          }
+        },
+        {
+          "id": "move-tab-right",
+          "title": "Move the tab right",
+          "keys": {
+            "default": "Ctrl+Alt+Right"
+          }
+        },
+        {
+          "id": "detach-tab",
+          "title": "Open the current tab in a new window",
+          "keys": {
+            "default": "Ctrl+Shift+L"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Terminal",
+      "context": "terminal",
+      "shortcuts": [
+        {
+          "id": "copy",
+          "title": "Copy the selection",
+          "keys": {
+            "default": "Ctrl+Shift+C"
+          }
+        },
+        {
+          "id": "paste",
+          "title": "Paste from the clipboard",
+          "keys": {
+            "default": "Ctrl+Shift+V"
+          }
+        },
+        {
+          "id": "paste-selection",
+          "title": "Paste the primary selection",
+          "keys": {
+            "default": "Ctrl+Shift+Insert"
+          }
+        },
+        {
+          "id": "save-output",
+          "title": "Save the scrollback to a file",
+          "keys": {
+            "default": "Ctrl+Shift+S"
+          }
+        },
+        {
+          "id": "print-screen",
+          "title": "Print the current screen",
+          "keys": {
+            "default": "Ctrl+Shift+P"
+          }
+        },
+        {
+          "id": "clear-scrollback",
+          "title": "Clear the scrollback and reset",
+          "keys": {
+            "default": "Ctrl+Shift+K"
+          }
+        },
+        {
+          "id": "copy-input-none",
+          "title": "Stop broadcasting input to other tabs",
+          "keys": {
+            "default": "Ctrl+Shift+Slash"
+          }
+        },
+        {
+          "id": "copy-input-select-tabs",
+          "title": "Choose tabs to receive input",
+          "keys": {
+            "default": "Ctrl+Shift+Period"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Search",
+      "context": "search",
+      "shortcuts": [
+        {
+          "id": "find",
+          "title": "Search terminal output",
+          "keys": {
+            "default": "Ctrl+Shift+F"
+          }
+        },
+        {
+          "id": "find-next",
+          "title": "Find the next match",
+          "keys": {
+            "default": "F3"
+          }
+        },
+        {
+          "id": "find-previous",
+          "title": "Find the previous match",
+          "keys": {
+            "default": "Shift+F3"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Views and appearance",
+      "context": "appearance",
+      "shortcuts": [
+        {
+          "id": "show-menubar",
+          "title": "Show or hide the menu bar",
+          "keys": {
+            "default": "Ctrl+Shift+M"
+          }
+        },
+        {
+          "id": "font-increase",
+          "title": "Increase the font size",
+          "keys": {
+            "default": "Ctrl+Shift+Equal"
+          }
+        },
+        {
+          "id": "font-decrease",
+          "title": "Decrease the font size",
+          "keys": {
+            "default": "Ctrl+Minus"
+          }
+        },
+        {
+          "id": "font-reset",
+          "title": "Reset the font size",
+          "keys": {
+            "default": "Ctrl+0"
+          }
+        },
+        {
+          "id": "full-screen",
+          "title": "Toggle full-screen mode",
+          "keys": {
+            "default": "F11"
+          }
+        },
+        {
+          "id": "split-expand",
+          "title": "Expand the current split view",
+          "keys": {
+            "default": "Ctrl+Shift+BracketRight"
+          }
+        },
+        {
+          "id": "split-shrink",
+          "title": "Shrink the current split view",
+          "keys": {
+            "default": "Ctrl+Shift+BracketLeft"
+          }
+        },
+        {
+          "id": "split-maximize",
+          "title": "Maximize the current split view",
+          "keys": {
+            "default": "Ctrl+Shift+E"
+          }
+        },
+        {
+          "id": "equal-splits",
+          "title": "Equalize split view sizes",
+          "keys": {
+            "default": "Ctrl+Shift+Backslash"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Monitoring",
+      "context": "monitoring",
+      "shortcuts": [
+        {
+          "id": "monitor-prompt",
+          "title": "Notify when the shell prompt appears",
+          "keys": {
+            "default": "Ctrl+Shift+R"
+          }
+        },
+        {
+          "id": "monitor-silence",
+          "title": "Notify when the session is silent",
+          "keys": {
+            "default": "Ctrl+Shift+I"
+          }
+        },
+        {
+          "id": "monitor-activity",
+          "title": "Notify when the session has activity",
+          "keys": {
+            "default": "Ctrl+Shift+A"
+          }
+        }
+      ]
+    }
+  ]
+}

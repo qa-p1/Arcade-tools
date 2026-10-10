@@ -1,0 +1,8 @@
+{
+  "schema":1,"id":"arcade.find","name":"Arcade Find","executable":"/opt/arcade/arcade-find",
+  "shortcuts":[
+    {"id":"toggle","accelerator":"Ctrl+Alt+F"},
+    {"id":"prefix","accelerator":{"default":"Ctrl+K","macos":"Super+K"}}
+  ],
+  "futureManifestField":{"ignored":true}
+}

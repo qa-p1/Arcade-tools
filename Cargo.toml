@@ -7,7 +7,7 @@ license = "MIT"
 description = "Verified per-user installation and lifecycle management for the Arcade apps"
 
 [workspace]
-members = [".", "src-tauri"]
+members = [".", "src-tauri", "crates/arcade-shortcuts"]
 default-members = [".", "src-tauri"]
 resolver = "2"
 

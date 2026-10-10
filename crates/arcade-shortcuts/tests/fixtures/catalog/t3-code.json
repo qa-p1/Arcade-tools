@@ -1,0 +1,388 @@
+{
+  "schema": 1,
+  "id": "t3-code",
+  "name": "T3 Code",
+  "checkedVersion": "0.0.46-nightly.20261010.2935",
+  "sources": [
+    "https://github.com/pingdotgg/t3code/blob/main/docs/user/keybindings.md",
+    "https://github.com/pingdotgg/t3code/blob/main/apps/desktop/scripts/electron-launcher.mjs",
+    "https://github.com/pingdotgg/t3code/blob/main/docs/operations/release.md"
+  ],
+  "match": {
+    "linux": {
+      "class": [
+        "com.t3tools.T3Code"
+      ]
+    },
+    "windows": {
+      "exe": [
+        "T3 Code (Alpha).exe"
+      ]
+    },
+    "macos": {
+      "bundle": [
+        "com.t3tools.t3code"
+      ]
+    }
+  },
+  "groups": [
+    {
+      "title": "Navigation and panels",
+      "context": "navigation",
+      "shortcuts": [
+        {
+          "id": "toggle-sidebar",
+          "title": "Toggle the sidebar",
+          "keys": {
+            "default": "Ctrl+B",
+            "macos": "Super+B"
+          }
+        },
+        {
+          "id": "navigate-back",
+          "title": "Go back in navigation history",
+          "keys": {
+            "default": "Ctrl+BracketLeft",
+            "macos": "Super+BracketLeft"
+          }
+        },
+        {
+          "id": "navigate-forward",
+          "title": "Go forward in navigation history",
+          "keys": {
+            "default": "Ctrl+BracketRight",
+            "macos": "Super+BracketRight"
+          }
+        },
+        {
+          "id": "toggle-right-panel",
+          "title": "Toggle the right panel",
+          "keys": {
+            "default": "Ctrl+Alt+B",
+            "macos": "Alt+Super+B"
+          }
+        },
+        {
+          "id": "toggle-thread-panel",
+          "title": "Toggle the thread panel",
+          "keys": {
+            "default": "Ctrl+Shift+B",
+            "macos": "Shift+Super+B"
+          }
+        },
+        {
+          "id": "command-palette",
+          "title": "Open the command palette",
+          "keys": {
+            "default": "Ctrl+K",
+            "macos": "Super+K"
+          }
+        },
+        {
+          "id": "file-picker",
+          "title": "Open the file picker",
+          "keys": {
+            "default": "Ctrl+P",
+            "macos": "Super+P"
+          }
+        },
+        {
+          "id": "project-search",
+          "title": "Search the project",
+          "keys": {
+            "default": "Ctrl+Shift+F",
+            "macos": "Shift+Super+F"
+          }
+        },
+        {
+          "id": "toggle-diff",
+          "title": "Toggle the diff view",
+          "keys": {
+            "default": "Ctrl+D",
+            "macos": "Super+D"
+          }
+        },
+        {
+          "id": "toggle-preview",
+          "title": "Toggle preview",
+          "keys": {
+            "default": "Ctrl+Shift+J",
+            "macos": "Shift+Super+J"
+          }
+        },
+        {
+          "id": "new-right-panel-view",
+          "title": "Open a new right-panel view",
+          "keys": {
+            "default": "Ctrl+T",
+            "macos": "Super+T"
+          }
+        },
+        {
+          "id": "reopen-closed-view",
+          "title": "Reopen the last closed view",
+          "keys": {
+            "default": "Ctrl+Shift+T",
+            "macos": "Shift+Super+T"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Threads",
+      "context": "threads",
+      "shortcuts": [
+        {
+          "id": "new-thread",
+          "title": "Start a new thread",
+          "keys": {
+            "default": "Ctrl+N",
+            "macos": "Super+N"
+          }
+        },
+        {
+          "id": "new-local-thread",
+          "title": "Start a local thread",
+          "keys": {
+            "default": "Ctrl+Shift+N",
+            "macos": "Shift+Super+N"
+          }
+        },
+        {
+          "id": "new-thread-without-project",
+          "title": "Start a thread without a project",
+          "keys": {
+            "default": "Ctrl+Alt+N",
+            "macos": "Alt+Super+N"
+          }
+        },
+        {
+          "id": "previous-thread",
+          "title": "Open the previous thread",
+          "keys": {
+            "default": "Ctrl+Shift+BracketLeft",
+            "macos": "Shift+Super+BracketLeft"
+          }
+        },
+        {
+          "id": "next-thread",
+          "title": "Open the next thread",
+          "keys": {
+            "default": "Ctrl+Shift+BracketRight",
+            "macos": "Shift+Super+BracketRight"
+          }
+        },
+        {
+          "id": "jump-thread-1",
+          "title": "Jump to thread 1",
+          "keys": {
+            "default": "Ctrl+1",
+            "macos": "Super+1"
+          }
+        },
+        {
+          "id": "jump-thread-2",
+          "title": "Jump to thread 2",
+          "keys": {
+            "default": "Ctrl+2",
+            "macos": "Super+2"
+          }
+        },
+        {
+          "id": "jump-thread-3",
+          "title": "Jump to thread 3",
+          "keys": {
+            "default": "Ctrl+3",
+            "macos": "Super+3"
+          }
+        },
+        {
+          "id": "jump-thread-4",
+          "title": "Jump to thread 4",
+          "keys": {
+            "default": "Ctrl+4",
+            "macos": "Super+4"
+          }
+        },
+        {
+          "id": "jump-thread-5",
+          "title": "Jump to thread 5",
+          "keys": {
+            "default": "Ctrl+5",
+            "macos": "Super+5"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Terminal",
+      "context": "terminal",
+      "shortcuts": [
+        {
+          "id": "toggle-terminal",
+          "title": "Toggle the terminal panel",
+          "keys": {
+            "default": "Ctrl+J",
+            "macos": "Super+J"
+          }
+        },
+        {
+          "id": "new-terminal",
+          "title": "Open a terminal",
+          "keys": {
+            "default": "Ctrl+N",
+            "macos": "Super+N"
+          }
+        },
+        {
+          "id": "split-terminal",
+          "title": "Split the terminal",
+          "keys": {
+            "default": "Ctrl+D",
+            "macos": "Super+D"
+          }
+        },
+        {
+          "id": "split-terminal-vertical",
+          "title": "Split the terminal vertically",
+          "keys": {
+            "default": "Ctrl+Shift+D",
+            "macos": "Shift+Super+D"
+          }
+        },
+        {
+          "id": "close-terminal",
+          "title": "Close the terminal",
+          "keys": {
+            "default": "Ctrl+W",
+            "macos": "Super+W"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Code review and thread",
+      "context": "thread-actions",
+      "shortcuts": [
+        {
+          "id": "stash-composer",
+          "title": "Stash the composer draft",
+          "keys": {
+            "default": "Ctrl+S",
+            "macos": "Super+S"
+          }
+        },
+        {
+          "id": "settle-thread",
+          "title": "Settle the thread",
+          "keys": {
+            "default": "Ctrl+Shift+S",
+            "macos": "Shift+Super+S"
+          }
+        },
+        {
+          "id": "pin-thread",
+          "title": "Pin the thread",
+          "keys": {
+            "default": "Ctrl+Shift+P",
+            "macos": "Shift+Super+P"
+          }
+        },
+        {
+          "id": "copy-pr-url",
+          "title": "Copy the pull request URL",
+          "keys": {
+            "default": "Ctrl+Shift+C",
+            "macos": "Shift+Super+C"
+          }
+        },
+        {
+          "id": "copy-pr-number",
+          "title": "Copy the pull request number",
+          "keys": {
+            "default": "Ctrl+Shift+K",
+            "macos": "Shift+Super+K"
+          }
+        },
+        {
+          "id": "undo-action",
+          "title": "Undo the last action",
+          "keys": {
+            "default": "Ctrl+Z",
+            "macos": "Super+Z"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Pickers",
+      "context": "picker",
+      "shortcuts": [
+        {
+          "id": "model-picker",
+          "title": "Open the model picker",
+          "keys": {
+            "default": "Ctrl+Shift+M",
+            "macos": "Shift+Super+M"
+          }
+        },
+        {
+          "id": "effort-picker",
+          "title": "Open the effort picker",
+          "keys": {
+            "default": "Ctrl+Shift+E",
+            "macos": "Shift+Super+E"
+          }
+        },
+        {
+          "id": "access-mode-picker",
+          "title": "Open the access mode picker",
+          "keys": {
+            "default": "Ctrl+Shift+A",
+            "macos": "Shift+Super+A"
+          }
+        },
+        {
+          "id": "workspace-picker",
+          "title": "Open the workspace picker",
+          "keys": {
+            "default": "Ctrl+Shift+X",
+            "macos": "Shift+Super+X"
+          }
+        },
+        {
+          "id": "git-branch-picker",
+          "title": "Open the Git branch picker",
+          "keys": {
+            "default": "Ctrl+Shift+G",
+            "macos": "Shift+Super+G"
+          }
+        },
+        {
+          "id": "theme-picker",
+          "title": "Open the theme picker",
+          "keys": {
+            "default": "Ctrl+Alt+A",
+            "macos": "Alt+Super+A"
+          }
+        },
+        {
+          "id": "cycle-appearance",
+          "title": "Cycle the appearance",
+          "keys": {
+            "default": "Ctrl+Alt+Shift+A",
+            "macos": "Alt+Shift+Super+A"
+          }
+        },
+        {
+          "id": "theme-editor",
+          "title": "Toggle the theme editor",
+          "keys": {
+            "default": "Ctrl+Alt+Shift+T",
+            "macos": "Alt+Shift+Super+T"
+          }
+        }
+      ]
+    }
+  ]
+}
