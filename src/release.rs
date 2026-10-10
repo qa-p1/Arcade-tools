@@ -70,7 +70,7 @@ pub enum Kind {
     Msi,
     Dmg,
 }
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Asset {
     pub os: Os,
     pub arch: Arch,
@@ -92,6 +92,20 @@ pub struct Release {
     pub link_protocol: Vec<u32>,
     pub notes: String,
     pub assets: Vec<Asset>,
+}
+
+/// Last validated release metadata and its GitHub API validator. Schema 1 is
+/// checked before reuse; the installer itself is still verified on download.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReleaseCache {
+    pub schema: u32,
+    pub api_url: String,
+    pub etag: Option<String>,
+    pub release: Release,
+    pub asset: Asset,
+    pub download_url: String,
+    pub body: String,
 }
 
 impl Release {
@@ -172,16 +186,22 @@ impl Release {
     }
 
     pub fn compatible(&self, id: &str, channel: Channel) -> Result<()> {
-        if self.id != id || self.channel != channel {
-            return Err(Error::new(
-                "manifest",
-                "Release app or channel does not match the requested app.",
-            ));
-        }
+        self.matches(id, channel)?;
         if !self.link_protocol.contains(&1) {
             return Err(Error::new(
                 "version_mismatch",
                 "This release does not support Arcade Link protocol 1.",
+            ));
+        }
+        Ok(())
+    }
+    /// Pure metadata validation, safe on any thread. Update discovery must see
+    /// incompatible releases so it can report a held-back reason.
+    pub fn matches(&self, id: &str, channel: Channel) -> Result<()> {
+        if self.id != id || self.channel != channel {
+            return Err(Error::new(
+                "manifest",
+                "Release app or channel does not match the requested app.",
             ));
         }
         Ok(())
@@ -198,6 +218,7 @@ pub fn safe_filename(name: &str) -> Result<()> {
     }
     Ok(())
 }
+/// File/hash work on a worker thread; never a UI thread.
 pub fn checksum(path: &Path) -> Result<String> {
     let mut reader = std::fs::File::open(path)?;
     let mut hash = Sha256::new();
@@ -211,6 +232,7 @@ pub fn checksum(path: &Path) -> Result<String> {
     }
     Ok(format!("{:x}", hash.finalize()))
 }
+/// Filesystem/hash verification on a worker thread; performs no mutation.
 pub fn verify(path: &Path, asset: &Asset) -> Result<()> {
     if asset
         .size

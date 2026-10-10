@@ -297,6 +297,15 @@ fn clipboard_tarball_runs_the_verified_install_script_and_repairs() {
         manager.record("arcade.clipboard").unwrap().unwrap().version,
         "1.0.0"
     );
+    let history = fs::read_to_string(paths.state().join("update-history.jsonl")).unwrap();
+    let entry: arcade_tools_core::updates::HistoryEntry =
+        serde_json::from_str(history.lines().last().unwrap()).unwrap();
+    assert!(matches!(
+        entry.result,
+        arcade_tools_core::updates::HistoryResult::RolledBack
+    ));
+    assert_eq!(entry.from.as_deref(), Some("1.0.0"));
+    assert_eq!(entry.to.as_deref(), Some("2.0.0"));
     server.publish(
         "arcade.clipboard",
         "2.0.0",

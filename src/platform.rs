@@ -21,6 +21,8 @@ impl CommandSpec {
             .map(String::as_str)
             .filter(|arg| arg.starts_with("/D=") || arg.starts_with("_?="))
     }
+    /// Blocking child-process work on a worker thread. Environment overrides
+    /// stay scoped to this process and never reach persistent config files.
     pub fn run(&self, paths: &Paths) -> Result<()> {
         let mut command = Command::new(&self.program);
         #[cfg(windows)]
@@ -171,6 +173,7 @@ impl Replacement {
             committed: false,
         })
     }
+    /// Commit and remove the backup on a worker thread; Drop performs disk work.
     pub fn commit(mut self) {
         self.committed = true;
     }
@@ -186,11 +189,24 @@ impl Drop for Replacement {
     }
 }
 
+/// Installer/process/disk work on a worker thread. Keep/drop `Replacement` on
+/// that worker too: its destructor restores files on failure.
 pub fn install(
     paths: &Paths,
     id: &str,
     asset: &Asset,
     verified: &Path,
+) -> Result<(PathBuf, Replacement)> {
+    install_observed(paths, id, asset, verified, &mut || {})
+}
+/// Installer/process/disk work on a worker thread. The callback marks the exact
+/// point where replacement begins, allowing the manager to log real rollbacks.
+pub(crate) fn install_observed(
+    paths: &Paths,
+    id: &str,
+    asset: &Asset,
+    verified: &Path,
+    on_replace: &mut dyn FnMut(),
 ) -> Result<(PathBuf, Replacement)> {
     let tarball = asset.kind == Kind::Tarball;
     let executable = paths.executable(id, Os::current(), tarball);
@@ -212,6 +228,7 @@ pub fn install(
         None
     };
     let replacement = Replacement::begin(paths, destination)?;
+    on_replace();
     #[cfg(target_os = "linux")]
     match asset.kind {
         Kind::Appimage => {
@@ -303,6 +320,7 @@ pub fn install(
 }
 
 /// Extract a Shelf runtime bundle without following links or running scripts.
+/// Filesystem/archive work on a worker thread.
 pub fn extract_shelf(file: &Path, cache: &Path) -> Result<(tempfile::TempDir, PathBuf)> {
     fs::create_dir_all(cache)?;
     let directory = tempfile::Builder::new()
@@ -388,6 +406,7 @@ fn copy_shelf_bundle(source: &Path, destination: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Filesystem/archive work on a worker thread; no scripts are executed here.
 pub fn extract_clipboard(file: &Path, cache: &Path) -> Result<(tempfile::TempDir, PathBuf)> {
     fs::create_dir_all(cache)?;
     let directory = tempfile::Builder::new()
@@ -448,6 +467,7 @@ pub fn extract_clipboard(file: &Path, cache: &Path) -> Result<(tempfile::TempDir
     }
     Ok((directory, packages[0].clone()))
 }
+/// Filesystem mutation on a worker thread; missing files are tolerated.
 pub fn remove(path: &Path) -> Result<()> {
     match fs::symlink_metadata(path) {
         Ok(m) if m.is_dir() && !m.file_type().is_symlink() => fs::remove_dir_all(path)?,
@@ -553,6 +573,8 @@ pub fn update_desktop(existing: &str, proposed: &str) -> Result<String> {
     }
     Ok(lines.join("\n") + "\n")
 }
+/// Generated login-entry disk/process work on a worker thread; reads and backs
+/// up existing entries and validates the saved result.
 pub fn set_autostart(paths: &Paths, id: &str, executable: &Path, enabled: bool) -> Result<()> {
     if id == crate::apps::SHELF {
         return set_shelf_autostart(paths, executable, enabled);
@@ -734,6 +756,7 @@ pub fn windows_run_name(id: &str) -> &'static str {
         _ => "ArcadeTools",
     }
 }
+/// Filesystem/Windows registry-process read on a worker thread.
 pub fn autostart_enabled(paths: &Paths, id: &str) -> bool {
     if id == crate::apps::SHELF {
         return paths.autostart(id, Os::current()).is_file();
