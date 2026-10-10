@@ -1,6 +1,7 @@
+use crate::apps::app_name;
 use crate::release::Os;
 use crate::{Error, Result};
-use arcade_link::manifest::{app_name, ids};
+use arcade_link::manifest::ids;
 use arcade_link::paths::Locations;
 use std::path::{Component, Path, PathBuf};
 
@@ -55,7 +56,11 @@ impl Paths {
     }
     pub fn install_root(&self, id: &str, os: Os, tarball: bool) -> PathBuf {
         match os {
-            Os::Linux if tarball => self.data.join("arcade-clipboard"),
+            Os::Linux if tarball => self.data.join(if id == crate::apps::SHELF {
+                "arcade-shelf"
+            } else {
+                "arcade-clipboard"
+            }),
             Os::Linux => self.home.join("Applications/Arcade"),
             Os::Windows => self.local.join("Programs").join(app_name(id)),
             Os::Macos => self
@@ -68,7 +73,11 @@ impl Paths {
         let root = self.install_root(id, os, tarball);
         let slug = id.replace('.', "-");
         match os {
-            Os::Linux if tarball => root.join("clipboard"),
+            Os::Linux if tarball => root.join(if id == crate::apps::SHELF {
+                "arcade-shelf"
+            } else {
+                "clipboard"
+            }),
             Os::Linux => root.join(format!("{}.AppImage", app_name(id).replace(' ', "-"))),
             Os::Windows => root.join(format!(
                 "{}.exe",
@@ -99,6 +108,11 @@ impl Paths {
                 ids::LENS => vec![self.config.join("arcadelens"), self.data.join("arcadelens")],
                 ids::LOOK => vec![self.config.join("arcade-look")],
                 ids::WHEEL => vec![self.config.join("Arcade Wheel/Arcade Wheel")],
+                crate::apps::SHELF => vec![self.data.join("qa-p1/ArcadeShelf")],
+                crate::apps::FIND => vec![
+                    self.config.join("arcade-find"),
+                    self.data.join("arcade-find"),
+                ],
                 ids::CLIPBOARD => vec![
                     self.data.join("dev.arcade.clipboard"),
                     self.data.join("clipboard"),
@@ -116,6 +130,11 @@ impl Paths {
                 ],
                 ids::LOOK => vec![self.roaming.join("arcade-look")],
                 ids::WHEEL => vec![self.local.join("Arcade Wheel/Arcade Wheel")],
+                crate::apps::SHELF => vec![self.local.join("qa-p1/ArcadeShelf")],
+                crate::apps::FIND => vec![
+                    self.roaming.join("Arcade/Arcade Find"),
+                    self.local.join("Arcade/Arcade Find"),
+                ],
                 ids::CLIPBOARD => vec![self.roaming.join("dev.arcade/clipboard")],
                 _ => vec![],
             },
@@ -131,6 +150,8 @@ impl Paths {
                     ids::WHEEL => vec![self
                         .home
                         .join("Library/Preferences/Arcade Wheel/Arcade Wheel")],
+                    crate::apps::SHELF => vec![support.join("qa-p1/ArcadeShelf")],
+                    crate::apps::FIND => vec![support.join("Arcade Find")],
                     ids::CLIPBOARD => vec![support.join("dev.arcade.clipboard")],
                     _ => vec![],
                 }
@@ -139,10 +160,14 @@ impl Paths {
     }
     pub fn autostart(&self, id: &str, os: Os) -> PathBuf {
         match os {
-            Os::Linux => self
-                .config
-                .join("autostart")
-                .join(format!("{}.desktop", id.replace('.', "-"))),
+            Os::Linux => self.config.join("autostart").join(format!(
+                "{}.desktop",
+                if id == crate::apps::SHELF {
+                    id.to_string()
+                } else {
+                    id.replace('.', "-")
+                }
+            )),
             Os::Macos => self.home.join("Library/LaunchAgents").join(format!(
                 "{}.plist",
                 match id {
@@ -154,7 +179,15 @@ impl Paths {
             Os::Windows => self
                 .roaming
                 .join("Microsoft/Windows/Start Menu/Programs/Startup")
-                .join(format!("{}.cmd", app_name(id))),
+                .join(format!(
+                    "{}.{}",
+                    app_name(id),
+                    if id == crate::apps::SHELF {
+                        "vbs"
+                    } else {
+                        "cmd"
+                    }
+                )),
         }
     }
     pub fn check_persistent_executable(&self, executable: &Path) -> Result<()> {
@@ -219,7 +252,7 @@ impl Paths {
 }
 
 pub fn app_id(id: &str) -> Result<()> {
-    if !ids::APPS.contains(&id) {
+    if !crate::apps::APPS.contains(&id) {
         return Err(Error::new("unsupported_input", "Unknown Arcade app."));
     }
     Ok(())

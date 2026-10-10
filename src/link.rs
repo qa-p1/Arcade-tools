@@ -65,7 +65,7 @@ pub fn install_target(request: &InvokeRequest) -> Result<String, LinkError> {
     {
         return Err(LinkError::too_large(64));
     }
-    if !ids::APPS.contains(&id) {
+    if !crate::apps::APPS.contains(&id) {
         return Err(LinkError::unsupported("Unknown Arcade app."));
     }
     Ok(id.into())

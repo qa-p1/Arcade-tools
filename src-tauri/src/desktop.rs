@@ -257,7 +257,7 @@ fn watch_state(
     locations: &arcade_link::Locations,
 ) -> (String, Vec<Option<(std::time::SystemTime, u64)>>) {
     let manifests = serde_json::to_string(registry.apps()).unwrap_or_default();
-    let endpoints = arcade_link::manifest::ids::APPS
+    let endpoints = arcade_tools_core::apps::APPS
         .iter()
         .chain(std::iter::once(&"arcade.tools"))
         .map(|id| {

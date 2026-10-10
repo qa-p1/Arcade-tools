@@ -146,6 +146,7 @@ impl Release {
                         | (Os::Macos, Kind::Dmg) => true,
                         (Os::Linux, Kind::Tarball) => {
                             self.id == arcade_link::manifest::ids::CLIPBOARD
+                                || self.id == crate::apps::SHELF
                         }
                         _ => false,
                     }

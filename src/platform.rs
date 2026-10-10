@@ -1,7 +1,8 @@
+use crate::apps::app_name;
 use crate::paths::Paths;
 use crate::release::{Asset, Kind, Os};
 use crate::{Error, Result};
-use arcade_link::manifest::{app_name, ids};
+use arcade_link::manifest::ids;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 use std::process::Command;
@@ -202,7 +203,11 @@ pub fn install(
     paths.guard(destination)?;
     // Prepare contents before replacing the old installation.
     let prepared = if tarball {
-        Some(extract_clipboard(verified, &paths.downloads())?)
+        Some(if id == crate::apps::SHELF {
+            extract_shelf(verified, &paths.downloads())?
+        } else {
+            extract_clipboard(verified, &paths.downloads())?
+        })
     } else {
         None
     };
@@ -220,6 +225,11 @@ pub fn install(
             staged
                 .persist(&executable)
                 .map_err(|e| Error::from(e.error))?;
+        }
+        Kind::Tarball if id == crate::apps::SHELF => {
+            // The bundle is data, never an executable installation script.
+            let (_, package) = prepared.as_ref().unwrap();
+            copy_shelf_bundle(package, &root)?;
         }
         Kind::Tarball if id == ids::CLIPBOARD => {
             let (dir, package) = prepared.as_ref().unwrap();
@@ -290,6 +300,92 @@ pub fn install(
         ));
     }
     Ok((executable, replacement))
+}
+
+/// Extract a Shelf runtime bundle without following links or running scripts.
+pub fn extract_shelf(file: &Path, cache: &Path) -> Result<(tempfile::TempDir, PathBuf)> {
+    fs::create_dir_all(cache)?;
+    let directory = tempfile::Builder::new()
+        .prefix("shelf-package-")
+        .tempdir_in(cache)?;
+    let mut archive = tar::Archive::new(flate2::read::GzDecoder::new(fs::File::open(file)?));
+    let mut bytes = 0u64;
+    let mut count = 0usize;
+    for entry in archive.entries()? {
+        let mut entry = entry?;
+        let path = entry.path()?.into_owned();
+        let kind = entry.header().entry_type();
+        bytes = bytes
+            .checked_add(entry.size())
+            .ok_or_else(|| Error::new("too_large", "Archive size overflow."))?;
+        count += 1;
+        if bytes > 2 * 1024 * 1024 * 1024 || count > 100000 {
+            return Err(Error::new(
+                "too_large",
+                "Shelf package exceeds extraction limits.",
+            ));
+        }
+        if path.is_absolute()
+            || path
+                .components()
+                .any(|c| matches!(c, Component::ParentDir | Component::Prefix(_)))
+            || !(kind.is_file() || kind.is_dir())
+        {
+            return Err(Error::new(
+                "installer",
+                "Shelf archive contains an unsafe path, link or special file.",
+            ));
+        }
+        if !entry.unpack_in(directory.path())? {
+            return Err(Error::new(
+                "installer",
+                "Shelf archive escaped its extraction directory.",
+            ));
+        }
+    }
+    let mut roots = vec![directory.path().to_path_buf()];
+    roots.extend(
+        fs::read_dir(directory.path())?
+            .filter_map(|e| e.ok().map(|e| e.path()))
+            .filter(|p| p.is_dir()),
+    );
+    let packages: Vec<_> = roots
+        .into_iter()
+        .filter(|p| {
+            p.join("arcade-shelf").is_file()
+                && p.join("bin/arcade-shelf").is_file()
+                && p.join("bin/qt.conf").is_file()
+        })
+        .collect();
+    if packages.len() != 1 {
+        return Err(Error::new(
+            "installer",
+            "Shelf bundle must contain arcade-shelf, bin/arcade-shelf and bin/qt.conf.",
+        ));
+    }
+    Ok((directory, packages[0].clone()))
+}
+
+#[cfg(target_os = "linux")]
+fn copy_shelf_bundle(source: &Path, destination: &Path) -> Result<()> {
+    fs::create_dir_all(destination)?;
+    for entry in fs::read_dir(source)? {
+        let entry = entry?;
+        let source = entry.path();
+        let target = destination.join(entry.file_name());
+        let kind = entry.file_type()?;
+        if kind.is_dir() {
+            copy_shelf_bundle(&source, &target)?;
+        } else if kind.is_file() {
+            fs::copy(&source, &target)?;
+        } else {
+            return Err(Error::new(
+                "installer",
+                "Unexpected special file in validated Shelf bundle.",
+            ));
+        }
+    }
+    Ok(())
 }
 
 pub fn extract_clipboard(file: &Path, cache: &Path) -> Result<(tempfile::TempDir, PathBuf)> {
@@ -458,6 +554,9 @@ pub fn update_desktop(existing: &str, proposed: &str) -> Result<String> {
     Ok(lines.join("\n") + "\n")
 }
 pub fn set_autostart(paths: &Paths, id: &str, executable: &Path, enabled: bool) -> Result<()> {
+    if id == crate::apps::SHELF {
+        return set_shelf_autostart(paths, executable, enabled);
+    }
     if !login_supported(id, Os::current()) {
         return Err(Error::new(
             "unavailable",
@@ -564,6 +663,65 @@ pub fn set_autostart(paths: &Paths, id: &str, executable: &Path, enabled: bool) 
     }
     Ok(())
 }
+fn set_shelf_autostart(paths: &Paths, executable: &Path, enabled: bool) -> Result<()> {
+    let path = paths.autostart(crate::apps::SHELF, Os::current());
+    paths.guard(&path)?;
+    if enabled {
+        paths.check_persistent_executable(executable)?;
+    }
+    let previous = match fs::read(&path) {
+        Ok(bytes) => {
+            if !String::from_utf8_lossy(&bytes).contains("Arcade Shelf managed login entry") {
+                return Err(Error::new(
+                    "autostart",
+                    "An unrelated login entry already uses Shelf's name.",
+                ));
+            }
+            Some(bytes)
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+        Err(e) => return Err(e.into()),
+    };
+    if let Some(bytes) = &previous {
+        let backup = path.with_file_name(format!(
+            "{}.arcade-tools.bak",
+            path.file_name().unwrap().to_string_lossy()
+        ));
+        arcade_link::paths::write_atomic(&backup, bytes, true)?;
+    }
+    if !enabled {
+        return remove(&path);
+    }
+    let marker = "Arcade Shelf managed login entry";
+    let proposed = match Os::current() {
+        Os::Linux => format!(
+            "# {marker}\n{}",
+            desktop_entry(crate::apps::SHELF, executable)?
+        ),
+        Os::Macos => launch_agent(crate::apps::SHELF, executable)
+            .replace("<plist", &format!("<!-- {marker} -->\n<plist")),
+        Os::Windows => {
+            let exe = executable.to_string_lossy();
+            if exe.chars().any(char::is_control) {
+                return Err(Error::new(
+                    "paths",
+                    "Executable contains a control character.",
+                ));
+            }
+            let escaped = exe.replace('"', "\"\"");
+            format!("' {marker}\r\nSet shell = CreateObject(\"WScript.Shell\")\r\nshell.Run Chr(34) & \"{escaped}\" & Chr(34) & \" --background\", 0, False\r\n")
+        }
+    };
+    arcade_link::paths::write_atomic(&path, proposed.as_bytes(), true)?;
+    if fs::read_to_string(&path)? != proposed {
+        return Err(Error::new(
+            "autostart",
+            "Could not verify Shelf's login entry.",
+        ));
+    }
+    Ok(())
+}
+
 pub fn windows_run_name(id: &str) -> &'static str {
     match id {
         ids::BOX => "Arcade Box",
@@ -571,10 +729,15 @@ pub fn windows_run_name(id: &str) -> &'static str {
         ids::LOOK => "ArcadeLook",
         ids::WHEEL => "ArcadeWheel",
         ids::CLIPBOARD => "ArcadeClipboard",
+        crate::apps::SHELF => "ArcadeShelf",
+        crate::apps::FIND => "ArcadeFind",
         _ => "ArcadeTools",
     }
 }
 pub fn autostart_enabled(paths: &Paths, id: &str) -> bool {
+    if id == crate::apps::SHELF {
+        return paths.autostart(id, Os::current()).is_file();
+    }
     #[cfg(windows)]
     {
         let _ = paths;

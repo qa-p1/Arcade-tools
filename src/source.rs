@@ -120,10 +120,10 @@ impl Source {
         os: crate::release::Os,
         arch: crate::release::Arch,
     ) -> Result<CheckedRelease> {
-        if !arcade_link::manifest::ids::APPS.contains(&id) {
+        if !crate::apps::APPS.contains(&id) {
             return Err(Error::new("unsupported_input", "Unknown Arcade app."));
         }
-        let releases = arcade_link::manifest::releases_url(id);
+        let releases = crate::apps::releases_url(id);
         let repository = releases
             .strip_prefix("https://github.com/")
             .unwrap()

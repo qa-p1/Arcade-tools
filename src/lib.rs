@@ -1,3 +1,4 @@
+pub mod apps;
 pub mod link;
 pub mod manager;
 pub mod paths;

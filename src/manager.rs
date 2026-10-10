@@ -215,7 +215,7 @@ impl Manager {
     pub fn list(&self, probe: bool) -> Result<Vec<AppView>> {
         let registry = Registry::load(&self.paths.link);
         let prefs = self.preferences()?;
-        ids::APPS.iter().map(|id| {
+        crate::apps::APPS.iter().map(|id| {
             let record = self.record(id)?;
             let peer = registry.get(id);
             let executable = record.as_ref().map(|r| self.executable(r)).or_else(|| peer.map(|m| PathBuf::from(&m.executable)));
@@ -224,7 +224,7 @@ impl Manager {
             let reason = if record.is_none() && peer.is_some() { Some("Installed outside Arcade Tools. Launch is available; updates and removal need a managed installation.".into()) }
                 else if peer.is_some_and(|m| !m.settings.link_enabled) { Some("Arcade Link is disabled in this app. Close it before changing its installation.".into()) }
                 else if record.is_some() && !healthy { Some("Installed executable is missing. Choose Repair.".into()) } else { None };
-            Ok(AppView { id: id.to_string(), name: manifest::app_name(id).into(), pitch: manifest::app_pitch(id).into(), releases_url: manifest::releases_url(id).into(),
+            Ok(AppView { id: id.to_string(), name: crate::apps::app_name(id).into(), pitch: crate::apps::app_pitch(id).into(), releases_url: crate::apps::releases_url(id).into(),
                 version: record.as_ref().map(|r| r.version.clone()).or_else(|| peer.map(|m| m.version.clone())), managed: record.is_some(), installed: healthy,
                 running, channel: prefs.channels.get(*id).copied().or(record.as_ref().map(|r| r.channel)).unwrap_or_default(), healthy,
                 start_at_login: platform::autostart_enabled(&self.paths, id), login_supported: platform::login_supported(id, Os::current()), executable: executable.map(|p| p.display().to_string()),
@@ -428,7 +428,7 @@ impl Manager {
         progress(Progress::new(id, "Done", Some(1.0), false));
         Ok(format!(
             "{} {} installed.",
-            manifest::app_name(id),
+            crate::apps::app_name(id),
             checked.release.version
         ))
     }
@@ -462,7 +462,7 @@ impl Manager {
         {
             return Err(Error::new(
                 "busy",
-                arcade_link::LinkError::busy().user_message(manifest::app_name(id)),
+                arcade_link::LinkError::busy().user_message(crate::apps::app_name(id)),
             ));
         }
         let mode = status_mode(&status).or(request.mode);
@@ -559,7 +559,7 @@ impl Manager {
         platform::remove(&self.paths.state().join(format!("{id}.json")))?;
         Ok(format!(
             "{} removed. {}",
-            manifest::app_name(id),
+            crate::apps::app_name(id),
             if remove_data {
                 "Settings and data removed."
             } else {
@@ -618,6 +618,6 @@ fn process_alive(pid: u32) -> bool {
 fn link_error(id: &str, error: arcade_link::LinkError) -> Error {
     Error::new(
         error.code.as_str(),
-        error.user_message(manifest::app_name(id)),
+        error.user_message(crate::apps::app_name(id)),
     )
 }

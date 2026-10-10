@@ -1,13 +1,14 @@
 # Arcade Tools: status
 
-Verified 2026-10-08 on `main` (version 0.1.0, Arcade Link `v0.1.0`). This
+Verified 2026-10-08 on `main` (version 0.1.0, Arcade Link `v0.1.0`); Shelf
+and Find added 2026-10-10 on Arcade Link `v0.2.0`. This
 page records what is implemented and how it was checked; the
 [README](../README.md) describes how it works.
 
 ## Implemented
 
-- Install, update, repair, launch and remove Box, Lens, Look, Wheel and
-  Clipboard per user, with a stable or nightly channel per app and start at
+- Install, update, repair, launch and remove Box, Lens, Look, Wheel,
+  Clipboard, Shelf and Find per user, with a stable or nightly channel per app and start at
   login, from the apps' GitHub Releases.
 - Downloads are checked against `arcade-release.json` (schema 1) and the
   installer's SHA-256 and size before anything runs or any app is closed.
