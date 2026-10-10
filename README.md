@@ -1,6 +1,7 @@
 # Arcade Tools
 
-Install, update, repair, launch and remove the five Arcade desktop apps. Choose
+Install, update, repair, launch and remove the Arcade desktop apps (Box, Lens,
+Look, Wheel, Clipboard, Shelf and Find). Choose
 stable or nightly for each app and manage start at login. The manager is optional.
 Every Arcade app works independently and can still be installed and updated by hand.
 
@@ -13,7 +14,8 @@ Install locations are per user, without administrator access:
 
 - **Linux:** AppImages in `~/Applications/Arcade/`. Clipboard tarballs run their
   verified `scripts/install-linux.sh`, installing to
-  `${XDG_DATA_HOME:-~/.local/share}/arcade-clipboard/`.
+  `${XDG_DATA_HOME:-~/.local/share}/arcade-clipboard/`. Shelf's runtime bundle
+  is extracted (no scripts, no links) to `${XDG_DATA_HOME:-~/.local/share}/arcade-shelf/`.
 - **Windows:** the app's per-user NSIS or Inno installer, with the release's
   validated silent arguments, under `%LOCALAPPDATA%\Programs\<app name>\`.
 - **macOS:** mount the disk image read-only with `hdiutil`, then copy its app

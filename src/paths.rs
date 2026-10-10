@@ -109,6 +109,10 @@ impl Paths {
                 ids::LOOK => vec![self.config.join("arcade-look")],
                 ids::WHEEL => vec![self.config.join("Arcade Wheel/Arcade Wheel")],
                 crate::apps::SHELF => vec![self.data.join("qa-p1/ArcadeShelf")],
+                crate::apps::FIND => vec![
+                    self.config.join("arcade-find"),
+                    self.data.join("arcade-find"),
+                ],
                 ids::CLIPBOARD => vec![
                     self.data.join("dev.arcade.clipboard"),
                     self.data.join("clipboard"),
@@ -127,6 +131,10 @@ impl Paths {
                 ids::LOOK => vec![self.roaming.join("arcade-look")],
                 ids::WHEEL => vec![self.local.join("Arcade Wheel/Arcade Wheel")],
                 crate::apps::SHELF => vec![self.local.join("qa-p1/ArcadeShelf")],
+                crate::apps::FIND => vec![
+                    self.roaming.join("Arcade/Arcade Find"),
+                    self.local.join("Arcade/Arcade Find"),
+                ],
                 ids::CLIPBOARD => vec![self.roaming.join("dev.arcade/clipboard")],
                 _ => vec![],
             },
@@ -143,6 +151,7 @@ impl Paths {
                         .home
                         .join("Library/Preferences/Arcade Wheel/Arcade Wheel")],
                     crate::apps::SHELF => vec![support.join("qa-p1/ArcadeShelf")],
+                    crate::apps::FIND => vec![support.join("Arcade Find")],
                     ids::CLIPBOARD => vec![support.join("dev.arcade.clipboard")],
                     _ => vec![],
                 }

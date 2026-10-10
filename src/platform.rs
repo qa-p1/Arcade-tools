@@ -730,6 +730,7 @@ pub fn windows_run_name(id: &str) -> &'static str {
         ids::WHEEL => "ArcadeWheel",
         ids::CLIPBOARD => "ArcadeClipboard",
         crate::apps::SHELF => "ArcadeShelf",
+        crate::apps::FIND => "ArcadeFind",
         _ => "ArcadeTools",
     }
 }
