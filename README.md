@@ -55,9 +55,9 @@ arcade-tools --background       # hidden until activated or handed an install re
 arcade-tools --quit             # refuses while an operation is running
 ```
 
-Tauri 2 uses the operating system's webview with vanilla TypeScript. There is no
-framework runtime or bundled Chromium. `npm run build` produces a small HTML/JS/CSS
-shell; `python3 scripts/ui-size.py` checks it against a 17 KB uncompressed budget.
+The UI uses Svelte 5 with Vite in Tauri 2's operating system webview; it does not bundle
+Chromium. `npm run build` produces the shell, and `python3 scripts/ui-size.py` checks
+the uncompressed HTML, JavaScript and CSS against a 200 KB budget.
 No update polling runs while idle. Registry changes arrive through a directory
 watch, and all discovery, network, IPC and installer work runs on worker threads.
 
