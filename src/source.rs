@@ -82,10 +82,13 @@ fn allowed(url: &Url, test: bool) -> bool {
 }
 
 impl Source {
+    /// Build a blocking HTTP client on a worker thread. No request is sent.
     pub fn github() -> Result<Self> {
         Self::new(Url::parse("https://api.github.com/").unwrap(), false)
     }
     #[cfg(debug_assertions)]
+    /// Build a loopback-only test HTTP client on a worker thread. Debug-only;
+    /// no request is sent by construction.
     pub fn test_server(url: &str) -> Result<Self> {
         let url = Url::parse(url).map_err(|e| Error::new("source", e.to_string()))?;
         if !allowed(&url, true) {
@@ -150,6 +153,8 @@ impl Source {
         }
         Ok(bytes)
     }
+    /// Explicit GitHub/manifest requests on a worker thread. Kept for existing
+    /// callers; catalog-aware callers use `check_repo_conditional`.
     pub fn check(
         &self,
         id: &str,
@@ -297,6 +302,8 @@ impl Source {
         }
         Ok(())
     }
+    /// Download and verify SHA-256/size on a worker thread. Cancellation is
+    /// checked during bounded streaming, before any installer runs.
     pub fn download(
         &self,
         checked: &CheckedRelease,

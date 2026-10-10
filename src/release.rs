@@ -218,6 +218,7 @@ pub fn safe_filename(name: &str) -> Result<()> {
     }
     Ok(())
 }
+/// File/hash work on a worker thread; never a UI thread.
 pub fn checksum(path: &Path) -> Result<String> {
     let mut reader = std::fs::File::open(path)?;
     let mut hash = Sha256::new();
@@ -231,6 +232,7 @@ pub fn checksum(path: &Path) -> Result<String> {
     }
     Ok(format!("{:x}", hash.finalize()))
 }
+/// Filesystem/hash verification on a worker thread; performs no mutation.
 pub fn verify(path: &Path, asset: &Asset) -> Result<()> {
     if asset
         .size

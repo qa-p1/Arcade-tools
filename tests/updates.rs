@@ -182,6 +182,22 @@ fn timer_window_offline_disabled_and_restart_notifications_are_deterministic() {
         serde_json::from_slice(&std::fs::read(paths.state().join("updates.json")).unwrap())
             .unwrap();
     assert_eq!(persisted.apps["arcade.look"].notified.len(), 2);
+    let mut current = installed.clone();
+    current[0].version = "3.0.0".into();
+    let before = count();
+    restarted.reconcile(&catalog, &current, &[]);
+    assert_eq!(
+        restarted.state().apps["arcade.look"]
+            .installed_version
+            .as_deref(),
+        Some("3.0.0")
+    );
+    assert!(!restarted.state().apps["arcade.look"].update_available);
+    assert_eq!(
+        count(),
+        before,
+        "registry/install events must not check the network"
+    );
 }
 
 #[test]
@@ -326,6 +342,15 @@ fn auto_update_is_opt_in_requires_known_idle_state_and_ten_minutes() {
     let busy = json!({"status":{"busy":true}});
     assert!(!auto_update_policy(false, &idle, Some(0), 1000).eligible);
     assert!(!auto_update_policy(true, &busy, Some(0), 1000).eligible);
+    assert!(
+        !auto_update_policy(
+            true,
+            &json!({"busy":true,"status":{"busy":false}}),
+            Some(0),
+            1000
+        )
+        .eligible
+    );
     assert!(!auto_update_policy(true, &json!({}), Some(0), 1000).eligible);
     assert!(!auto_update_policy(true, &idle, None, 1000).eligible);
     assert!(!auto_update_policy(true, &idle, Some(401), 1000).eligible);

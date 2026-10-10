@@ -7,6 +7,47 @@ use arcade_tools_core::{
 use serde_json::json;
 
 #[test]
+fn discovery_env_probe() {
+    let Some(root) = std::env::var_os("ARCADE_TOOLS_TEST_PATH_PROBE") else {
+        return;
+    };
+    let root = std::path::PathBuf::from(root);
+    let paths = Paths::discover().unwrap();
+    for path in [
+        &paths.home,
+        &paths.config,
+        &paths.cache,
+        &paths.data,
+        &paths.local,
+        &paths.roaming,
+        &paths.link.registry,
+    ] {
+        assert!(
+            path.starts_with(&root),
+            "{} escaped isolated ARCADE_HOME",
+            path.display()
+        );
+    }
+    assert!(paths.isolated);
+}
+#[test]
+fn arcade_home_discovery_stays_in_the_childs_isolated_environment() {
+    let root = tempfile::tempdir().unwrap();
+    let output = std::process::Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", "discovery_env_probe", "--nocapture"])
+        .env("ARCADE_HOME", root.path())
+        .env("ARCADE_TOOLS_TEST_PATH_PROBE", root.path())
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
 fn snapshot_owner_filter_semver_and_unknown_fields() {
     let mut value: serde_json::Value = serde_json::from_str(SNAPSHOT).unwrap();
     let mut malicious = value["apps"][0].clone();
@@ -34,6 +75,10 @@ fn snapshot_owner_filter_semver_and_unknown_fields() {
         .apps
         .iter()
         .all(|a| a.install_reason.is_some()));
+    value["apps"][0]["minTools"] = json!("0.2.0+build.99");
+    assert!(parse(&value, "0.2.0+build.1").unwrap().apps[0]
+        .install_reason
+        .is_none());
     value["schema"] = json!(2);
     assert!(parse(&value, "0.2.0").is_err());
 }

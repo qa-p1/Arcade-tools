@@ -112,7 +112,10 @@ impl Catalog {
             }
             relative_path(&app.icon)?;
             relative_path(&app.docs)?;
-            if version < parse_version(&app.min_tools)? {
+            if version
+                .cmp_precedence(&parse_version(&app.min_tools)?)
+                .is_lt()
+            {
                 app.install_reason = Some("Update Arcade Tools to install this".into());
             }
             accepted.push(app);

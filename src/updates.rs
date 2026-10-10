@@ -208,6 +208,39 @@ impl<C: Clock, S: ReleaseSource> Scheduler<C, S> {
     pub fn state(&self) -> &UpdateState {
         &self.state
     }
+    /// Pure recalculation from supplied installation/registry snapshots, safe on
+    /// any thread. Call after an install or registry event to keep the displayed
+    /// state current without a network check. Persisted at the next `run`.
+    pub fn reconcile(
+        &mut self,
+        catalog: &Catalog,
+        installed: &[InstalledApp],
+        peers: &[PeerProtocols],
+    ) {
+        for state in self.state.apps.values_mut() {
+            state.installed_version = None;
+            state.update_available = false;
+            state.held_back = false;
+            state.reason = None;
+        }
+        for installed in installed {
+            let Some(app) = catalog.app(&installed.id) else {
+                continue;
+            };
+            let state = self.state.apps.entry(installed.id.clone()).or_default();
+            state.installed_version = Some(installed.version.clone());
+            state.channel = installed.selected_channel;
+            for latest in state.latest.values_mut() {
+                if let Some(cache) = &latest.cache {
+                    latest.update_available =
+                        is_newer(installed, &cache.release, &cache.asset.sha256);
+                    latest.reason = held_back(app, &cache.release, peers);
+                    latest.held_back = latest.reason.is_some();
+                }
+            }
+            sync_selected(state);
+        }
+    }
     /// Pure deadline calculation, safe on any thread. `None` means cancel the
     /// caller's single timer while update checks are disabled.
     pub fn next_deadline(&self, settings: &UpdateSettings) -> Option<u64> {
@@ -241,6 +274,14 @@ impl<C: Clock, S: ReleaseSource> Scheduler<C, S> {
         if !self.due(trigger, context.settings) {
             return Ok(CheckOutcome::default());
         }
+        let previous = self.state.clone();
+        let result = self.run_due(context);
+        if result.is_err() {
+            self.state = previous;
+        }
+        result
+    }
+    fn run_due(&mut self, context: CheckContext<'_>) -> Result<CheckOutcome> {
         let now = self.clock.now();
         self.next_check = now.saturating_add(CHECK_INTERVAL);
         self.state.last_check = Some(now);
@@ -249,6 +290,7 @@ impl<C: Clock, S: ReleaseSource> Scheduler<C, S> {
             checked: true,
             ..Default::default()
         };
+        self.reconcile(context.catalog, context.installed, context.peers);
         if !context.online {
             let reason = "Offline; no update requests were sent.".to_owned();
             self.state.last_failure = Some(CheckFailure {
@@ -259,19 +301,14 @@ impl<C: Clock, S: ReleaseSource> Scheduler<C, S> {
             self.persist()?;
             return Ok(outcome);
         }
-        for app in self.state.apps.values_mut() {
-            app.installed_version = None;
-            app.update_available = false;
-            app.held_back = false;
-            app.reason = None;
-        }
-        'apps: for installed in context.installed {
+        for installed in context.installed {
             let Some(app) = context.catalog.app(&installed.id) else {
                 continue;
             };
             let state = self.state.apps.entry(installed.id.clone()).or_default();
             state.installed_version = Some(installed.version.clone());
             state.channel = installed.selected_channel;
+            let mut transport_failed = false;
             for channel in [Channel::Stable, Channel::Nightly] {
                 let latest = state.latest.entry(channel.as_str().into()).or_default();
                 match self.source.check_release(ReleaseRequest {
@@ -297,15 +334,13 @@ impl<C: Clock, S: ReleaseSource> Scheduler<C, S> {
                         // HTTP errors (e.g. no nightly release) don't imply offline.
                         // A transport failure stops further outbound requests.
                         if error.code == "network" {
-                            self.state.last_failure = Some(CheckFailure {
-                                time: now,
-                                reason: error.to_string(),
-                            });
-                            break 'apps;
+                            transport_failed = true;
+                            break;
                         }
                     }
                 }
             }
+            sync_selected(state);
             if let Some(selected) = state.latest.get(installed.selected_channel.as_str()) {
                 state.update_available = selected.update_available;
                 state.held_back = selected.held_back;
@@ -323,6 +358,9 @@ impl<C: Clock, S: ReleaseSource> Scheduler<C, S> {
                     }
                 }
             }
+            if transport_failed {
+                break;
+            }
         }
         if let Some(reason) = &outcome.failure {
             self.state.last_failure = Some(CheckFailure {
@@ -334,6 +372,13 @@ impl<C: Clock, S: ReleaseSource> Scheduler<C, S> {
         }
         self.persist()?;
         Ok(outcome)
+    }
+}
+fn sync_selected(state: &mut AppUpdate) {
+    if let Some(selected) = state.latest.get(state.channel.as_str()) {
+        state.update_available = selected.update_available;
+        state.held_back = selected.held_back;
+        state.reason = selected.reason.clone();
     }
 }
 fn is_newer(installed: &InstalledApp, release: &Release, sha256: &str) -> bool {
@@ -399,10 +444,15 @@ pub fn auto_update_policy(
     last_used: Option<u64>,
     now: u64,
 ) -> AutoUpdateDecision {
-    let busy = status
-        .pointer("/status/busy")
-        .or_else(|| status.get("busy"))
-        .and_then(|v| v.as_bool());
+    let busy_states = [
+        status.pointer("/status/busy").and_then(|v| v.as_bool()),
+        status.get("busy").and_then(|v| v.as_bool()),
+    ];
+    let busy = if busy_states.contains(&Some(true)) {
+        Some(true)
+    } else {
+        busy_states.into_iter().flatten().next()
+    };
     let reason = if !opted_in {
         Some("Auto-update is off for this app.")
     } else if busy == Some(true) {

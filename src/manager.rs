@@ -165,6 +165,8 @@ pub struct Manager {
     mutation: Mutex<()>,
 }
 impl Manager {
+    /// Construct without I/O; safe on any thread. All manager I/O methods below
+    /// are synchronous and must be invoked on worker threads.
     pub fn new(paths: Paths, source: Source) -> Self {
         Self {
             paths,
@@ -177,6 +179,7 @@ impl Manager {
             .try_lock()
             .map_err(|_| Error::new("busy", "Another manager operation is running."))
     }
+    /// Read persisted preferences on a worker thread; no network work.
     pub fn preferences(&self) -> Result<Preferences> {
         let path = self.paths.state().join("preferences.json");
         match fs::read(&path) {
@@ -188,6 +191,7 @@ impl Manager {
     fn save_preferences(&self, prefs: &Preferences) -> Result<()> {
         self.write(&self.paths.state().join("preferences.json"), prefs)
     }
+    /// Persist a channel selection on a worker thread; no network work.
     pub fn set_channel(&self, id: &str, channel: Channel) -> Result<()> {
         app_id(id)?;
         let _lock = self.lock()?;
@@ -195,6 +199,7 @@ impl Manager {
         prefs.channels.insert(id.into(), channel);
         self.save_preferences(&prefs)
     }
+    /// Persist Link enablement on a worker thread; no IPC/network work.
     pub fn set_link(&self, enabled: bool) -> Result<()> {
         let _lock = self.lock()?;
         let mut prefs = self.preferences()?;
@@ -264,6 +269,7 @@ impl Manager {
         arcade_link::paths::write_atomic(path, &serde_json::to_vec_pretty(value)?, true)?;
         Ok(())
     }
+    /// Read an installation record on a worker thread; no network work.
     pub fn record(&self, id: &str) -> Result<Option<Record>> {
         app_id(id)?;
         match fs::read(self.paths.state().join(format!("{id}.json"))) {
@@ -312,7 +318,7 @@ impl Manager {
             Ok(AppView { id: id.to_string(), name: app.name.clone(), pitch: app.pitch.clone(), releases_url: app.releases_url(),
                 version: record.as_ref().map(|r| r.version.clone()).or_else(|| peer.map(|m| m.version.clone())), managed: record.is_some(), installed: healthy,
                 running, channel: prefs.channels.get(id).copied().or(record.as_ref().map(|r| r.channel)).unwrap_or_default(), healthy,
-                start_at_login: platform::autostart_enabled(&self.paths, id), login_supported: platform::login_supported(id, Os::current()), executable: executable.map(|p| p.display().to_string()),
+                start_at_login: platform::autostart_enabled(&self.paths, id), login_supported: app.supported_install() && platform::login_supported(id, Os::current()), executable: executable.map(|p| p.display().to_string()),
                 data_folders: self.paths.data_folders(id, Os::current()).iter().map(|p| p.display().to_string()).collect(), reason,
                 description: app.description.clone(), category: app.category.clone(), icon: app.icon.clone(),
                 platforms: app.platforms.clone(), min_tools: app.min_tools.clone(), install_reason: app.install_reason.clone(),
@@ -368,6 +374,7 @@ impl Manager {
         }
         Ok(check.checked)
     }
+    /// Explicit conditional release request and disk/registry reads, on a worker.
     pub fn check(&self, id: &str) -> Result<CheckView> {
         let checked = self.checked(id)?;
         let record = self.record(id)?;
@@ -384,6 +391,7 @@ impl Manager {
             }),
         })
     }
+    /// IPC/process/disk work on a worker thread. Starts no update timer.
     pub fn launch(&self, id: &str, mode: LaunchMode) -> Result<()> {
         app_id(id)?;
         let _lock = self.lock()?;
@@ -418,6 +426,7 @@ impl Manager {
         }
         Ok(())
     }
+    /// Read, back up, write and validate a generated login entry on a worker.
     pub fn start_at_login(&self, id: &str, enabled: bool) -> Result<()> {
         app_id(id)?;
         let _lock = self.lock()?;
@@ -433,6 +442,8 @@ impl Manager {
             .ok_or_else(|| Error::new("not_installed", "Install this app first."))?;
         platform::set_autostart(&self.paths, id, &exe, enabled)
     }
+    /// User-confirmed (or per-app opted-in) installer/network/IPC/disk work,
+    /// on a worker thread. Updates/repairs append their verified history outcome.
     pub fn operate(
         &self,
         request: &Request,

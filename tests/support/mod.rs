@@ -14,13 +14,14 @@ pub struct HttpReply {
     pub headers: Vec<(String, String)>,
     pub body: Vec<u8>,
 }
+pub type RecordedRequests = Arc<Mutex<Vec<(String, Vec<String>)>>>;
 
 pub struct FakeRelease {
     pub root: TempDir,
     pub url: String,
     pub routes: Arc<Mutex<HashMap<String, Vec<u8>>>>,
     pub replies: Arc<Mutex<HashMap<String, HttpReply>>>,
-    pub requests: Arc<Mutex<Vec<(String, Vec<String>)>>>,
+    pub requests: RecordedRequests,
     worker: Option<JoinHandle<()>>,
 }
 impl FakeRelease {
@@ -32,7 +33,7 @@ impl FakeRelease {
         let server_routes = routes.clone();
         let replies: Arc<Mutex<HashMap<String, HttpReply>>> = Default::default();
         let server_replies = replies.clone();
-        let requests: Arc<Mutex<Vec<(String, Vec<String>)>>> = Default::default();
+        let requests: RecordedRequests = Default::default();
         let server_requests = requests.clone();
         let worker = std::thread::spawn(move || {
             for mut stream in listener.incoming().flatten() {
