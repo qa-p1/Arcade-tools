@@ -61,6 +61,8 @@ the uncompressed HTML, JavaScript and CSS against a 200 KB budget.
 No update polling runs while idle. Registry changes arrive through a directory
 watch, and all discovery, network, IPC and installer work runs on worker threads.
 
+## Development checks
+
 Arcade Link comes from its `v0.2.0` git tag. The isolated test runner
 (`tools/e2e.py`) lives in the Link repository, so keep a checkout beside this
 one for the commands below:
@@ -74,9 +76,15 @@ cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 # Lifecycle tests launch executables and must use the isolated runner.
 CARGO_HOME="$HOME/.cargo" python3 ../Arcade-link/tools/e2e.py run -- cargo test --workspace
-cargo build -p arcade-tools --features custom-protocol
+# Build the debug GUI with dist/ embedded for the isolated GUI e2e.
+cargo build --locked -p arcade-tools --features custom-protocol
 python3 ../Arcade-link/tools/e2e.py --only tools
 ```
+
+Build `dist/` first with `npm run build`. The GUI e2e needs the
+`custom-protocol` feature so `target/debug/arcade-tools` serves Tauri's
+`frontendDist` without a Vite server; a plain `cargo build` uses the configured
+`devUrl` and leaves the GUI report empty.
 
 Use `npm run tauri -- dev` for the Vite development server, inside the same isolated
 runner. Direct test binaries use `custom-protocol` to embed the built assets instead
