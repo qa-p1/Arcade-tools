@@ -1,0 +1,8 @@
+{
+  "address": "0x123456",
+  "mapped": true,
+  "class": "org.mozilla.firefox",
+  "title": "Firefox \u2014 documentation",
+  "initialClass": "firefox",
+  "pid": 4321
+}
