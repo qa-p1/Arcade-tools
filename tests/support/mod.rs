@@ -177,8 +177,10 @@ impl FakeRelease {
             let p = entry.unwrap().path();
             let name = p.file_name().unwrap().to_str().unwrap();
             let route = format!("{prefix}{name}");
-            routes.insert(format!("/{route}"), std::fs::read(&p).unwrap());
-            assets.push(serde_json::json!({"name": name, "browser_download_url": format!("{}{route}", self.url)}));
+            let bytes = std::fs::read(&p).unwrap();
+            assets.push(serde_json::json!({"name": name, "browser_download_url": format!("{}{route}", self.url),
+                "size": bytes.len(), "digest": format!("sha256:{:x}", Sha256::digest(&bytes))}));
+            routes.insert(format!("/{route}"), bytes);
         }
         let repo = arcade_tools_core::apps::releases_url(id)
             .trim_start_matches("https://github.com/")

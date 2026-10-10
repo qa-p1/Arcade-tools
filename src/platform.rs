@@ -192,6 +192,17 @@ pub fn install(
     asset: &Asset,
     verified: &Path,
 ) -> Result<(PathBuf, Replacement)> {
+    install_observed(paths, id, asset, verified, &mut || {})
+}
+/// Installer/process/disk work on a worker thread. The callback marks the exact
+/// point where replacement begins, allowing the manager to log real rollbacks.
+pub(crate) fn install_observed(
+    paths: &Paths,
+    id: &str,
+    asset: &Asset,
+    verified: &Path,
+    on_replace: &mut dyn FnMut(),
+) -> Result<(PathBuf, Replacement)> {
     let tarball = asset.kind == Kind::Tarball;
     let executable = paths.executable(id, Os::current(), tarball);
     let root = paths.install_root(id, Os::current(), tarball);
@@ -212,6 +223,7 @@ pub fn install(
         None
     };
     let replacement = Replacement::begin(paths, destination)?;
+    on_replace();
     #[cfg(target_os = "linux")]
     match asset.kind {
         Kind::Appimage => {

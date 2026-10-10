@@ -7,6 +7,7 @@ pub mod paths;
 pub mod platform;
 pub mod release;
 pub mod source;
+pub mod updates;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
