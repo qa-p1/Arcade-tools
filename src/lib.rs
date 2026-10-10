@@ -3,6 +3,7 @@ pub mod catalog;
 pub mod engines;
 pub mod link;
 pub mod manager;
+pub mod markdown;
 pub mod paths;
 pub mod platform;
 pub mod release;
