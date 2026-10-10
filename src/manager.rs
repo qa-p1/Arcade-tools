@@ -1,3 +1,4 @@
+use crate::catalog::{Catalog, CatalogClient};
 use crate::paths::{app_id, Paths};
 use crate::platform;
 use crate::release::{checksum, Arch, Channel, Kind, Os};
@@ -95,6 +96,13 @@ pub struct AppView {
     pub executable: Option<String>,
     pub data_folders: Vec<String>,
     pub reason: Option<String>,
+    pub description: String,
+    pub category: String,
+    pub icon: String,
+    pub platforms: BTreeMap<String, String>,
+    pub min_tools: String,
+    pub install_reason: Option<String>,
+    pub install_supported: bool,
 }
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -212,11 +220,23 @@ impl Manager {
         self.paths
             .executable(&record.id, Os::current(), record.kind == Kind::Tarball)
     }
+    /// Read the cached catalog or built-in snapshot on a worker thread.
+    /// No network I/O is performed.
+    pub fn catalog(&self) -> Result<Catalog> {
+        Ok(CatalogClient::new(self.paths.clone(), self.source.clone())?.cached_catalog())
+    }
+    /// Explicit catalog network refresh/cache write on a worker thread.
+    pub fn refresh_catalog(&self) -> Result<Catalog> {
+        Ok(CatalogClient::new(self.paths.clone(), self.source.clone())?.refresh_catalog())
+    }
+    /// Disk/optional IPC work on a worker thread; no network refresh.
     pub fn list(&self, probe: bool) -> Result<Vec<AppView>> {
         let registry = Registry::load(&self.paths.link);
         let prefs = self.preferences()?;
-        crate::apps::APPS.iter().map(|id| {
-            let record = self.record(id)?;
+        let catalog = self.catalog()?;
+        catalog.apps.iter().map(|app| {
+            let id = app.id.as_str();
+            let record = if app.supported_install() { self.record(id)? } else { None };
             let peer = registry.get(id);
             let executable = record.as_ref().map(|r| self.executable(r)).or_else(|| peer.map(|m| PathBuf::from(&m.executable)));
             let running = probe && Client::connect(&self.paths.link, id, &me()).is_ok();
@@ -224,14 +244,24 @@ impl Manager {
             let reason = if record.is_none() && peer.is_some() { Some("Installed outside Arcade Tools. Launch is available; updates and removal need a managed installation.".into()) }
                 else if peer.is_some_and(|m| !m.settings.link_enabled) { Some("Arcade Link is disabled in this app. Close it before changing its installation.".into()) }
                 else if record.is_some() && !healthy { Some("Installed executable is missing. Choose Repair.".into()) } else { None };
-            Ok(AppView { id: id.to_string(), name: crate::apps::app_name(id).into(), pitch: crate::apps::app_pitch(id).into(), releases_url: crate::apps::releases_url(id).into(),
+            Ok(AppView { id: id.to_string(), name: app.name.clone(), pitch: app.pitch.clone(), releases_url: app.releases_url(),
                 version: record.as_ref().map(|r| r.version.clone()).or_else(|| peer.map(|m| m.version.clone())), managed: record.is_some(), installed: healthy,
-                running, channel: prefs.channels.get(*id).copied().or(record.as_ref().map(|r| r.channel)).unwrap_or_default(), healthy,
+                running, channel: prefs.channels.get(id).copied().or(record.as_ref().map(|r| r.channel)).unwrap_or_default(), healthy,
                 start_at_login: platform::autostart_enabled(&self.paths, id), login_supported: platform::login_supported(id, Os::current()), executable: executable.map(|p| p.display().to_string()),
-                data_folders: self.paths.data_folders(id, Os::current()).iter().map(|p| p.display().to_string()).collect(), reason })
+                data_folders: self.paths.data_folders(id, Os::current()).iter().map(|p| p.display().to_string()).collect(), reason,
+                description: app.description.clone(), category: app.category.clone(), icon: app.icon.clone(),
+                platforms: app.platforms.clone(), min_tools: app.min_tools.clone(), install_reason: app.install_reason.clone(),
+                install_supported: app.supported_install() })
         }).collect()
     }
     fn checked(&self, id: &str) -> Result<CheckedRelease> {
+        let catalog = self.catalog()?;
+        let app = catalog
+            .app(id)
+            .ok_or_else(|| Error::new("unavailable", "This app is absent from the catalog."))?;
+        if let Some(reason) = &app.install_reason {
+            return Err(Error::new("version_mismatch", reason.clone()));
+        }
         let prefs = self.preferences()?;
         let channel = prefs
             .channels
@@ -240,7 +270,7 @@ impl Manager {
             .or(self.record(id)?.map(|r| r.channel))
             .unwrap_or_default();
         self.source
-            .check(id, channel, Os::current(), Arch::current()?)
+            .check_repo(id, &app.repo, channel, Os::current(), Arch::current()?)
     }
     pub fn check(&self, id: &str) -> Result<CheckView> {
         let checked = self.checked(id)?;

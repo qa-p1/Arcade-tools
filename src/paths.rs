@@ -18,6 +18,15 @@ pub struct Paths {
 }
 impl Paths {
     pub fn discover() -> Result<Self> {
+        if let Some(root) = std::env::var_os("ARCADE_HOME").filter(|v| !v.is_empty()) {
+            let root = PathBuf::from(root);
+            if !root.is_absolute() {
+                return Err(Error::new("paths", "ARCADE_HOME must be absolute."));
+            }
+            let mut paths = Self::under(&root);
+            paths.link = Locations::under(&root);
+            return Ok(paths);
+        }
         let base = directories::BaseDirs::new()
             .ok_or_else(|| Error::new("paths", "A home directory is required."))?;
         let home = base.home_dir().to_path_buf();
@@ -53,6 +62,14 @@ impl Paths {
     }
     pub fn downloads(&self) -> PathBuf {
         self.cache.join("arcade-tools/downloads")
+    }
+    /// Path calculation only; no I/O, safe on any thread.
+    pub fn catalog(&self) -> PathBuf {
+        self.cache.join("arcade/tools/catalog")
+    }
+    /// Path calculation only; no I/O, safe on any thread.
+    pub fn docs(&self) -> PathBuf {
+        self.cache.join("arcade/tools/docs")
     }
     pub fn install_root(&self, id: &str, os: Os, tarball: bool) -> PathBuf {
         match os {

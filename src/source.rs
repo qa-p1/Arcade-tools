@@ -1,7 +1,7 @@
 //! GitHub is the only production source. Loopback HTTP is opt-in for tests.
 use crate::release::{safe_filename, verify, Asset, Channel, Release};
 use crate::{Error, Result};
-use reqwest::{blocking::Client, redirect::Policy, Url};
+use reqwest::{blocking::Client, redirect::Policy, StatusCode, Url};
 use serde::Deserialize;
 use std::io::{Read, Write};
 use std::path::Path;
@@ -11,6 +11,22 @@ use tempfile::NamedTempFile;
 
 pub const MAX_DOWNLOAD: u64 = 1024 * 1024 * 1024;
 const MAX_JSON: u64 = 1024 * 1024;
+
+/// Bounded conditional HTTP result. A 304 never carries a replacement body.
+#[derive(Debug, Clone)]
+pub enum Fetch {
+    Modified {
+        bytes: Vec<u8>,
+        etag: Option<String>,
+    },
+    NotModified,
+}
+
+/// Injectable synchronous HTTP source. Call from a worker thread.
+pub trait HttpSource: Send + Sync {
+    /// Perform a bounded request on a worker thread; no background work is started.
+    fn fetch(&self, url: &str, etag: Option<&str>, limit: u64) -> Result<Fetch>;
+}
 
 #[derive(Clone)]
 pub struct Source {
@@ -51,6 +67,7 @@ fn allowed(url: &Url, test: bool) -> bool {
                         | "objects.githubusercontent.com"
                         | "release-assets.githubusercontent.com"
                         | "github-releases.githubusercontent.com"
+                        | "raw.githubusercontent.com"
                 )
             )
     }
@@ -87,6 +104,13 @@ impl Source {
         Ok(Self { client, api, test })
     }
     fn response(&self, url: &str) -> Result<reqwest::blocking::Response> {
+        self.conditional_response(url, None)
+    }
+    fn conditional_response(
+        &self,
+        url: &str,
+        etag: Option<&str>,
+    ) -> Result<reqwest::blocking::Response> {
         let parsed = Url::parse(url).map_err(|e| Error::new("source", e.to_string()))?;
         if !allowed(&parsed, self.test) {
             return Err(Error::new(
@@ -94,12 +118,14 @@ impl Source {
                 "Release URL is outside the trusted GitHub source.",
             ));
         }
-        Ok(self
+        let mut request = self
             .client
             .get(parsed)
-            .header("Accept", "application/vnd.github+json")
-            .send()?
-            .error_for_status()?)
+            .header("Accept", "application/vnd.github+json");
+        if let Some(etag) = etag {
+            request = request.header("If-None-Match", etag);
+        }
+        Ok(request.send()?.error_for_status()?)
     }
     fn json(&self, url: &str) -> Result<Vec<u8>> {
         let mut response = self.response(url)?;
@@ -128,6 +154,19 @@ impl Source {
             .strip_prefix("https://github.com/")
             .unwrap()
             .trim_end_matches("/releases");
+        self.check_repo(id, repository, channel, os, arch)
+    }
+    /// Explicit release network I/O; call on a worker thread. The repository
+    /// comes from the validated catalog, not display names or install paths.
+    pub fn check_repo(
+        &self,
+        id: &str,
+        repository: &str,
+        channel: Channel,
+        os: crate::release::Os,
+        arch: crate::release::Arch,
+    ) -> Result<CheckedRelease> {
+        crate::catalog::allowed_repo(repository)?;
         let selector = if channel == Channel::Stable {
             "latest"
         } else {
@@ -217,6 +256,43 @@ impl Source {
         file.as_file().sync_all()?;
         verify(file.path(), &checked.asset)?;
         Ok(file)
+    }
+}
+impl HttpSource for Source {
+    fn fetch(&self, url: &str, etag: Option<&str>, limit: u64) -> Result<Fetch> {
+        let mut response = self.conditional_response(url, etag)?;
+        if response.status() == StatusCode::NOT_MODIFIED {
+            if etag.is_none() {
+                return Err(Error::new(
+                    "source",
+                    "Unexpected 304 without a cached document.",
+                ));
+            }
+            return Ok(Fetch::NotModified);
+        }
+        if response.status() != StatusCode::OK {
+            return Err(Error::new(
+                "source",
+                "Metadata request did not return HTTP 200.",
+            ));
+        }
+        if response.content_length().is_some_and(|n| n > limit) {
+            return Err(Error::new("too_large", "Metadata exceeds its size limit."));
+        }
+        let etag = response
+            .headers()
+            .get("ETag")
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_owned);
+        let mut bytes = Vec::new();
+        response
+            .by_ref()
+            .take(limit.saturating_add(1))
+            .read_to_end(&mut bytes)?;
+        if bytes.len() as u64 > limit {
+            return Err(Error::new("too_large", "Metadata exceeds its size limit."));
+        }
+        Ok(Fetch::Modified { bytes, etag })
     }
 }
 fn unique_asset<'a>(assets: &'a [GithubAsset], name: &str) -> Result<&'a GithubAsset> {

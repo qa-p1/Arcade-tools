@@ -1,0 +1,199 @@
+{
+  "schema": 1,
+  "updated": "2026-10-11",
+  "apps": [
+    {
+      "id": "arcade.box",
+      "name": "Arcade Box",
+      "repo": "qa-p1/Arcade-box",
+      "pitch": "Run quick actions on files, media, and text",
+      "description": "Arcade Box brings file, media, text, and system tasks into one searchable action surface. Choose an input, run a tool, and use or save its result.",
+      "category": "toolbox",
+      "icon": "icons/arcade.box.svg",
+      "screenshots": [],
+      "platforms": {
+        "linux": "verified",
+        "windows": "ci",
+        "macos": "ci"
+      },
+      "linkProtocol": [
+        1
+      ],
+      "minTools": "0.2.0",
+      "docs": "README.md",
+      "resident": true,
+      "homepage": "https://github.com/qa-p1/Arcade-box"
+    },
+    {
+      "id": "arcade.clipboard",
+      "name": "Arcade Clipboard",
+      "repo": "qa-p1/Arcade-clipboard",
+      "pitch": "Keep clipboard history in sync across devices",
+      "description": "Arcade Clipboard stores a history of copied text, links, images, and files and syncs it between your paired devices. Pairing uses a QR code, and clips are encrypted on each device.",
+      "category": "clipboard",
+      "icon": "icons/arcade.clipboard.png",
+      "screenshots": [],
+      "platforms": {
+        "linux": "verified",
+        "windows": "ci",
+        "macos": "ci"
+      },
+      "linkProtocol": [
+        1
+      ],
+      "minTools": "0.2.0",
+      "docs": "README.md",
+      "resident": true,
+      "homepage": "https://github.com/qa-p1/Arcade-clipboard"
+    },
+    {
+      "id": "arcade.find",
+      "name": "Arcade Find",
+      "repo": "qa-p1/Arcade-Find",
+      "pitch": "Find files by name or content",
+      "description": "Arcade Find indexes file names and metadata so you can search without waiting for a full disk scan. When ripgrep is installed, you can also search inside files.",
+      "category": "files",
+      "icon": "icons/arcade.find.svg",
+      "screenshots": [],
+      "platforms": {
+        "linux": "ci",
+        "windows": "ci",
+        "macos": "ci"
+      },
+      "linkProtocol": [
+        1
+      ],
+      "minTools": "0.2.0",
+      "docs": "README.md",
+      "resident": true,
+      "homepage": "https://github.com/qa-p1/Arcade-Find"
+    },
+    {
+      "id": "arcade.lens",
+      "name": "Arcade Lens",
+      "repo": "qa-p1/Arcade-lens",
+      "pitch": "Select a screen area and act on it",
+      "description": "Arcade Lens lets you select an area of the screen and recognizes text, QR codes, colors, and other useful details. It offers actions for the selection without making you choose a separate tool first.",
+      "category": "capture",
+      "icon": "icons/arcade.lens.png",
+      "screenshots": [],
+      "platforms": {
+        "linux": "verified",
+        "windows": "ci",
+        "macos": "ci"
+      },
+      "linkProtocol": [
+        1
+      ],
+      "minTools": "0.2.0",
+      "docs": "README.md",
+      "resident": true,
+      "homepage": "https://github.com/qa-p1/Arcade-lens"
+    },
+    {
+      "id": "arcade.look",
+      "name": "Arcade Look",
+      "repo": "qa-p1/arcade-look",
+      "pitch": "Preview files without opening another app",
+      "description": "Arcade Look shows a quick preview of documents, media, images, folders, archives, and other files. Press Space on a selected file to see it, then open or act on it if needed.",
+      "category": "files",
+      "icon": "icons/arcade.look.svg",
+      "screenshots": [
+        "https://raw.githubusercontent.com/qa-p1/arcade-look/main/docs/hero.webp"
+      ],
+      "platforms": {
+        "linux": "verified",
+        "windows": "ci",
+        "macos": "ci"
+      },
+      "linkProtocol": [
+        1
+      ],
+      "minTools": "0.2.0",
+      "docs": "README.md",
+      "resident": true,
+      "homepage": "https://github.com/qa-p1/arcade-look"
+    },
+    {
+      "id": "arcade.shelf",
+      "name": "Arcade Shelf",
+      "repo": "qa-p1/Arcade-Shelf",
+      "pitch": "Keep files and notes close while you work",
+      "description": "Arcade Shelf holds references to files, folders, links, and text in a small desktop workspace. Organize items into shelves, then drag them or send them to another app.",
+      "category": "files",
+      "icon": "icons/arcade.shelf.svg",
+      "screenshots": [
+        "https://raw.githubusercontent.com/qa-p1/Arcade-Shelf/main/docs/images/expanded.png"
+      ],
+      "platforms": {
+        "linux": "verified",
+        "windows": "ci",
+        "macos": "ci"
+      },
+      "linkProtocol": [
+        1
+      ],
+      "minTools": "0.2.0",
+      "docs": "README.md",
+      "resident": true,
+      "homepage": "https://github.com/qa-p1/Arcade-Shelf"
+    },
+    {
+      "id": "arcade.wheel",
+      "name": "Arcade Wheel",
+      "repo": "qa-p1/Arcade-wheel",
+      "pitch": "Launch apps and actions with a radial menu",
+      "description": "Arcade Wheel opens a radial menu while you hold a global shortcut. Move toward an action and release, or use a center gesture to run a group.",
+      "category": "launcher",
+      "icon": "icons/arcade.wheel.svg",
+      "screenshots": [],
+      "platforms": {
+        "linux": "verified",
+        "windows": "ci",
+        "macos": "ci"
+      },
+      "linkProtocol": [
+        1
+      ],
+      "minTools": "0.2.0",
+      "docs": "README.md",
+      "resident": true,
+      "homepage": "https://github.com/qa-p1/Arcade-wheel"
+    }
+  ],
+  "tools": {
+    "id": "arcade.tools",
+    "name": "Arcade Tools",
+    "repo": "qa-p1/Arcade-tools",
+    "minTools": "0.2.0",
+    "icon": "icons/arcade.tools.svg"
+  },
+  "bundles": [
+    {
+      "id": "essentials",
+      "title": "Essentials",
+      "description": "Search, preview, and collect the files you use every day.",
+      "apps": [
+        "arcade.find",
+        "arcade.look",
+        "arcade.shelf"
+      ]
+    },
+    {
+      "id": "screen",
+      "title": "Screen and capture",
+      "description": "Capture screen details, work with results, and keep clips close.",
+      "apps": [
+        "arcade.lens",
+        "arcade.box",
+        "arcade.clipboard"
+      ]
+    },
+    {
+      "id": "everything",
+      "title": "Everything",
+      "description": "Install every app in the Arcade catalog.",
+      "apps": "*"
+    }
+  ]
+}
