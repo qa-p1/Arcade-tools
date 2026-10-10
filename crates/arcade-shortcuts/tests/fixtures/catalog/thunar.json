@@ -1,0 +1,365 @@
+{
+  "schema": 1,
+  "id": "thunar",
+  "name": "Thunar",
+  "checkedVersion": "4.20.10",
+  "sources": [
+    "https://docs.xfce.org/xfce/thunar/the-file-manager-window",
+    "https://docs.xfce.org/xfce/thunar/working-with-files-and-folders",
+    "https://archive.xfce.org/src/xfce/thunar/4.20/thunar-4.20.10.tar.bz2"
+  ],
+  "match": {
+    "linux": {
+      "class": [
+        "thunar",
+        "Thunar"
+      ]
+    }
+  },
+  "groups": [
+    {
+      "title": "Window and tabs",
+      "context": "window",
+      "shortcuts": [
+        {
+          "id": "new-window",
+          "title": "Open a new window",
+          "keys": {
+            "default": "Ctrl+N"
+          }
+        },
+        {
+          "id": "new-tab",
+          "title": "Open a new tab",
+          "keys": {
+            "default": "Ctrl+T"
+          }
+        },
+        {
+          "id": "close-tab",
+          "title": "Close the current tab",
+          "keys": {
+            "default": "Ctrl+W"
+          }
+        },
+        {
+          "id": "close-window",
+          "title": "Close the current window",
+          "keys": {
+            "default": "Ctrl+Q"
+          }
+        },
+        {
+          "id": "close-all-windows",
+          "title": "Close all Thunar windows",
+          "keys": {
+            "default": "Ctrl+Shift+W"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Navigate folders",
+      "context": "navigation",
+      "shortcuts": [
+        {
+          "id": "open-location",
+          "title": "Enter a location",
+          "keys": {
+            "default": "Ctrl+L"
+          }
+        },
+        {
+          "id": "open-location-alternate",
+          "title": "Focus the location entry",
+          "keys": {
+            "default": "Alt+D"
+          }
+        },
+        {
+          "id": "go-home",
+          "title": "Open the home folder",
+          "keys": {
+            "default": "Alt+Home"
+          }
+        },
+        {
+          "id": "go-up",
+          "title": "Open the parent folder",
+          "keys": {
+            "default": "Alt+Up"
+          }
+        },
+        {
+          "id": "go-back",
+          "title": "Go back",
+          "keys": {
+            "default": [
+              "Alt+Left",
+              "Backspace"
+            ]
+          }
+        },
+        {
+          "id": "go-forward",
+          "title": "Go forward",
+          "keys": {
+            "default": "Alt+Right"
+          }
+        },
+        {
+          "id": "previous-tab",
+          "title": "Switch to the previous tab",
+          "keys": {
+            "default": [
+              "Ctrl+PageUp",
+              "Ctrl+Shift+Tab"
+            ]
+          }
+        },
+        {
+          "id": "next-tab",
+          "title": "Switch to the next tab",
+          "keys": {
+            "default": [
+              "Ctrl+PageDown",
+              "Ctrl+Tab"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "title": "File operations",
+      "context": "files",
+      "shortcuts": [
+        {
+          "id": "open",
+          "title": "Open the selected item",
+          "keys": {
+            "default": "Ctrl+O"
+          }
+        },
+        {
+          "id": "open-in-new-tab",
+          "title": "Open selected folders in a new tab",
+          "keys": {
+            "default": "Ctrl+Shift+P"
+          }
+        },
+        {
+          "id": "open-in-new-window",
+          "title": "Open selected folders in a new window",
+          "keys": {
+            "default": "Ctrl+Shift+O"
+          }
+        },
+        {
+          "id": "create-folder",
+          "title": "Create a folder",
+          "keys": {
+            "default": "Ctrl+Shift+N"
+          }
+        },
+        {
+          "id": "add-bookmark",
+          "title": "Bookmark selected folders",
+          "keys": {
+            "default": "Ctrl+D"
+          }
+        },
+        {
+          "id": "rename",
+          "title": "Rename selected items",
+          "keys": {
+            "default": "F2"
+          }
+        },
+        {
+          "id": "copy",
+          "title": "Copy selected items",
+          "keys": {
+            "default": [
+              "Ctrl+C",
+              "Ctrl+Insert"
+            ]
+          }
+        },
+        {
+          "id": "cut",
+          "title": "Cut selected items",
+          "keys": {
+            "default": "Ctrl+X"
+          }
+        },
+        {
+          "id": "paste",
+          "title": "Paste items",
+          "keys": {
+            "default": [
+              "Ctrl+V",
+              "Shift+Insert"
+            ]
+          }
+        },
+        {
+          "id": "move-to-trash",
+          "title": "Move selected items to Trash",
+          "keys": {
+            "default": "Delete"
+          }
+        },
+        {
+          "id": "delete-permanently",
+          "title": "Delete selected items permanently",
+          "keys": {
+            "default": "Shift+Delete"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Selection and search",
+      "context": "selection",
+      "shortcuts": [
+        {
+          "id": "select-all",
+          "title": "Select all items",
+          "keys": {
+            "default": "Ctrl+A"
+          }
+        },
+        {
+          "id": "select-pattern",
+          "title": "Select items by pattern",
+          "keys": {
+            "default": "Ctrl+S"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Find files",
+      "context": "search",
+      "shortcuts": [
+        {
+          "id": "search-files",
+          "title": "Search from the current folder",
+          "keys": {
+            "default": "Ctrl+F"
+          }
+        }
+      ]
+    },
+    {
+      "title": "View",
+      "context": "view",
+      "shortcuts": [
+        {
+          "id": "reload",
+          "title": "Reload the current folder",
+          "keys": {
+            "default": [
+              "Ctrl+R",
+              "F5"
+            ]
+          }
+        },
+        {
+          "id": "toggle-split-view",
+          "title": "Toggle split view",
+          "keys": {
+            "default": "F3"
+          }
+        },
+        {
+          "id": "toggle-side-pane",
+          "title": "Show or hide the side pane",
+          "keys": {
+            "default": "F9"
+          }
+        },
+        {
+          "id": "toggle-shortcuts-pane",
+          "title": "Show or hide the Shortcuts pane",
+          "keys": {
+            "default": "Ctrl+B"
+          }
+        },
+        {
+          "id": "toggle-tree-pane",
+          "title": "Show or hide the Tree pane",
+          "keys": {
+            "default": "Ctrl+E"
+          }
+        },
+        {
+          "id": "toggle-menubar",
+          "title": "Show or hide the menu bar",
+          "keys": {
+            "default": "Ctrl+M"
+          }
+        },
+        {
+          "id": "toggle-hidden-files",
+          "title": "Show or hide hidden files",
+          "keys": {
+            "default": "Ctrl+H"
+          }
+        },
+        {
+          "id": "icon-view",
+          "title": "Use icon view",
+          "keys": {
+            "default": "Ctrl+1"
+          }
+        },
+        {
+          "id": "list-view",
+          "title": "Use detailed list view",
+          "keys": {
+            "default": "Ctrl+2"
+          }
+        },
+        {
+          "id": "compact-view",
+          "title": "Use compact view",
+          "keys": {
+            "default": "Ctrl+3"
+          }
+        },
+        {
+          "id": "zoom-in",
+          "title": "Zoom in",
+          "keys": {
+            "default": [
+              "Ctrl+Equal",
+              "Ctrl+Shift+Equal"
+            ]
+          }
+        },
+        {
+          "id": "zoom-out",
+          "title": "Zoom out",
+          "keys": {
+            "default": "Ctrl+Minus"
+          }
+        },
+        {
+          "id": "zoom-reset",
+          "title": "Reset zoom",
+          "keys": {
+            "default": "Ctrl+0"
+          }
+        },
+        {
+          "id": "help",
+          "title": "Open the Thunar manual",
+          "keys": {
+            "default": "F1"
+          }
+        }
+      ]
+    }
+  ]
+}

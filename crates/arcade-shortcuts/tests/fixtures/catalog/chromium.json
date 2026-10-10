@@ -1,0 +1,511 @@
+{
+  "schema": 1,
+  "id": "chromium",
+  "name": "Chromium-family browsers",
+  "checkedVersion": "153.0.8010.52",
+  "sources": [
+    "https://support.google.com/chrome/answer/157179?hl=en"
+  ],
+  "match": {
+    "linux": {
+      "class": [
+        "chromium",
+        "Google-chrome",
+        "google-chrome",
+        "brave-browser",
+        "Brave-browser",
+        "microsoft-edge",
+        "Microsoft-edge",
+        "vivaldi-stable",
+        "Vivaldi-stable"
+      ]
+    },
+    "windows": {
+      "exe": [
+        "chromium.exe",
+        "chrome.exe",
+        "brave.exe",
+        "msedge.exe",
+        "vivaldi.exe"
+      ]
+    },
+    "macos": {
+      "bundle": [
+        "org.chromium.Chromium",
+        "com.google.Chrome",
+        "com.brave.Browser",
+        "com.microsoft.edgemac",
+        "com.vivaldi.Vivaldi"
+      ]
+    }
+  },
+  "groups": [
+    {
+      "title": "Tabs and windows",
+      "context": "tabs",
+      "shortcuts": [
+        {
+          "id": "new-window",
+          "title": "Open a new window",
+          "keys": {
+            "default": "Ctrl+N",
+            "macos": "Super+N"
+          }
+        },
+        {
+          "id": "incognito-window",
+          "title": "Open an Incognito window",
+          "keys": {
+            "default": "Ctrl+Shift+N",
+            "macos": "Shift+Super+N"
+          }
+        },
+        {
+          "id": "new-tab",
+          "title": "Open a new tab",
+          "keys": {
+            "default": "Ctrl+T",
+            "macos": "Super+T"
+          }
+        },
+        {
+          "id": "reopen-tab",
+          "title": "Reopen the last closed tab",
+          "keys": {
+            "default": "Ctrl+Shift+T",
+            "macos": "Shift+Super+T"
+          }
+        },
+        {
+          "id": "next-tab",
+          "title": "Switch to the next tab",
+          "keys": {
+            "default": [
+              "Ctrl+Tab",
+              "Ctrl+PageDown"
+            ],
+            "macos": "Alt+Super+Right"
+          }
+        },
+        {
+          "id": "previous-tab",
+          "title": "Switch to the previous tab",
+          "keys": {
+            "default": [
+              "Ctrl+Shift+Tab",
+              "Ctrl+PageUp"
+            ],
+            "macos": "Alt+Super+Left"
+          }
+        },
+        {
+          "id": "tab-1",
+          "title": "Switch to tab 1",
+          "keys": {
+            "default": "Ctrl+1",
+            "macos": "Super+1"
+          }
+        },
+        {
+          "id": "tab-2",
+          "title": "Switch to tab 2",
+          "keys": {
+            "default": "Ctrl+2",
+            "macos": "Super+2"
+          }
+        },
+        {
+          "id": "tab-3",
+          "title": "Switch to tab 3",
+          "keys": {
+            "default": "Ctrl+3",
+            "macos": "Super+3"
+          }
+        },
+        {
+          "id": "tab-4",
+          "title": "Switch to tab 4",
+          "keys": {
+            "default": "Ctrl+4",
+            "macos": "Super+4"
+          }
+        },
+        {
+          "id": "tab-5",
+          "title": "Switch to tab 5",
+          "keys": {
+            "default": "Ctrl+5",
+            "macos": "Super+5"
+          }
+        },
+        {
+          "id": "tab-6",
+          "title": "Switch to tab 6",
+          "keys": {
+            "default": "Ctrl+6",
+            "macos": "Super+6"
+          }
+        },
+        {
+          "id": "tab-7",
+          "title": "Switch to tab 7",
+          "keys": {
+            "default": "Ctrl+7",
+            "macos": "Super+7"
+          }
+        },
+        {
+          "id": "tab-8",
+          "title": "Switch to tab 8",
+          "keys": {
+            "default": "Ctrl+8",
+            "macos": "Super+8"
+          }
+        },
+        {
+          "id": "last-tab",
+          "title": "Switch to the last tab",
+          "keys": {
+            "default": "Ctrl+9",
+            "macos": "Super+9"
+          }
+        },
+        {
+          "id": "close-tab",
+          "title": "Close the current tab",
+          "keys": {
+            "default": [
+              "Ctrl+W",
+              "Ctrl+F4"
+            ],
+            "macos": "Super+W"
+          }
+        },
+        {
+          "id": "close-window",
+          "title": "Close the current window",
+          "keys": {
+            "default": [
+              "Ctrl+Shift+W",
+              "Alt+F4"
+            ],
+            "macos": "Shift+Super+W"
+          }
+        },
+        {
+          "id": "move-tab-left",
+          "title": "Move the selected tab left",
+          "keys": {
+            "default": "Ctrl+Shift+PageUp",
+            "macos": "Ctrl+Shift+PageUp"
+          }
+        },
+        {
+          "id": "move-tab-right",
+          "title": "Move the selected tab right",
+          "keys": {
+            "default": "Ctrl+Shift+PageDown",
+            "macos": "Ctrl+Shift+PageDown"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Navigation",
+      "context": "navigation",
+      "shortcuts": [
+        {
+          "id": "home",
+          "title": "Open the home page",
+          "keys": {
+            "default": "Alt+Home",
+            "macos": "Shift+Super+H"
+          }
+        },
+        {
+          "id": "back",
+          "title": "Go back",
+          "keys": {
+            "default": "Alt+Left",
+            "macos": [
+              "Super+BracketLeft",
+              "Super+Left"
+            ]
+          }
+        },
+        {
+          "id": "forward",
+          "title": "Go forward",
+          "keys": {
+            "default": "Alt+Right",
+            "macos": [
+              "Super+BracketRight",
+              "Super+Right"
+            ]
+          }
+        },
+        {
+          "id": "focus-address",
+          "title": "Focus the address bar",
+          "keys": {
+            "default": [
+              "Ctrl+L",
+              "Alt+D",
+              "F6"
+            ],
+            "macos": "Super+L"
+          }
+        },
+        {
+          "id": "focus-search",
+          "title": "Search from the address bar",
+          "keys": {
+            "default": [
+              "Ctrl+K",
+              "Ctrl+E"
+            ],
+            "macos": "Alt+Super+F"
+          }
+        },
+        {
+          "id": "reload",
+          "title": "Reload the page",
+          "keys": {
+            "default": [
+              "F5",
+              "Ctrl+R"
+            ],
+            "macos": "Super+R"
+          }
+        },
+        {
+          "id": "reload-bypass-cache",
+          "title": "Reload while bypassing the cache",
+          "keys": {
+            "default": "Ctrl+Shift+R",
+            "macos": "Shift+Super+R"
+          }
+        },
+        {
+          "id": "stop-loading",
+          "title": "Stop loading the page",
+          "keys": {
+            "default": "Escape",
+            "macos": "Escape"
+          }
+        },
+        {
+          "id": "full-screen",
+          "title": "Toggle full-screen mode",
+          "keys": {
+            "default": "F11",
+            "macos": null
+          }
+        }
+      ]
+    },
+    {
+      "title": "Page",
+      "context": "page",
+      "shortcuts": [
+        {
+          "id": "print",
+          "title": "Print the current page",
+          "keys": {
+            "default": "Ctrl+P",
+            "macos": "Super+P"
+          }
+        },
+        {
+          "id": "save-page",
+          "title": "Save the current page",
+          "keys": {
+            "default": "Ctrl+S",
+            "macos": "Super+S"
+          }
+        },
+        {
+          "id": "bookmark-page",
+          "title": "Bookmark the current page",
+          "keys": {
+            "default": "Ctrl+D",
+            "macos": "Super+D"
+          }
+        },
+        {
+          "id": "bookmark-all-tabs",
+          "title": "Bookmark all open tabs",
+          "keys": {
+            "default": "Ctrl+Shift+D",
+            "macos": "Shift+Super+D"
+          }
+        },
+        {
+          "id": "zoom-in",
+          "title": "Zoom in",
+          "keys": {
+            "default": "Ctrl+Shift+Equal",
+            "macos": "Shift+Super+Equal"
+          }
+        },
+        {
+          "id": "zoom-out",
+          "title": "Zoom out",
+          "keys": {
+            "default": "Ctrl+Minus",
+            "macos": "Super+Minus"
+          }
+        },
+        {
+          "id": "zoom-reset",
+          "title": "Reset page zoom",
+          "keys": {
+            "default": "Ctrl+0",
+            "macos": "Super+0"
+          }
+        },
+        {
+          "id": "page-source",
+          "title": "View page source",
+          "keys": {
+            "default": "Ctrl+U",
+            "macos": "Alt+Super+U"
+          }
+        },
+        {
+          "id": "scroll-page-down",
+          "title": "Scroll down one screen",
+          "keys": {
+            "default": [
+              "Space",
+              "PageDown"
+            ]
+          }
+        },
+        {
+          "id": "scroll-page-up",
+          "title": "Scroll up one screen",
+          "keys": {
+            "default": [
+              "Shift+Space",
+              "PageUp"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "title": "Find",
+      "context": "search",
+      "shortcuts": [
+        {
+          "id": "find",
+          "title": "Find text on the page",
+          "keys": {
+            "default": [
+              "Ctrl+F",
+              "F3"
+            ],
+            "macos": "Super+F"
+          }
+        },
+        {
+          "id": "find-next",
+          "title": "Find the next match",
+          "keys": {
+            "default": "Ctrl+G",
+            "macos": "Super+G"
+          }
+        },
+        {
+          "id": "find-previous",
+          "title": "Find the previous match",
+          "keys": {
+            "default": "Ctrl+Shift+G",
+            "macos": "Shift+Super+G"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Browser tools",
+      "context": "tools",
+      "shortcuts": [
+        {
+          "id": "bookmarks-bar",
+          "title": "Show or hide the bookmarks bar",
+          "keys": {
+            "default": "Ctrl+Shift+B",
+            "macos": "Shift+Super+B"
+          }
+        },
+        {
+          "id": "bookmarks-manager",
+          "title": "Open the Bookmark Manager",
+          "keys": {
+            "default": "Ctrl+Shift+O",
+            "macos": "Alt+Super+B"
+          }
+        },
+        {
+          "id": "history",
+          "title": "Open History",
+          "keys": {
+            "default": "Ctrl+H",
+            "macos": "Super+Y"
+          }
+        },
+        {
+          "id": "downloads",
+          "title": "Open Downloads",
+          "keys": {
+            "default": "Ctrl+J",
+            "macos": "Shift+Super+J"
+          }
+        },
+        {
+          "id": "task-manager",
+          "title": "Open the browser task manager",
+          "keys": {
+            "default": "Shift+Escape"
+          }
+        },
+        {
+          "id": "developer-tools",
+          "title": "Open Developer Tools",
+          "keys": {
+            "default": [
+              "Ctrl+Shift+J",
+              "F12"
+            ],
+            "macos": "Alt+Super+I"
+          }
+        },
+        {
+          "id": "delete-browsing-data",
+          "title": "Open browsing data controls",
+          "keys": {
+            "default": "Ctrl+Shift+Delete",
+            "macos": "Shift+Super+Delete"
+          }
+        },
+        {
+          "id": "guest-or-profile",
+          "title": "Open profile or guest options",
+          "keys": {
+            "default": "Ctrl+Shift+M",
+            "macos": "Shift+Super+M"
+          }
+        },
+        {
+          "id": "caret-browsing",
+          "title": "Toggle caret browsing",
+          "keys": {
+            "default": "F7",
+            "macos": "F7"
+          }
+        }
+      ]
+    }
+  ]
+}

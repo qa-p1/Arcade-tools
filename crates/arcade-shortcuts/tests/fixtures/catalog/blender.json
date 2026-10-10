@@ -1,0 +1,484 @@
+{
+  "schema": 1,
+  "id": "blender",
+  "name": "Blender",
+  "checkedVersion": "4.5 LTS",
+  "sources": [
+    "https://docs.blender.org/manual/en/4.5/interface/keymap/introduction.html",
+    "https://docs.blender.org/manual/ko/4.5/interface/keymap/blender_default.html",
+    "https://docs.blender.org/manual/en/4.5/editors/preferences/keymap.html",
+    "https://docs.blender.org/manual/en/4.5/editors/3dview/navigate/navigation.html",
+    "https://docs.blender.org/manual/en/4.5/advanced/keymap_editing.html"
+  ],
+  "match": {
+    "linux": {
+      "class": [
+        "blender"
+      ]
+    },
+    "windows": {
+      "exe": [
+        "blender.exe"
+      ]
+    },
+    "macos": {
+      "bundle": [
+        "org.blenderfoundation.blender"
+      ]
+    }
+  },
+  "groups": [
+    {
+      "title": "General",
+      "context": "app",
+      "shortcuts": [
+        {
+          "id": "open-file",
+          "title": "Open a file",
+          "keys": {
+            "default": "Ctrl+O",
+            "macos": "Super+O"
+          }
+        },
+        {
+          "id": "save-file",
+          "title": "Save the file",
+          "keys": {
+            "default": "Ctrl+S",
+            "macos": "Super+S"
+          }
+        },
+        {
+          "id": "new-file",
+          "title": "Create a new file",
+          "keys": {
+            "default": "Ctrl+N",
+            "macos": "Super+N"
+          }
+        },
+        {
+          "id": "undo",
+          "title": "Undo the last action",
+          "keys": {
+            "default": "Ctrl+Z",
+            "macos": "Super+Z"
+          }
+        },
+        {
+          "id": "redo",
+          "title": "Redo the last action",
+          "keys": {
+            "default": "Ctrl+Shift+Z",
+            "macos": "Shift+Super+Z"
+          }
+        },
+        {
+          "id": "quit",
+          "title": "Quit Blender",
+          "keys": {
+            "default": "Ctrl+Q",
+            "macos": "Super+Q"
+          }
+        },
+        {
+          "id": "context-help",
+          "title": "Open context-sensitive help",
+          "keys": {
+            "default": "F1",
+            "macos": "F1"
+          }
+        },
+        {
+          "id": "rename",
+          "title": "Rename the active item",
+          "keys": {
+            "default": "F2",
+            "macos": "F2"
+          }
+        },
+        {
+          "id": "search-menu",
+          "title": "Search for a command",
+          "keys": {
+            "default": "F3",
+            "macos": "F3"
+          }
+        },
+        {
+          "id": "file-context-menu",
+          "title": "Open the file context menu",
+          "keys": {
+            "default": "F4",
+            "macos": "F4"
+          }
+        },
+        {
+          "id": "adjust-last-operation",
+          "title": "Adjust the last operation",
+          "keys": {
+            "default": "F9",
+            "macos": "F9"
+          }
+        },
+        {
+          "id": "render-window",
+          "title": "Show the render window",
+          "keys": {
+            "default": "F11",
+            "macos": "F11"
+          }
+        },
+        {
+          "id": "render-frame",
+          "title": "Render the current frame",
+          "keys": {
+            "default": "F12",
+            "macos": "F12"
+          }
+        },
+        {
+          "id": "quick-access",
+          "title": "Open Quick Access",
+          "keys": {
+            "default": "Q",
+            "macos": "Q"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Areas and workspaces",
+      "context": "workspace",
+      "shortcuts": [
+        {
+          "id": "maximize-area",
+          "title": "Toggle area maximization",
+          "keys": {
+            "default": "Ctrl+Space",
+            "macos": null
+          }
+        },
+        {
+          "id": "next-workspace",
+          "title": "Switch to the next workspace",
+          "keys": {
+            "default": "Ctrl+PageDown",
+            "macos": "Super+PageDown"
+          }
+        },
+        {
+          "id": "previous-workspace",
+          "title": "Switch to the previous workspace",
+          "keys": {
+            "default": "Ctrl+PageUp",
+            "macos": "Super+PageUp"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Common selection",
+      "context": "selection",
+      "shortcuts": [
+        {
+          "id": "select-all",
+          "title": "Select all items",
+          "keys": {
+            "default": "A",
+            "macos": "A"
+          }
+        },
+        {
+          "id": "select-none",
+          "title": "Select no items",
+          "keys": {
+            "default": "Alt+A",
+            "macos": "Alt+A"
+          }
+        },
+        {
+          "id": "invert-selection",
+          "title": "Invert the selection",
+          "keys": {
+            "default": "Ctrl+I",
+            "macos": "Super+I"
+          }
+        },
+        {
+          "id": "hide-selected",
+          "title": "Hide selected items",
+          "keys": {
+            "default": "H",
+            "macos": "H"
+          }
+        },
+        {
+          "id": "hide-unselected",
+          "title": "Hide unselected items",
+          "keys": {
+            "default": "Shift+H",
+            "macos": "Shift+H"
+          }
+        },
+        {
+          "id": "reveal-hidden",
+          "title": "Reveal hidden items",
+          "keys": {
+            "default": "Alt+H",
+            "macos": "Alt+H"
+          }
+        }
+      ]
+    },
+    {
+      "title": "3D Viewport",
+      "context": "viewport",
+      "shortcuts": [
+        {
+          "id": "toggle-toolbar",
+          "title": "Show or hide the toolbar",
+          "keys": {
+            "default": "T",
+            "macos": "T"
+          }
+        },
+        {
+          "id": "toggle-sidebar",
+          "title": "Show or hide the sidebar",
+          "keys": {
+            "default": "N",
+            "macos": "N"
+          }
+        },
+        {
+          "id": "toggle-edit-mode",
+          "title": "Toggle Edit Mode",
+          "keys": {
+            "default": "Tab",
+            "macos": "Tab"
+          }
+        },
+        {
+          "id": "mode-pie",
+          "title": "Open the mode switching pie menu",
+          "keys": {
+            "default": "Ctrl+Tab",
+            "macos": null
+          }
+        },
+        {
+          "id": "vertex-select",
+          "title": "Select vertex mode",
+          "keys": {
+            "default": "1",
+            "macos": "1"
+          }
+        },
+        {
+          "id": "edge-select",
+          "title": "Select edge mode",
+          "keys": {
+            "default": "2",
+            "macos": "2"
+          }
+        },
+        {
+          "id": "face-select",
+          "title": "Select face mode",
+          "keys": {
+            "default": "3",
+            "macos": "3"
+          }
+        },
+        {
+          "id": "navigation-pie",
+          "title": "Open the viewport navigation pie",
+          "keys": {
+            "default": "Backquote",
+            "macos": "Backquote"
+          }
+        },
+        {
+          "id": "toggle-gizmos",
+          "title": "Show or hide gizmos",
+          "keys": {
+            "default": "Ctrl+Backquote",
+            "macos": null
+          }
+        },
+        {
+          "id": "fly-walk-navigation",
+          "title": "Start Fly or Walk Navigation",
+          "keys": {
+            "default": "Shift+Backquote",
+            "macos": "Shift+Backquote"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Transform objects",
+      "context": "object-editing",
+      "shortcuts": [
+        {
+          "id": "move",
+          "title": "Move the selection",
+          "keys": {
+            "default": "G",
+            "macos": "G"
+          }
+        },
+        {
+          "id": "rotate",
+          "title": "Rotate the selection",
+          "keys": {
+            "default": "R",
+            "macos": "R"
+          }
+        },
+        {
+          "id": "scale",
+          "title": "Scale the selection",
+          "keys": {
+            "default": "S",
+            "macos": "S"
+          }
+        },
+        {
+          "id": "duplicate",
+          "title": "Duplicate the selection",
+          "keys": {
+            "default": "Shift+D",
+            "macos": "Shift+D"
+          }
+        },
+        {
+          "id": "delete-confirm",
+          "title": "Delete with confirmation",
+          "keys": {
+            "default": "X",
+            "macos": "X"
+          }
+        },
+        {
+          "id": "delete-immediately",
+          "title": "Delete without confirmation",
+          "keys": {
+            "default": "Delete",
+            "macos": "Delete"
+          }
+        },
+        {
+          "id": "maximize-editor",
+          "title": "Toggle editor maximization",
+          "keys": {
+            "default": "Ctrl+Space",
+            "macos": null
+          }
+        }
+      ]
+    },
+    {
+      "title": "Viewport navigation",
+      "context": "viewport-navigation",
+      "shortcuts": [
+        {
+          "id": "front-view",
+          "title": "View from the front",
+          "keys": {
+            "default": "Numpad1",
+            "macos": "Numpad1"
+          }
+        },
+        {
+          "id": "right-view",
+          "title": "View from the right",
+          "keys": {
+            "default": "Numpad3",
+            "macos": "Numpad3"
+          }
+        },
+        {
+          "id": "top-view",
+          "title": "View from the top",
+          "keys": {
+            "default": "Numpad7",
+            "macos": "Numpad7"
+          }
+        },
+        {
+          "id": "camera-view",
+          "title": "View through the camera",
+          "keys": {
+            "default": "Numpad0",
+            "macos": "Numpad0"
+          }
+        },
+        {
+          "id": "perspective-toggle",
+          "title": "Toggle perspective and orthographic view",
+          "keys": {
+            "default": "Numpad5",
+            "macos": "Numpad5"
+          }
+        },
+        {
+          "id": "orbit-down",
+          "title": "Orbit the view down",
+          "keys": {
+            "default": "Numpad2",
+            "macos": "Numpad2"
+          }
+        },
+        {
+          "id": "orbit-left",
+          "title": "Orbit the view left",
+          "keys": {
+            "default": "Numpad4",
+            "macos": "Numpad4"
+          }
+        },
+        {
+          "id": "orbit-right",
+          "title": "Orbit the view right",
+          "keys": {
+            "default": "Numpad6",
+            "macos": "Numpad6"
+          }
+        },
+        {
+          "id": "orbit-up",
+          "title": "Orbit the view up",
+          "keys": {
+            "default": "Numpad8",
+            "macos": "Numpad8"
+          }
+        },
+        {
+          "id": "opposite-view",
+          "title": "View from the opposite direction",
+          "keys": {
+            "default": "Numpad9",
+            "macos": "Numpad9"
+          }
+        },
+        {
+          "id": "frame-selected",
+          "title": "Frame the selected items",
+          "keys": {
+            "default": "NumpadDecimal",
+            "macos": "NumpadDecimal"
+          }
+        },
+        {
+          "id": "frame-all",
+          "title": "Frame all items",
+          "keys": {
+            "default": "Home",
+            "macos": "Home"
+          }
+        }
+      ]
+    }
+  ]
+}

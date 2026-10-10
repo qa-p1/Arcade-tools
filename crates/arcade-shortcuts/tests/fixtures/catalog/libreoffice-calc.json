@@ -1,0 +1,414 @@
+{
+  "schema": 1,
+  "id": "libreoffice-calc",
+  "name": "LibreOffice Calc",
+  "checkedVersion": "26.8",
+  "sources": [
+    "https://help.libreoffice.org/latest/en-US/text/scalc/04/01020000.html",
+    "https://help.libreoffice.org/latest/en-US/text/shared/04/01010000.html"
+  ],
+  "match": {
+    "linux": {
+      "class": [
+        "libreoffice-calc"
+      ]
+    },
+    "windows": {
+      "exe": [
+        "scalc.exe"
+      ]
+    }
+  },
+  "groups": [
+    {
+      "title": "Workbook",
+      "context": "document",
+      "shortcuts": [
+        {
+          "id": "new-workbook",
+          "title": "Create a new spreadsheet",
+          "keys": {
+            "default": "Ctrl+N",
+            "macos": "Super+N"
+          }
+        },
+        {
+          "id": "open-workbook",
+          "title": "Open a spreadsheet",
+          "keys": {
+            "default": "Ctrl+O",
+            "macos": "Super+O"
+          }
+        },
+        {
+          "id": "save-workbook",
+          "title": "Save the spreadsheet",
+          "keys": {
+            "default": "Ctrl+S",
+            "macos": "Super+S"
+          }
+        },
+        {
+          "id": "save-as",
+          "title": "Save with a new name",
+          "keys": {
+            "default": "Ctrl+Shift+S",
+            "macos": "Shift+Super+S"
+          }
+        },
+        {
+          "id": "print",
+          "title": "Print the spreadsheet",
+          "keys": {
+            "default": "Ctrl+P",
+            "macos": "Super+P"
+          }
+        },
+        {
+          "id": "close-workbook",
+          "title": "Close the spreadsheet",
+          "keys": {
+            "default": "Ctrl+W",
+            "macos": "Super+W"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Move around the sheet",
+      "context": "navigation",
+      "shortcuts": [
+        {
+          "id": "first-cell",
+          "title": "Move to the first cell",
+          "keys": {
+            "default": "Ctrl+Home",
+            "macos": "Super+Home"
+          }
+        },
+        {
+          "id": "last-data-cell",
+          "title": "Move to the last cell with data",
+          "keys": {
+            "default": "Ctrl+End",
+            "macos": "Super+End"
+          }
+        },
+        {
+          "id": "row-start",
+          "title": "Move to the first cell in the row",
+          "keys": {
+            "default": "Home",
+            "macos": "Home"
+          }
+        },
+        {
+          "id": "last-data-column",
+          "title": "Move to the last used column",
+          "keys": {
+            "default": "End",
+            "macos": "End"
+          }
+        },
+        {
+          "id": "data-block-left",
+          "title": "Move to the next data block on the left",
+          "keys": {
+            "default": "Ctrl+Left",
+            "macos": "Super+Left"
+          }
+        },
+        {
+          "id": "data-block-right",
+          "title": "Move to the next data block on the right",
+          "keys": {
+            "default": "Ctrl+Right",
+            "macos": "Super+Right"
+          }
+        },
+        {
+          "id": "data-block-up",
+          "title": "Move to the next data block above",
+          "keys": {
+            "default": "Ctrl+Up",
+            "macos": "Super+Up"
+          }
+        },
+        {
+          "id": "data-block-down",
+          "title": "Move to the next data block below",
+          "keys": {
+            "default": "Ctrl+Down",
+            "macos": "Super+Down"
+          }
+        },
+        {
+          "id": "previous-sheet",
+          "title": "Move to the previous sheet",
+          "keys": {
+            "default": "Ctrl+PageUp",
+            "macos": "Super+PageUp"
+          }
+        },
+        {
+          "id": "next-sheet",
+          "title": "Move to the next sheet",
+          "keys": {
+            "default": "Ctrl+PageDown",
+            "macos": "Super+PageDown"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Select cells",
+      "context": "selection",
+      "shortcuts": [
+        {
+          "id": "select-row",
+          "title": "Select the current row",
+          "keys": {
+            "default": "Shift+Space",
+            "macos": "Shift+Space"
+          }
+        },
+        {
+          "id": "select-column",
+          "title": "Select the current column",
+          "keys": {
+            "default": "Ctrl+Space",
+            "macos": "Super+Space"
+          }
+        },
+        {
+          "id": "select-all-cells",
+          "title": "Select all cells in the sheet",
+          "keys": {
+            "default": "Ctrl+Shift+Space",
+            "macos": "Shift+Super+Space"
+          }
+        },
+        {
+          "id": "extend-to-row-start",
+          "title": "Select to the start of the row",
+          "keys": {
+            "default": "Shift+Home",
+            "macos": "Shift+Home"
+          }
+        },
+        {
+          "id": "extend-to-row-end",
+          "title": "Select to the last used column",
+          "keys": {
+            "default": "Shift+End",
+            "macos": "Shift+End"
+          }
+        },
+        {
+          "id": "extend-range",
+          "title": "Extend the selection in a direction",
+          "keys": {
+            "default": [
+              "Ctrl+Shift+Up",
+              "Ctrl+Shift+Down",
+              "Ctrl+Shift+Left",
+              "Ctrl+Shift+Right"
+            ],
+            "macos": [
+              "Shift+Super+Up",
+              "Shift+Super+Down",
+              "Shift+Super+Left",
+              "Shift+Super+Right"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "title": "Edit cells",
+      "context": "cell-editing",
+      "shortcuts": [
+        {
+          "id": "edit-cell",
+          "title": "Edit the selected cell",
+          "keys": {
+            "default": "F2",
+            "macos": "F2"
+          }
+        },
+        {
+          "id": "cycle-references",
+          "title": "Cycle relative and absolute references",
+          "keys": {
+            "default": "F4",
+            "macos": "F4"
+          }
+        },
+        {
+          "id": "delete-contents",
+          "title": "Delete selected cell contents",
+          "keys": {
+            "default": "Delete",
+            "macos": "Delete"
+          }
+        },
+        {
+          "id": "delete-contents-dialog",
+          "title": "Open the Delete Contents dialog",
+          "keys": {
+            "default": "Backspace",
+            "macos": "Backspace"
+          }
+        },
+        {
+          "id": "insert-line-break",
+          "title": "Insert a line break in a cell",
+          "keys": {
+            "default": "Ctrl+Enter",
+            "macos": "Super+Enter"
+          }
+        },
+        {
+          "id": "array-formula",
+          "title": "Enter an array formula",
+          "keys": {
+            "default": "Ctrl+Shift+Enter",
+            "macos": "Shift+Super+Enter"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Formulas and tools",
+      "context": "formulas",
+      "shortcuts": [
+        {
+          "id": "function-wizard",
+          "title": "Open the Function Wizard",
+          "keys": {
+            "default": "Ctrl+F2",
+            "macos": "Super+F2"
+          }
+        },
+        {
+          "id": "define-names",
+          "title": "Open the Define Names dialog",
+          "keys": {
+            "default": "Ctrl+F3",
+            "macos": "Super+F3"
+          }
+        },
+        {
+          "id": "navigator",
+          "title": "Show or hide the Navigator",
+          "keys": {
+            "default": "F5",
+            "macos": "F5"
+          }
+        },
+        {
+          "id": "trace-dependents",
+          "title": "Trace dependent cells",
+          "keys": {
+            "default": "Shift+F5",
+            "macos": "Shift+F5"
+          }
+        },
+        {
+          "id": "trace-precedents",
+          "title": "Trace precedent cells",
+          "keys": {
+            "default": "Shift+F9",
+            "macos": "Shift+F9"
+          }
+        },
+        {
+          "id": "recalculate-sheet",
+          "title": "Recalculate the current sheet",
+          "keys": {
+            "default": "F9",
+            "macos": "F9"
+          }
+        },
+        {
+          "id": "recalculate-all",
+          "title": "Recalculate all sheets",
+          "keys": {
+            "default": "Ctrl+Shift+F9",
+            "macos": "Shift+Super+F9"
+          }
+        },
+        {
+          "id": "show-formulas",
+          "title": "Show or hide formulas",
+          "keys": {
+            "default": "Ctrl+Backquote",
+            "macos": "Super+Backquote"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Format numbers",
+      "context": "formatting",
+      "shortcuts": [
+        {
+          "id": "format-cells",
+          "title": "Open Format Cells",
+          "keys": {
+            "default": "Ctrl+1",
+            "macos": "Super+1"
+          }
+        },
+        {
+          "id": "format-decimal",
+          "title": "Apply two-decimal number format",
+          "keys": {
+            "default": "Ctrl+Shift+1",
+            "macos": "Shift+Super+1"
+          }
+        },
+        {
+          "id": "format-exponential",
+          "title": "Apply exponential number format",
+          "keys": {
+            "default": "Ctrl+Shift+2",
+            "macos": "Shift+Super+2"
+          }
+        },
+        {
+          "id": "format-date",
+          "title": "Apply date format",
+          "keys": {
+            "default": "Ctrl+Shift+3",
+            "macos": "Shift+Super+3"
+          }
+        },
+        {
+          "id": "format-currency",
+          "title": "Apply currency format",
+          "keys": {
+            "default": "Ctrl+Shift+4",
+            "macos": "Shift+Super+4"
+          }
+        },
+        {
+          "id": "format-percent",
+          "title": "Apply percentage format",
+          "keys": {
+            "default": "Ctrl+Shift+5",
+            "macos": "Shift+Super+5"
+          }
+        },
+        {
+          "id": "format-standard",
+          "title": "Apply standard number format",
+          "keys": {
+            "default": "Ctrl+Shift+6",
+            "macos": "Shift+Super+6"
+          }
+        }
+      ]
+    }
+  ]
+}

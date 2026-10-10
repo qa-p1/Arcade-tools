@@ -1,0 +1,301 @@
+{
+  "schema": 1,
+  "id": "gnome-terminal",
+  "name": "GNOME Terminal",
+  "checkedVersion": "3.60.0",
+  "sources": [
+    "https://help.gnome.org/gnome-terminal/adv-keyboard-shortcuts.html",
+    "https://download.gnome.org/sources/gnome-terminal/3.60/LATEST-IS-3.60.0"
+  ],
+  "match": {
+    "linux": {
+      "class": [
+        "org.gnome.Terminal"
+      ]
+    }
+  },
+  "groups": [
+    {
+      "title": "Tabs and windows",
+      "context": "tabs",
+      "shortcuts": [
+        {
+          "id": "new-window",
+          "title": "Open a new window",
+          "keys": {
+            "default": "Ctrl+Shift+N"
+          }
+        },
+        {
+          "id": "new-tab",
+          "title": "Open a new tab",
+          "keys": {
+            "default": "Ctrl+Shift+T"
+          }
+        },
+        {
+          "id": "close-tab",
+          "title": "Close the current tab",
+          "keys": {
+            "default": "Ctrl+Shift+W"
+          }
+        },
+        {
+          "id": "close-window",
+          "title": "Close the current window",
+          "keys": {
+            "default": "Ctrl+Shift+Q"
+          }
+        },
+        {
+          "id": "next-tab",
+          "title": "Switch to the next tab",
+          "keys": {
+            "default": "Ctrl+PageDown"
+          }
+        },
+        {
+          "id": "previous-tab",
+          "title": "Switch to the previous tab",
+          "keys": {
+            "default": "Ctrl+PageUp"
+          }
+        },
+        {
+          "id": "move-tab-left",
+          "title": "Move the tab left",
+          "keys": {
+            "default": "Ctrl+Shift+PageUp"
+          }
+        },
+        {
+          "id": "move-tab-right",
+          "title": "Move the tab right",
+          "keys": {
+            "default": "Ctrl+Shift+PageDown"
+          }
+        },
+        {
+          "id": "tab-1",
+          "title": "Switch to tab 1",
+          "keys": {
+            "default": "Alt+1"
+          }
+        },
+        {
+          "id": "tab-2",
+          "title": "Switch to tab 2",
+          "keys": {
+            "default": "Alt+2"
+          }
+        },
+        {
+          "id": "tab-3",
+          "title": "Switch to tab 3",
+          "keys": {
+            "default": "Alt+3"
+          }
+        },
+        {
+          "id": "tab-4",
+          "title": "Switch to tab 4",
+          "keys": {
+            "default": "Alt+4"
+          }
+        },
+        {
+          "id": "tab-5",
+          "title": "Switch to tab 5",
+          "keys": {
+            "default": "Alt+5"
+          }
+        },
+        {
+          "id": "tab-6",
+          "title": "Switch to tab 6",
+          "keys": {
+            "default": "Alt+6"
+          }
+        },
+        {
+          "id": "tab-7",
+          "title": "Switch to tab 7",
+          "keys": {
+            "default": "Alt+7"
+          }
+        },
+        {
+          "id": "tab-8",
+          "title": "Switch to tab 8",
+          "keys": {
+            "default": "Alt+8"
+          }
+        },
+        {
+          "id": "tab-9",
+          "title": "Switch to tab 9",
+          "keys": {
+            "default": "Alt+9"
+          }
+        },
+        {
+          "id": "tab-10",
+          "title": "Switch to tab 10",
+          "keys": {
+            "default": "Alt+0"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Clipboard",
+      "context": "clipboard",
+      "shortcuts": [
+        {
+          "id": "copy",
+          "title": "Copy the selection",
+          "keys": {
+            "default": "Ctrl+Shift+C"
+          }
+        },
+        {
+          "id": "paste",
+          "title": "Paste from the clipboard",
+          "keys": {
+            "default": "Ctrl+Shift+V"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Search",
+      "context": "search",
+      "shortcuts": [
+        {
+          "id": "find",
+          "title": "Search the terminal output",
+          "keys": {
+            "default": "Ctrl+Shift+F"
+          }
+        },
+        {
+          "id": "find-next",
+          "title": "Find the next match",
+          "keys": {
+            "default": "Ctrl+Shift+G"
+          }
+        },
+        {
+          "id": "find-previous",
+          "title": "Find the previous match",
+          "keys": {
+            "default": "Ctrl+Shift+H"
+          }
+        },
+        {
+          "id": "clear-highlight",
+          "title": "Clear search highlighting",
+          "keys": {
+            "default": "Ctrl+Shift+J"
+          }
+        }
+      ]
+    },
+    {
+      "title": "View and zoom",
+      "context": "view",
+      "shortcuts": [
+        {
+          "id": "fullscreen",
+          "title": "Toggle full-screen mode",
+          "keys": {
+            "default": "F11"
+          }
+        },
+        {
+          "id": "zoom-in",
+          "title": "Increase text size",
+          "keys": {
+            "default": "Ctrl+Shift+Equal"
+          }
+        },
+        {
+          "id": "zoom-out",
+          "title": "Decrease text size",
+          "keys": {
+            "default": "Ctrl+Minus"
+          }
+        },
+        {
+          "id": "zoom-reset",
+          "title": "Reset text size",
+          "keys": {
+            "default": "Ctrl+0"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Scrollback",
+      "context": "scrollback",
+      "shortcuts": [
+        {
+          "id": "scroll-line-up",
+          "title": "Scroll up one line",
+          "keys": {
+            "default": "Ctrl+Shift+Up"
+          }
+        },
+        {
+          "id": "scroll-line-down",
+          "title": "Scroll down one line",
+          "keys": {
+            "default": "Ctrl+Shift+Down"
+          }
+        },
+        {
+          "id": "scroll-line-left",
+          "title": "Scroll left one line",
+          "keys": {
+            "default": "Ctrl+Shift+Left"
+          }
+        },
+        {
+          "id": "scroll-line-right",
+          "title": "Scroll right one line",
+          "keys": {
+            "default": "Ctrl+Shift+Right"
+          }
+        },
+        {
+          "id": "page-up",
+          "title": "Scroll up one page",
+          "keys": {
+            "default": "Shift+PageUp"
+          }
+        },
+        {
+          "id": "page-down",
+          "title": "Scroll down one page",
+          "keys": {
+            "default": "Shift+PageDown"
+          }
+        },
+        {
+          "id": "scroll-top",
+          "title": "Scroll to the beginning of history",
+          "keys": {
+            "default": "Shift+Home"
+          }
+        },
+        {
+          "id": "scroll-bottom",
+          "title": "Scroll to the end of history",
+          "keys": {
+            "default": "Shift+End"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,420 @@
+{
+  "schema": 1,
+  "id": "vscode",
+  "name": "Visual Studio Code",
+  "checkedVersion": "1.137.0",
+  "sources": [
+    "https://code.visualstudio.com/docs/reference/default-keybindings",
+    "https://code.visualstudio.com/updates/v1_137"
+  ],
+  "match": {
+    "linux": {
+      "class": [
+        "code",
+        "code-oss",
+        "codium"
+      ]
+    },
+    "windows": {
+      "exe": [
+        "Code.exe",
+        "Code - OSS.exe",
+        "VSCodium.exe"
+      ]
+    },
+    "macos": {
+      "bundle": [
+        "com.microsoft.VSCode",
+        "com.vscodium",
+        "com.visualstudio.code.oss"
+      ]
+    }
+  },
+  "groups": [
+    {
+      "title": "Editing",
+      "context": "editor",
+      "shortcuts": [
+        {
+          "id": "save",
+          "title": "Save the file",
+          "keys": {
+            "default": "Ctrl+S",
+            "macos": "Super+S"
+          }
+        },
+        {
+          "id": "undo",
+          "title": "Undo the last edit",
+          "keys": {
+            "default": "Ctrl+Z",
+            "macos": "Super+Z"
+          }
+        },
+        {
+          "id": "redo",
+          "title": "Redo the last edit",
+          "keys": {
+            "default": "Ctrl+Shift+Z",
+            "macos": "Shift+Super+Z"
+          }
+        },
+        {
+          "id": "toggle-line-comment",
+          "title": "Toggle line comment",
+          "keys": {
+            "default": "Ctrl+Slash",
+            "macos": "Super+Slash"
+          }
+        },
+        {
+          "id": "toggle-block-comment",
+          "title": "Toggle block comment",
+          "keys": {
+            "default": "Alt+Shift+A",
+            "linux": "Ctrl+Shift+A",
+            "macos": "Alt+Shift+A"
+          }
+        },
+        {
+          "id": "format-document",
+          "title": "Format the document",
+          "keys": {
+            "default": "Alt+Shift+F",
+            "linux": "Ctrl+Shift+I",
+            "macos": "Alt+Shift+F"
+          }
+        },
+        {
+          "id": "format-selection",
+          "title": "Format the selected code",
+          "keys": {
+            "default": "Ctrl+K Ctrl+F",
+            "macos": "Super+K Super+F"
+          }
+        },
+        {
+          "id": "trigger-suggest",
+          "title": "Show code completions",
+          "keys": {
+            "default": "Ctrl+Space",
+            "macos": "Ctrl+Space"
+          }
+        },
+        {
+          "id": "parameter-hints",
+          "title": "Show parameter hints",
+          "keys": {
+            "default": "Ctrl+Shift+Space",
+            "macos": "Shift+Super+Space"
+          }
+        },
+        {
+          "id": "quick-fix",
+          "title": "Show code actions",
+          "keys": {
+            "default": "Ctrl+Period",
+            "macos": "Super+Period"
+          }
+        },
+        {
+          "id": "rename-symbol",
+          "title": "Rename the symbol",
+          "keys": {
+            "default": "F2",
+            "macos": "F2"
+          }
+        },
+        {
+          "id": "go-definition",
+          "title": "Go to the definition",
+          "keys": {
+            "default": "F12",
+            "macos": "F12"
+          }
+        },
+        {
+          "id": "show-hover",
+          "title": "Show hover information",
+          "keys": {
+            "default": "Ctrl+K Ctrl+I",
+            "macos": "Super+K Super+I"
+          }
+        },
+        {
+          "id": "go-references",
+          "title": "Go to references",
+          "keys": {
+            "default": "Shift+F12",
+            "macos": "Shift+F12"
+          }
+        },
+        {
+          "id": "toggle-word-wrap",
+          "title": "Toggle word wrap",
+          "keys": {
+            "default": "Alt+Z",
+            "macos": "Alt+Z"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Find and replace",
+      "context": "search",
+      "shortcuts": [
+        {
+          "id": "find",
+          "title": "Find in the current file",
+          "keys": {
+            "default": "Ctrl+F",
+            "macos": "Super+F"
+          }
+        },
+        {
+          "id": "replace",
+          "title": "Replace in the current file",
+          "keys": {
+            "default": "Ctrl+H",
+            "macos": "Alt+Super+F"
+          }
+        },
+        {
+          "id": "find-next",
+          "title": "Find the next match",
+          "keys": {
+            "default": "Enter",
+            "macos": "Enter"
+          }
+        },
+        {
+          "id": "find-previous",
+          "title": "Find the previous match",
+          "keys": {
+            "default": "Shift+Enter",
+            "macos": "Shift+Enter"
+          }
+        },
+        {
+          "id": "find-in-files",
+          "title": "Search across files",
+          "keys": {
+            "default": "Ctrl+Shift+F",
+            "macos": "Shift+Super+F"
+          }
+        },
+        {
+          "id": "replace-in-files",
+          "title": "Replace across files",
+          "keys": {
+            "default": "Ctrl+Shift+H",
+            "macos": "Shift+Super+H"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Navigation",
+      "context": "navigation",
+      "shortcuts": [
+        {
+          "id": "quick-open",
+          "title": "Open a file by name",
+          "keys": {
+            "default": "Ctrl+P",
+            "macos": "Super+P"
+          }
+        },
+        {
+          "id": "command-palette",
+          "title": "Show all commands",
+          "keys": {
+            "default": [
+              "Ctrl+Shift+P",
+              "F1"
+            ],
+            "macos": [
+              "Shift+Super+P",
+              "F1"
+            ]
+          }
+        },
+        {
+          "id": "go-to-line",
+          "title": "Go to a line",
+          "keys": {
+            "default": "Ctrl+G",
+            "macos": "Super+G"
+          }
+        },
+        {
+          "id": "show-symbols",
+          "title": "Show all symbols",
+          "keys": {
+            "default": "Ctrl+T",
+            "macos": "Super+T"
+          }
+        },
+        {
+          "id": "go-to-symbol",
+          "title": "Go to a symbol in the file",
+          "keys": {
+            "default": "Ctrl+Shift+O",
+            "macos": "Shift+Super+O"
+          }
+        },
+        {
+          "id": "navigate-back",
+          "title": "Go back in navigation history",
+          "keys": {
+            "default": "Alt+Left",
+            "linux": "Ctrl+Alt+Minus",
+            "macos": "Ctrl+Minus"
+          }
+        },
+        {
+          "id": "navigate-forward",
+          "title": "Go forward in navigation history",
+          "keys": {
+            "default": "Alt+Right",
+            "linux": "Ctrl+Shift+Minus",
+            "macos": "Ctrl+Shift+Minus"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Problems",
+      "context": "problems",
+      "shortcuts": [
+        {
+          "id": "problems-panel",
+          "title": "Show the Problems panel",
+          "keys": {
+            "default": "Ctrl+Shift+M",
+            "macos": "Shift+Super+M"
+          }
+        },
+        {
+          "id": "next-problem",
+          "title": "Go to the next problem",
+          "keys": {
+            "default": "F8",
+            "macos": "F8"
+          }
+        },
+        {
+          "id": "previous-problem",
+          "title": "Go to the previous problem",
+          "keys": {
+            "default": "Shift+F8",
+            "macos": "Shift+F8"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Panels and windows",
+      "context": "panels",
+      "shortcuts": [
+        {
+          "id": "toggle-sidebar",
+          "title": "Show or hide the primary sidebar",
+          "keys": {
+            "default": "Ctrl+B",
+            "macos": "Super+B"
+          }
+        },
+        {
+          "id": "explorer",
+          "title": "Show the Explorer",
+          "keys": {
+            "default": "Ctrl+Shift+E",
+            "macos": "Shift+Super+E"
+          }
+        },
+        {
+          "id": "source-control",
+          "title": "Show Source Control",
+          "keys": {
+            "default": "Ctrl+Shift+G",
+            "macos": "Ctrl+Shift+G"
+          }
+        },
+        {
+          "id": "debug-panel",
+          "title": "Show the Run and Debug view",
+          "keys": {
+            "default": "Ctrl+Shift+D",
+            "macos": "Shift+Super+D"
+          }
+        },
+        {
+          "id": "extensions",
+          "title": "Show Extensions",
+          "keys": {
+            "default": "Ctrl+Shift+X",
+            "macos": "Shift+Super+X"
+          }
+        },
+        {
+          "id": "search-panel",
+          "title": "Show the Search view",
+          "keys": {
+            "default": "Ctrl+Shift+F",
+            "macos": "Shift+Super+F"
+          }
+        },
+        {
+          "id": "toggle-terminal",
+          "title": "Show or hide the integrated terminal",
+          "keys": {
+            "default": "Ctrl+Backquote",
+            "macos": "Ctrl+Backquote"
+          }
+        },
+        {
+          "id": "split-editor",
+          "title": "Split the editor",
+          "keys": {
+            "default": "Ctrl+Backslash",
+            "macos": "Super+Backslash"
+          }
+        },
+        {
+          "id": "close-editor",
+          "title": "Close the active editor",
+          "keys": {
+            "default": "Ctrl+F4",
+            "linux": "Ctrl+W",
+            "macos": "Super+W"
+          }
+        },
+        {
+          "id": "new-window",
+          "title": "Open a new window",
+          "keys": {
+            "default": "Ctrl+Shift+N",
+            "macos": "Shift+Super+N"
+          }
+        },
+        {
+          "id": "editor-group-1",
+          "title": "Focus the first editor group",
+          "keys": {
+            "default": "Ctrl+1",
+            "macos": "Super+1"
+          }
+        },
+        {
+          "id": "markdown-preview",
+          "title": "Toggle Markdown preview",
+          "keys": {
+            "default": "Ctrl+Shift+V",
+            "macos": "Shift+Super+V"
+          }
+        }
+      ]
+    }
+  ]
+}

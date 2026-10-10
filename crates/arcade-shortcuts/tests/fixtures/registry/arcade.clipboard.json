@@ -1,0 +1,8 @@
+{
+  "schema":1,"id":"arcade.clipboard","name":"Arcade Clipboard",
+  "shortcuts":[
+    {"id":"toggle","title":"Show clipboard","accelerator":"Ctrl+Alt+V","rebindable":true},
+    {"id":"also-find","title":"Clipboard search","accelerator":"Ctrl+Alt+F"},
+    {"id":"sequence","title":"Save clipboard","accelerator":["Ctrl+K Ctrl+S","Ctrl+Alt+Shift+S"]}
+  ]
+}

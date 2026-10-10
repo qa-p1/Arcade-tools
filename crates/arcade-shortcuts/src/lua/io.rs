@@ -94,13 +94,10 @@ impl SandboxFile {
                             file.pos += 1;
                         }
                         let start = file.pos;
-                        let end = file.bytes[start..]
-                            .iter()
-                            .position(|b| !b.is_ascii_digit() && !b"+-.eExXaAbBcCdDfF".contains(b))
-                            .map_or(file.bytes.len(), |p| start + p);
-                        let number = std::str::from_utf8(&file.bytes[start..end])
-                            .ok()
-                            .and_then(|s| s.parse::<f64>().ok());
+                        let end = number_end(&file.bytes, start);
+                        let number = lua.coerce_number(Value::String(
+                            lua.create_string(&file.bytes[start..end])?,
+                        ))?;
                         if let Some(number) = number {
                             file.pos = end;
                             Value::Number(number)
@@ -125,6 +122,49 @@ impl SandboxFile {
         let file = self.clone();
         lua.create_function(move |lua, ()| file.read(lua, formats.clone()))
     }
+}
+
+fn number_end(bytes: &[u8], start: usize) -> usize {
+    let mut end = start;
+    if matches!(bytes.get(end), Some(b'+' | b'-')) {
+        end += 1;
+    }
+    let hex = bytes.get(end) == Some(&b'0') && matches!(bytes.get(end + 1), Some(b'x' | b'X'));
+    if hex {
+        end += 2;
+    }
+    let digit = |b: &u8| {
+        if hex {
+            b.is_ascii_hexdigit()
+        } else {
+            b.is_ascii_digit()
+        }
+    };
+    while bytes.get(end).is_some_and(digit) {
+        end += 1;
+    }
+    if bytes.get(end) == Some(&b'.') {
+        end += 1;
+        while bytes.get(end).is_some_and(digit) {
+            end += 1;
+        }
+    }
+    if bytes.get(end).is_some_and(|b| {
+        if hex {
+            *b == b'p' || *b == b'P'
+        } else {
+            *b == b'e' || *b == b'E'
+        }
+    }) {
+        end += 1;
+        if matches!(bytes.get(end), Some(b'+' | b'-')) {
+            end += 1;
+        }
+        while bytes.get(end).is_some_and(u8::is_ascii_digit) {
+            end += 1;
+        }
+    }
+    end
 }
 
 impl UserData for SandboxFile {
@@ -282,5 +322,10 @@ mod tests {
             .set("f", lua.create_userdata(file).unwrap())
             .unwrap();
         lua.load("f:seek('set',1); assert(f:read('l')==''); local count=0; for line in f:lines() do count=count+1 end; assert(count==2); f:seek('set',100); assert(f:read('n')==nil)").exec().unwrap();
+        let file = SandboxFile::new(b"12foo\n0xff\n.5\n-1e2".to_vec());
+        lua.globals()
+            .set("f", lua.create_userdata(file).unwrap())
+            .unwrap();
+        lua.load("assert(f:read('n')==12); assert(f:read('l')=='foo'); assert(f:read('n')==255); assert(f:read('n')==0.5); assert(f:read('n')==-100)").exec().unwrap();
     }
 }
