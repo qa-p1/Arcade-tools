@@ -1,7 +1,12 @@
+use crate::catalog::{Catalog, CatalogClient};
 use crate::paths::{app_id, Paths};
 use crate::platform;
 use crate::release::{checksum, Arch, Channel, Kind, Os};
 use crate::source::{CheckedRelease, Source};
+use crate::updates::{
+    self, Clock, HistoryEntry, HistoryResult, InstalledApp, PeerProtocols, SystemClock,
+    UpdateSettings,
+};
 use crate::{Error, Result};
 use arcade_link::client::Client;
 use arcade_link::manifest::{self, ids, Manifest};
@@ -65,6 +70,8 @@ pub struct Preferences {
     pub link_enabled: bool,
     #[serde(default)]
     pub channels: BTreeMap<String, Channel>,
+    #[serde(default)]
+    pub updates: UpdateSettings,
 }
 fn yes() -> bool {
     true
@@ -74,6 +81,7 @@ impl Default for Preferences {
         Self {
             link_enabled: true,
             channels: BTreeMap::new(),
+            updates: UpdateSettings::default(),
         }
     }
 }
@@ -95,6 +103,13 @@ pub struct AppView {
     pub executable: Option<String>,
     pub data_folders: Vec<String>,
     pub reason: Option<String>,
+    pub description: String,
+    pub category: String,
+    pub icon: String,
+    pub platforms: BTreeMap<String, String>,
+    pub min_tools: String,
+    pub install_reason: Option<String>,
+    pub install_supported: bool,
 }
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -150,6 +165,8 @@ pub struct Manager {
     mutation: Mutex<()>,
 }
 impl Manager {
+    /// Construct without I/O; safe on any thread. All manager I/O methods below
+    /// are synchronous and must be invoked on worker threads.
     pub fn new(paths: Paths, source: Source) -> Self {
         Self {
             paths,
@@ -162,6 +179,7 @@ impl Manager {
             .try_lock()
             .map_err(|_| Error::new("busy", "Another manager operation is running."))
     }
+    /// Read persisted preferences on a worker thread; no network work.
     pub fn preferences(&self) -> Result<Preferences> {
         let path = self.paths.state().join("preferences.json");
         match fs::read(&path) {
@@ -173,6 +191,7 @@ impl Manager {
     fn save_preferences(&self, prefs: &Preferences) -> Result<()> {
         self.write(&self.paths.state().join("preferences.json"), prefs)
     }
+    /// Persist a channel selection on a worker thread; no network work.
     pub fn set_channel(&self, id: &str, channel: Channel) -> Result<()> {
         app_id(id)?;
         let _lock = self.lock()?;
@@ -180,17 +199,77 @@ impl Manager {
         prefs.channels.insert(id.into(), channel);
         self.save_preferences(&prefs)
     }
+    /// Persist Link enablement on a worker thread; no IPC/network work.
     pub fn set_link(&self, enabled: bool) -> Result<()> {
         let _lock = self.lock()?;
         let mut prefs = self.preferences()?;
         prefs.link_enabled = enabled;
         self.save_preferences(&prefs)
     }
+    /// Persist scheduler opt-in on a worker thread. No network work is started.
+    pub fn set_updates_enabled(&self, enabled: bool) -> Result<()> {
+        let _lock = self.lock()?;
+        let mut prefs = self.preferences()?;
+        prefs.updates.enabled = enabled;
+        self.save_preferences(&prefs)
+    }
+    /// Persist per-app auto-update opt-in on a worker thread. No installation.
+    pub fn set_auto_update(&self, id: &str, enabled: bool) -> Result<()> {
+        app_id(id)?;
+        let _lock = self.lock()?;
+        let mut prefs = self.preferences()?;
+        prefs.updates.auto_update.insert(id.into(), enabled);
+        self.save_preferences(&prefs)
+    }
+    /// Read managed records and installed peers' registry manifests on a worker
+    /// thread. Does not probe IPC or connect to the network.
+    pub fn update_inputs(&self) -> Result<(Vec<InstalledApp>, Vec<PeerProtocols>)> {
+        let registry = Registry::load(&self.paths.link);
+        let prefs = self.preferences()?;
+        let peers = registry
+            .apps()
+            .iter()
+            .filter(|m| m.id != ids::TOOLS)
+            .map(|m| PeerProtocols {
+                id: m.id.clone(),
+                protocols: m.link.protocol.clone(),
+            })
+            .collect();
+        let mut installed = Vec::new();
+        for app in self.catalog()?.apps {
+            let record = if app.supported_install() {
+                self.record(&app.id)?
+            } else {
+                None
+            };
+            let peer = registry.get(&app.id);
+            if let Some(version) = record
+                .as_ref()
+                .map(|r| r.version.clone())
+                .or_else(|| peer.map(|p| p.version.clone()))
+            {
+                installed.push(InstalledApp {
+                    id: app.id.clone(),
+                    version,
+                    channel: record.as_ref().map(|r| r.channel).unwrap_or_default(),
+                    selected_channel: prefs
+                        .channels
+                        .get(&app.id)
+                        .copied()
+                        .or(record.as_ref().map(|r| r.channel))
+                        .unwrap_or_default(),
+                    sha256: record.map(|r| r.sha256),
+                });
+            }
+        }
+        Ok((installed, peers))
+    }
     fn write(&self, path: &std::path::Path, value: &impl Serialize) -> Result<()> {
         self.paths.guard(path)?;
         arcade_link::paths::write_atomic(path, &serde_json::to_vec_pretty(value)?, true)?;
         Ok(())
     }
+    /// Read an installation record on a worker thread; no network work.
     pub fn record(&self, id: &str) -> Result<Option<Record>> {
         app_id(id)?;
         match fs::read(self.paths.state().join(format!("{id}.json"))) {
@@ -212,11 +291,23 @@ impl Manager {
         self.paths
             .executable(&record.id, Os::current(), record.kind == Kind::Tarball)
     }
+    /// Read the cached catalog or built-in snapshot on a worker thread.
+    /// No network I/O is performed.
+    pub fn catalog(&self) -> Result<Catalog> {
+        Ok(CatalogClient::new(self.paths.clone(), self.source.clone())?.cached_catalog())
+    }
+    /// Explicit catalog network refresh/cache write on a worker thread.
+    pub fn refresh_catalog(&self) -> Result<Catalog> {
+        Ok(CatalogClient::new(self.paths.clone(), self.source.clone())?.refresh_catalog())
+    }
+    /// Disk/optional IPC work on a worker thread; no network refresh.
     pub fn list(&self, probe: bool) -> Result<Vec<AppView>> {
         let registry = Registry::load(&self.paths.link);
         let prefs = self.preferences()?;
-        crate::apps::APPS.iter().map(|id| {
-            let record = self.record(id)?;
+        let catalog = self.catalog()?;
+        catalog.apps.iter().map(|app| {
+            let id = app.id.as_str();
+            let record = if app.supported_install() { self.record(id)? } else { None };
             let peer = registry.get(id);
             let executable = record.as_ref().map(|r| self.executable(r)).or_else(|| peer.map(|m| PathBuf::from(&m.executable)));
             let running = probe && Client::connect(&self.paths.link, id, &me()).is_ok();
@@ -224,14 +315,24 @@ impl Manager {
             let reason = if record.is_none() && peer.is_some() { Some("Installed outside Arcade Tools. Launch is available; updates and removal need a managed installation.".into()) }
                 else if peer.is_some_and(|m| !m.settings.link_enabled) { Some("Arcade Link is disabled in this app. Close it before changing its installation.".into()) }
                 else if record.is_some() && !healthy { Some("Installed executable is missing. Choose Repair.".into()) } else { None };
-            Ok(AppView { id: id.to_string(), name: crate::apps::app_name(id).into(), pitch: crate::apps::app_pitch(id).into(), releases_url: crate::apps::releases_url(id).into(),
+            Ok(AppView { id: id.to_string(), name: app.name.clone(), pitch: app.pitch.clone(), releases_url: app.releases_url(),
                 version: record.as_ref().map(|r| r.version.clone()).or_else(|| peer.map(|m| m.version.clone())), managed: record.is_some(), installed: healthy,
-                running, channel: prefs.channels.get(*id).copied().or(record.as_ref().map(|r| r.channel)).unwrap_or_default(), healthy,
-                start_at_login: platform::autostart_enabled(&self.paths, id), login_supported: platform::login_supported(id, Os::current()), executable: executable.map(|p| p.display().to_string()),
-                data_folders: self.paths.data_folders(id, Os::current()).iter().map(|p| p.display().to_string()).collect(), reason })
+                running, channel: prefs.channels.get(id).copied().or(record.as_ref().map(|r| r.channel)).unwrap_or_default(), healthy,
+                start_at_login: platform::autostart_enabled(&self.paths, id), login_supported: app.supported_install() && platform::login_supported(id, Os::current()), executable: executable.map(|p| p.display().to_string()),
+                data_folders: self.paths.data_folders(id, Os::current()).iter().map(|p| p.display().to_string()).collect(), reason,
+                description: app.description.clone(), category: app.category.clone(), icon: app.icon.clone(),
+                platforms: app.platforms.clone(), min_tools: app.min_tools.clone(), install_reason: app.install_reason.clone(),
+                install_supported: app.supported_install() })
         }).collect()
     }
     fn checked(&self, id: &str) -> Result<CheckedRelease> {
+        let catalog = self.catalog()?;
+        let app = catalog
+            .app(id)
+            .ok_or_else(|| Error::new("unavailable", "This app is absent from the catalog."))?;
+        if let Some(reason) = &app.install_reason {
+            return Err(Error::new("version_mismatch", reason.clone()));
+        }
         let prefs = self.preferences()?;
         let channel = prefs
             .channels
@@ -239,9 +340,41 @@ impl Manager {
             .copied()
             .or(self.record(id)?.map(|r| r.channel))
             .unwrap_or_default();
-        self.source
-            .check(id, channel, Os::current(), Arch::current()?)
+        let path = self
+            .paths
+            .cache
+            .join("arcade/tools/releases")
+            .join(id)
+            .join(format!("{}.json", channel.as_str()));
+        let cache: Option<crate::release::ReleaseCache> =
+            crate::catalog::read_bounded(&path, 6 * 1024 * 1024)
+                .ok()
+                .and_then(|b| serde_json::from_slice(&b).ok());
+        let check = self.source.check_repo_conditional(
+            id,
+            &app.repo,
+            channel,
+            Os::current(),
+            Arch::current()?,
+            cache.as_ref(),
+        )?;
+        self.write(&path, &check.cache)?;
+        check.checked.release.compatible(id, channel)?;
+        let peers = Registry::load(&self.paths.link)
+            .apps()
+            .iter()
+            .filter(|m| m.id != ids::TOOLS)
+            .map(|m| PeerProtocols {
+                id: m.id.clone(),
+                protocols: m.link.protocol.clone(),
+            })
+            .collect::<Vec<_>>();
+        if let Some(reason) = updates::held_back(app, &check.checked.release, &peers) {
+            return Err(Error::new("version_mismatch", reason));
+        }
+        Ok(check.checked)
     }
+    /// Explicit conditional release request and disk/registry reads, on a worker.
     pub fn check(&self, id: &str) -> Result<CheckView> {
         let checked = self.checked(id)?;
         let record = self.record(id)?;
@@ -258,6 +391,7 @@ impl Manager {
             }),
         })
     }
+    /// IPC/process/disk work on a worker thread. Starts no update timer.
     pub fn launch(&self, id: &str, mode: LaunchMode) -> Result<()> {
         app_id(id)?;
         let _lock = self.lock()?;
@@ -292,6 +426,7 @@ impl Manager {
         }
         Ok(())
     }
+    /// Read, back up, write and validate a generated login entry on a worker.
     pub fn start_at_login(&self, id: &str, enabled: bool) -> Result<()> {
         app_id(id)?;
         let _lock = self.lock()?;
@@ -307,6 +442,8 @@ impl Manager {
             .ok_or_else(|| Error::new("not_installed", "Install this app first."))?;
         platform::set_autostart(&self.paths, id, &exe, enabled)
     }
+    /// User-confirmed (or per-app opted-in) installer/network/IPC/disk work,
+    /// on a worker thread. Updates/repairs append their verified history outcome.
     pub fn operate(
         &self,
         request: &Request,
@@ -315,6 +452,56 @@ impl Manager {
     ) -> Result<String> {
         app_id(&request.id)?;
         let _lock = self.lock()?;
+        let old = self.record(&request.id)?;
+        let mut history = HistoryEntry {
+            time: SystemClock.now(),
+            app: request.id.clone(),
+            from: old.as_ref().map(|r| r.version.clone()),
+            to: None,
+            result: HistoryResult::Success,
+            reason: None,
+        };
+        let mut replaced = false;
+        let result = self.operate_inner(request, cancel, progress, &mut history, &mut replaced);
+        if matches!(request.operation, Operation::Update | Operation::Repair) {
+            if let Err(error) = &result {
+                history.result = if replaced {
+                    if old.as_ref().is_some_and(|r| {
+                        checksum(&self.executable(r)).is_ok_and(|hash| hash == r.executable_sha256)
+                    }) && self
+                        .record(&request.id)
+                        .ok()
+                        .flatten()
+                        .is_some_and(|r| Some(r.version) == history.from)
+                    {
+                        HistoryResult::RolledBack
+                    } else {
+                        HistoryResult::RollbackFailed
+                    }
+                } else {
+                    HistoryResult::Failed
+                };
+                history.reason = Some(error.to_string());
+            }
+            // Don't replace an installation error with a log I/O error. Return
+            // log failures after success so callers know history was not saved.
+            if let Err(error) = updates::append_history(&self.paths, &history) {
+                if result.is_ok() {
+                    return Err(error);
+                }
+                eprintln!("Update history: {error}");
+            }
+        }
+        result
+    }
+    fn operate_inner(
+        &self,
+        request: &Request,
+        cancel: &AtomicBool,
+        progress: &mut dyn FnMut(Progress),
+        history: &mut HistoryEntry,
+        replaced: &mut bool,
+    ) -> Result<String> {
         let id = &request.id;
         let old = self.record(id)?;
         let peer = Registry::load(&self.paths.link).get(id).cloned();
@@ -340,6 +527,7 @@ impl Manager {
         progress(Progress::new(id, "Checking release", None, true));
         check_cancel(cancel)?;
         let checked = self.checked(id)?;
+        history.to = Some(checked.release.version.clone());
         if old.as_ref().is_some_and(|r| r.kind != checked.asset.kind) {
             return Err(Error::new("installer_changed", "This channel uses a different installer format. Uninstall while keeping data, then install the new channel."));
         }
@@ -389,8 +577,13 @@ impl Manager {
         let login = platform::autostart_enabled(&self.paths, id);
         progress(Progress::new(id, "Installing", None, false));
         let result = (|| {
-            let (exe, replacement) =
-                platform::install(&self.paths, id, &checked.asset, downloaded.path())?;
+            let (exe, replacement) = platform::install_observed(
+                &self.paths,
+                id,
+                &checked.asset,
+                downloaded.path(),
+                &mut || *replaced = true,
+            )?;
             let record = Record {
                 id: id.into(),
                 version: checked.release.version.clone(),
@@ -407,6 +600,7 @@ impl Manager {
             }
             self.write(&self.paths.state().join(format!("{id}.json")), &record)?;
             replacement.commit();
+            *replaced = false;
             Ok(())
         })();
         if let Err(error) = result {

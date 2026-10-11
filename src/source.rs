@@ -1,7 +1,7 @@
 //! GitHub is the only production source. Loopback HTTP is opt-in for tests.
-use crate::release::{safe_filename, verify, Asset, Channel, Release};
+use crate::release::{safe_filename, verify, Asset, Channel, Release, ReleaseCache};
 use crate::{Error, Result};
-use reqwest::{blocking::Client, redirect::Policy, Url};
+use reqwest::{blocking::Client, redirect::Policy, StatusCode, Url};
 use serde::Deserialize;
 use std::io::{Read, Write};
 use std::path::Path;
@@ -11,6 +11,22 @@ use tempfile::NamedTempFile;
 
 pub const MAX_DOWNLOAD: u64 = 1024 * 1024 * 1024;
 const MAX_JSON: u64 = 1024 * 1024;
+
+/// Bounded conditional HTTP result. A 304 never carries a replacement body.
+#[derive(Debug, Clone)]
+pub enum Fetch {
+    Modified {
+        bytes: Vec<u8>,
+        etag: Option<String>,
+    },
+    NotModified,
+}
+
+/// Injectable synchronous HTTP source. Call from a worker thread.
+pub trait HttpSource: Send + Sync {
+    /// Perform a bounded request on a worker thread; no background work is started.
+    fn fetch(&self, url: &str, etag: Option<&str>, limit: u64) -> Result<Fetch>;
+}
 
 #[derive(Clone)]
 pub struct Source {
@@ -29,12 +45,20 @@ struct GithubRelease {
     draft: bool,
     prerelease: bool,
     assets: Vec<GithubAsset>,
+    #[serde(default)]
+    body: Option<String>,
 }
 #[derive(Debug, Clone)]
 pub struct CheckedRelease {
     pub release: Release,
     pub asset: Asset,
     pub url: String,
+}
+#[derive(Debug, Clone)]
+pub struct ReleaseCheck {
+    pub checked: CheckedRelease,
+    pub cache: ReleaseCache,
+    pub unchanged: bool,
 }
 
 fn allowed(url: &Url, test: bool) -> bool {
@@ -51,16 +75,20 @@ fn allowed(url: &Url, test: bool) -> bool {
                         | "objects.githubusercontent.com"
                         | "release-assets.githubusercontent.com"
                         | "github-releases.githubusercontent.com"
+                        | "raw.githubusercontent.com"
                 )
             )
     }
 }
 
 impl Source {
+    /// Build a blocking HTTP client on a worker thread. No request is sent.
     pub fn github() -> Result<Self> {
         Self::new(Url::parse("https://api.github.com/").unwrap(), false)
     }
     #[cfg(debug_assertions)]
+    /// Build a loopback-only test HTTP client on a worker thread. Debug-only;
+    /// no request is sent by construction.
     pub fn test_server(url: &str) -> Result<Self> {
         let url = Url::parse(url).map_err(|e| Error::new("source", e.to_string()))?;
         if !allowed(&url, true) {
@@ -87,6 +115,13 @@ impl Source {
         Ok(Self { client, api, test })
     }
     fn response(&self, url: &str) -> Result<reqwest::blocking::Response> {
+        self.conditional_response(url, None)
+    }
+    fn conditional_response(
+        &self,
+        url: &str,
+        etag: Option<&str>,
+    ) -> Result<reqwest::blocking::Response> {
         let parsed = Url::parse(url).map_err(|e| Error::new("source", e.to_string()))?;
         if !allowed(&parsed, self.test) {
             return Err(Error::new(
@@ -94,12 +129,17 @@ impl Source {
                 "Release URL is outside the trusted GitHub source.",
             ));
         }
-        Ok(self
+        let mut request = self
             .client
             .get(parsed)
-            .header("Accept", "application/vnd.github+json")
+            .header("Accept", "application/vnd.github+json");
+        if let Some(etag) = etag {
+            request = request.header("If-None-Match", etag);
+        }
+        request
             .send()?
-            .error_for_status()?)
+            .error_for_status()
+            .map_err(|error| Error::new("http", error.to_string()))
     }
     fn json(&self, url: &str) -> Result<Vec<u8>> {
         let mut response = self.response(url)?;
@@ -113,6 +153,8 @@ impl Source {
         }
         Ok(bytes)
     }
+    /// Explicit GitHub/manifest requests on a worker thread. Kept for existing
+    /// callers; catalog-aware callers use `check_repo_conditional`.
     pub fn check(
         &self,
         id: &str,
@@ -128,6 +170,36 @@ impl Source {
             .strip_prefix("https://github.com/")
             .unwrap()
             .trim_end_matches("/releases");
+        self.check_repo(id, repository, channel, os, arch)
+    }
+    /// Explicit release network I/O; call on a worker thread. The repository
+    /// comes from the validated catalog, not display names or install paths.
+    pub fn check_repo(
+        &self,
+        id: &str,
+        repository: &str,
+        channel: Channel,
+        os: crate::release::Os,
+        arch: crate::release::Arch,
+    ) -> Result<CheckedRelease> {
+        let check = self.check_repo_conditional(id, repository, channel, os, arch, None)?;
+        check.checked.release.compatible(id, channel)?;
+        Ok(check.checked)
+    }
+    /// Conditional GitHub request and manifest validation, on a worker thread.
+    /// A 304 reuses only validated metadata for this source, app, channel and
+    /// platform; it performs no asset/manifest request. Protocol eligibility is
+    /// reported by `updates` and enforced separately before installation.
+    pub fn check_repo_conditional(
+        &self,
+        id: &str,
+        repository: &str,
+        channel: Channel,
+        os: crate::release::Os,
+        arch: crate::release::Arch,
+        cached: Option<&ReleaseCache>,
+    ) -> Result<ReleaseCheck> {
+        crate::catalog::allowed_repo(repository)?;
         let selector = if channel == Channel::Stable {
             "latest"
         } else {
@@ -137,7 +209,40 @@ impl Source {
             .api
             .join(&format!("repos/{repository}/releases/{selector}"))
             .map_err(|e| Error::new("source", e.to_string()))?;
-        let github: GithubRelease = serde_json::from_slice(&self.json(url.as_str())?)?;
+        let cached = cached.filter(|cache| {
+            cache.schema == 1
+                && cache.api_url == url.as_str()
+                && Release::parse(&serde_json::to_vec(&cache.release).unwrap_or_default()).is_ok()
+                && cache.release.matches(id, channel).is_ok()
+                && cache
+                    .release
+                    .select(os, arch)
+                    .is_ok_and(|a| a == cache.asset)
+                && self.asset_url(&cache.download_url, repository).is_ok()
+        });
+        let response = self.fetch(
+            url.as_str(),
+            cached.and_then(|c| c.etag.as_deref()),
+            MAX_JSON,
+        )?;
+        let (bytes, etag) = match response {
+            Fetch::NotModified => {
+                let cache = cached
+                    .ok_or_else(|| Error::new("source", "304 without valid release cache."))?
+                    .clone();
+                return Ok(ReleaseCheck {
+                    checked: CheckedRelease {
+                        release: cache.release.clone(),
+                        asset: cache.asset.clone(),
+                        url: cache.download_url.clone(),
+                    },
+                    cache,
+                    unchanged: true,
+                });
+            }
+            Fetch::Modified { bytes, etag } => (bytes, etag),
+        };
+        let github: GithubRelease = serde_json::from_slice(&bytes)?;
         if github.draft
             || channel == Channel::Stable
                 && (github.prerelease || !github.tag_name.starts_with('v'))
@@ -149,34 +254,56 @@ impl Source {
             ));
         }
         let manifest = unique_asset(&github.assets, "arcade-release.json")?;
+        self.asset_url(&manifest.browser_download_url, repository)?;
         let release = Release::parse(&self.json(&manifest.browser_download_url)?)?;
-        release.compatible(id, channel)?;
+        release.matches(id, channel)?;
+        if channel == Channel::Stable && github.tag_name != format!("v{}", release.version) {
+            return Err(Error::new(
+                "manifest",
+                "Release version does not match its stable tag.",
+            ));
+        }
         let asset = release.select(os, arch)?;
         safe_filename(&asset.file)?;
         let download = unique_asset(&github.assets, &asset.file)?;
-        if !self.test {
-            for item in [manifest, download] {
-                let url = Url::parse(&item.browser_download_url)
-                    .map_err(|e| Error::new("source", e.to_string()))?;
-                if url.scheme() != "https"
-                    || url.host_str() != Some("github.com")
-                    || !url
-                        .path()
-                        .starts_with(&format!("/{repository}/releases/download/"))
-                {
-                    return Err(Error::new(
-                        "source",
-                        "Asset is not from this app's GitHub Releases.",
-                    ));
-                }
-            }
-        }
-        Ok(CheckedRelease {
-            release,
-            asset,
-            url: download.browser_download_url.clone(),
+        self.asset_url(&download.browser_download_url, repository)?;
+        let cache = ReleaseCache {
+            schema: 1,
+            api_url: url.to_string(),
+            etag,
+            release: release.clone(),
+            asset: asset.clone(),
+            download_url: download.browser_download_url.clone(),
+            body: github.body.unwrap_or_default(),
+        };
+        Ok(ReleaseCheck {
+            checked: CheckedRelease {
+                release,
+                asset,
+                url: cache.download_url.clone(),
+            },
+            cache,
+            unchanged: false,
         })
     }
+    fn asset_url(&self, value: &str, repository: &str) -> Result<()> {
+        let url = Url::parse(value).map_err(|e| Error::new("source", e.to_string()))?;
+        if !allowed(&url, self.test)
+            || !self.test
+                && (url.host_str() != Some("github.com")
+                    || !url
+                        .path()
+                        .starts_with(&format!("/{repository}/releases/download/")))
+        {
+            return Err(Error::new(
+                "source",
+                "Asset is not from this app's GitHub Releases.",
+            ));
+        }
+        Ok(())
+    }
+    /// Download and verify SHA-256/size on a worker thread. Cancellation is
+    /// checked during bounded streaming, before any installer runs.
     pub fn download(
         &self,
         checked: &CheckedRelease,
@@ -217,6 +344,43 @@ impl Source {
         file.as_file().sync_all()?;
         verify(file.path(), &checked.asset)?;
         Ok(file)
+    }
+}
+impl HttpSource for Source {
+    fn fetch(&self, url: &str, etag: Option<&str>, limit: u64) -> Result<Fetch> {
+        let mut response = self.conditional_response(url, etag)?;
+        if response.status() == StatusCode::NOT_MODIFIED {
+            if etag.is_none() {
+                return Err(Error::new(
+                    "source",
+                    "Unexpected 304 without a cached document.",
+                ));
+            }
+            return Ok(Fetch::NotModified);
+        }
+        if response.status() != StatusCode::OK {
+            return Err(Error::new(
+                "source",
+                "Metadata request did not return HTTP 200.",
+            ));
+        }
+        if response.content_length().is_some_and(|n| n > limit) {
+            return Err(Error::new("too_large", "Metadata exceeds its size limit."));
+        }
+        let etag = response
+            .headers()
+            .get("ETag")
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_owned);
+        let mut bytes = Vec::new();
+        response
+            .by_ref()
+            .take(limit.saturating_add(1))
+            .read_to_end(&mut bytes)?;
+        if bytes.len() as u64 > limit {
+            return Err(Error::new("too_large", "Metadata exceeds its size limit."));
+        }
+        Ok(Fetch::Modified { bytes, etag })
     }
 }
 fn unique_asset<'a>(assets: &'a [GithubAsset], name: &str) -> Result<&'a GithubAsset> {

@@ -1,0 +1,337 @@
+{
+  "schema": 1,
+  "id": "vlc",
+  "name": "VLC",
+  "checkedVersion": "3.0.24",
+  "sources": [
+    "https://docs.videolan.me/vlc-user/desktop/3.0/en/basic/hotkeys.html",
+    "https://github.com/videolan/vlc/blob/3.0.24/src/libvlc-module.c",
+    "https://download.videolan.org/pub/pub/videolan/vlc/last/"
+  ],
+  "match": {
+    "linux": {
+      "class": [
+        "vlc",
+        "org.videolan.VLC"
+      ]
+    },
+    "windows": {
+      "exe": [
+        "vlc.exe"
+      ]
+    },
+    "macos": {
+      "bundle": [
+        "org.videolan.vlc"
+      ]
+    }
+  },
+  "groups": [
+    {
+      "title": "Playback",
+      "context": "playback",
+      "shortcuts": [
+        {
+          "id": "fullscreen",
+          "title": "Toggle fullscreen",
+          "keys": {
+            "default": "F",
+            "macos": "Super+F"
+          }
+        },
+        {
+          "id": "leave-fullscreen",
+          "title": "Leave fullscreen",
+          "keys": {
+            "default": "Escape",
+            "macos": "Escape"
+          }
+        },
+        {
+          "id": "play-pause",
+          "title": "Toggle playback",
+          "keys": {
+            "default": "Space",
+            "macos": "Space"
+          }
+        },
+        {
+          "id": "stop",
+          "title": "Stop playback",
+          "keys": {
+            "default": "S",
+            "macos": "Super+Period"
+          }
+        },
+        {
+          "id": "faster",
+          "title": "Increase playback speed",
+          "keys": {
+            "default": "Shift+Equal",
+            "macos": "Super+Equal"
+          }
+        },
+        {
+          "id": "slower",
+          "title": "Decrease playback speed",
+          "keys": {
+            "default": "Minus",
+            "macos": "Super+Minus"
+          }
+        },
+        {
+          "id": "normal-speed",
+          "title": "Restore normal speed",
+          "keys": {
+            "default": "Equal",
+            "macos": null
+          }
+        },
+        {
+          "id": "next",
+          "title": "Play the next item",
+          "keys": {
+            "default": "N",
+            "macos": "Super+Right"
+          }
+        },
+        {
+          "id": "previous",
+          "title": "Play the previous item",
+          "keys": {
+            "default": "P",
+            "macos": "Super+Left"
+          }
+        },
+        {
+          "id": "volume-up",
+          "title": "Increase volume",
+          "keys": {
+            "default": "Ctrl+Up",
+            "macos": "Super+Up"
+          }
+        },
+        {
+          "id": "volume-down",
+          "title": "Decrease volume",
+          "keys": {
+            "default": "Ctrl+Down",
+            "macos": "Super+Down"
+          }
+        },
+        {
+          "id": "mute",
+          "title": "Toggle mute",
+          "keys": {
+            "default": "M",
+            "macos": "Alt+Super+Down"
+          }
+        },
+        {
+          "id": "show-position",
+          "title": "Show the playback position",
+          "keys": {
+            "default": "T",
+            "macos": "T"
+          }
+        },
+        {
+          "id": "jump-short-back",
+          "title": "Jump backward a short interval",
+          "keys": {
+            "default": "Alt+Left",
+            "macos": "Alt+Super+Left"
+          }
+        },
+        {
+          "id": "jump-short-forward",
+          "title": "Jump forward a short interval",
+          "keys": {
+            "default": "Alt+Right",
+            "macos": "Alt+Super+Right"
+          }
+        },
+        {
+          "id": "jump-medium-back",
+          "title": "Jump backward a medium interval",
+          "keys": {
+            "default": "Ctrl+Left",
+            "macos": "Shift+Super+Left"
+          }
+        },
+        {
+          "id": "jump-medium-forward",
+          "title": "Jump forward a medium interval",
+          "keys": {
+            "default": "Ctrl+Right",
+            "macos": "Shift+Super+Right"
+          }
+        },
+        {
+          "id": "jump-long-back",
+          "title": "Jump backward a long interval",
+          "keys": {
+            "default": "Ctrl+Alt+Left",
+            "macos": "Alt+Shift+Super+Left"
+          }
+        },
+        {
+          "id": "jump-long-forward",
+          "title": "Jump forward a long interval",
+          "keys": {
+            "default": "Ctrl+Alt+Right",
+            "macos": "Alt+Shift+Super+Right"
+          }
+        },
+        {
+          "id": "frame-next",
+          "title": "Advance one frame",
+          "keys": {
+            "default": "E",
+            "macos": "E"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Audio and subtitles",
+      "context": "tracks",
+      "shortcuts": [
+        {
+          "id": "audio-track",
+          "title": "Switch audio tracks",
+          "keys": {
+            "default": "B",
+            "macos": "L"
+          }
+        },
+        {
+          "id": "subtitle-track",
+          "title": "Switch subtitle tracks",
+          "keys": {
+            "default": "V",
+            "macos": "S"
+          }
+        },
+        {
+          "id": "toggle-subtitles",
+          "title": "Show or hide subtitles",
+          "keys": {
+            "default": "Shift+V",
+            "macos": "Shift+S"
+          }
+        },
+        {
+          "id": "subtitle-delay-up",
+          "title": "Increase subtitle delay",
+          "keys": {
+            "default": "H",
+            "macos": "J"
+          }
+        },
+        {
+          "id": "subtitle-delay-down",
+          "title": "Decrease subtitle delay",
+          "keys": {
+            "default": "G",
+            "macos": "H"
+          }
+        },
+        {
+          "id": "audio-delay-up",
+          "title": "Increase audio delay",
+          "keys": {
+            "default": "K",
+            "macos": "G"
+          }
+        },
+        {
+          "id": "audio-delay-down",
+          "title": "Decrease audio delay",
+          "keys": {
+            "default": "J",
+            "macos": "F"
+          }
+        },
+        {
+          "id": "cycle-audio-device",
+          "title": "Switch audio output devices",
+          "keys": {
+            "default": "Shift+A",
+            "macos": "Shift+A"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Video controls",
+      "context": "video",
+      "shortcuts": [
+        {
+          "id": "aspect-ratio",
+          "title": "Cycle aspect ratios",
+          "keys": {
+            "default": "A",
+            "macos": "A"
+          }
+        },
+        {
+          "id": "crop",
+          "title": "Cycle crop modes",
+          "keys": {
+            "default": "C",
+            "macos": "C"
+          }
+        },
+        {
+          "id": "deinterlace",
+          "title": "Toggle deinterlacing",
+          "keys": {
+            "default": "D",
+            "macos": "D"
+          }
+        },
+        {
+          "id": "deinterlace-mode",
+          "title": "Change the deinterlace mode",
+          "keys": {
+            "default": "Shift+D",
+            "macos": "Shift+D"
+          }
+        },
+        {
+          "id": "snapshot",
+          "title": "Take a snapshot",
+          "keys": {
+            "default": "Shift+S",
+            "macos": "Alt+Super+S"
+          }
+        },
+        {
+          "id": "record",
+          "title": "Start or stop recording",
+          "keys": {
+            "default": "Shift+R",
+            "macos": "Shift+Super+R"
+          }
+        },
+        {
+          "id": "random",
+          "title": "Toggle random playback",
+          "keys": {
+            "default": "R",
+            "macos": "Super+Z"
+          }
+        },
+        {
+          "id": "loop",
+          "title": "Toggle loop mode",
+          "keys": {
+            "default": "L",
+            "macos": "Shift+L"
+          }
+        }
+      ]
+    }
+  ]
+}

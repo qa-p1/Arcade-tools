@@ -425,7 +425,10 @@ pub fn run(background: bool, quit: bool) {
             set_login,
             set_link,
             open_releases,
-            ui_rendered
+            ui_rendered,
+            crate::shortcuts::shortcuts_index,
+            crate::shortcuts::shortcut_labels,
+            crate::shortcuts::set_shortcut_label
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {

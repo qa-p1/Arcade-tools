@@ -1,0 +1,489 @@
+{
+  "schema": 1,
+  "id": "inkscape",
+  "name": "Inkscape",
+  "checkedVersion": "1.4.x",
+  "sources": [
+    "https://inkscape.org/doc/keys.html",
+    "https://inkscape.org/es/learn/faq/"
+  ],
+  "match": {
+    "linux": {
+      "class": [
+        "inkscape",
+        "org.inkscape.Inkscape"
+      ]
+    },
+    "windows": {
+      "exe": [
+        "inkscape.exe"
+      ]
+    },
+    "macos": {
+      "bundle": [
+        "org.inkscape.Inkscape"
+      ]
+    }
+  },
+  "groups": [
+    {
+      "title": "Document",
+      "context": "document",
+      "shortcuts": [
+        {
+          "id": "new-document",
+          "title": "Create a new document",
+          "keys": {
+            "default": "Ctrl+N"
+          }
+        },
+        {
+          "id": "new-from-template",
+          "title": "Create a document from a template",
+          "keys": {
+            "default": "Ctrl+Alt+N"
+          }
+        },
+        {
+          "id": "open-document",
+          "title": "Open a document",
+          "keys": {
+            "default": "Ctrl+O"
+          }
+        },
+        {
+          "id": "import-file",
+          "title": "Import a file",
+          "keys": {
+            "default": "Ctrl+I"
+          }
+        },
+        {
+          "id": "save-document",
+          "title": "Save the document",
+          "keys": {
+            "default": "Ctrl+S"
+          }
+        },
+        {
+          "id": "save-as",
+          "title": "Save under a new name",
+          "keys": {
+            "default": "Ctrl+Shift+S"
+          }
+        },
+        {
+          "id": "save-copy",
+          "title": "Save a copy",
+          "keys": {
+            "default": "Ctrl+Alt+Shift+S"
+          }
+        },
+        {
+          "id": "export",
+          "title": "Export the drawing",
+          "keys": {
+            "default": "Ctrl+Shift+E"
+          }
+        },
+        {
+          "id": "print",
+          "title": "Print the document",
+          "keys": {
+            "default": "Ctrl+P"
+          }
+        },
+        {
+          "id": "quit",
+          "title": "Quit Inkscape",
+          "keys": {
+            "default": "Ctrl+Q"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Edit objects",
+      "context": "editing",
+      "shortcuts": [
+        {
+          "id": "undo",
+          "title": "Undo the last action",
+          "keys": {
+            "default": "Ctrl+Z"
+          }
+        },
+        {
+          "id": "redo",
+          "title": "Redo the last action",
+          "keys": {
+            "default": "Ctrl+Shift+Z"
+          }
+        },
+        {
+          "id": "cut",
+          "title": "Cut the selection",
+          "keys": {
+            "default": "Ctrl+X"
+          }
+        },
+        {
+          "id": "copy",
+          "title": "Copy the selection",
+          "keys": {
+            "default": "Ctrl+C"
+          }
+        },
+        {
+          "id": "paste",
+          "title": "Paste from the clipboard",
+          "keys": {
+            "default": "Ctrl+V"
+          }
+        },
+        {
+          "id": "duplicate",
+          "title": "Duplicate the selection",
+          "keys": {
+            "default": "Ctrl+D"
+          }
+        },
+        {
+          "id": "group",
+          "title": "Group selected objects",
+          "keys": {
+            "default": "Ctrl+G"
+          }
+        },
+        {
+          "id": "ungroup",
+          "title": "Ungroup selected objects",
+          "keys": {
+            "default": "Ctrl+Shift+G"
+          }
+        },
+        {
+          "id": "object-to-path",
+          "title": "Convert objects to paths",
+          "keys": {
+            "default": "Ctrl+Shift+C"
+          }
+        },
+        {
+          "id": "raise-one-step",
+          "title": "Raise selection one step",
+          "keys": {
+            "default": "PageUp"
+          }
+        },
+        {
+          "id": "lower-one-step",
+          "title": "Lower selection one step",
+          "keys": {
+            "default": "PageDown"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Select objects",
+      "context": "selection",
+      "shortcuts": [
+        {
+          "id": "select-all",
+          "title": "Select all objects",
+          "keys": {
+            "default": "Ctrl+A"
+          }
+        },
+        {
+          "id": "deselect",
+          "title": "Deselect the current selection",
+          "keys": {
+            "default": "Escape"
+          }
+        },
+        {
+          "id": "next-object",
+          "title": "Select the next object",
+          "keys": {
+            "default": "Tab"
+          }
+        },
+        {
+          "id": "previous-object",
+          "title": "Select the previous object",
+          "keys": {
+            "default": "Shift+Tab"
+          }
+        }
+      ]
+    },
+    {
+      "title": "View",
+      "context": "view",
+      "shortcuts": [
+        {
+          "id": "fullscreen",
+          "title": "Toggle fullscreen",
+          "keys": {
+            "default": "F11"
+          }
+        },
+        {
+          "id": "toggle-rulers",
+          "title": "Show or hide rulers",
+          "keys": {
+            "default": "Ctrl+R"
+          }
+        },
+        {
+          "id": "toggle-scrollbars",
+          "title": "Show or hide scrollbars",
+          "keys": {
+            "default": "Ctrl+B"
+          }
+        },
+        {
+          "id": "toggle-toolbars-fullscreen",
+          "title": "Toggle toolbars and fullscreen",
+          "keys": {
+            "default": "Ctrl+F11"
+          }
+        },
+        {
+          "id": "toggle-toolbars",
+          "title": "Show or hide toolbars",
+          "keys": {
+            "default": "Shift+F11"
+          }
+        },
+        {
+          "id": "context-menu",
+          "title": "Open the context menu",
+          "keys": {
+            "default": "Shift+F10"
+          }
+        },
+        {
+          "id": "zoom-selection",
+          "title": "Zoom to the selection",
+          "keys": {
+            "default": "3"
+          }
+        },
+        {
+          "id": "zoom-drawing",
+          "title": "Zoom to the drawing",
+          "keys": {
+            "default": "4"
+          }
+        },
+        {
+          "id": "zoom-page",
+          "title": "Zoom to the page",
+          "keys": {
+            "default": "5"
+          }
+        },
+        {
+          "id": "zoom-one-to-one",
+          "title": "Zoom to actual size",
+          "keys": {
+            "default": "1"
+          }
+        },
+        {
+          "id": "zoom-in",
+          "title": "Zoom in",
+          "keys": {
+            "default": "Shift+Equal"
+          }
+        },
+        {
+          "id": "zoom-out",
+          "title": "Zoom out",
+          "keys": {
+            "default": "Minus"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Dialogs",
+      "context": "dialogs",
+      "shortcuts": [
+        {
+          "id": "fill-stroke",
+          "title": "Open Fill and Stroke",
+          "keys": {
+            "default": "Ctrl+Shift+F"
+          }
+        },
+        {
+          "id": "text-font",
+          "title": "Open Text and Font",
+          "keys": {
+            "default": "Ctrl+Shift+T"
+          }
+        },
+        {
+          "id": "transform",
+          "title": "Open Transform",
+          "keys": {
+            "default": "Ctrl+Shift+M"
+          }
+        },
+        {
+          "id": "layers-objects",
+          "title": "Open Layers and Objects",
+          "keys": {
+            "default": "Ctrl+Shift+L"
+          }
+        },
+        {
+          "id": "align-distribute",
+          "title": "Open Align and Distribute",
+          "keys": {
+            "default": "Ctrl+Shift+A"
+          }
+        },
+        {
+          "id": "object-properties",
+          "title": "Open Object Properties",
+          "keys": {
+            "default": "Ctrl+Shift+O"
+          }
+        },
+        {
+          "id": "xml-editor",
+          "title": "Open the XML Editor",
+          "keys": {
+            "default": "Ctrl+Shift+X"
+          }
+        },
+        {
+          "id": "document-properties",
+          "title": "Open Document Properties",
+          "keys": {
+            "default": "Ctrl+Shift+D"
+          }
+        },
+        {
+          "id": "preferences",
+          "title": "Open Inkscape Preferences",
+          "keys": {
+            "default": "Ctrl+Shift+P"
+          }
+        },
+        {
+          "id": "find",
+          "title": "Find or replace text",
+          "keys": {
+            "default": "Ctrl+F"
+          }
+        },
+        {
+          "id": "toggle-dialogs",
+          "title": "Show or hide dialogs",
+          "keys": {
+            "default": "F12"
+          }
+        },
+        {
+          "id": "close-dialog",
+          "title": "Close the active dialog",
+          "keys": {
+            "default": [
+              "Ctrl+F4",
+              "Ctrl+W"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "title": "Choose a tool",
+      "context": "tools",
+      "shortcuts": [
+        {
+          "id": "select-tool",
+          "title": "Choose the Select tool",
+          "keys": {
+            "default": "F1"
+          }
+        },
+        {
+          "id": "node-tool",
+          "title": "Choose the Node tool",
+          "keys": {
+            "default": "F2"
+          }
+        },
+        {
+          "id": "zoom-tool",
+          "title": "Choose the Zoom tool",
+          "keys": {
+            "default": "F3"
+          }
+        },
+        {
+          "id": "rectangle-tool",
+          "title": "Choose the Rectangle tool",
+          "keys": {
+            "default": "F4"
+          }
+        },
+        {
+          "id": "ellipse-tool",
+          "title": "Choose the Ellipse tool",
+          "keys": {
+            "default": "E"
+          }
+        },
+        {
+          "id": "bezier-tool",
+          "title": "Choose the Bezier tool",
+          "keys": {
+            "default": "B"
+          }
+        },
+        {
+          "id": "pencil-tool",
+          "title": "Choose the Pencil tool",
+          "keys": {
+            "default": "P"
+          }
+        },
+        {
+          "id": "text-tool",
+          "title": "Choose the Text tool",
+          "keys": {
+            "default": "T"
+          }
+        },
+        {
+          "id": "gradient-tool",
+          "title": "Choose the Gradient tool",
+          "keys": {
+            "default": "G"
+          }
+        },
+        {
+          "id": "dropper-tool",
+          "title": "Choose the Dropper tool",
+          "keys": {
+            "default": "D"
+          }
+        },
+        {
+          "id": "measure-tool",
+          "title": "Choose the Measure tool",
+          "keys": {
+            "default": "M"
+          }
+        }
+      ]
+    }
+  ]
+}

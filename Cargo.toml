@@ -7,7 +7,7 @@ license = "MIT"
 description = "Verified per-user installation and lifecycle management for the Arcade apps"
 
 [workspace]
-members = [".", "src-tauri", "crates/arcade-tools-overlay"]
+members = [".", "src-tauri", "crates/arcade-shortcuts", "crates/arcade-tools-overlay"]
 default-members = [".", "src-tauri"]
 resolver = "2"
 
@@ -25,6 +25,10 @@ tempfile = "3"
 directories = "6"
 tar = "0.4"
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+semver = "1"
+pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }
+ammonia = "4"
+wait-timeout = "0.2"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Threading"] }

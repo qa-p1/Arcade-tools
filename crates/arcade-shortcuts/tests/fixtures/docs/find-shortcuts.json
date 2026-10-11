@@ -1,0 +1,13 @@
+{
+  "schema": 1, "app": "arcade.find", "version": "0.3.0",
+  "groups": [
+    {"title":"Global","context":"global","shortcuts":[
+      {"id":"toggle","title":"Show or hide Find","keys":{"default":"Ctrl+Alt+F"},"rebindable":true},
+      {"id":"prefix","title":"Find command menu","keys":{"default":"Ctrl+K"},"rebindable":true}
+    ]},
+    {"title":"Results","context":"overlay","shortcuts":[
+      {"id":"open","title":"Open selected result","keys":{"default":["Enter","Shift+Enter"],"macos":"Super+Enter"}},
+      {"id":"pin","title":"Pin result","keys":{"default":"Ctrl+Shift+P","macos":"Shift+Super+P"},"description":"Keep this result"}
+    ]}
+  ]
+}
