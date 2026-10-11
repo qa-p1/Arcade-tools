@@ -2,6 +2,7 @@ pub mod apps;
 pub mod catalog;
 pub mod docs;
 pub mod engines;
+pub mod health;
 pub mod installation;
 pub mod link;
 pub mod manager;
@@ -9,6 +10,8 @@ pub mod markdown;
 pub mod paths;
 pub mod platform;
 pub mod release;
+pub mod removal;
+pub mod self_update;
 pub mod source;
 pub mod updates;
 

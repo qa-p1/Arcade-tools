@@ -261,6 +261,340 @@ impl Manager {
         prefs.updates.auto_update.insert(id.into(), enabled);
         self.save_preferences(&prefs)
     }
+    /// Execute an opted-in update on a worker. Disabled checks, unknown use,
+    /// recent use, disconnected/busy apps and compatibility holds return a
+    /// decision without modifying the installation. No timer is started here.
+    /// The caller supplies its latest last-used timestamp (Unix seconds).
+    pub fn auto_update(
+        &self,
+        id: &str,
+        last_used: Option<u64>,
+        clock: &dyn Clock,
+        cancel: &AtomicBool,
+        progress: &mut dyn FnMut(Progress),
+    ) -> Result<updates::AutoUpdateOutcome> {
+        app_id(id)?;
+        let _lock = self.lock()?;
+        let decision = self.auto_eligibility(id, last_used, clock.now())?;
+        if !decision.eligible {
+            return Ok(updates::AutoUpdateOutcome {
+                decision,
+                message: None,
+            });
+        }
+        let request = Request {
+            id: id.into(),
+            operation: Operation::Update,
+            mode: None,
+            remove_data: false,
+            app_closed: false,
+        };
+        match self.operate_locked(&request, cancel, progress, clock.now()) {
+            Ok(message) => Ok(updates::AutoUpdateOutcome {
+                decision,
+                message: Some(message),
+            }),
+            Err(error)
+                if matches!(
+                    error.code.as_str(),
+                    "busy"
+                        | "disconnected"
+                        | "version_mismatch"
+                        | "dev_build"
+                        | "unmanaged"
+                        | "mode_required"
+                ) =>
+            {
+                Ok(updates::AutoUpdateOutcome {
+                    decision: updates::AutoUpdateDecision {
+                        eligible: false,
+                        reason: error.message,
+                    },
+                    message: None,
+                })
+            }
+            Err(error) => Err(error),
+        }
+    }
+    fn auto_eligibility(
+        &self,
+        id: &str,
+        last_used: Option<u64>,
+        now: u64,
+    ) -> Result<updates::AutoUpdateDecision> {
+        let settings = self.preferences()?.updates;
+        let deny = |reason: &str| updates::AutoUpdateDecision {
+            eligible: false,
+            reason: reason.into(),
+        };
+        if !settings.enabled {
+            return Ok(deny("Update checks are off."));
+        }
+        if !settings.auto_update.get(id).copied().unwrap_or(false) {
+            return Ok(deny("Auto-update is off for this app."));
+        }
+        let registry = Registry::load(&self.paths.link);
+        let receipt = self.receipt(id)?;
+        if !matches!(
+            self.class(id, &registry, receipt.as_ref())?,
+            InstallationClass::Managed | InstallationClass::LegacyManaged
+        ) {
+            return Ok(deny(
+                "Only managed, non-development installations can auto-update.",
+            ));
+        }
+        if registry
+            .get(id)
+            .is_some_and(|peer| !peer.settings.link_enabled)
+        {
+            return Ok(deny(
+                "Arcade Link is disabled; close the app and update manually.",
+            ));
+        }
+        let status = match Client::connect(&self.paths.link, id, &me()) {
+            Ok(mut client) => client.status().map_err(|error| link_error(id, error))?,
+            Err(error) if error.code == arcade_link::ErrorCode::NotRunning => {
+                if arcade_link::endpoint::read(&self.paths.link, id)
+                    .is_ok_and(|endpoint| process_alive(endpoint.pid))
+                {
+                    return Ok(deny("A running app has an unavailable Link endpoint."));
+                }
+                json!({"busy": false})
+            }
+            Err(error) => return Ok(deny(&link_error(id, error).message)),
+        };
+        Ok(updates::auto_update_policy(true, &status, last_used, now))
+    }
+
+    /// Download and verify Tools itself on a worker, persist a handoff plan, then
+    /// call the tray/desktop hook. Tools cannot replace its running Windows
+    /// executable; the hook starts a helper and owns shutdown. The helper calls
+    /// finish_self_update after this process exits, using the same installer API.
+    pub fn prepare_self_update(
+        &self,
+        mode: LaunchMode,
+        cancel: &AtomicBool,
+        progress: &mut dyn FnMut(Progress),
+        hook: &mut dyn crate::self_update::SelfUpdateHook,
+    ) -> Result<crate::self_update::StagedSelfUpdate> {
+        let _lock = self.lock()?;
+        self.prepare_self_update_locked(mode, cancel, progress, hook)
+    }
+    fn prepare_self_update_locked(
+        &self,
+        mode: LaunchMode,
+        cancel: &AtomicBool,
+        progress: &mut dyn FnMut(Progress),
+        hook: &mut dyn crate::self_update::SelfUpdateHook,
+    ) -> Result<crate::self_update::StagedSelfUpdate> {
+        let id = ids::TOOLS;
+        check_cancel(cancel)?;
+        let old = self.record(id)?.ok_or_else(|| {
+            Error::new(
+                "unmanaged",
+                "Install or adopt Arcade Tools before self-updating.",
+            )
+        })?;
+        let receipt = self.receipt(id)?;
+        let registry = Registry::load(&self.paths.link);
+        if !matches!(
+            self.class(id, &registry, receipt.as_ref())?,
+            InstallationClass::Managed | InstallationClass::LegacyManaged
+        ) {
+            return Err(Error::new(
+                "unmanaged",
+                "Only managed non-development Tools installs can self-update.",
+            ));
+        }
+        if let Ok(mut client) = Client::connect(&self.paths.link, id, &me()) {
+            let status = client.status().map_err(|error| link_error(id, error))?;
+            if status.get("busy").and_then(Value::as_bool) == Some(true)
+                || status.pointer("/status/busy").and_then(Value::as_bool) == Some(true)
+            {
+                return Err(Error::new(
+                    "busy",
+                    "Arcade Tools is busy; finish its operation before self-updating.",
+                ));
+            }
+        }
+        progress(Progress::new(id, "Checking release", None, true));
+        let checked = self.checked(id)?;
+        self.paths.guard(&self.paths.downloads())?;
+        let download = self.source.download(
+            &checked,
+            &self.paths.downloads(),
+            cancel,
+            &mut |count, total| {
+                progress(Progress::new(
+                    id,
+                    "Downloading",
+                    total.filter(|n| *n > 0).map(|n| count as f64 / n as f64),
+                    true,
+                ));
+            },
+        )?;
+        let package = installation::retain(&self.paths, &checked, download.path())?;
+        check_cancel(cancel)?;
+        let plan = crate::self_update::SelfUpdatePlan {
+            schema: 1,
+            package,
+            expected_version: old.version.clone(),
+            expected_path: self.executable(&old),
+            expected_sha256: checksum(&self.executable(&old))?,
+            mode,
+            parent_pid: std::process::id(),
+        };
+        let file = self
+            .paths
+            .state()
+            .join("self-update")
+            .join(format!("{}.json", arcade_link::endpoint::new_token()?));
+        self.write(&file, &plan)?;
+        let staged = crate::self_update::StagedSelfUpdate { plan, file };
+        if let Err(error) = hook.on_before_self_restart(&staged) {
+            platform::remove(&staged.file)?;
+            return Err(error);
+        }
+        Ok(staged)
+    }
+    /// Apply the opted-in idle policy before staging a Tools update on a worker.
+    /// None means ineligible; use auto_update_eligibility for the UI's reason.
+    pub fn prepare_auto_self_update(
+        &self,
+        last_used: Option<u64>,
+        clock: &dyn Clock,
+        mode: LaunchMode,
+        cancel: &AtomicBool,
+        hook: &mut dyn crate::self_update::SelfUpdateHook,
+    ) -> Result<Option<crate::self_update::StagedSelfUpdate>> {
+        let _lock = self.lock()?;
+        if !self
+            .auto_eligibility(ids::TOOLS, last_used, clock.now())?
+            .eligible
+        {
+            return Ok(None);
+        }
+        self.prepare_self_update_locked(mode, cancel, &mut |_| {}, hook)
+            .map(Some)
+    }
+    /// Read current policy/status on a worker, without network or installation.
+    pub fn auto_update_eligibility(
+        &self,
+        id: &str,
+        last_used: Option<u64>,
+        clock: &dyn Clock,
+    ) -> Result<updates::AutoUpdateDecision> {
+        manager_id(id)?;
+        self.auto_eligibility(id, last_used, clock.now())
+    }
+    /// Run in a helper on a worker after the parent exits. Active, bounded
+    /// process-exit checks last at most 30 seconds, then leave files unchanged.
+    /// The plan's hashes and expected installation are rechecked before mutation.
+    /// On installer failure the shared transaction restores/relaunches old Tools.
+    pub fn finish_self_update(
+        &self,
+        plan: &crate::self_update::SelfUpdatePlan,
+        cancel: &AtomicBool,
+        progress: &mut dyn FnMut(Progress),
+    ) -> Result<String> {
+        if plan.schema != 1
+            || plan.package.release.id != ids::TOOLS
+            || plan.parent_pid == std::process::id()
+        {
+            return Err(Error::new(
+                "self_update",
+                "A Tools self-update must run in a separate helper after shutdown.",
+            ));
+        }
+        let _lock = self.lock()?;
+        plan.package.verify(&self.paths, ids::TOOLS)?;
+        let deadline = Instant::now() + Duration::from_secs(30);
+        while process_alive(plan.parent_pid) {
+            check_cancel(cancel)?;
+            if Instant::now() >= deadline {
+                return Err(Error::new(
+                    "timeout",
+                    "Old Arcade Tools did not exit; self-update left it unchanged.",
+                ));
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        let old = self.record(ids::TOOLS)?.ok_or_else(|| {
+            Error::new("unmanaged", "Tools installation disappeared after staging.")
+        })?;
+        if old.version != plan.expected_version
+            || self.executable(&old) != plan.expected_path
+            || checksum(&plan.expected_path)? != plan.expected_sha256
+        {
+            return Err(Error::new(
+                "state_changed",
+                "Tools changed after staging; check for updates again.",
+            ));
+        }
+        let receipt = self.receipt(ids::TOOLS)?;
+        if !matches!(
+            self.class(
+                ids::TOOLS,
+                &Registry::load(&self.paths.link),
+                receipt.as_ref()
+            )?,
+            InstallationClass::Managed | InstallationClass::LegacyManaged
+        ) {
+            return Err(Error::new(
+                "dev_build",
+                "Development or unmanaged Tools installations are never replaced.",
+            ));
+        }
+        self.ensure_compatible(ids::TOOLS, &plan.package.release)?;
+        check_cancel(cancel)?;
+        let request = Request {
+            id: ids::TOOLS.into(),
+            operation: Operation::Update,
+            mode: Some(plan.mode),
+            remove_data: false,
+            app_closed: true,
+        };
+        let mut replaced = false;
+        let result = self.install_package(
+            &request,
+            &plan.package,
+            Prior {
+                record: Some(&old),
+                receipt: receipt.as_ref(),
+                peer: None,
+            },
+            Some(plan.mode),
+            progress,
+            &mut replaced,
+        );
+        let history = HistoryEntry {
+            time: SystemClock.now(),
+            app: ids::TOOLS.into(),
+            from: Some(old.version),
+            to: Some(plan.package.release.version.clone()),
+            result: if result.is_ok() {
+                HistoryResult::Success
+            } else if replaced
+                && checksum(&plan.expected_path).is_ok_and(|hash| hash == plan.expected_sha256)
+            {
+                HistoryResult::RolledBack
+            } else {
+                HistoryResult::Failed
+            },
+            reason: result.as_ref().err().map(ToString::to_string),
+        };
+        if result.is_err() {
+            let _ = platform::spawn_detached(&self.paths, &plan.expected_path, &plan.mode.args());
+        }
+        if let Err(error) = updates::append_history(&self.paths, &history) {
+            if result.is_ok() {
+                return Err(error);
+            }
+            eprintln!("Self-update history: {error}");
+        }
+        result
+    }
+
     /// Read managed records and installed peers' registry manifests on a worker
     /// thread. Does not probe IPC or connect to the network.
     pub fn update_inputs(&self) -> Result<(Vec<InstalledApp>, Vec<PeerProtocols>)> {
@@ -616,6 +950,407 @@ impl Manager {
             .ok_or_else(|| Error::new("not_installed", "Install this app first."))?;
         platform::set_autostart(&self.paths, id, &exe, enabled)
     }
+    /// List every catalog/registry installation and its exact owned/data paths
+    /// on a worker before an Uninstall everything confirmation. No mutation.
+    pub fn plan_uninstall_all(&self, remove_data: bool) -> Result<crate::removal::UninstallPlan> {
+        let _lock = self.lock()?;
+        self.uninstall_plan_inner(remove_data)
+    }
+    fn uninstall_plan_inner(&self, remove_data: bool) -> Result<crate::removal::UninstallPlan> {
+        use crate::removal::{UninstallEntry, UninstallPlan};
+        use sha2::{Digest, Sha256};
+        let registry = Registry::load(&self.paths.link);
+        let catalog = self.catalog()?;
+        let mut ids: std::collections::BTreeSet<String> =
+            catalog.apps.iter().map(|app| app.id.clone()).collect();
+        ids.extend(crate::apps::APPS.into_iter().map(String::from));
+        ids.extend(registry.apps().iter().map(|peer| peer.id.clone()));
+        ids.remove(ids::TOOLS);
+        let mut apps = Vec::new();
+        let mut fingerprint = Sha256::new();
+        for id in ids.into_iter().chain([ids::TOOLS.into()]) {
+            let known = manager_id(&id).is_ok();
+            let record = if known { self.record(&id)? } else { None };
+            let receipt = if known { self.receipt(&id)? } else { None };
+            let peer = registry.get(&id);
+            if record.is_none() && receipt.is_none() && peer.is_none() {
+                continue;
+            }
+            let class = self.class(&id, &registry, receipt.as_ref())?;
+            let mut folders = Vec::new();
+            if let Some(record) = &record {
+                folders.push(installation::target(&self.paths, record, receipt.as_ref()));
+                folders.push(self.paths.state().join(format!("{id}.json")));
+                if let Some(previous) = PreviousInstallation::read(&self.paths, &id)? {
+                    folders.push(previous.directory);
+                }
+                folders.push(self.paths.state().join(format!("{id}.previous.json")));
+            } else if let Some(peer) = peer {
+                folders.push(PathBuf::from(&peer.executable));
+            }
+            if let Some(receipt) = &receipt {
+                folders.extend(installation::owned_paths(&self.paths, receipt)?);
+                folders.push(self.paths.guard_receipt(&id)?);
+                if let Some(previous) = &receipt.previous {
+                    folders.push(previous.path.clone());
+                }
+            }
+            folders.push(self.paths.link.registry.join(format!("{id}.json")));
+            let mut data_folders = self.paths.data_folders(&id, Os::current());
+            if id == ids::TOOLS {
+                data_folders.push(self.paths.cache.join("arcade/tools"));
+            }
+            let can_uninstall = known && class != InstallationClass::Dev && record.is_some();
+            if can_uninstall {
+                for path in folders.iter().chain(if remove_data {
+                    data_folders.iter()
+                } else {
+                    [].iter()
+                }) {
+                    if receipt
+                        .as_ref()
+                        .is_some_and(|receipt| receipt.integration.cli.as_ref() == Some(path))
+                    {
+                        installation::owned_paths(&self.paths, receipt.as_ref().unwrap())?;
+                    } else if path == &self.paths.guard_receipt(&id)? {
+                        self.paths.guard_receipt(&id)?;
+                    } else {
+                        self.paths.guard(path)?;
+                    }
+                }
+            }
+            folders.sort();
+            folders.dedup();
+            fingerprint.update(serde_json::to_vec(&(
+                record.as_ref(),
+                receipt.as_ref(),
+                peer,
+            ))?);
+            if let Some(record) = &record {
+                fingerprint.update(checksum(&self.executable(record)).unwrap_or_default());
+            }
+            apps.push(UninstallEntry {
+                id: id.clone(),
+                version: record
+                    .as_ref()
+                    .map(|record| record.version.clone())
+                    .or_else(|| peer.map(|peer| peer.version.clone())),
+                class,
+                folders,
+                data_folders,
+                can_uninstall,
+                requires_self_shutdown: id == ids::TOOLS,
+                reason: if can_uninstall {
+                    None
+                } else {
+                    Some(
+                        if class == InstallationClass::Dev {
+                            "Development builds are never removed."
+                        } else {
+                            "Adopt this manual installation before uninstalling it with Tools."
+                        }
+                        .into(),
+                    )
+                },
+            });
+        }
+        Ok(UninstallPlan {
+            schema: 1,
+            remove_data,
+            apps,
+            fingerprint: format!("{:x}", fingerprint.finalize()),
+        })
+    }
+    /// Execute a previously confirmed plan on a worker. Any changed installation
+    /// rejects the entire plan before app.quit. Individual busy/disconnected
+    /// failures are returned. Tools removal is handed to a post-shutdown helper.
+    pub fn uninstall_all(
+        &self,
+        plan: &crate::removal::UninstallPlan,
+        cancel: &AtomicBool,
+        progress: &mut dyn FnMut(Progress),
+    ) -> Result<crate::removal::UninstallOutcome> {
+        let _lock = self.lock()?;
+        if plan.schema != 1 || &self.uninstall_plan_inner(plan.remove_data)? != plan {
+            return Err(Error::new(
+                "state_changed",
+                "Installations changed; review the uninstall list again.",
+            ));
+        }
+        let mut outcome = crate::removal::UninstallOutcome {
+            results: Vec::new(),
+            self_uninstall: None,
+        };
+        for app in &plan.apps {
+            check_cancel(cancel)?;
+            if !app.can_uninstall {
+                outcome.results.push(crate::removal::RemovalResult {
+                    app: app.id.clone(),
+                    removed: false,
+                    reason: app.reason.clone().unwrap_or_default(),
+                });
+                continue;
+            }
+            if app.requires_self_shutdown {
+                outcome.self_uninstall = Some(self.self_uninstall_plan(plan.remove_data)?);
+                continue;
+            }
+            let request = Request {
+                id: app.id.clone(),
+                operation: Operation::Uninstall,
+                mode: None,
+                remove_data: plan.remove_data,
+                app_closed: false,
+            };
+            let result = self.operate_locked(&request, cancel, progress, SystemClock.now());
+            outcome.results.push(crate::removal::RemovalResult {
+                app: app.id.clone(),
+                removed: result.is_ok(),
+                reason: match result {
+                    Ok(message) => message,
+                    Err(error) => error.to_string(),
+                },
+            });
+        }
+        Ok(outcome)
+    }
+    /// Prepare removal of Tools itself after user confirmation, on a worker.
+    /// The desktop starts a helper and exits; no running executable is deleted.
+    pub fn prepare_self_uninstall(
+        &self,
+        remove_data: bool,
+    ) -> Result<crate::self_update::SelfUninstallPlan> {
+        let _lock = self.lock()?;
+        self.self_uninstall_plan(remove_data)
+    }
+    fn self_uninstall_plan(
+        &self,
+        remove_data: bool,
+    ) -> Result<crate::self_update::SelfUninstallPlan> {
+        let record = self
+            .record(ids::TOOLS)?
+            .ok_or_else(|| Error::new("unmanaged", "Arcade Tools has no install receipt."))?;
+        let receipt = self.receipt(ids::TOOLS)?;
+        if self.class(
+            ids::TOOLS,
+            &Registry::load(&self.paths.link),
+            receipt.as_ref(),
+        )? == InstallationClass::Dev
+        {
+            return Err(Error::new(
+                "dev_build",
+                "Development builds are never uninstalled.",
+            ));
+        }
+        let path = self.executable(&record);
+        self.paths.guard(&path)?;
+        Ok(crate::self_update::SelfUninstallPlan {
+            schema: 1,
+            expected_version: record.version,
+            expected_sha256: checksum(&path)?,
+            expected_path: path,
+            parent_pid: std::process::id(),
+            remove_data,
+        })
+    }
+    /// Run in a helper on a worker after Tools exits; bounded process-exit checks
+    /// and fresh state/hash checks precede the app's own silent uninstaller.
+    pub fn finish_self_uninstall(
+        &self,
+        plan: &crate::self_update::SelfUninstallPlan,
+        cancel: &AtomicBool,
+    ) -> Result<String> {
+        if plan.schema != 1 || plan.parent_pid == std::process::id() {
+            return Err(Error::new(
+                "self_update",
+                "Tools removal must run in a separate helper after shutdown.",
+            ));
+        }
+        let _lock = self.lock()?;
+        let deadline = Instant::now() + Duration::from_secs(30);
+        while process_alive(plan.parent_pid) {
+            check_cancel(cancel)?;
+            if Instant::now() >= deadline {
+                return Err(Error::new(
+                    "timeout",
+                    "Arcade Tools did not exit; nothing was removed.",
+                ));
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        self.paths.guard(&plan.expected_path)?;
+        let record = self
+            .record(ids::TOOLS)?
+            .ok_or_else(|| Error::new("state_changed", "Tools is already uninstalled."))?;
+        if self.class(
+            ids::TOOLS,
+            &Registry::load(&self.paths.link),
+            self.receipt(ids::TOOLS)?.as_ref(),
+        )? == InstallationClass::Dev
+            || record.version != plan.expected_version
+            || self.executable(&record) != plan.expected_path
+            || checksum(&plan.expected_path)? != plan.expected_sha256
+        {
+            return Err(Error::new(
+                "state_changed",
+                "Tools changed after confirmation; nothing was removed.",
+            ));
+        }
+        check_cancel(cancel)?;
+        let result = self.uninstall(&record, plan.remove_data)?;
+        if plan.remove_data {
+            let cache = self.paths.cache.join("arcade/tools");
+            self.paths.guard(&cache)?;
+            platform::remove(&cache)?;
+        }
+        Ok(result)
+    }
+
+    /// Read Home diagnostics on a worker; no IPC/network or automatic cleanup.
+    pub fn health(&self) -> Result<Vec<crate::health::HealthIssue>> {
+        crate::health::inspect(&self.paths, &self.catalog()?)
+    }
+    /// Apply a user-selected fix on a worker after rechecking the issue. The UI
+    /// supplies the usual confirmation for adoption/repair, and separately asks
+    /// before any data removal. This API never changes development builds.
+    pub fn fix_health(
+        &self,
+        id: &str,
+        action: crate::health::FixAction,
+        cancel: &AtomicBool,
+        progress: &mut dyn FnMut(Progress),
+    ) -> Result<String> {
+        manager_id(id)?;
+        let _lock = self.lock()?;
+        if !self
+            .health()?
+            .iter()
+            .any(|issue| issue.app == id && issue.fix_action == action && issue.can_fix)
+        {
+            return Err(Error::new(
+                "state_changed",
+                "This health issue is no longer present or cannot be fixed automatically.",
+            ));
+        }
+        use crate::health::FixAction;
+        match action {
+            FixAction::Repair | FixAction::Adopt => {
+                let request = Request {
+                    id: id.into(),
+                    operation: if action == FixAction::Repair {
+                        Operation::Repair
+                    } else {
+                        Operation::Adopt
+                    },
+                    mode: None,
+                    remove_data: false,
+                    app_closed: false,
+                };
+                self.operate_locked(&request, cancel, progress, SystemClock.now())
+            }
+            FixAction::RemoveStaleRegistry => {
+                let file = self.paths.link.registry.join(format!("{id}.json"));
+                self.paths.guard(&file)?;
+                let document = arcade_link::manifest::ManifestDocument::from_json(
+                    &String::from_utf8_lossy(&crate::catalog::read_bounded(&file, 1024 * 1024)?),
+                )
+                .map_err(|error| Error::new("manifest", error))?;
+                if document.manifest.executable_exists() {
+                    return Err(Error::new(
+                        "state_changed",
+                        "The executable is present; its registry entry was kept.",
+                    ));
+                }
+                manifest::remove_manifest(&self.paths.link, id)?;
+                Ok("Removed the stale registry entry.".into())
+            }
+            FixAction::RemoveStaleReceipt => {
+                let receipt = self
+                    .receipt(id)?
+                    .ok_or_else(|| Error::new("state_changed", "The receipt is already gone."))?;
+                if installation::executable(&self.paths, &receipt).exists() {
+                    return Err(Error::new(
+                        "state_changed",
+                        "The receipt's executable is present; adoption is required.",
+                    ));
+                }
+                Store::new(&self.paths.link).remove(id)?;
+                Ok("Removed the stale receipt; no app or data files were removed.".into())
+            }
+            FixAction::OpenSettings => self
+                .settings_inner(id)
+                .map(|()| "Opened the app's settings.".into()),
+            FixAction::CheckUpdates => self
+                .checked(id)
+                .map(|checked| format!("Latest release: {}.", checked.release.version)),
+        }
+    }
+    /// Open app-owned settings using a feature-detected Link helper, or the
+    /// standard --settings CLI when Link is off/unsupported, on a worker.
+    pub fn open_settings(&self, id: &str) -> Result<()> {
+        manager_id(id)?;
+        let _lock = self.lock()?;
+        self.settings_inner(id)
+    }
+    fn settings_inner(&self, id: &str) -> Result<()> {
+        if let Ok(mut client) = Client::connect(&self.paths.link, id, &me()) {
+            let description = client
+                .describe_full()
+                .map_err(|error| link_error(id, error))?;
+            if description.supports("app.settings") {
+                match client.settings() {
+                    Ok(()) => return Ok(()),
+                    Err(error) if error.is_unsupported() => {}
+                    Err(error) => return Err(link_error(id, error)),
+                }
+            }
+        }
+        let registry = Registry::load(&self.paths.link);
+        let exe = self
+            .record(id)?
+            .as_ref()
+            .map(|record| self.executable(record))
+            .or_else(|| registry.get(id).map(|peer| PathBuf::from(&peer.executable)))
+            .filter(|path| path.is_file())
+            .ok_or_else(|| Error::new("not_installed", "The app's executable is missing."))?;
+        platform::spawn_detached(&self.paths, &exe, &["--settings".into()])
+    }
+    /// Request app-owned restart with feature detection on a worker. Old servers
+    /// use the same busy-safe quit and launch fallback, preserving window mode.
+    pub fn restart(&self, id: &str, mode: Option<LaunchMode>) -> Result<()> {
+        app_id(id)?;
+        let _lock = self.lock()?;
+        if let Ok(mut client) = Client::connect(&self.paths.link, id, &me()) {
+            if client
+                .describe_full()
+                .map_err(|error| link_error(id, error))?
+                .supports("app.restart")
+            {
+                match client.restart(mode.map(|mode| {
+                    if mode == LaunchMode::Background {
+                        "background"
+                    } else {
+                        "foreground"
+                    }
+                })) {
+                    Ok(()) => return Ok(()),
+                    Err(error) if error.is_unsupported() => {}
+                    Err(error) => return Err(link_error(id, error)),
+                }
+            }
+        }
+        let registry = Registry::load(&self.paths.link);
+        let request = Request {
+            id: id.into(),
+            operation: Operation::Update,
+            mode,
+            remove_data: false,
+            app_closed: false,
+        };
+        let resume = self.stop_peer(id, registry.get(id), &request, true)?;
+        self.launch_inner(id, resume.or(mode).unwrap_or(LaunchMode::Foreground))
+    }
+
     /// User-confirmed (or per-app opted-in) installer/network/IPC/disk work,
     /// on a worker thread. Updates/repairs append their verified history outcome.
     pub fn operate(
