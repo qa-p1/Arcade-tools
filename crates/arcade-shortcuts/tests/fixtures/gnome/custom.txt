@@ -1,0 +1,4 @@
+org.gnome.settings-daemon.plugins.media-keys.custom-keybinding name 'Owner\'s terminal'
+org.gnome.settings-daemon.plugins.media-keys.custom-keybinding binding '<Primary><Super>t'
+org.gnome.settings-daemon.plugins.media-keys.custom-keybinding command 'foot --app-id=custom-terminal'
+org.gnome.settings-daemon.plugins.media-keys.custom-keybinding enable-in-lockscreen false

@@ -13,3 +13,12 @@ XDG_CONFIG_HOME inside the Lua VM, never in the process environment.
 `catalog/` contains 31 schema-1 shortcut sheets from the read-only local
 Arcade-catalog checkout (2026-10-11), with their source attribution retained.
 The docs, registry, labels and hyprlang files are small synthetic fixtures.
+# Other Linux desktop readers
+
+The `sway/`, `kde/` and `gnome/` fixtures are synthetic configurations/settings
+following the upstream formats. They cover includes, modes, source lines,
+KConfig escapes/alternatives/sequences, disabled defaults, effective GNOME
+values, custom names and a saved-overrides-only dconf fallback. They are tested
+without executing configured actions or touching desktop settings.
+These readers have not been run on a real Sway, KDE or GNOME desktop.
+
