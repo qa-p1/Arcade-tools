@@ -81,6 +81,9 @@
     void ui.shortcutsIndex;
     void ui.shortcutLabels;
     void ui.shortcutsRevision;
+    void ui.catalogData;
+    void ui.catalogLoading;
+    void ui.releaseNotesHtml;
     const snapshot = {
       apps: ui.apps,
       selected: ui.selected,
@@ -151,9 +154,12 @@
         if (disposed) handlers.forEach((stop) => stop());
         else unlisten = handlers;
         await initialize();
-        const [index, labels] = await Promise.all([api.shortcutsIndex(), api.shortcutLabels()]);
+        const [index, labels, catalogData] = await Promise.all([
+          api.shortcutsIndex(), api.shortcutLabels(), api.catalogData(),
+        ]);
         ui.shortcutsIndex = index;
         ui.shortcutLabels = labels;
+        ui.catalogData = catalogData;
         setShortcutsEnabled(index !== null);
       } catch (error) {
         setMessage(error instanceof Error ? error.message : String(error), true);
@@ -198,6 +204,28 @@
     return changeLogin(app, enabled);
   }
 
+  async function refreshCatalog(): Promise<void> {
+    ui.catalogLoading = true;
+    try {
+      ui.catalogData = await api.refreshCatalog();
+      await refresh();
+      setMessage(`Catalog refreshed (${ui.catalogData.catalog.updated}).`);
+    } finally {
+      ui.catalogLoading = false;
+    }
+  }
+
+  async function checkCatalogLatest(id: string): Promise<void> {
+    const app = ui.apps.find((candidate) => candidate.id === id);
+    if (!app) throw new Error('This app is absent from the installed app list.');
+    await checkUpdates(app);
+    const release = ui.releases.get(id);
+    if (release) {
+      const html = await api.renderMarkdown(release.notes);
+      ui.releaseNotesHtml = { ...ui.releaseNotesHtml, [id]: html };
+    }
+  }
+
   function shortcutsChanged(): void {
     ui.shortcutsRevision += 1;
   }
@@ -236,6 +264,10 @@
         apps={ui.apps}
         selected={ui.selected}
         releases={ui.releases}
+        releaseNotesHtml={ui.releaseNotesHtml}
+        catalogData={ui.catalogData}
+        catalogLoading={ui.catalogLoading}
+        shortcuts={ui.shortcutsIndex}
         busy={ui.busy}
         onChannel={channel}
         onLogin={login}
@@ -244,6 +276,13 @@
         onCheckUpdates={checkUpdates}
         onOperation={operation}
         onReleases={openReleases}
+        onCatalogRefresh={refreshCatalog}
+        onCheckLatest={checkCatalogLatest}
+        onOpenDocs={api.openCatalogDocs}
+        onInstallCatalogApp={api.installCatalogApp}
+        onUpdateCatalogApp={api.updateCatalogApp}
+        onUninstallCatalogApp={api.uninstallCatalogApp}
+        onInstallBundle={api.installCatalogBundle}
         {run}
       />
       <Settings

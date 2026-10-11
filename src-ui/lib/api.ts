@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import type { UnlistenFn } from '@tauri-apps/api/event';
+import type { CatalogData } from './catalog';
 import type { ShortcutsIndex } from './shortcuts';
 
 export type Channel = 'stable' | 'nightly';
@@ -23,6 +24,13 @@ export interface AppView {
   executable: string | null;
   dataFolders: string[];
   reason: string | null;
+  description: string;
+  category: string;
+  icon: string;
+  platforms: Record<string, string>;
+  minTools: string;
+  installReason: string | null;
+  installSupported: boolean;
 }
 
 export interface Release {
@@ -96,6 +104,15 @@ export const api = {
   setLogin: (id: string, enabled: boolean) => invoke<void>('set_login', { id, enabled }),
   setLink: (enabled: boolean) => invoke<void>('set_link', { enabled }),
   openReleases: (id: string) => invoke<void>('open_releases', { id }),
+  catalogData: () => invoke<CatalogData>('catalog_data'),
+  refreshCatalog: () => invoke<CatalogData>('refresh_catalog'),
+  openCatalogDocs: (id: string) => invoke<void>('open_catalog_docs', { id }),
+  renderMarkdown: (markdown: string) => invoke<string>('render_markdown', { markdown }),
+  installCatalogApp: (id: string) => invoke<void>('install_catalog_app', { id }),
+  updateCatalogApp: (id: string) => invoke<void>('update_catalog_app', { id }),
+  uninstallCatalogApp: (id: string) => invoke<void>('uninstall_catalog_app', { id }),
+  installCatalogBundle: (bundleId: string, appIds: string[]) =>
+    invoke<void>('install_catalog_bundle', { bundleId, appIds }),
   uiRendered: (report: UiRenderReport) => invoke<void>('ui_rendered', { report }),
   shortcutsIndex: () => invoke<ShortcutsIndex | null>('shortcuts_index'),
   shortcutLabels: () => invoke<Record<string, string>>('shortcut_labels'),
