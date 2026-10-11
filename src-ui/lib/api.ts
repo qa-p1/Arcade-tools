@@ -42,6 +42,89 @@ export interface Release {
   updateAvailable: boolean;
 }
 
+export interface ChannelUpdate {
+  latestVersion: string | null;
+  updateAvailable: boolean;
+  heldBack: boolean;
+  reason: string | null;
+  error: string | null;
+  cache: { release: { version: string; notes: string; channel: Channel } } | null;
+}
+
+export interface AppUpdate {
+  installedVersion: string | null;
+  channel: Channel;
+  latest: Partial<Record<Channel, ChannelUpdate>>;
+  updateAvailable: boolean;
+  heldBack: boolean;
+  reason: string | null;
+}
+
+export interface UpdateState {
+  schema: number;
+  lastCheck: number | null;
+  lastSuccess: number | null;
+  lastFailure: { time: number; reason: string } | null;
+  apps: Record<string, AppUpdate>;
+}
+
+export type BundleApps = string | string[];
+export interface Bundle {
+  id: string;
+  title: string;
+  description: string;
+  apps: BundleApps;
+}
+
+export interface LearnApp {
+  id: string;
+  name: string;
+  installedVersion: string | null;
+  docsVersion: string | null;
+  available: boolean;
+  source: 'installed' | 'cached' | 'bundled' | null;
+  needsFetch: boolean;
+  docsUrl: string;
+}
+
+export interface DocsSearchHit {
+  app: string;
+  version: string;
+  path: string;
+  title: string;
+  snippet: string;
+  score: number;
+}
+
+export interface EngineView {
+  id: string;
+  name: string;
+  homepage: string;
+  binaries: string[];
+  versionArgs: string[];
+  minimumVersion: string | null;
+  usedBy: { app: string; purpose: string }[];
+  status: { status: string; path?: string; version?: string | null; minimum?: string; message?: string };
+  installHint: string | null;
+  linkDownload: boolean;
+}
+
+export interface ConnectionPeer {
+  id: string;
+  name: string;
+  version: string;
+  linkEnabled: boolean;
+  reachable: boolean;
+  busy: boolean | null;
+  protocols: number[];
+  actions: { id: string; title: string; verb: string; available: boolean; reason: string | null }[];
+}
+
+export interface ConnectionsView {
+  linkEnabled: boolean;
+  peers: ConnectionPeer[];
+}
+
 export interface OperationProgress {
   id: string;
   phase: string;
@@ -59,7 +142,12 @@ export interface OperationRequest {
 
 export interface Bootstrap {
   apps: AppView[];
-  preferences: { linkEnabled: boolean; channels: Record<string, Channel> };
+  preferences: {
+    linkEnabled: boolean;
+    channels: Record<string, Channel>;
+    updates: { enabled: boolean; autoUpdate: Record<string, boolean> };
+  };
+  updates: UpdateState;
   selected: string | null;
   diagnostics: [string, string][];
   testing: boolean;
@@ -79,6 +167,8 @@ export interface UiControlReport {
 
 export interface UiRenderReport {
   revision: number;
+  tab: string;
+  visiblePanel: string | null;
   apps: AppView[];
   selected: string | null;
   busy: boolean;
@@ -97,6 +187,11 @@ export const api = {
   initialize: () => invoke<Bootstrap>('initialize'),
   listApps: () => invoke<AppView[]>('list_apps'),
   checkRelease: (id: string) => invoke<Release>('check_release', { id }),
+  updateState: () => invoke<UpdateState>('update_state'),
+  checkUpdates: () => invoke<UpdateState>('check_updates'),
+  checkUpdatesWindowOpen: () => invoke<UpdateState>('check_updates_window_open'),
+  setUpdateChecks: (enabled: boolean) => invoke<void>('set_update_checks', { enabled }),
+  setAutoUpdate: (id: string, enabled: boolean) => invoke<void>('set_auto_update', { id, enabled }),
   operate: (request: OperationRequest) => invoke<string>('operate', { request }),
   cancelOperation: () => invoke<void>('cancel_operation'),
   setChannel: (id: string, channel: Channel) => invoke<void>('set_channel', { id, channel }),
@@ -113,6 +208,13 @@ export const api = {
   uninstallCatalogApp: (id: string) => invoke<void>('uninstall_catalog_app', { id }),
   installCatalogBundle: (bundleId: string, appIds: string[]) =>
     invoke<void>('install_catalog_bundle', { bundleId, appIds }),
+  listBundles: () => invoke<Bundle[]>('list_bundles'),
+  listEngines: (refresh: boolean) => invoke<EngineView[]>('list_engines', { refresh }),
+  listConnections: () => invoke<ConnectionsView>('list_connections'),
+  listLearnApps: () => invoke<LearnApp[]>('list_learn_apps'),
+  searchDocs: (query: string) => invoke<DocsSearchHit[]>('search_docs', { query }),
+  fetchDocs: (id: string, version: string) => invoke<void>('fetch_docs', { id, version }),
+  openDocs: (id: string) => invoke<void>('open_docs', { id }),
   uiRendered: (report: UiRenderReport) => invoke<void>('ui_rendered', { report }),
   shortcutsIndex: () => invoke<ShortcutsIndex | null>('shortcuts_index'),
   shortcutLabels: () => invoke<Record<string, string>>('shortcut_labels'),

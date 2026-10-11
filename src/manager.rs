@@ -1,11 +1,13 @@
 use crate::catalog::{Catalog, CatalogClient};
+use crate::docs::DocsResolver;
+use crate::engines::EngineCatalog;
 use crate::paths::{app_id, Paths};
 use crate::platform;
 use crate::release::{checksum, Arch, Channel, Kind, Os};
 use crate::source::{CheckedRelease, Source};
 use crate::updates::{
-    self, Clock, HistoryEntry, HistoryResult, InstalledApp, PeerProtocols, SystemClock,
-    UpdateSettings,
+    self, CheckContext, Clock, HistoryEntry, HistoryResult, InstalledApp, PeerProtocols,
+    SystemClock, Trigger, UpdateSettings, UpdateState,
 };
 use crate::{Error, Result};
 use arcade_link::client::Client;
@@ -301,8 +303,58 @@ impl Manager {
         Ok(CatalogClient::new(self.paths.clone(), self.source.clone())?.refresh_catalog())
     }
     /// Read cached engine metadata or explicitly refresh it on a worker thread.
-    pub fn engines(&self, refresh: bool) -> Result<crate::engines::EngineCatalog> {
+    pub fn engines(&self, refresh: bool) -> Result<EngineCatalog> {
         CatalogClient::new(self.paths.clone(), self.source.clone())?.engines(refresh)
+    }
+    /// Read persisted update results and reconcile them with the current
+    /// registry/catalog snapshot. This does not make network requests.
+    pub fn update_state(&self) -> Result<UpdateState> {
+        let catalog = self.catalog()?;
+        let (installed, peers) = self.update_inputs()?;
+        let mut scheduler =
+            updates::Scheduler::new(self.paths.clone(), SystemClock, self.source.clone())?;
+        scheduler.reconcile(&catalog, &installed, &peers);
+        Ok(scheduler.state().clone())
+    }
+    /// Run a user-requested update check through the core scheduler and persist
+    /// its state. The caller must keep this synchronous work off the UI thread.
+    pub fn check_updates(&self) -> Result<UpdateState> {
+        self.check_updates_for(Trigger::Manual)
+    }
+    /// Run a scheduled or window-open update check through the core scheduler.
+    /// The caller must keep this synchronous work off the UI thread.
+    pub fn check_updates_for(&self, trigger: Trigger) -> Result<UpdateState> {
+        let catalog = self.catalog()?;
+        let (installed, peers) = self.update_inputs()?;
+        let settings = self.preferences()?.updates;
+        let mut scheduler =
+            updates::Scheduler::new(self.paths.clone(), SystemClock, self.source.clone())?;
+        scheduler.run(
+            trigger,
+            CheckContext {
+                settings: &settings,
+                catalog: &catalog,
+                installed: &installed,
+                peers: &peers,
+                // A manual request treats connectivity as unknown/online; the
+                // first failed transport is recorded by the scheduler.
+                online: true,
+                os: Os::current(),
+                arch: Arch::current()?,
+            },
+        )?;
+        Ok(scheduler.state().clone())
+    }
+    /// Fetch and cache one app's docs for the selected installed version. This
+    /// method never runs unless Learn explicitly requests the download.
+    pub fn fetch_docs(&self, id: &str, version: &str) -> Result<()> {
+        let catalog = self.catalog()?;
+        let app = catalog
+            .app(id)
+            .ok_or_else(|| Error::new("unavailable", "This app is absent from the catalog."))?;
+        let resolver = DocsResolver::new(self.paths.clone(), PathBuf::new());
+        resolver.fetch_version(app, version, &self.source)?;
+        Ok(())
     }
     /// Disk/optional IPC work on a worker thread; no network refresh.
     pub fn list(&self, probe: bool) -> Result<Vec<AppView>> {

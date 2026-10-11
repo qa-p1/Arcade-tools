@@ -36,6 +36,7 @@ export async function refresh(): Promise<void> {
   ui.refreshing = true;
   try {
     ui.apps = await api.listApps();
+    ui.updates = await api.updateState();
   } finally {
     ui.refreshing = false;
     if (ui.refreshPending) {
@@ -48,14 +49,21 @@ export async function refresh(): Promise<void> {
 export async function initialize(): Promise<void> {
   const bootstrap = await api.initialize();
   ui.apps = bootstrap.apps;
+  ui.updates = bootstrap.updates;
   ui.selected = bootstrap.selected;
   ui.testing = bootstrap.testing;
   ui.linkEnabled = bootstrap.preferences.linkEnabled;
+  ui.updateChecksEnabled = bootstrap.preferences.updates.enabled;
+  ui.autoUpdate = bootstrap.preferences.updates.autoUpdate;
   ui.diagnostics = bootstrap.diagnostics.map(([name, value]) => `${name}: ${value}`).join('\n');
   setMessage(bootstrap.selected ? 'Review the selected app before installing.' : 'Choose an app to install, or check for updates.');
   if (bootstrap.selected) {
     pendingInstall = bootstrap.selected;
     await reviewHandoff();
+  } else if (!bootstrap.testing && !ui.apps.some((app) => app.installed)) {
+    let complete = false;
+    try { complete = localStorage.getItem('arcade-tools-onboarding-complete') === 'yes'; } catch { /* continue this session */ }
+    if (!complete) ui.tab = 'onboarding';
   }
 }
 
@@ -96,6 +104,68 @@ export async function checkUpdates(app: AppView): Promise<void> {
   setMessage(release.updateAvailable
     ? `${app.name} ${release.version} is available on ${release.channel}.`
     : `${app.name} is up to date.`);
+}
+
+export async function reviewUpdate(app: AppView): Promise<void> {
+  setMessage(`Checking ${app.name}…`);
+  const release = await api.checkRelease(app.id);
+  rememberRelease(release);
+  if (!release.updateAvailable) {
+    setMessage(`${app.name} is up to date.`);
+    return;
+  }
+  await confirmOperation(app, 'update');
+}
+
+export async function setUpdateChecks(enabled: boolean): Promise<void> {
+  const previous = ui.updateChecksEnabled;
+  ui.updateChecksEnabled = enabled;
+  try {
+    await api.setUpdateChecks(enabled);
+    setMessage(enabled ? 'Scheduled update checks are enabled.' : 'Scheduled update checks are paused.');
+  } catch (error) {
+    ui.updateChecksEnabled = previous;
+    throw error;
+  }
+}
+
+export async function setAutoUpdate(app: AppView, enabled: boolean): Promise<void> {
+  const previous = ui.autoUpdate[app.id] ?? false;
+  ui.autoUpdate = { ...ui.autoUpdate, [app.id]: enabled };
+  try {
+    await api.setAutoUpdate(app.id, enabled);
+  } catch (error) {
+    ui.autoUpdate = { ...ui.autoUpdate, [app.id]: previous };
+    throw error;
+  }
+}
+
+export async function checkAllUpdates(): Promise<void> {
+  if (ui.updateChecking) return;
+  ui.updateChecking = true;
+  try {
+    ui.updates = await api.checkUpdates();
+    setMessage(ui.updates.lastFailure?.reason ?? 'Update check complete.');
+  } finally {
+    ui.updateChecking = false;
+  }
+}
+
+export async function checkUpdatesOnWindowOpen(): Promise<void> {
+  if (ui.updateChecking) return;
+  ui.updateChecking = true;
+  try {
+    ui.updates = await api.checkUpdatesWindowOpen();
+  } finally {
+    ui.updateChecking = false;
+  }
+}
+
+export async function launchAll(): Promise<void> {
+  const installed = ui.apps.filter((app) => app.installed && !app.running);
+  for (const app of installed) await api.launchApp(app.id, 'foreground');
+  await refresh();
+  setMessage(installed.length ? `Opened ${installed.length} app${installed.length === 1 ? '' : 's'}.` : 'All installed apps are already running.');
 }
 
 export async function reviewInstall(app: AppView): Promise<void> {
