@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Arcade Tools documentation
+    url: https://github.com/qa-p1/Arcade-tools/blob/main/README.md
+    about: Read how to use, install, and manage apps with Arcade Tools.
+  - name: Arcade ecosystem documentation
+    url: https://github.com/qa-p1/Arcade-catalog/tree/main/docs
+    about: Read documentation shared across the Arcade apps.
