@@ -31,7 +31,10 @@ pub fn detect() -> Focus {
     bounded(detect_platform, DETECTION_TIMEOUT)
 }
 
-fn bounded(f: impl FnOnce() -> Focus + Send + 'static, timeout: Duration) -> Focus {
+fn bounded<T: Default + Send + 'static>(
+    f: impl FnOnce() -> T + Send + 'static,
+    timeout: Duration,
+) -> T {
     let (tx, rx) = mpsc::sync_channel(1);
     if std::thread::Builder::new()
         .name("overlay-focus".into())
@@ -40,7 +43,7 @@ fn bounded(f: impl FnOnce() -> Focus + Send + 'static, timeout: Duration) -> Foc
         })
         .is_err()
     {
-        return Focus::default();
+        return T::default();
     }
     rx.recv_timeout(timeout).unwrap_or_default()
 }
@@ -163,22 +166,26 @@ fn x11_focus() -> Option<Focus> {
     if window == 0 {
         return None;
     }
-    let class = conn
-        .get_property(false, window, AtomEnum::WM_CLASS, AtomEnum::STRING, 0, 1024)
-        .ok()?
-        .reply()
-        .ok()?;
-    let mut names = class
-        .value
-        .split(|b| *b == 0)
-        .filter(|part| !part.is_empty());
-    let instance = names.next()?;
-    let class = names.next().unwrap_or(instance);
-    Some(Focus {
-        identity: Some(String::from_utf8_lossy(class).into_owned()),
+    let mut focus = Focus {
+        identity: None,
         kind: MatchKind::Class,
         previous_window: Some(u64::from(window)),
-    })
+    };
+    let class = conn
+        .get_property(false, window, AtomEnum::WM_CLASS, AtomEnum::STRING, 0, 1024)
+        .ok()
+        .and_then(|cookie| cookie.reply().ok());
+    if let Some(class) = class {
+        let mut names = class
+            .value
+            .split(|b| *b == 0)
+            .filter(|part| !part.is_empty());
+        if let Some(instance) = names.next() {
+            let class = names.next().unwrap_or(instance);
+            focus.identity = Some(String::from_utf8_lossy(class).into_owned());
+        }
+    }
+    Some(focus)
 }
 
 #[cfg(windows)]
@@ -235,34 +242,43 @@ fn detect_platform() -> Focus {
 pub fn restore(focus: &Focus) {
     #[cfg(target_os = "linux")]
     if let Some(window) = focus.previous_window {
-        // This connection runs off the UI thread; the caller is already exiting.
-        let _ = std::thread::spawn(move || {
-            use x11rb::connection::Connection;
-            use x11rb::protocol::xproto::{
-                ClientMessageEvent, ConnectionExt, EventMask, InputFocus,
-            };
-            if let Ok((conn, screen)) = x11rb::connect(None) {
-                if let Ok(cookie) = conn.intern_atom(false, b"_NET_ACTIVE_WINDOW") {
-                    if let Ok(atom) = cookie.reply() {
-                        let event =
-                            ClientMessageEvent::new(32, window as u32, atom.atom, [2, 0, 0, 0, 0]);
-                        let _ = conn.send_event(
-                            false,
-                            conn.setup().roots[screen].root,
-                            EventMask::SUBSTRUCTURE_REDIRECT | EventMask::SUBSTRUCTURE_NOTIFY,
-                            event,
-                        );
-                        let _ = conn.set_input_focus(
-                            InputFocus::PARENT,
-                            window as u32,
-                            x11rb::CURRENT_TIME,
-                        );
-                        let _ = conn.flush();
+        // Complete the X round trip when possible, without keeping an exiting
+        // overlay alive indefinitely if the server has stalled.
+        bounded(
+            move || {
+                use x11rb::connection::Connection;
+                use x11rb::protocol::xproto::{
+                    ClientMessageEvent, ConnectionExt, EventMask, InputFocus,
+                };
+                if let Ok((conn, screen)) = x11rb::connect(None) {
+                    if let Ok(cookie) = conn.intern_atom(false, b"_NET_ACTIVE_WINDOW") {
+                        if let Ok(atom) = cookie.reply() {
+                            let event = ClientMessageEvent::new(
+                                32,
+                                window as u32,
+                                atom.atom,
+                                [2, 0, 0, 0, 0],
+                            );
+                            let _ = conn.send_event(
+                                false,
+                                conn.setup().roots[screen].root,
+                                EventMask::SUBSTRUCTURE_REDIRECT | EventMask::SUBSTRUCTURE_NOTIFY,
+                                event,
+                            );
+                            if let Ok(cookie) = conn.set_input_focus(
+                                InputFocus::PARENT,
+                                window as u32,
+                                x11rb::CURRENT_TIME,
+                            ) {
+                                let _ = cookie.check();
+                            }
+                            let _ = conn.flush();
+                        }
                     }
                 }
-            }
-        })
-        .join();
+            },
+            DETECTION_TIMEOUT,
+        );
     }
     #[cfg(windows)]
     if let Some(window) = focus.previous_window {

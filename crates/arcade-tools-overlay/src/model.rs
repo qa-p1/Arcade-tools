@@ -149,8 +149,8 @@ impl Model {
         };
         let mut sections = Vec::new();
         if self.scope == Scope::All || self.scope == Scope::ThisApp {
-            let all_apps =
-                self.app.is_none() || (!self.query.is_empty() && self.scope == Scope::All);
+            let all_apps = (self.app.is_none() && self.scope == Scope::All)
+                || (!self.query.is_empty() && self.scope == Scope::All);
             let mut groups = Vec::new();
             for (position, app) in index.apps.iter().enumerate() {
                 if !all_apps && self.app != Some(position) {

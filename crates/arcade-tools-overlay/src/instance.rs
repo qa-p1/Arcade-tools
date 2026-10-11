@@ -2,7 +2,7 @@
 //! `instance.rs` (MIT OR Apache-2.0). This instance exists only while open.
 //! fs2 supplies the lock on Rust 1.88 (std File::try_lock needs newer Rust).
 
-use std::io::{self, BufRead, BufReader, Read, Write};
+use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -131,7 +131,12 @@ impl Instance {
         let file = options.open(directory.join("instance.lock"))?;
         match FileExt::try_lock_exclusive(&file) {
             Ok(()) => {}
-            Err(error) if error.kind() == io::ErrorKind::WouldBlock => return Ok(None),
+            Err(error)
+                if error.kind() == io::ErrorKind::WouldBlock
+                    || error.raw_os_error() == fs2::lock_contended_error().raw_os_error() =>
+            {
+                return Ok(None)
+            }
             Err(error) => return Err(error),
         }
         let mut bytes = [0u8; 32];
@@ -172,25 +177,32 @@ impl Instance {
             .name("overlay-instance".into())
             .spawn(move || {
                 for stream in listener.incoming().flatten() {
-                    let _ = stream.set_recv_timeout(Some(Duration::from_millis(100)));
-                    let mut line = String::new();
-                    if BufReader::new((&stream).take(4096))
-                        .read_line(&mut line)
-                        .is_err()
-                    {
+                    let Ok(line) = read_line(&stream, 4096, Duration::from_millis(100)) else {
                         continue;
-                    }
-                    let ok = if let Ok(request) = serde_json::from_str::<Envelope>(&line) {
+                    };
+                    let command = if let Ok(request) = serde_json::from_str::<Envelope>(&line) {
                         if constant_eq(&request.token, &token) {
-                            handler(request.command);
-                            true
+                            Some(request.command)
                         } else {
-                            false
+                            None
                         }
                     } else {
-                        false
+                        None
                     };
-                    let _ = (&stream).write_all(if ok { b"ok\n" } else { b"denied\n" });
+                    if let Some(command) = command {
+                        // A close event may end the whole process immediately.
+                        // Wait until the launcher has read our acknowledgement
+                        // before waking the UI, including on Windows where pipe
+                        // buffers can disappear with the last server handle.
+                        if (&stream).write_all(b"ok\n").is_ok()
+                            && read_line(&stream, 16, Duration::from_millis(100))
+                                .is_ok_and(|receipt| receipt == "received")
+                        {
+                            handler(command);
+                        }
+                    } else {
+                        let _ = (&stream).write_all(b"denied\n");
+                    }
                 }
             })?;
         Ok(())
@@ -218,6 +230,18 @@ fn constant_eq(a: &str, b: &str) -> bool {
 
 /// Bounded retries cover the short lock-to-listener startup race.
 pub fn send(directory: &Path, command: Command) -> io::Result<()> {
+    // Named-pipe connects can block, and interprocess does not implement
+    // receive timeouts on Windows. Bound the entire forwarding operation.
+    let directory = directory.to_owned();
+    let (tx, rx) = std::sync::mpsc::sync_channel(1);
+    std::thread::spawn(move || {
+        let _ = tx.send(send_retry(&directory, command));
+    });
+    rx.recv_timeout(Duration::from_millis(300))
+        .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, "overlay instance did not answer"))?
+}
+
+fn send_retry(directory: &Path, command: Command) -> io::Result<()> {
     let deadline = Instant::now() + Duration::from_millis(250);
     loop {
         match send_once(directory, command) {
@@ -231,15 +255,15 @@ pub fn send(directory: &Path, command: Command) -> io::Result<()> {
 fn send_once(directory: &Path, command: Command) -> io::Result<()> {
     let info: Info = serde_json::from_slice(&std::fs::read(directory.join("instance.json"))?)?;
     let stream = Stream::connect(socket_name(directory)?)?;
-    stream.set_recv_timeout(Some(Duration::from_millis(50)))?;
+    stream.set_nonblocking(cfg!(unix))?;
     let request = serde_json::to_string(&Envelope {
         token: info.token,
         command,
     })?;
     writeln!(&stream, "{request}")?;
-    let mut reply = String::new();
-    BufReader::new((&stream).take(64)).read_line(&mut reply)?;
+    let reply = read_line(&stream, 64, Duration::from_millis(50))?;
     if reply.trim() == "ok" {
+        writeln!(&stream, "received")?;
         Ok(())
     } else {
         Err(io::Error::new(
@@ -247,6 +271,84 @@ fn send_once(directory: &Path, command: Command) -> io::Result<()> {
             "overlay command denied",
         ))
     }
+}
+
+/// Bounded reads on Unix sockets and Windows named pipes. Sleeps occur only
+/// during a live request; the listener blocks in accept while idle.
+fn read_line(stream: &Stream, limit: usize, timeout: Duration) -> io::Result<String> {
+    stream.set_nonblocking(cfg!(unix))?;
+    let deadline = Instant::now() + timeout;
+    let mut bytes = Vec::new();
+    let mut buffer = [0u8; 256];
+    while bytes.len() < limit {
+        let length = buffer.len().min(limit - bytes.len());
+        match read_available(stream, &mut buffer[..length]) {
+            Ok(0) => {
+                return Err(io::Error::new(
+                    io::ErrorKind::UnexpectedEof,
+                    "closed overlay socket",
+                ))
+            }
+            Ok(count) => {
+                bytes.extend_from_slice(&buffer[..count]);
+                if let Some(end) = bytes.iter().position(|byte| *byte == b'\n') {
+                    return String::from_utf8(bytes[..end].to_vec()).map_err(io::Error::other);
+                }
+            }
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                if Instant::now() >= deadline {
+                    return Err(io::Error::new(
+                        io::ErrorKind::TimedOut,
+                        "overlay socket read timed out",
+                    ));
+                }
+                std::thread::sleep(Duration::from_millis(1));
+            }
+            Err(error) => return Err(error),
+        }
+    }
+    Err(io::Error::new(
+        io::ErrorKind::InvalidData,
+        "overlay request is too large",
+    ))
+}
+
+#[cfg(unix)]
+fn read_available(stream: &Stream, buffer: &mut [u8]) -> io::Result<usize> {
+    (&*stream).read(buffer)
+}
+
+#[cfg(windows)]
+fn read_available(stream: &Stream, buffer: &mut [u8]) -> io::Result<usize> {
+    use std::os::windows::io::{AsHandle, AsRawHandle};
+    use windows_sys::Win32::System::Pipes::PeekNamedPipe;
+
+    let Stream::NamedPipe(pipe) = stream;
+    let mut available = 0;
+    // PIPE_NOWAIT reports ERROR_NO_DATA for an empty pipe, which interprocess
+    // can translate to EOF. Peek without consuming bytes, then read only the
+    // available data. Interprocess creates overlapped handles, and this is the
+    // sole reader of this connection, so no pending read races with the peek.
+    // https://learn.microsoft.com/en-us/windows/win32/api/namedpipeapi/nf-namedpipeapi-peeknamedpipe
+    // SAFETY: the borrowed handle stays open and the output pointer is valid.
+    let ok = unsafe {
+        PeekNamedPipe(
+            pipe.as_handle().as_raw_handle(),
+            std::ptr::null_mut(),
+            0,
+            std::ptr::null_mut(),
+            &mut available,
+            std::ptr::null_mut(),
+        )
+    };
+    if ok == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    if available == 0 {
+        return Err(io::ErrorKind::WouldBlock.into());
+    }
+    let length = buffer.len().min(available as usize);
+    (&*stream).read(&mut buffer[..length])
 }
 
 #[cfg(test)]
@@ -265,6 +367,32 @@ mod tests {
                 let _ = tx.send(command);
             }))
             .unwrap();
+        let stream = Stream::connect(socket_name(&dir).unwrap()).unwrap();
+        let writer = interprocess::TryClone::try_clone(&stream).unwrap();
+        let request = serde_json::to_string(&Envelope {
+            token: instance.token.clone(),
+            command: Command::Show,
+        })
+        .unwrap();
+        let delayed = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(25));
+            writeln!(&writer, "{request}").unwrap();
+        });
+        assert_eq!(
+            read_line(&stream, 64, Duration::from_secs(1)).unwrap(),
+            "ok"
+        );
+        assert!(
+            rx.try_recv().is_err(),
+            "UI command ran before acknowledgement receipt"
+        );
+        writeln!(&stream, "received").unwrap();
+        delayed.join().unwrap();
+        assert_eq!(
+            rx.recv_timeout(Duration::from_secs(1)).unwrap(),
+            Command::Show
+        );
+        drop(stream);
         send(&dir, Command::Toggle).unwrap();
         assert_eq!(
             rx.recv_timeout(Duration::from_secs(1)).unwrap(),

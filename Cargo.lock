@@ -150,6 +150,7 @@ dependencies = [
  "tempfile",
  "tiny-skia",
  "wayland-client",
+ "wayland-protocols-wlr",
  "windows-sys 0.61.2",
  "winit",
  "x11rb",

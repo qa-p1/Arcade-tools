@@ -71,9 +71,9 @@ impl Layout {
             x: 36.0,
             y: 160.0,
             w: width - 72.0,
-            h: 118.0,
+            h: (height - 242.0).clamp(34.0, 118.0),
         });
-        let top = if picker.is_some() { 316.0 } else { 190.0 };
+        let top = picker.map_or(190.0, |picker| picker.bottom() + 38.0);
         let viewport = Rect {
             x: 36.0,
             y: top,
@@ -105,6 +105,12 @@ impl Layout {
 
     pub fn scroll(&self, current: f32, delta: f32) -> f32 {
         (current + delta).clamp(0.0, self.max_scroll)
+    }
+
+    pub fn picker_visible_rows(&self) -> usize {
+        self.picker.map_or(0, |picker| {
+            (((picker.h - 4.0).max(0.0) / 34.0).floor() as usize).min(3)
+        })
     }
 }
 
@@ -148,7 +154,14 @@ mod tests {
             None,
         );
         let sections = model.sections();
-        let layout = Layout::new(&model, 1100.0, 720.0, &sections);
-        assert!(layout.picker.unwrap().bottom() < layout.viewport.y);
+        for height in [720.0, 360.0, 280.0] {
+            let layout = Layout::new(&model, 1100.0, height, &sections);
+            let picker = layout.picker.unwrap();
+            assert!(picker.bottom() < layout.viewport.y);
+            assert!(layout.picker_visible_rows() > 0);
+            let last_row_bottom =
+                picker.y + 8.0 + (layout.picker_visible_rows() - 1) as f32 * 34.0 + 30.0;
+            assert!(last_row_bottom <= picker.bottom());
+        }
     }
 }
