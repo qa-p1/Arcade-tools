@@ -1,5 +1,9 @@
 pub mod apps;
+pub mod archive;
+pub mod backup;
 pub mod catalog;
+pub mod dashboard;
+pub mod diagnostics;
 pub mod docs;
 pub mod engines;
 pub mod health;

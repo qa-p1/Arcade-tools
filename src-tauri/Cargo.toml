@@ -1,6 +1,6 @@
 [package]
 name = "arcade-tools"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 rust-version = "1.88"
 license = "MIT"
@@ -20,5 +20,6 @@ arcade-link = { git = "https://github.com/qa-p1/Arcade-Link", branch = "arcade/t
 tauri = { version = "2.12", features = [] }
 tauri-plugin-single-instance = "2.5"
 tauri-plugin-opener = "2.7"
+tauri-plugin-notification = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

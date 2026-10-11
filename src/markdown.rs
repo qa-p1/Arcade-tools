@@ -16,6 +16,10 @@ pub fn render(markdown: &str, image_hosts: &[&str]) -> String {
     );
     let mut output = String::new();
     html::push_html(&mut output, parser);
+    sanitize(&output, image_hosts)
+}
+
+pub fn sanitize(output: &str, image_hosts: &[&str]) -> String {
     let hosts = image_hosts
         .iter()
         .map(|h| h.to_ascii_lowercase())
@@ -74,7 +78,7 @@ pub fn render(markdown: &str, image_hosts: &[&str]) -> String {
             }
             Some(value.into())
         });
-    builder.clean(&output).to_string()
+    builder.clean(output).to_string()
 }
 fn safe_url(value: &str, image_hosts: Option<&HashSet<String>>) -> bool {
     if value.is_empty()

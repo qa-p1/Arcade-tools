@@ -1,5 +1,5 @@
 {
-  "$schema": "https://schema.tauri.app/config/2", "productName": "Arcade Tools", "version": "0.1.0", "identifier": "app.arcadetools",
+  "$schema": "https://schema.tauri.app/config/2", "productName": "Arcade Tools", "version": "0.2.0", "identifier": "app.arcadetools",
   "build": { "beforeDevCommand": "npm run dev", "devUrl": "http://localhost:1421", "beforeBuildCommand": "npm run build", "frontendDist": "../dist" },
   "app": {
     "windows": [{ "label": "main", "title": "Arcade Tools", "width": 940, "height": 780, "minWidth": 640, "minHeight": 540, "visible": false }],

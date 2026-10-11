@@ -83,6 +83,15 @@ pub struct Preferences {
     pub channels: BTreeMap<String, Channel>,
     #[serde(default)]
     pub updates: UpdateSettings,
+    #[serde(default = "yes")]
+    pub notifications_enabled: bool,
+    #[serde(default = "system_theme")]
+    pub theme: String,
+    #[serde(default)]
+    pub onboarding_complete: bool,
+}
+fn system_theme() -> String {
+    "system".into()
 }
 fn yes() -> bool {
     true
@@ -93,6 +102,9 @@ impl Default for Preferences {
             link_enabled: true,
             channels: BTreeMap::new(),
             updates: UpdateSettings::default(),
+            notifications_enabled: true,
+            theme: system_theme(),
+            onboarding_complete: false,
         }
     }
 }
@@ -205,6 +217,7 @@ pub struct Manager {
     pub paths: Paths,
     source: Source,
     mutation: Mutex<()>,
+    scheduler: Mutex<Option<updates::Scheduler>>,
 }
 impl Manager {
     /// Construct without I/O; safe on any thread. All manager I/O methods below
@@ -214,6 +227,7 @@ impl Manager {
             paths,
             source,
             mutation: Mutex::new(()),
+            scheduler: Mutex::new(None),
         }
     }
     fn lock(&self) -> Result<std::sync::MutexGuard<'_, ()>> {
@@ -232,6 +246,43 @@ impl Manager {
     }
     fn save_preferences(&self, prefs: &Preferences) -> Result<()> {
         self.write(&self.paths.state().join("preferences.json"), prefs)
+    }
+    pub fn validate_preferences(&self, prefs: &Preferences) -> Result<()> {
+        if !matches!(prefs.theme.as_str(), "system" | "light" | "dark") {
+            return Err(Error::new("preferences", "Unknown theme."));
+        }
+        for id in prefs
+            .channels
+            .keys()
+            .chain(prefs.updates.auto_update.keys())
+        {
+            manager_id(id)?;
+        }
+        Ok(())
+    }
+    pub fn restore_preferences(&self, prefs: &Preferences) -> Result<()> {
+        let _lock = self.lock()?;
+        self.validate_preferences(prefs)?;
+        self.save_preferences(prefs)
+    }
+    pub fn set_notifications(&self, enabled: bool) -> Result<()> {
+        let _lock = self.lock()?;
+        let mut prefs = self.preferences()?;
+        prefs.notifications_enabled = enabled;
+        self.save_preferences(&prefs)
+    }
+    pub fn set_theme(&self, theme: &str) -> Result<()> {
+        let _lock = self.lock()?;
+        let mut prefs = self.preferences()?;
+        prefs.theme = theme.into();
+        self.validate_preferences(&prefs)?;
+        self.save_preferences(&prefs)
+    }
+    pub fn complete_onboarding(&self) -> Result<()> {
+        let _lock = self.lock()?;
+        let mut prefs = self.preferences()?;
+        prefs.onboarding_complete = true;
+        self.save_preferences(&prefs)
     }
     /// Persist a channel selection on a worker thread; no network work.
     pub fn set_channel(&self, id: &str, channel: Channel) -> Result<()> {
@@ -751,8 +802,15 @@ impl Manager {
     pub fn update_state(&self) -> Result<UpdateState> {
         let catalog = self.catalog()?;
         let (installed, peers) = self.update_inputs()?;
-        let mut scheduler =
-            updates::Scheduler::new(self.paths.clone(), SystemClock, self.source.clone())?;
+        let mut guard = self.scheduler.lock().unwrap();
+        if guard.is_none() {
+            *guard = Some(updates::Scheduler::new(
+                self.paths.clone(),
+                SystemClock,
+                self.source.clone(),
+            )?);
+        }
+        let scheduler = guard.as_mut().unwrap();
         scheduler.reconcile(&catalog, &installed, &peers);
         Ok(scheduler.state().clone())
     }
@@ -764,12 +822,27 @@ impl Manager {
     /// Run a scheduled or window-open update check through the core scheduler.
     /// The caller must keep this synchronous work off the UI thread.
     pub fn check_updates_for(&self, trigger: Trigger) -> Result<UpdateState> {
+        self.check_updates_with(trigger, true)
+            .map(|(state, _)| state)
+    }
+    pub fn check_updates_with(
+        &self,
+        trigger: Trigger,
+        online: bool,
+    ) -> Result<(UpdateState, Vec<updates::UpdateNotification>)> {
         let catalog = self.catalog()?;
         let (installed, peers) = self.update_inputs()?;
         let settings = self.preferences()?.updates;
-        let mut scheduler =
-            updates::Scheduler::new(self.paths.clone(), SystemClock, self.source.clone())?;
-        scheduler.run(
+        let mut guard = self.scheduler.lock().unwrap();
+        if guard.is_none() {
+            *guard = Some(updates::Scheduler::new(
+                self.paths.clone(),
+                SystemClock,
+                self.source.clone(),
+            )?);
+        }
+        let scheduler = guard.as_mut().unwrap();
+        let outcome = scheduler.run(
             trigger,
             CheckContext {
                 settings: &settings,
@@ -778,12 +851,21 @@ impl Manager {
                 peers: &peers,
                 // A manual request treats connectivity as unknown/online; the
                 // first failed transport is recorded by the scheduler.
-                online: true,
+                online,
                 os: Os::current(),
                 arch: Arch::current()?,
             },
         )?;
-        Ok(scheduler.state().clone())
+        Ok((scheduler.state().clone(), outcome.notifications))
+    }
+    pub fn update_deadline(&self) -> Result<Option<u64>> {
+        self.update_state()?;
+        Ok(self.scheduler.lock().unwrap().as_ref().unwrap().next_deadline(&self.preferences()?.updates))
+    }
+    pub fn last_used(&self, id: &str) -> Option<u64> {
+        let status = Client::connect_with(&self.paths.link, id, &me(), Duration::from_millis(250)).ok()?.status().ok()?;
+        status.pointer("/status/lastUsed").or_else(|| status.pointer("/status/lastUsedAt"))
+            .or_else(|| status.get("lastUsed")).and_then(Value::as_u64)
     }
     /// Fetch and cache one app's docs for the selected installed version. This
     /// method never runs unless Learn explicitly requests the download.
@@ -863,9 +945,23 @@ impl Manager {
     }
     /// Disk/optional IPC work on a worker thread; no network refresh.
     pub fn list(&self, probe: bool) -> Result<Vec<AppView>> {
+        self.list_catalog(probe, false)
+    }
+    pub fn tools_view(&self) -> Result<Option<AppView>> {
+        Ok(self
+            .list_catalog(false, true)?
+            .into_iter()
+            .find(|app| app.id == ids::TOOLS))
+    }
+    fn list_catalog(&self, probe: bool, include_tools: bool) -> Result<Vec<AppView>> {
         let registry = Registry::load(&self.paths.link);
         let prefs = self.preferences()?;
-        let catalog = self.catalog()?;
+        let mut catalog = self.catalog()?;
+        if include_tools {
+            if let Some(tools) = catalog.install_entry(ids::TOOLS) {
+                catalog.apps.push(tools);
+            }
+        }
         catalog.apps.iter().map(|app| {
             let id = app.id.as_str();
             let record = if app.supported_install() { self.record(id)? } else { None };
@@ -947,13 +1043,40 @@ impl Manager {
             version: checked.release.version.clone(),
             channel: checked.release.channel,
             file: checked.asset.file.clone(),
-            notes: checked.release.notes.clone(),
+            notes: self
+                .release_body(id, checked.release.channel)
+                .unwrap_or_else(|| checked.release.notes.clone()),
             update_available: record.is_none_or(|r| {
                 r.sha256 != checked.asset.sha256
                     || r.version != checked.release.version
                     || r.channel != checked.release.channel
             }),
         })
+    }
+    fn release_body(&self, id: &str, channel: Channel) -> Option<String> {
+        let path = self
+            .paths
+            .cache
+            .join("arcade/tools/releases")
+            .join(id)
+            .join(format!("{}.json", channel.as_str()));
+        let bytes = crate::catalog::read_bounded(&path, 6 * 1024 * 1024).ok()?;
+        let cache: crate::release::ReleaseCache = serde_json::from_slice(&bytes).ok()?;
+        Some(cache.body)
+    }
+    pub fn history(&self) -> Result<Vec<HistoryEntry>> {
+        let path = self.paths.state().join("update-history.jsonl");
+        let bytes = match crate::catalog::read_bounded(&path, 8 * 1024 * 1024) {
+            Ok(bytes) => bytes,
+            Err(_) if !path.exists() => return Ok(Vec::new()),
+            Err(error) => return Err(error),
+        };
+        String::from_utf8_lossy(&bytes)
+            .lines()
+            .rev()
+            .take(200)
+            .map(|line| serde_json::from_str(line).map_err(Into::into))
+            .collect()
     }
     /// IPC/process/disk work on a worker thread. Starts no update timer.
     pub fn launch(&self, id: &str, mode: LaunchMode) -> Result<()> {
@@ -1384,18 +1507,13 @@ impl Manager {
         app_id(id)?;
         let _lock = self.lock()?;
         if let Ok(mut client) = Client::connect(&self.paths.link, id, &me()) {
-            if client
-                .describe_full()
-                .map_err(|error| link_error(id, error))?
-                .supports("app.restart")
+            if mode.is_none()
+                && client
+                    .describe_full()
+                    .map_err(|error| link_error(id, error))?
+                    .supports("app.restart")
             {
-                match client.restart(mode.map(|mode| {
-                    if mode == LaunchMode::Background {
-                        "background"
-                    } else {
-                        "foreground"
-                    }
-                })) {
+                match client.restart(None) {
                     Ok(()) => return Ok(()),
                     Err(error) if error.is_unsupported() => {}
                     Err(error) => return Err(link_error(id, error)),

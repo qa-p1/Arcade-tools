@@ -6,6 +6,7 @@ use crate::catalog::{allowed_repo, read_bounded, relative_path, valid_app_id, Ca
 use crate::paths::Paths;
 use crate::source::{Fetch, HttpSource};
 use crate::{Error, Result};
+use base64::Engine;
 use pulldown_cmark::{Event, Parser};
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
@@ -101,6 +102,132 @@ pub struct DocLocation {
     pub source: DocSource,
     /// Caller can offer an explicit fetch when only another version is bundled.
     pub needs_fetch: bool,
+}
+#[derive(Debug, Serialize)]
+pub struct PageInfo {
+    pub path: String,
+    pub title: String,
+}
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Page {
+    pub app: String,
+    pub version: String,
+    pub path: String,
+    pub title: String,
+    pub html: String,
+    pub source: DocSource,
+    pub needs_fetch: bool,
+}
+
+pub fn pages(location: &DocLocation) -> Result<Vec<PageInfo>> {
+    let mut pages = markdown_files(&location.root)?
+        .into_iter()
+        .map(|path| {
+            let bytes = read_bounded(&path, MAX_SNAPSHOT)?;
+            let markdown =
+                String::from_utf8(bytes).map_err(|e| Error::new("docs", e.to_string()))?;
+            let (title, _) = document_text(&markdown, &path);
+            Ok(PageInfo {
+                path: path
+                    .strip_prefix(&location.root)
+                    .unwrap()
+                    .to_string_lossy()
+                    .replace('\\', "/"),
+                title,
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
+    pages.sort_by_key(|page| (page.path != "index.md", page.path.clone()));
+    Ok(pages)
+}
+
+pub fn read_page(location: &DocLocation, path: &str) -> Result<Page> {
+    relative_path(path)?;
+    if !path.ends_with(".md") {
+        return Err(Error::new("docs", "Choose a markdown guide."));
+    }
+    let root = location.root.canonicalize()?;
+    let file = root.join(path).canonicalize()?;
+    if !file.starts_with(&root) {
+        return Err(Error::new("paths", "Guide escaped its docs directory."));
+    }
+    let bytes = read_bounded(&file, MAX_SNAPSHOT)?;
+    let markdown = String::from_utf8(bytes).map_err(|e| Error::new("docs", e.to_string()))?;
+    let (title, _) = document_text(&markdown, &file);
+    let body = markdown
+        .strip_prefix("---\n")
+        .and_then(|s| s.split_once("\n---\n"))
+        .map_or(markdown.as_str(), |(_, body)| body);
+    let mut images = Vec::new();
+    let mut image_bytes = 0;
+    let parser = Parser::new_ext(
+        body,
+        pulldown_cmark::Options::ENABLE_TABLES | pulldown_cmark::Options::ENABLE_STRIKETHROUGH,
+    )
+    .map(|event| {
+        if let Event::Start(pulldown_cmark::Tag::Image {
+            link_type,
+            dest_url,
+            title,
+            id,
+        }) = event
+        {
+            let image = (|| -> Option<String> {
+                if dest_url.contains([':', '\\', '?', '#']) || dest_url.starts_with('/') {
+                    return None;
+                }
+                let target = file.parent()?.join(dest_url.as_ref()).canonicalize().ok()?;
+                if !target.starts_with(&root) {
+                    return None;
+                }
+                let mime = match target.extension()?.to_str()?.to_ascii_lowercase().as_str() {
+                    "png" => "image/png",
+                    "jpg" | "jpeg" => "image/jpeg",
+                    "gif" => "image/gif",
+                    "webp" => "image/webp",
+                    "avif" => "image/avif",
+                    _ => return None,
+                };
+                let bytes = read_bounded(&target, MAX_SNAPSHOT.saturating_sub(image_bytes)).ok()?;
+                image_bytes += bytes.len() as u64;
+                Some(format!(
+                    "data:{mime};base64,{}",
+                    base64::engine::general_purpose::STANDARD.encode(bytes)
+                ))
+            })();
+            let dest_url = if let Some(data) = image {
+                let name = format!("arcade-doc-image-{}", images.len());
+                images.push((name.clone(), data));
+                name.into()
+            } else {
+                "arcade-doc-image-unavailable".into()
+            };
+            Event::Start(pulldown_cmark::Tag::Image {
+                link_type,
+                dest_url,
+                title,
+                id,
+            })
+        } else {
+            event
+        }
+    });
+    let mut html = String::new();
+    pulldown_cmark::html::push_html(&mut html, parser);
+    let mut html = crate::markdown::sanitize(&html, &[]);
+    for (name, data) in images {
+        html = html.replace(&format!("src=\"{name}\""), &format!("src=\"{data}\""));
+    }
+    Ok(Page {
+        app: location.id.clone(),
+        version: location.version.clone(),
+        path: path.into(),
+        title,
+        html,
+        source: location.source,
+        needs_fetch: location.needs_fetch,
+    })
 }
 pub struct DocsResolver {
     paths: Paths,

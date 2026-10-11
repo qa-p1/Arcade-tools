@@ -142,10 +142,11 @@ fn conditional_catalog_preserves_last_good_copy_and_offline_snapshot() {
     assert_eq!(views.len(), 1);
     assert_eq!(views[0].name, "Catalog display name");
     assert!(manager
-        .check("arcade.box")
-        .unwrap_err()
-        .message
-        .contains("Update Arcade Tools"));
+        .catalog()
+        .unwrap()
+        .apps
+        .iter()
+        .all(|app| app.install_reason.is_none()));
     std::fs::write(paths.catalog().join("catalog.json"), "bad cache").unwrap();
     assert_eq!(client.cached_catalog().apps.len(), 7);
     assert_eq!(
