@@ -233,7 +233,7 @@ impl Manager {
     }
     /// Persist a channel selection on a worker thread; no network work.
     pub fn set_channel(&self, id: &str, channel: Channel) -> Result<()> {
-        app_id(id)?;
+        manager_id(id)?;
         let _lock = self.lock()?;
         let mut prefs = self.preferences()?;
         prefs.channels.insert(id.into(), channel);
@@ -938,6 +938,13 @@ impl Manager {
     pub fn start_at_login(&self, id: &str, enabled: bool) -> Result<()> {
         app_id(id)?;
         let _lock = self.lock()?;
+        let registry = Registry::load(&self.paths.link);
+        if self.class(id, &registry, self.receipt(id)?.as_ref())? == InstallationClass::Dev {
+            return Err(Error::new(
+                "dev_build",
+                "Development builds keep their own integration.",
+            ));
+        }
         let exe = self
             .record(id)?
             .as_ref()
@@ -1955,7 +1962,8 @@ impl Manager {
                 Error::new("no_previous", "The retained previous file is missing.")
             })?;
             let exe = if previous.record.kind == Kind::Dmg {
-                let original = self.paths.install_root(&request.id, Os::Macos, false);
+                let original =
+                    installation::target(&self.paths, &previous.record, previous.receipt.as_ref());
                 pointer.path.join(
                     self.executable(&previous.record)
                         .strip_prefix(original)
@@ -2017,44 +2025,58 @@ impl Manager {
                 };
                 self.ensure_compatible(&request.id, &release)?;
                 let resume = self.stop_peer(&request.id, peer, request, true)?;
-                let transaction = Transaction::begin(
-                    &self.paths,
-                    &request.id,
-                    &installation::target(&self.paths, old, receipt),
-                    receipt,
-                )?;
-                let current = transaction.previous(old.clone(), receipt.cloned());
-                *replaced = true;
-                previous.restore(&self.paths)?;
-                let mut record = previous.record.clone();
-                record.last_mode = resume.or(request.mode);
-                let exe = self.executable(&record);
-                if record.installed_by_app && record.kind == Kind::Dmg {
-                    installation::run_app_installer(
+                let result = (|| -> Result<()> {
+                    let mut transaction = Transaction::begin(
                         &self.paths,
-                        &exe,
-                        vec![
-                            "--install".into(),
-                            "--silent".into(),
-                            "--channel".into(),
-                            record.channel.as_str().into(),
-                            "--no-launch".into(),
-                        ],
+                        &request.id,
+                        &installation::target(&self.paths, old, receipt),
+                        receipt,
                     )?;
+                    transaction.include(&installation::target(
+                        &self.paths,
+                        &previous.record,
+                        previous.receipt.as_ref(),
+                    ))?;
+                    let current = transaction.previous(old.clone(), receipt.cloned());
+                    *replaced = true;
+                    previous.restore(&self.paths)?;
+                    let mut record = previous.record.clone();
+                    record.last_mode = resume.or(request.mode);
+                    let exe = self.executable(&record);
+                    if record.installed_by_app && record.kind == Kind::Dmg {
+                        installation::run_app_installer(
+                            &self.paths,
+                            &exe,
+                            vec![
+                                "--install".into(),
+                                "--silent".into(),
+                                "--channel".into(),
+                                record.channel.as_str().into(),
+                                "--no-launch".into(),
+                            ],
+                        )?;
+                    }
+                    let restored = self
+                        .receipt(&request.id)?
+                        .unwrap_or_else(|| installation::legacy_receipt(&self.paths, &record));
+                    self.write(
+                        &self.paths.state().join(format!("{}.json", request.id)),
+                        &record,
+                    )?;
+                    if let Some(mode) = resume {
+                        platform::spawn_detached(&self.paths, &exe, &mode.args())?;
+                    }
+                    installation::claim(&self.paths, restored, current.pointer(&self.paths))?;
+                    transaction.commit(Some(current))?;
+                    *replaced = false;
+                    Ok(())
+                })();
+                if let Err(error) = result {
+                    if let Some(mode) = resume {
+                        let _ = self.launch_inner(&request.id, mode);
+                    }
+                    return Err(error);
                 }
-                let restored = self
-                    .receipt(&request.id)?
-                    .unwrap_or_else(|| installation::legacy_receipt(&self.paths, &record));
-                self.write(
-                    &self.paths.state().join(format!("{}.json", request.id)),
-                    &record,
-                )?;
-                if let Some(mode) = resume {
-                    platform::spawn_detached(&self.paths, &exe, &mode.args())?;
-                }
-                installation::claim(&self.paths, restored, current.pointer(&self.paths))?;
-                transaction.commit(Some(current))?;
-                *replaced = false;
             }
         }
         progress(Progress::new(&request.id, "Rolled back", Some(1.0), false));
