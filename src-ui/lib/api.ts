@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import type { UnlistenFn } from '@tauri-apps/api/event';
+import type { ShortcutsIndex } from './shortcuts';
 
 export type Channel = 'stable' | 'nightly';
 export type LaunchMode = 'foreground' | 'background';
@@ -200,6 +201,10 @@ export const api = {
   openDocs: (id: string) => invoke<void>('open_docs', { id }),
   renderMarkdown: (markdown: string) => invoke<string>('render_markdown', { markdown }),
   uiRendered: (report: UiRenderReport) => invoke<void>('ui_rendered', { report }),
+  shortcutsIndex: () => invoke<ShortcutsIndex | null>('shortcuts_index'),
+  shortcutLabels: () => invoke<Record<string, string>>('shortcut_labels'),
+  setShortcutLabel: (key: string, label: string | null) =>
+    invoke<void>('set_shortcut_label', { key, label }),
 };
 
 export const appEvents = {

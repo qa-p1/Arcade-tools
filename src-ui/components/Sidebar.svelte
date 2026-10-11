@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { tabs, type ShellTab } from '../lib/tabs';
+  import { tabs, type ShellTab } from '../lib/tabs.svelte';
   type Props = { active: ShellTab; onSelect: (id: ShellTab) => void };
 
   let { active, onSelect }: Props = $props();
-  const visibleTabs = tabs.filter((tab) => tab.enabled);
+  const visibleTabs = $derived(tabs.filter((tab) => tab.enabled));
 
   function moveTab(event: KeyboardEvent, current: ShellTab): void {
     const direction = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1

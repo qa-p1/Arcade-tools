@@ -254,6 +254,74 @@ html[data-theme="dark"] .status-warning { color: #f2a184; }
 .review-list .onboarding-app-row { min-height: 70px; }
 .shell-footer { display: flex; justify-content: space-between; gap: 20px; padding: 16px clamp(20px, 4vw, 48px) 23px; border-top: 1px solid var(--border); color: var(--muted); font-size: 9px; }
 
+.shortcuts-panel { padding-bottom: 20px; }
+.shortcuts-heading { align-items: flex-end; }
+.shortcut-search { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 48px; margin: 0 0 17px; padding: 0 14px; border: 1px solid var(--border); border-radius: var(--radius-chip); background: var(--surface); }
+.shortcut-search:focus-within { border-color: color-mix(in srgb, var(--accent-tools) 70%, var(--border)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-tools) 12%, transparent); }
+.shortcut-search svg { width: 18px; height: 18px; stroke: var(--muted); stroke-width: 1.6; }
+.shortcut-search input { width: 100%; min-width: 0; padding: 12px 0; border: 0; outline: 0; color: var(--text); background: transparent; font-size: 12px; }
+.shortcut-search input::placeholder { color: var(--muted); opacity: .8; }
+.search-hint { min-width: 22px; padding: 3px 6px; border: 1px solid var(--border); border-radius: 5px; color: var(--muted); background: var(--raised); text-align: center; font-size: 10px; }
+.shortcut-view-tabs { display: flex; align-items: center; gap: 5px; margin: 0 0 18px; padding-bottom: 9px; border-bottom: 1px solid var(--border); overflow-x: auto; }
+.shortcut-view-tabs button { display: inline-flex; min-height: 34px; align-items: center; gap: 7px; padding: 0 12px; border: 1px solid transparent; border-radius: 7px; color: var(--muted); background: transparent; font-size: 11px; font-weight: 600; white-space: nowrap; cursor: pointer; }
+.shortcut-view-tabs button:hover { color: var(--text); background: var(--raised); }
+.shortcut-view-tabs button.active { border-color: color-mix(in srgb, var(--accent-tools) 24%, var(--border)); color: var(--text); background: var(--raised); }
+.view-count { display: inline-grid; min-width: 17px; height: 17px; place-items: center; padding: 0 4px; border-radius: 999px; color: var(--muted); background: var(--surface); font-size: 9px; }
+.shortcut-section + .shortcut-section { margin-top: 22px; }
+.section-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 11px; }
+.section-heading h2 { font-size: 13px; }
+.section-heading p { margin: 4px 0 0; color: var(--muted); font-size: 10px; line-height: 1.4; }
+.section-heading > span { flex: 0 0 auto; padding: 4px 8px; border-radius: 999px; color: var(--muted); background: var(--raised); font-size: 9px; }
+.shortcut-list { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
+.shortcut-row { display: flex; min-height: 56px; align-items: center; justify-content: space-between; gap: 18px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); }
+.shortcut-copy { min-width: 0; }
+.shortcut-copy h3, .shortcut-copy h4 { margin: 0; color: var(--text); font-size: 11px; font-weight: 650; }
+.shortcut-copy p { margin: 4px 0 0; color: var(--muted); font-size: 10px; line-height: 1.45; overflow-wrap: anywhere; }
+.shortcut-key-area { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 7px; }
+.key-chip-list { display: inline-flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 4px; }
+.key-chip { display: inline-flex; min-height: 24px; align-items: center; justify-content: center; padding: 4px 7px; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 6px; color: var(--text); background: var(--raised); font-family: inherit; font-size: 9px; font-weight: 650; line-height: 1; white-space: nowrap; }
+.key-chip-list[data-os="macos"] .key-chip { border-radius: 999px; border-bottom-width: 1px; }
+.key-chip-list[data-os="windows"] .key-chip { border-radius: 4px; box-shadow: 0 1px 1px color-mix(in srgb, var(--text) 8%, transparent); }
+.shortcut-badge, .shortcut-badge-muted, .source-badge { display: inline-flex; align-items: center; min-height: 21px; padding: 3px 7px; border: 1px solid color-mix(in srgb, var(--accent-tools) 24%, var(--border)); border-radius: var(--radius-badge); color: var(--text); background: color-mix(in srgb, var(--accent-tools) 9%, var(--surface)); font-size: 9px; font-weight: 600; white-space: nowrap; }
+.shortcut-badge-muted, .source-badge { border-color: var(--border); color: var(--muted); background: var(--raised); }
+.shortcut-group { margin-top: 18px; }
+.shortcut-group > h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 11px; font-weight: 650; }
+.shortcut-group > h3 span { color: var(--muted); font-size: 9px; font-weight: 500; }
+.wm-shortcut-row { display: grid; grid-template-columns: minmax(190px, 1fr) auto minmax(260px, 330px); align-items: center; gap: 14px; padding: 13px 14px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); }
+.shortcut-title-line { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.state-badge { padding: 3px 7px; border: 1px solid var(--border); border-radius: var(--radius-badge); color: var(--muted); background: var(--raised); font-size: 8px; font-weight: 600; }
+.state-active { border-color: color-mix(in srgb, #21865b 28%, var(--border)); color: #18734d; background: color-mix(in srgb, #21865b 8%, var(--surface)); }
+.state-configured { border-color: color-mix(in srgb, #c78015 30%, var(--border)); color: #94600f; background: color-mix(in srgb, #c78015 9%, var(--surface)); }
+.state-runtime { border-color: color-mix(in srgb, #3977ca 28%, var(--border)); color: #2a63ad; background: color-mix(in srgb, #3977ca 8%, var(--surface)); }
+html[data-theme="dark"] .state-active { color: #8bd7b2; }
+html[data-theme="dark"] .state-configured { color: #edc27b; }
+html[data-theme="dark"] .state-runtime { color: #a4c8fa; }
+.shortcut-origin { font-size: 9px !important; }
+.label-editor { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 5px 7px; }
+.label-editor label { grid-column: 1 / -1; color: var(--muted); font-size: 9px; }
+.label-editor input, .app-picker select { min-width: 0; min-height: 30px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; color: var(--text); background: var(--surface); font-size: 10px; }
+.small-button { min-height: 30px; padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px; color: var(--text); background: var(--raised); font-size: 9px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.small-button:hover { border-color: color-mix(in srgb, var(--accent-tools) 42%, var(--border)); }
+.save-status { color: #18734d; font-size: 9px; }
+.shortcut-error { color: #b42332; font-size: 10px; }
+.shortcut-warnings { margin: 0 0 12px; padding: 10px 12px 10px 28px; border: 1px solid color-mix(in srgb, #c78015 25%, var(--border)); border-radius: 8px; color: var(--muted); background: color-mix(in srgb, #c78015 6%, var(--surface)); font-size: 10px; line-height: 1.5; }
+.app-picker { display: grid; max-width: 360px; gap: 6px; margin: 14px 0 18px; color: var(--muted); font-size: 10px; font-weight: 600; }
+.app-sheet-heading { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin: 5px 0 16px; padding: 14px; border: 1px solid var(--border); border-radius: 9px; background: var(--raised); }
+.app-sheet-heading h3 { margin: 0; font-size: 12px; }
+.app-sheet-heading p { margin: 4px 0 0; color: var(--muted); font-size: 10px; }
+.conflict-card { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 12px; margin-top: 8px; padding: 14px; border: 1px solid color-mix(in srgb, #c78015 24%, var(--border)); border-radius: 9px; background: color-mix(in srgb, #c78015 4%, var(--surface)); }
+.conflict-owners { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.conflict-owners p { display: grid; gap: 4px; margin: 0; font-size: 10px; }
+.conflict-owners p span { color: var(--muted); font-size: 9px; }
+.conflict-vs { color: var(--muted); font-size: 13px; }
+.conflict-explanation { grid-column: 2; margin: -2px 0 0; color: var(--muted); font-size: 9px; line-height: 1.45; }
+.shortcut-no-results { margin: 0; padding: 22px 14px; border: 1px dashed var(--border); border-radius: 9px; color: var(--muted); text-align: center; font-size: 10px; }
+.shortcut-empty { display: grid; justify-items: center; padding: 54px 22px; border: 1px dashed var(--border); border-radius: var(--radius-panel); background: var(--surface); text-align: center; }
+.shortcut-empty-mark { display: grid; width: 42px; height: 42px; place-items: center; margin-bottom: 13px; border-radius: 12px; color: var(--accent-tools); background: var(--raised); font-size: 23px; }
+.shortcut-empty h2 { font-size: 14px; }
+.shortcut-empty p { max-width: 420px; margin: 8px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
 #operation {
   position: fixed;
   z-index: 8;
@@ -328,6 +396,14 @@ dialog p { margin: 12px 0 17px; color: var(--muted); font-size: 12px; line-heigh
   .update-status { align-items: flex-start; flex-direction: column; }
   #diagnostics { max-width: 100%; }
   .shell-footer { flex-direction: column; gap: 5px; padding: 13px 16px 18px; }
+  .shortcut-row, .wm-shortcut-row { align-items: flex-start; flex-direction: column; }
+  .wm-shortcut-row { display: flex; }
+  .shortcut-row { display: flex; }
+  .shortcut-key-area, .key-chip-list { justify-content: flex-start; }
+  .label-editor { width: 100%; grid-template-columns: minmax(0, 1fr) auto auto; }
+  .conflict-card { grid-template-columns: 1fr; }
+  .conflict-explanation { grid-column: 1; }
+  .conflict-owners { align-items: flex-start; flex-direction: column; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }

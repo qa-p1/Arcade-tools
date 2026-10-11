@@ -48,7 +48,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libssl-dev patchelf xvfb dbus-x11 xdotool
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libssl-dev libwayland-dev libxkbcommon-dev patchelf xvfb dbus-x11 xdotool
       - run: npm ci
       - run: npm run typecheck
       - run: npm run build
@@ -61,3 +61,44 @@ jobs:
       - name: Platform and release logic (build only)
         if: runner.os != 'Linux'
         run: cargo test --workspace --locked
+
+  overlay:
+    name: Overlay / ${{ matrix.os }} / Rust 1.88
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: Arcade-tools
+    env:
+      CARGO_BUILD_JOBS: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: Arcade-tools
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: '1.88.0'
+          components: clippy
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Linux overlay and isolated render dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwayland-dev libxkbcommon-dev libx11-dev fonts-dejavu-core xvfb xdotool imagemagick
+      - run: cargo clippy -p arcade-tools-overlay --all-targets --locked -- -D warnings
+      - run: cargo test -p arcade-tools-overlay --locked
+      - run: cargo build --release -p arcade-tools-overlay --locked
+      - name: Render and lifecycle in a private Xvfb session
+        if: runner.os == 'Linux'
+        run: python3 crates/arcade-tools-overlay/tests/render_headless.py
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Linux' && always()
+        with:
+          name: overlay-render
+          path: Arcade-tools/target/overlay-smoke/*

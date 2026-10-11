@@ -5,14 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, VecDeque};
 use std::path::Path;
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum ConfigKind {
-    Lua,
-    Conf,
-    #[default]
-    None,
-}
+pub use crate::ConfigKind;
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -210,5 +203,42 @@ mod tests {
         assert_eq!(result.binds[0].label, "Runtime");
         assert_eq!(result.binds[0].state, BindState::RuntimeOnly);
         assert_eq!(result.warnings, ["syntax error"]);
+    }
+
+    #[test]
+    fn wall_clock_abort_surfaces_warning_and_keeps_every_runtime_bind() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("hyprland.lua");
+        std::fs::write(&path, "hl.bind('SUPER + A',hl.dsp.no_op()); for i=1,1000000 do local x=i*i end; hl.bind('SUPER + B',hl.dsp.exit())").unwrap();
+        let mut options = lua::SandboxOptions::new(dir.path());
+        options.read_policy = crate::ReadPolicy::new([dir.path().to_owned()]);
+        options.duration_limit = std::time::Duration::ZERO;
+        let config = lua::evaluate(&path, &options);
+        assert_eq!(config.binds.len(), 1);
+        let runtime = runtime::parse_json(r#"[{"modmask":64,"key":"A","dispatcher":"__lua"},{"modmask":64,"key":"B","dispatcher":"__lua"},{"modmask":64,"key":"C","dispatcher":"__lua"}]"#).unwrap();
+        let report = merge(ConfigKind::Lua, config, Some(&runtime), &BTreeMap::new());
+        assert_eq!(report.binds.len(), 3);
+        assert_eq!(report.binds[0].state, BindState::Active);
+        assert!(report.binds[1..]
+            .iter()
+            .all(|b| b.state == BindState::RuntimeOnly));
+        let index = crate::build_index(&crate::BuildInputs {
+            hyprland: Some(report),
+            ..Default::default()
+        });
+        assert_eq!(
+            index
+                .wm
+                .groups
+                .iter()
+                .map(|g| g.shortcuts.len())
+                .sum::<usize>(),
+            3
+        );
+        assert!(index
+            .wm
+            .warnings
+            .iter()
+            .any(|w| w.contains("time limit exceeded") && w.contains("labels are incomplete")));
     }
 }

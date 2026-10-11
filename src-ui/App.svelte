@@ -17,8 +17,10 @@
   import Onboarding from './tabs/Onboarding.svelte';
   import Settings from './tabs/Settings.svelte';
   import Updates from './tabs/Updates.svelte';
+  import Shortcuts from './tabs/Shortcuts.svelte';
   import { ui, type Theme } from './lib/state.svelte';
-  import { tabs, type ShellTab } from './lib/tabs';
+  import { setShortcutsEnabled, tabs, type ShellTab } from './lib/tabs.svelte';
+  import type { ShortcutsIndex } from './lib/shortcuts';
 
   let revision = 0;
   let linkInput: HTMLInputElement;
@@ -87,6 +89,9 @@
     void ui.dialog?.background;
     void ui.dialog?.mode;
     void ui.dialog?.appClosed;
+    void ui.shortcutsIndex;
+    void ui.shortcutLabels;
+    void ui.shortcutsRevision;
     const snapshot = {
       apps: ui.apps,
       selected: ui.selected,
@@ -132,6 +137,27 @@
     }
     document.documentElement.dataset.theme = ui.theme;
 
+    const loadShortcutFixture = async (): Promise<void> => {
+      try {
+        const { default: fixture } = await import('./fixtures/shortcuts-index.json');
+        ui.shortcutsIndex = fixture as ShortcutsIndex;
+        ui.shortcutLabels = {};
+        ui.message = 'Development shortcut fixture loaded.';
+        ui.messageError = false;
+        setShortcutsEnabled(true);
+        ui.tab = 'shortcuts';
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : String(error), true);
+      }
+    };
+
+    if (import.meta.env.DEV && import.meta.env.VITE_SHORTCUTS_FIXTURE === '1') {
+      void loadShortcutFixture();
+      return () => {
+        disposed = true;
+      };
+    }
+
     void (async () => {
       try {
         const handlers = await Promise.all([
@@ -155,6 +181,10 @@
           };
           scheduleUpdateCheck(60 * 1000);
         }
+        const [index, labels] = await Promise.all([api.shortcutsIndex(), api.shortcutLabels()]);
+        ui.shortcutsIndex = index;
+        ui.shortcutLabels = labels;
+        setShortcutsEnabled(index !== null);
       } catch (error) {
         setMessage(error instanceof Error ? error.message : String(error), true);
       }
@@ -199,6 +229,21 @@
 
   function login(app: AppView, enabled: boolean): Promise<void> {
     return changeLogin(app, enabled);
+  }
+
+  function shortcutsChanged(): void {
+    ui.shortcutsRevision += 1;
+  }
+
+  async function persistShortcutLabel(key: string, label: string | null): Promise<void> {
+    const fixtureMode = import.meta.env.DEV && import.meta.env.VITE_SHORTCUTS_FIXTURE === '1';
+    if (!fixtureMode) await api.setShortcutLabel(key, label);
+    const next = { ...ui.shortcutLabels };
+    const cleanLabel = label?.trim();
+    if (cleanLabel) next[key] = cleanLabel;
+    else delete next[key];
+    ui.shortcutLabels = next;
+    shortcutsChanged();
   }
 </script>
 
@@ -278,6 +323,13 @@
         onInstall={install}
         onComplete={() => selectTab('home')}
         {run}
+      />
+      <Shortcuts
+        active={ui.tab === 'shortcuts'}
+        index={ui.shortcutsIndex}
+        labels={ui.shortcutLabels}
+        onLabel={persistShortcutLabel}
+        onChange={shortcutsChanged}
       />
     </main>
     <footer class="shell-footer"><span>Arcade Tools · 0.1.0</span><span>Apps stay independent; Tools makes them easier to manage.</span></footer>
