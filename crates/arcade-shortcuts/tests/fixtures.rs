@@ -55,6 +55,7 @@ fn inputs(report: HyprlandReport) -> BuildInputs {
         arcade_docs: vec![fixture("docs/find-shortcuts.json")],
         registry_dir: Some(fixture("registry")),
         hyprland: Some(report),
+        wm: None,
         user_labels: None,
         built_at: Some("2026-10-11T12:00:00Z".into()),
     }

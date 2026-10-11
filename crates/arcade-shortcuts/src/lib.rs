@@ -7,14 +7,19 @@
 //! - `hyprctl binds -j` gives the binds Hyprland actually holds, including
 //!   ones added at runtime by Arcade apps ([`runtime`]).
 //!
-//! Nothing here edits the user's configuration or talks to Hyprland except to
-//! read `hyprctl binds -j`.
+//! Sway, KDE and GNOME supply the same worker-side WM report ([`wm`]).
+//! Nothing edits user configuration. Queries read Hyprland binds, Sway modes
+//! and loaded config, or GNOME settings; KDE reads kglobalshortcutsrc.
 
 #[cfg(feature = "builder")]
 pub mod conf;
 #[cfg(feature = "builder")]
+pub mod gnome;
+#[cfg(feature = "builder")]
 pub mod hyprland;
 pub mod index;
+#[cfg(feature = "builder")]
+pub mod kde;
 pub mod keys;
 pub mod labels;
 #[cfg(feature = "builder")]
@@ -23,6 +28,10 @@ pub mod lua;
 mod read;
 #[cfg(feature = "builder")]
 pub mod runtime;
+#[cfg(feature = "builder")]
+pub mod sway;
+#[cfg(feature = "builder")]
+pub mod wm;
 
 #[cfg(feature = "builder")]
 pub use index::{build_index, BuildInputs};

@@ -57,6 +57,8 @@ pub struct BuildInputs {
     pub arcade_docs: Vec<PathBuf>,
     pub registry_dir: Option<PathBuf>,
     pub hyprland: Option<HyprlandReport>,
+    /// Selected desktop report; takes precedence over the legacy Hyprland field.
+    pub wm: Option<crate::wm::WmReport>,
     pub user_labels: Option<PathBuf>,
     /// For deterministic fixture builds; otherwise the current UTC timestamp.
     pub built_at: Option<String>,
@@ -71,6 +73,7 @@ impl Default for BuildInputs {
             arcade_docs: Vec::new(),
             registry_dir: None,
             hyprland: None,
+            wm: None,
             user_labels: None,
             built_at: None,
         }
@@ -363,19 +366,15 @@ pub fn build_index(inputs: &BuildInputs) -> Index {
     {
         app.matches = inferred_match(&Value::Null, &app.id, inputs.os);
     }
-    let report = inputs.hyprland.as_ref();
+    let hyprland = inputs.hyprland.clone().map(crate::wm::WmReport::from);
+    let report = inputs.wm.as_ref().or(hyprland.as_ref());
     let binds = report.map(|r| r.binds.as_slice()).unwrap_or_default();
     let groups = wm_groups(binds, inputs.os, &user_labels, &mut warnings);
     if let Some(report) = report {
         warnings.extend(report.warnings.iter().cloned());
     }
     let wm = WmIndex {
-        name: if report.is_some() || inputs.os == Os::Linux {
-            "hyprland"
-        } else {
-            "none"
-        }
-        .into(),
+        name: report.map_or("none", |report| report.name.as_str()).into(),
         config_kind: report.map(|r| r.config_kind).unwrap_or_default(),
         groups,
         warnings,
