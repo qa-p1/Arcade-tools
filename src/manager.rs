@@ -1,6 +1,7 @@
 use crate::catalog::{Catalog, CatalogClient};
 use crate::docs::DocsResolver;
 use crate::engines::EngineCatalog;
+use crate::installation::{self, Package, PreviousInstallation, Transaction};
 use crate::paths::{app_id, Paths};
 use crate::platform;
 use crate::release::{checksum, Arch, Channel, Kind, Os};
@@ -12,13 +13,14 @@ use crate::updates::{
 use crate::{Error, Result};
 use arcade_link::client::Client;
 use arcade_link::manifest::{self, ids, Manifest};
+use arcade_link::receipt::{InstallMethod, ManagedBy, Receipt, Store};
 use arcade_link::registry::Registry;
 use arcade_link::wire::PeerInfo;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -64,6 +66,13 @@ pub struct Record {
     pub sha256: String,
     pub executable_sha256: String,
     pub last_mode: Option<LaunchMode>,
+    /// Supplemental verification data; receipt.path is authoritative.
+    #[serde(default)]
+    pub executable: Option<PathBuf>,
+    #[serde(default)]
+    pub package: Option<crate::installation::Package>,
+    #[serde(default)]
+    pub installed_by_app: bool,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -112,6 +121,29 @@ pub struct AppView {
     pub min_tools: String,
     pub install_reason: Option<String>,
     pub install_supported: bool,
+    pub installation_class: InstallationClass,
+    pub rollback_version: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum InstallationClass {
+    Managed,
+    LegacyManaged,
+    SelfInstalled,
+    Manual,
+    Dev,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Adoption {
+    pub id: String,
+    pub class: InstallationClass,
+    pub executable: PathBuf,
+    pub version: String,
+    pub can_adopt: bool,
+    pub reason: Option<String>,
 }
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -148,6 +180,8 @@ pub enum Operation {
     Update,
     Repair,
     Uninstall,
+    Adopt,
+    Rollback,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -160,6 +194,12 @@ pub struct Request {
     pub remove_data: bool,
     #[serde(default)]
     pub app_closed: bool,
+}
+#[derive(Clone, Copy)]
+struct Prior<'a> {
+    record: Option<&'a Record>,
+    receipt: Option<&'a Receipt>,
+    peer: Option<&'a Manifest>,
 }
 pub struct Manager {
     pub paths: Paths,
@@ -195,7 +235,7 @@ impl Manager {
     }
     /// Persist a channel selection on a worker thread; no network work.
     pub fn set_channel(&self, id: &str, channel: Channel) -> Result<()> {
-        app_id(id)?;
+        manager_id(id)?;
         let _lock = self.lock()?;
         let mut prefs = self.preferences()?;
         prefs.channels.insert(id.into(), channel);
@@ -217,12 +257,346 @@ impl Manager {
     }
     /// Persist per-app auto-update opt-in on a worker thread. No installation.
     pub fn set_auto_update(&self, id: &str, enabled: bool) -> Result<()> {
-        app_id(id)?;
+        manager_id(id)?;
         let _lock = self.lock()?;
         let mut prefs = self.preferences()?;
         prefs.updates.auto_update.insert(id.into(), enabled);
         self.save_preferences(&prefs)
     }
+    /// Execute an opted-in update on a worker. Disabled checks, unknown use,
+    /// recent use, disconnected/busy apps and compatibility holds return a
+    /// decision without modifying the installation. No timer is started here.
+    /// The caller supplies its latest last-used timestamp (Unix seconds).
+    pub fn auto_update(
+        &self,
+        id: &str,
+        last_used: Option<u64>,
+        clock: &dyn Clock,
+        cancel: &AtomicBool,
+        progress: &mut dyn FnMut(Progress),
+    ) -> Result<updates::AutoUpdateOutcome> {
+        app_id(id)?;
+        let _lock = self.lock()?;
+        let decision = self.auto_eligibility(id, last_used, clock.now())?;
+        if !decision.eligible {
+            return Ok(updates::AutoUpdateOutcome {
+                decision,
+                message: None,
+            });
+        }
+        let request = Request {
+            id: id.into(),
+            operation: Operation::Update,
+            mode: None,
+            remove_data: false,
+            app_closed: false,
+        };
+        match self.operate_locked(&request, cancel, progress, clock.now()) {
+            Ok(message) => Ok(updates::AutoUpdateOutcome {
+                decision,
+                message: Some(message),
+            }),
+            Err(error)
+                if matches!(
+                    error.code.as_str(),
+                    "busy"
+                        | "disconnected"
+                        | "version_mismatch"
+                        | "dev_build"
+                        | "unmanaged"
+                        | "mode_required"
+                ) =>
+            {
+                Ok(updates::AutoUpdateOutcome {
+                    decision: updates::AutoUpdateDecision {
+                        eligible: false,
+                        reason: error.message,
+                    },
+                    message: None,
+                })
+            }
+            Err(error) => Err(error),
+        }
+    }
+    fn auto_eligibility(
+        &self,
+        id: &str,
+        last_used: Option<u64>,
+        now: u64,
+    ) -> Result<updates::AutoUpdateDecision> {
+        let settings = self.preferences()?.updates;
+        let deny = |reason: &str| updates::AutoUpdateDecision {
+            eligible: false,
+            reason: reason.into(),
+        };
+        if !settings.enabled {
+            return Ok(deny("Update checks are off."));
+        }
+        if !settings.auto_update.get(id).copied().unwrap_or(false) {
+            return Ok(deny("Auto-update is off for this app."));
+        }
+        let registry = Registry::load(&self.paths.link);
+        let receipt = self.receipt(id)?;
+        if !matches!(
+            self.class(id, &registry, receipt.as_ref())?,
+            InstallationClass::Managed | InstallationClass::LegacyManaged
+        ) {
+            return Ok(deny(
+                "Only managed, non-development installations can auto-update.",
+            ));
+        }
+        if registry
+            .get(id)
+            .is_some_and(|peer| !peer.settings.link_enabled)
+        {
+            return Ok(deny(
+                "Arcade Link is disabled; close the app and update manually.",
+            ));
+        }
+        let status = match Client::connect(&self.paths.link, id, &me()) {
+            Ok(mut client) => client.status().map_err(|error| link_error(id, error))?,
+            Err(error) if error.code == arcade_link::ErrorCode::NotRunning => {
+                if arcade_link::endpoint::read(&self.paths.link, id)
+                    .is_ok_and(|endpoint| process_alive(endpoint.pid))
+                {
+                    return Ok(deny("A running app has an unavailable Link endpoint."));
+                }
+                json!({"busy": false})
+            }
+            Err(error) => return Ok(deny(&link_error(id, error).message)),
+        };
+        Ok(updates::auto_update_policy(true, &status, last_used, now))
+    }
+
+    /// Download and verify Tools itself on a worker, persist a handoff plan, then
+    /// call the tray/desktop hook. Tools cannot replace its running Windows
+    /// executable; the hook starts a helper and owns shutdown. The helper calls
+    /// finish_self_update after this process exits, using the same installer API.
+    pub fn prepare_self_update(
+        &self,
+        mode: LaunchMode,
+        cancel: &AtomicBool,
+        progress: &mut dyn FnMut(Progress),
+        hook: &mut dyn crate::self_update::SelfUpdateHook,
+    ) -> Result<crate::self_update::StagedSelfUpdate> {
+        let _lock = self.lock()?;
+        self.prepare_self_update_locked(mode, cancel, progress, hook)
+    }
+    fn prepare_self_update_locked(
+        &self,
+        mode: LaunchMode,
+        cancel: &AtomicBool,
+        progress: &mut dyn FnMut(Progress),
+        hook: &mut dyn crate::self_update::SelfUpdateHook,
+    ) -> Result<crate::self_update::StagedSelfUpdate> {
+        let id = ids::TOOLS;
+        check_cancel(cancel)?;
+        let old = self.record(id)?.ok_or_else(|| {
+            Error::new(
+                "unmanaged",
+                "Install or adopt Arcade Tools before self-updating.",
+            )
+        })?;
+        let receipt = self.receipt(id)?;
+        let registry = Registry::load(&self.paths.link);
+        if !matches!(
+            self.class(id, &registry, receipt.as_ref())?,
+            InstallationClass::Managed | InstallationClass::LegacyManaged
+        ) {
+            return Err(Error::new(
+                "unmanaged",
+                "Only managed non-development Tools installs can self-update.",
+            ));
+        }
+        if let Ok(mut client) = Client::connect(&self.paths.link, id, &me()) {
+            let status = client.status().map_err(|error| link_error(id, error))?;
+            if status.get("busy").and_then(Value::as_bool) == Some(true)
+                || status.pointer("/status/busy").and_then(Value::as_bool) == Some(true)
+            {
+                return Err(Error::new(
+                    "busy",
+                    "Arcade Tools is busy; finish its operation before self-updating.",
+                ));
+            }
+        }
+        progress(Progress::new(id, "Checking release", None, true));
+        let checked = self.checked(id)?;
+        self.paths.guard(&self.paths.downloads())?;
+        let download = self.source.download(
+            &checked,
+            &self.paths.downloads(),
+            cancel,
+            &mut |count, total| {
+                progress(Progress::new(
+                    id,
+                    "Downloading",
+                    total.filter(|n| *n > 0).map(|n| count as f64 / n as f64),
+                    true,
+                ));
+            },
+        )?;
+        let package = installation::retain(&self.paths, &checked, download.path())?;
+        check_cancel(cancel)?;
+        let plan = crate::self_update::SelfUpdatePlan {
+            schema: 1,
+            package,
+            expected_version: old.version.clone(),
+            expected_path: self.executable(&old),
+            expected_sha256: checksum(&self.executable(&old))?,
+            mode,
+            parent_pid: std::process::id(),
+        };
+        let file = self
+            .paths
+            .state()
+            .join("self-update")
+            .join(format!("{}.json", arcade_link::endpoint::new_token()?));
+        self.write(&file, &plan)?;
+        let staged = crate::self_update::StagedSelfUpdate { plan, file };
+        if let Err(error) = hook.on_before_self_restart(&staged) {
+            platform::remove(&staged.file)?;
+            return Err(error);
+        }
+        Ok(staged)
+    }
+    /// Apply the opted-in idle policy before staging a Tools update on a worker.
+    /// None means ineligible; use auto_update_eligibility for the UI's reason.
+    pub fn prepare_auto_self_update(
+        &self,
+        last_used: Option<u64>,
+        clock: &dyn Clock,
+        mode: LaunchMode,
+        cancel: &AtomicBool,
+        hook: &mut dyn crate::self_update::SelfUpdateHook,
+    ) -> Result<Option<crate::self_update::StagedSelfUpdate>> {
+        let _lock = self.lock()?;
+        if !self
+            .auto_eligibility(ids::TOOLS, last_used, clock.now())?
+            .eligible
+        {
+            return Ok(None);
+        }
+        self.prepare_self_update_locked(mode, cancel, &mut |_| {}, hook)
+            .map(Some)
+    }
+    /// Read current policy/status on a worker, without network or installation.
+    pub fn auto_update_eligibility(
+        &self,
+        id: &str,
+        last_used: Option<u64>,
+        clock: &dyn Clock,
+    ) -> Result<updates::AutoUpdateDecision> {
+        manager_id(id)?;
+        self.auto_eligibility(id, last_used, clock.now())
+    }
+    /// Run in a helper on a worker after the parent exits. Active, bounded
+    /// process-exit checks last at most 30 seconds, then leave files unchanged.
+    /// The plan's hashes and expected installation are rechecked before mutation.
+    /// On installer failure the shared transaction restores/relaunches old Tools.
+    pub fn finish_self_update(
+        &self,
+        plan: &crate::self_update::SelfUpdatePlan,
+        cancel: &AtomicBool,
+        progress: &mut dyn FnMut(Progress),
+    ) -> Result<String> {
+        if plan.schema != 1
+            || plan.package.release.id != ids::TOOLS
+            || plan.parent_pid == std::process::id()
+        {
+            return Err(Error::new(
+                "self_update",
+                "A Tools self-update must run in a separate helper after shutdown.",
+            ));
+        }
+        let _lock = self.lock()?;
+        plan.package.verify(&self.paths, ids::TOOLS)?;
+        let deadline = Instant::now() + Duration::from_secs(30);
+        while process_alive(plan.parent_pid) {
+            check_cancel(cancel)?;
+            if Instant::now() >= deadline {
+                return Err(Error::new(
+                    "timeout",
+                    "Old Arcade Tools did not exit; self-update left it unchanged.",
+                ));
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        let old = self.record(ids::TOOLS)?.ok_or_else(|| {
+            Error::new("unmanaged", "Tools installation disappeared after staging.")
+        })?;
+        if old.version != plan.expected_version
+            || self.executable(&old) != plan.expected_path
+            || checksum(&plan.expected_path)? != plan.expected_sha256
+        {
+            return Err(Error::new(
+                "state_changed",
+                "Tools changed after staging; check for updates again.",
+            ));
+        }
+        let receipt = self.receipt(ids::TOOLS)?;
+        if !matches!(
+            self.class(
+                ids::TOOLS,
+                &Registry::load(&self.paths.link),
+                receipt.as_ref()
+            )?,
+            InstallationClass::Managed | InstallationClass::LegacyManaged
+        ) {
+            return Err(Error::new(
+                "dev_build",
+                "Development or unmanaged Tools installations are never replaced.",
+            ));
+        }
+        self.ensure_compatible(ids::TOOLS, &plan.package.release)?;
+        check_cancel(cancel)?;
+        let request = Request {
+            id: ids::TOOLS.into(),
+            operation: Operation::Update,
+            mode: Some(plan.mode),
+            remove_data: false,
+            app_closed: true,
+        };
+        let mut replaced = false;
+        let result = self.install_package(
+            &request,
+            &plan.package,
+            Prior {
+                record: Some(&old),
+                receipt: receipt.as_ref(),
+                peer: None,
+            },
+            Some(plan.mode),
+            progress,
+            &mut replaced,
+        );
+        let history = HistoryEntry {
+            time: SystemClock.now(),
+            app: ids::TOOLS.into(),
+            from: Some(old.version),
+            to: Some(plan.package.release.version.clone()),
+            result: if result.is_ok() {
+                HistoryResult::Success
+            } else if replaced
+                && checksum(&plan.expected_path).is_ok_and(|hash| hash == plan.expected_sha256)
+            {
+                HistoryResult::RolledBack
+            } else {
+                HistoryResult::Failed
+            },
+            reason: result.as_ref().err().map(ToString::to_string),
+        };
+        if result.is_err() {
+            let _ = platform::spawn_detached(&self.paths, &plan.expected_path, &plan.mode.args());
+        }
+        if let Err(error) = updates::append_history(&self.paths, &history) {
+            if result.is_ok() {
+                return Err(error);
+            }
+            eprintln!("Self-update history: {error}");
+        }
+        result
+    }
+
     /// Read managed records and installed peers' registry manifests on a worker
     /// thread. Does not probe IPC or connect to the network.
     pub fn update_inputs(&self) -> Result<(Vec<InstalledApp>, Vec<PeerProtocols>)> {
@@ -238,7 +612,12 @@ impl Manager {
             })
             .collect();
         let mut installed = Vec::new();
-        for app in self.catalog()?.apps {
+        let catalog = self.catalog()?;
+        let apps = catalog
+            .install_entry(ids::TOOLS)
+            .into_iter()
+            .chain(catalog.apps);
+        for app in apps {
             let record = if app.supported_install() {
                 self.record(&app.id)?
             } else {
@@ -260,7 +639,7 @@ impl Manager {
                         .copied()
                         .or(record.as_ref().map(|r| r.channel))
                         .unwrap_or_default(),
-                    sha256: record.map(|r| r.sha256),
+                    sha256: record.map(|r| r.sha256).filter(|hash| !hash.is_empty()),
                 });
             }
         }
@@ -273,8 +652,8 @@ impl Manager {
     }
     /// Read an installation record on a worker thread; no network work.
     pub fn record(&self, id: &str) -> Result<Option<Record>> {
-        app_id(id)?;
-        match fs::read(self.paths.state().join(format!("{id}.json"))) {
+        manager_id(id)?;
+        let supplemental = match fs::read(self.paths.state().join(format!("{id}.json"))) {
             Ok(bytes) => {
                 let record: Record = serde_json::from_slice(&bytes)?;
                 if record.id != id {
@@ -283,15 +662,76 @@ impl Manager {
                         "Installed record has a mismatched app ID.",
                     ));
                 }
-                Ok(Some(record))
+                Some(record)
             }
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
-            Err(e) => Err(e.into()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+            Err(e) => return Err(e.into()),
+        };
+        if let Some(receipt) = self.receipt(id)? {
+            if receipt.method == InstallMethod::Dev {
+                return Ok(None);
+            }
+            let executable = installation::executable(&self.paths, &receipt);
+            if let Some(mut record) = supplemental {
+                if record.version != receipt.version
+                    || record.channel.as_str() != receipt.channel
+                    || record
+                        .executable
+                        .as_ref()
+                        .is_some_and(|path| path != &executable)
+                {
+                    record.version = receipt.version.clone();
+                    record.channel = receipt_channel(&receipt)?;
+                    record.package = None;
+                    record.sha256 = String::new();
+                    record.executable_sha256 = checksum(&executable).unwrap_or_default();
+                }
+                record.executable = Some(executable);
+                return Ok(Some(record));
+            }
+            return Ok(Some(self.record_from_receipt(&receipt)?));
         }
+        Ok(supplemental)
+    }
+    /// Read a validated Link receipt on a worker; no migration or writes.
+    pub fn receipt(&self, id: &str) -> Result<Option<Receipt>> {
+        manager_id(id)?;
+        self.paths.guard_receipt(id)?;
+        Ok(Store::new(&self.paths.link).read(id)?)
+    }
+    fn record_from_receipt(&self, receipt: &Receipt) -> Result<Record> {
+        let executable = installation::executable(&self.paths, receipt);
+        let kind = match receipt.method {
+            InstallMethod::Appimage => Kind::Appimage,
+            InstallMethod::MacosBundle => Kind::Dmg,
+            InstallMethod::Tarball => Kind::Tarball,
+            InstallMethod::WindowsInstaller => {
+                windows_kind(receipt.integration.uninstaller.as_deref())
+            }
+            _ => match Os::current() {
+                Os::Linux => Kind::Appimage,
+                Os::Windows => windows_kind(receipt.integration.uninstaller.as_deref()),
+                Os::Macos => Kind::Dmg,
+            },
+        };
+        Ok(Record {
+            id: receipt.id.clone(),
+            version: receipt.version.clone(),
+            channel: receipt_channel(receipt)?,
+            kind,
+            sha256: String::new(),
+            executable_sha256: checksum(&executable).unwrap_or_default(),
+            last_mode: None,
+            executable: Some(executable),
+            package: None,
+            installed_by_app: true,
+        })
     }
     fn executable(&self, record: &Record) -> PathBuf {
-        self.paths
-            .executable(&record.id, Os::current(), record.kind == Kind::Tarball)
+        record.executable.clone().unwrap_or_else(|| {
+            self.paths
+                .executable(&record.id, Os::current(), record.kind == Kind::Tarball)
+        })
     }
     /// Read the cached catalog or built-in snapshot on a worker thread.
     /// No network I/O is performed.
@@ -356,6 +796,71 @@ impl Manager {
         resolver.fetch_version(app, version, &self.source)?;
         Ok(())
     }
+    fn class(
+        &self,
+        id: &str,
+        registry: &Registry,
+        receipt: Option<&Receipt>,
+    ) -> Result<InstallationClass> {
+        let dev = registry.additions(id).and_then(|extra| extra.install)
+            == Some(InstallMethod::Dev)
+            || registry.get(id).is_some_and(|peer| {
+                arcade_link::install::is_dev_build(Path::new(&peer.executable))
+            })
+            || receipt.is_some_and(|receipt| {
+                receipt.method == InstallMethod::Dev
+                    || arcade_link::install::is_dev_build(&receipt.path)
+            });
+        if dev {
+            return Ok(InstallationClass::Dev);
+        }
+        Ok(match receipt.map(|r| r.managed_by) {
+            Some(ManagedBy::Tools) => InstallationClass::Managed,
+            Some(ManagedBy::SelfManaged) => InstallationClass::SelfInstalled,
+            None if self.paths.state().join(format!("{id}.json")).is_file() => {
+                InstallationClass::LegacyManaged
+            }
+            None => InstallationClass::Manual,
+        })
+    }
+    /// Classify registry installs for the adoption dialog on a worker. Dev builds
+    /// are launchable but never eligible for any installation mutation.
+    pub fn adoptions(&self) -> Result<Vec<Adoption>> {
+        let registry = Registry::load(&self.paths.link);
+        let mut result = Vec::new();
+        for peer in registry
+            .apps()
+            .iter()
+            .filter(|peer| crate::apps::APPS.contains(&peer.id.as_str()))
+        {
+            let receipt = self.receipt(&peer.id)?;
+            let class = self.class(&peer.id, &registry, receipt.as_ref())?;
+            let can_adopt = matches!(
+                class,
+                InstallationClass::Manual | InstallationClass::SelfInstalled
+            );
+            result.push(Adoption {
+                id: peer.id.clone(),
+                class,
+                executable: PathBuf::from(&peer.executable),
+                version: peer.version.clone(),
+                can_adopt,
+                reason: if class == InstallationClass::Dev {
+                    Some("Development build; Arcade Tools will never modify it.".into())
+                } else {
+                    None
+                },
+            });
+        }
+        Ok(result)
+    }
+    /// Read one-step rollback metadata on a worker, without network or mutation.
+    pub fn rollback_version(&self, id: &str) -> Result<Option<String>> {
+        manager_id(id)?;
+        Ok(PreviousInstallation::read(&self.paths, id)?
+            .filter(|previous| previous.pointer(&self.paths).is_some())
+            .map(|previous| previous.record.version))
+    }
     /// Disk/optional IPC work on a worker thread; no network refresh.
     pub fn list(&self, probe: bool) -> Result<Vec<AppView>> {
         let registry = Registry::load(&self.paths.link);
@@ -364,27 +869,30 @@ impl Manager {
         catalog.apps.iter().map(|app| {
             let id = app.id.as_str();
             let record = if app.supported_install() { self.record(id)? } else { None };
+            let receipt = if app.supported_install() { self.receipt(id)? } else { None };
+            let class = self.class(id, &registry, receipt.as_ref())?;
             let peer = registry.get(id);
             let executable = record.as_ref().map(|r| self.executable(r)).or_else(|| peer.map(|m| PathBuf::from(&m.executable)));
             let running = probe && Client::connect(&self.paths.link, id, &me()).is_ok();
             let healthy = executable.as_ref().is_some_and(|p| p.is_file());
-            let reason = if record.is_none() && peer.is_some() { Some("Installed outside Arcade Tools. Launch is available; updates and removal need a managed installation.".into()) }
+            let reason = if class == InstallationClass::Dev { Some("Development build; launch is available, installation changes are disabled.".into()) }
+                else if matches!(class, InstallationClass::Manual | InstallationClass::SelfInstalled) && peer.is_some() { Some("Installed outside Arcade Tools. Choose Let Arcade Tools manage this to enable updates.".into()) }
                 else if peer.is_some_and(|m| !m.settings.link_enabled) { Some("Arcade Link is disabled in this app. Close it before changing its installation.".into()) }
                 else if record.is_some() && !healthy { Some("Installed executable is missing. Choose Repair.".into()) } else { None };
             Ok(AppView { id: id.to_string(), name: app.name.clone(), pitch: app.pitch.clone(), releases_url: app.releases_url(),
-                version: record.as_ref().map(|r| r.version.clone()).or_else(|| peer.map(|m| m.version.clone())), managed: record.is_some(), installed: healthy,
+                version: record.as_ref().map(|r| r.version.clone()).or_else(|| peer.map(|m| m.version.clone())), managed: matches!(class, InstallationClass::Managed | InstallationClass::LegacyManaged), installed: healthy,
                 running, channel: prefs.channels.get(id).copied().or(record.as_ref().map(|r| r.channel)).unwrap_or_default(), healthy,
                 start_at_login: platform::autostart_enabled(&self.paths, id), login_supported: app.supported_install() && platform::login_supported(id, Os::current()), executable: executable.map(|p| p.display().to_string()),
                 data_folders: self.paths.data_folders(id, Os::current()).iter().map(|p| p.display().to_string()).collect(), reason,
                 description: app.description.clone(), category: app.category.clone(), icon: app.icon.clone(),
                 platforms: app.platforms.clone(), min_tools: app.min_tools.clone(), install_reason: app.install_reason.clone(),
-                install_supported: app.supported_install() })
+                install_supported: app.supported_install(), installation_class: class, rollback_version: if app.supported_install() { self.rollback_version(id)? } else { None } })
         }).collect()
     }
     fn checked(&self, id: &str) -> Result<CheckedRelease> {
         let catalog = self.catalog()?;
         let app = catalog
-            .app(id)
+            .install_entry(id)
             .ok_or_else(|| Error::new("unavailable", "This app is absent from the catalog."))?;
         if let Some(reason) = &app.install_reason {
             return Err(Error::new("version_mismatch", reason.clone()));
@@ -425,7 +933,7 @@ impl Manager {
                 protocols: m.link.protocol.clone(),
             })
             .collect::<Vec<_>>();
-        if let Some(reason) = updates::held_back(app, &check.checked.release, &peers) {
+        if let Some(reason) = updates::held_back(&app, &check.checked.release, &peers) {
             return Err(Error::new("version_mismatch", reason));
         }
         Ok(check.checked)
@@ -475,7 +983,7 @@ impl Manager {
                 "The installed executable is missing. Choose Repair.",
             ));
         }
-        arcade_link::client::spawn_detached(&exe.to_string_lossy(), &mode.args())?;
+        platform::spawn_detached(&self.paths, &exe, &mode.args())?;
         if let Some(r) = record.as_mut() {
             r.last_mode = Some(mode);
             self.write(&self.paths.state().join(format!("{id}.json")), r)?;
@@ -486,6 +994,13 @@ impl Manager {
     pub fn start_at_login(&self, id: &str, enabled: bool) -> Result<()> {
         app_id(id)?;
         let _lock = self.lock()?;
+        let registry = Registry::load(&self.paths.link);
+        if self.class(id, &registry, self.receipt(id)?.as_ref())? == InstallationClass::Dev {
+            return Err(Error::new(
+                "dev_build",
+                "Development builds keep their own integration.",
+            ));
+        }
         let exe = self
             .record(id)?
             .as_ref()
@@ -498,6 +1013,407 @@ impl Manager {
             .ok_or_else(|| Error::new("not_installed", "Install this app first."))?;
         platform::set_autostart(&self.paths, id, &exe, enabled)
     }
+    /// List every catalog/registry installation and its exact owned/data paths
+    /// on a worker before an Uninstall everything confirmation. No mutation.
+    pub fn plan_uninstall_all(&self, remove_data: bool) -> Result<crate::removal::UninstallPlan> {
+        let _lock = self.lock()?;
+        self.uninstall_plan_inner(remove_data)
+    }
+    fn uninstall_plan_inner(&self, remove_data: bool) -> Result<crate::removal::UninstallPlan> {
+        use crate::removal::{UninstallEntry, UninstallPlan};
+        use sha2::{Digest, Sha256};
+        let registry = Registry::load(&self.paths.link);
+        let catalog = self.catalog()?;
+        let mut ids: std::collections::BTreeSet<String> =
+            catalog.apps.iter().map(|app| app.id.clone()).collect();
+        ids.extend(crate::apps::APPS.into_iter().map(String::from));
+        ids.extend(registry.apps().iter().map(|peer| peer.id.clone()));
+        ids.remove(ids::TOOLS);
+        let mut apps = Vec::new();
+        let mut fingerprint = Sha256::new();
+        for id in ids.into_iter().chain([ids::TOOLS.into()]) {
+            let known = manager_id(&id).is_ok();
+            let record = if known { self.record(&id)? } else { None };
+            let receipt = if known { self.receipt(&id)? } else { None };
+            let peer = registry.get(&id);
+            if record.is_none() && receipt.is_none() && peer.is_none() {
+                continue;
+            }
+            let class = self.class(&id, &registry, receipt.as_ref())?;
+            let mut folders = Vec::new();
+            if let Some(record) = &record {
+                folders.push(installation::target(&self.paths, record, receipt.as_ref()));
+                folders.push(self.paths.state().join(format!("{id}.json")));
+                if let Some(previous) = PreviousInstallation::read(&self.paths, &id)? {
+                    folders.push(previous.directory);
+                }
+                folders.push(self.paths.state().join(format!("{id}.previous.json")));
+            } else if let Some(peer) = peer {
+                folders.push(PathBuf::from(&peer.executable));
+            }
+            if let Some(receipt) = &receipt {
+                folders.extend(installation::owned_paths(&self.paths, receipt)?);
+                folders.push(self.paths.guard_receipt(&id)?);
+                if let Some(previous) = &receipt.previous {
+                    folders.push(previous.path.clone());
+                }
+            }
+            folders.push(self.paths.link.registry.join(format!("{id}.json")));
+            let mut data_folders = self.paths.data_folders(&id, Os::current());
+            if id == ids::TOOLS {
+                data_folders.push(self.paths.cache.join("arcade/tools"));
+            }
+            let can_uninstall = known && class != InstallationClass::Dev && record.is_some();
+            if can_uninstall {
+                for path in folders.iter().chain(if remove_data {
+                    data_folders.iter()
+                } else {
+                    [].iter()
+                }) {
+                    if receipt
+                        .as_ref()
+                        .is_some_and(|receipt| receipt.integration.cli.as_ref() == Some(path))
+                    {
+                        installation::owned_paths(&self.paths, receipt.as_ref().unwrap())?;
+                    } else if path == &self.paths.guard_receipt(&id)? {
+                        self.paths.guard_receipt(&id)?;
+                    } else {
+                        self.paths.guard(path)?;
+                    }
+                }
+            }
+            folders.sort();
+            folders.dedup();
+            fingerprint.update(serde_json::to_vec(&(
+                record.as_ref(),
+                receipt.as_ref(),
+                peer,
+            ))?);
+            if let Some(record) = &record {
+                fingerprint.update(checksum(&self.executable(record)).unwrap_or_default());
+            }
+            apps.push(UninstallEntry {
+                id: id.clone(),
+                version: record
+                    .as_ref()
+                    .map(|record| record.version.clone())
+                    .or_else(|| peer.map(|peer| peer.version.clone())),
+                class,
+                folders,
+                data_folders,
+                can_uninstall,
+                requires_self_shutdown: id == ids::TOOLS,
+                reason: if can_uninstall {
+                    None
+                } else {
+                    Some(
+                        if class == InstallationClass::Dev {
+                            "Development builds are never removed."
+                        } else {
+                            "Adopt this manual installation before uninstalling it with Tools."
+                        }
+                        .into(),
+                    )
+                },
+            });
+        }
+        Ok(UninstallPlan {
+            schema: 1,
+            remove_data,
+            apps,
+            fingerprint: format!("{:x}", fingerprint.finalize()),
+        })
+    }
+    /// Execute a previously confirmed plan on a worker. Any changed installation
+    /// rejects the entire plan before app.quit. Individual busy/disconnected
+    /// failures are returned. Tools removal is handed to a post-shutdown helper.
+    pub fn uninstall_all(
+        &self,
+        plan: &crate::removal::UninstallPlan,
+        cancel: &AtomicBool,
+        progress: &mut dyn FnMut(Progress),
+    ) -> Result<crate::removal::UninstallOutcome> {
+        let _lock = self.lock()?;
+        if plan.schema != 1 || &self.uninstall_plan_inner(plan.remove_data)? != plan {
+            return Err(Error::new(
+                "state_changed",
+                "Installations changed; review the uninstall list again.",
+            ));
+        }
+        let mut outcome = crate::removal::UninstallOutcome {
+            results: Vec::new(),
+            self_uninstall: None,
+        };
+        for app in &plan.apps {
+            check_cancel(cancel)?;
+            if !app.can_uninstall {
+                outcome.results.push(crate::removal::RemovalResult {
+                    app: app.id.clone(),
+                    removed: false,
+                    reason: app.reason.clone().unwrap_or_default(),
+                });
+                continue;
+            }
+            if app.requires_self_shutdown {
+                outcome.self_uninstall = Some(self.self_uninstall_plan(plan.remove_data)?);
+                continue;
+            }
+            let request = Request {
+                id: app.id.clone(),
+                operation: Operation::Uninstall,
+                mode: None,
+                remove_data: plan.remove_data,
+                app_closed: false,
+            };
+            let result = self.operate_locked(&request, cancel, progress, SystemClock.now());
+            outcome.results.push(crate::removal::RemovalResult {
+                app: app.id.clone(),
+                removed: result.is_ok(),
+                reason: match result {
+                    Ok(message) => message,
+                    Err(error) => error.to_string(),
+                },
+            });
+        }
+        Ok(outcome)
+    }
+    /// Prepare removal of Tools itself after user confirmation, on a worker.
+    /// The desktop starts a helper and exits; no running executable is deleted.
+    pub fn prepare_self_uninstall(
+        &self,
+        remove_data: bool,
+    ) -> Result<crate::self_update::SelfUninstallPlan> {
+        let _lock = self.lock()?;
+        self.self_uninstall_plan(remove_data)
+    }
+    fn self_uninstall_plan(
+        &self,
+        remove_data: bool,
+    ) -> Result<crate::self_update::SelfUninstallPlan> {
+        let record = self
+            .record(ids::TOOLS)?
+            .ok_or_else(|| Error::new("unmanaged", "Arcade Tools has no install receipt."))?;
+        let receipt = self.receipt(ids::TOOLS)?;
+        if self.class(
+            ids::TOOLS,
+            &Registry::load(&self.paths.link),
+            receipt.as_ref(),
+        )? == InstallationClass::Dev
+        {
+            return Err(Error::new(
+                "dev_build",
+                "Development builds are never uninstalled.",
+            ));
+        }
+        let path = self.executable(&record);
+        self.paths.guard(&path)?;
+        Ok(crate::self_update::SelfUninstallPlan {
+            schema: 1,
+            expected_version: record.version,
+            expected_sha256: checksum(&path)?,
+            expected_path: path,
+            parent_pid: std::process::id(),
+            remove_data,
+        })
+    }
+    /// Run in a helper on a worker after Tools exits; bounded process-exit checks
+    /// and fresh state/hash checks precede the app's own silent uninstaller.
+    pub fn finish_self_uninstall(
+        &self,
+        plan: &crate::self_update::SelfUninstallPlan,
+        cancel: &AtomicBool,
+    ) -> Result<String> {
+        if plan.schema != 1 || plan.parent_pid == std::process::id() {
+            return Err(Error::new(
+                "self_update",
+                "Tools removal must run in a separate helper after shutdown.",
+            ));
+        }
+        let _lock = self.lock()?;
+        let deadline = Instant::now() + Duration::from_secs(30);
+        while process_alive(plan.parent_pid) {
+            check_cancel(cancel)?;
+            if Instant::now() >= deadline {
+                return Err(Error::new(
+                    "timeout",
+                    "Arcade Tools did not exit; nothing was removed.",
+                ));
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        self.paths.guard(&plan.expected_path)?;
+        let record = self
+            .record(ids::TOOLS)?
+            .ok_or_else(|| Error::new("state_changed", "Tools is already uninstalled."))?;
+        if self.class(
+            ids::TOOLS,
+            &Registry::load(&self.paths.link),
+            self.receipt(ids::TOOLS)?.as_ref(),
+        )? == InstallationClass::Dev
+            || record.version != plan.expected_version
+            || self.executable(&record) != plan.expected_path
+            || checksum(&plan.expected_path)? != plan.expected_sha256
+        {
+            return Err(Error::new(
+                "state_changed",
+                "Tools changed after confirmation; nothing was removed.",
+            ));
+        }
+        check_cancel(cancel)?;
+        let result = self.uninstall(&record, plan.remove_data)?;
+        if plan.remove_data {
+            let cache = self.paths.cache.join("arcade/tools");
+            self.paths.guard(&cache)?;
+            platform::remove(&cache)?;
+        }
+        Ok(result)
+    }
+
+    /// Read Home diagnostics on a worker; no IPC/network or automatic cleanup.
+    pub fn health(&self) -> Result<Vec<crate::health::HealthIssue>> {
+        crate::health::inspect(&self.paths, &self.catalog()?)
+    }
+    /// Apply a user-selected fix on a worker after rechecking the issue. The UI
+    /// supplies the usual confirmation for adoption/repair, and separately asks
+    /// before any data removal. This API never changes development builds.
+    pub fn fix_health(
+        &self,
+        id: &str,
+        action: crate::health::FixAction,
+        cancel: &AtomicBool,
+        progress: &mut dyn FnMut(Progress),
+    ) -> Result<String> {
+        manager_id(id)?;
+        let _lock = self.lock()?;
+        if !self
+            .health()?
+            .iter()
+            .any(|issue| issue.app == id && issue.fix_action == action && issue.can_fix)
+        {
+            return Err(Error::new(
+                "state_changed",
+                "This health issue is no longer present or cannot be fixed automatically.",
+            ));
+        }
+        use crate::health::FixAction;
+        match action {
+            FixAction::Repair | FixAction::Adopt => {
+                let request = Request {
+                    id: id.into(),
+                    operation: if action == FixAction::Repair {
+                        Operation::Repair
+                    } else {
+                        Operation::Adopt
+                    },
+                    mode: None,
+                    remove_data: false,
+                    app_closed: false,
+                };
+                self.operate_locked(&request, cancel, progress, SystemClock.now())
+            }
+            FixAction::RemoveStaleRegistry => {
+                let file = self.paths.link.registry.join(format!("{id}.json"));
+                self.paths.guard(&file)?;
+                let document = arcade_link::manifest::ManifestDocument::from_json(
+                    &String::from_utf8_lossy(&crate::catalog::read_bounded(&file, 1024 * 1024)?),
+                )
+                .map_err(|error| Error::new("manifest", error))?;
+                if document.manifest.executable_exists() {
+                    return Err(Error::new(
+                        "state_changed",
+                        "The executable is present; its registry entry was kept.",
+                    ));
+                }
+                manifest::remove_manifest(&self.paths.link, id)?;
+                Ok("Removed the stale registry entry.".into())
+            }
+            FixAction::RemoveStaleReceipt => {
+                let receipt = self
+                    .receipt(id)?
+                    .ok_or_else(|| Error::new("state_changed", "The receipt is already gone."))?;
+                if installation::executable(&self.paths, &receipt).exists() {
+                    return Err(Error::new(
+                        "state_changed",
+                        "The receipt's executable is present; adoption is required.",
+                    ));
+                }
+                Store::new(&self.paths.link).remove(id)?;
+                Ok("Removed the stale receipt; no app or data files were removed.".into())
+            }
+            FixAction::OpenSettings => self
+                .settings_inner(id)
+                .map(|()| "Opened the app's settings.".into()),
+            FixAction::CheckUpdates => self
+                .checked(id)
+                .map(|checked| format!("Latest release: {}.", checked.release.version)),
+        }
+    }
+    /// Open app-owned settings using a feature-detected Link helper, or the
+    /// standard --settings CLI when Link is off/unsupported, on a worker.
+    pub fn open_settings(&self, id: &str) -> Result<()> {
+        manager_id(id)?;
+        let _lock = self.lock()?;
+        self.settings_inner(id)
+    }
+    fn settings_inner(&self, id: &str) -> Result<()> {
+        if let Ok(mut client) = Client::connect(&self.paths.link, id, &me()) {
+            let description = client
+                .describe_full()
+                .map_err(|error| link_error(id, error))?;
+            if description.supports("app.settings") {
+                match client.settings() {
+                    Ok(()) => return Ok(()),
+                    Err(error) if error.is_unsupported() => {}
+                    Err(error) => return Err(link_error(id, error)),
+                }
+            }
+        }
+        let registry = Registry::load(&self.paths.link);
+        let exe = self
+            .record(id)?
+            .as_ref()
+            .map(|record| self.executable(record))
+            .or_else(|| registry.get(id).map(|peer| PathBuf::from(&peer.executable)))
+            .filter(|path| path.is_file())
+            .ok_or_else(|| Error::new("not_installed", "The app's executable is missing."))?;
+        platform::spawn_detached(&self.paths, &exe, &["--settings".into()])
+    }
+    /// Request app-owned restart with feature detection on a worker. Old servers
+    /// use the same busy-safe quit and launch fallback, preserving window mode.
+    pub fn restart(&self, id: &str, mode: Option<LaunchMode>) -> Result<()> {
+        app_id(id)?;
+        let _lock = self.lock()?;
+        if let Ok(mut client) = Client::connect(&self.paths.link, id, &me()) {
+            if client
+                .describe_full()
+                .map_err(|error| link_error(id, error))?
+                .supports("app.restart")
+            {
+                match client.restart(mode.map(|mode| {
+                    if mode == LaunchMode::Background {
+                        "background"
+                    } else {
+                        "foreground"
+                    }
+                })) {
+                    Ok(()) => return Ok(()),
+                    Err(error) if error.is_unsupported() => {}
+                    Err(error) => return Err(link_error(id, error)),
+                }
+            }
+        }
+        let registry = Registry::load(&self.paths.link);
+        let request = Request {
+            id: id.into(),
+            operation: Operation::Update,
+            mode,
+            remove_data: false,
+            app_closed: false,
+        };
+        let resume = self.stop_peer(id, registry.get(id), &request, true)?;
+        self.launch_inner(id, resume.or(mode).unwrap_or(LaunchMode::Foreground))
+    }
+
     /// User-confirmed (or per-app opted-in) installer/network/IPC/disk work,
     /// on a worker thread. Updates/repairs append their verified history outcome.
     pub fn operate(
@@ -508,9 +1424,18 @@ impl Manager {
     ) -> Result<String> {
         app_id(&request.id)?;
         let _lock = self.lock()?;
+        self.operate_locked(request, cancel, progress, SystemClock.now())
+    }
+    fn operate_locked(
+        &self,
+        request: &Request,
+        cancel: &AtomicBool,
+        progress: &mut dyn FnMut(Progress),
+        time: u64,
+    ) -> Result<String> {
         let old = self.record(&request.id)?;
         let mut history = HistoryEntry {
-            time: SystemClock.now(),
+            time,
             app: request.id.clone(),
             from: old.as_ref().map(|r| r.version.clone()),
             to: None,
@@ -519,7 +1444,14 @@ impl Manager {
         };
         let mut replaced = false;
         let result = self.operate_inner(request, cancel, progress, &mut history, &mut replaced);
-        if matches!(request.operation, Operation::Update | Operation::Repair) {
+        if matches!(
+            request.operation,
+            Operation::Update | Operation::Repair | Operation::Rollback
+        ) {
+            if result.is_ok() && request.operation == Operation::Rollback {
+                history.result = HistoryResult::RolledBack;
+                history.reason = Some("User requested rollback.".into());
+            }
             if let Err(error) = &result {
                 history.result = if replaced {
                     if old.as_ref().is_some_and(|r| {
@@ -560,11 +1492,48 @@ impl Manager {
     ) -> Result<String> {
         let id = &request.id;
         let old = self.record(id)?;
-        let peer = Registry::load(&self.paths.link).get(id).cloned();
+        let registry = Registry::load(&self.paths.link);
+        let peer = registry.get(id);
+        let receipt = self.receipt(id)?;
+        let class = self.class(id, &registry, receipt.as_ref())?;
+        if class == InstallationClass::Dev {
+            return Err(Error::new(
+                "dev_build",
+                "Development builds are never modified by Arcade Tools.",
+            ));
+        }
+        if request.operation == Operation::Adopt {
+            return self.adopt_inner(request, peer, receipt, cancel, progress);
+        }
+        if request.operation == Operation::Rollback {
+            return self.rollback_inner(
+                request,
+                Prior {
+                    record: old.as_ref(),
+                    receipt: receipt.as_ref(),
+                    peer,
+                },
+                cancel,
+                progress,
+                history,
+                replaced,
+            );
+        }
         if request.operation != Operation::Install && old.is_none() {
             return Err(Error::new(
                 "unmanaged",
-                "Updates, repair and removal require an installation managed by Arcade Tools.",
+                "Let Arcade Tools manage this installation first.",
+            ));
+        }
+        if matches!(request.operation, Operation::Update | Operation::Repair)
+            && !matches!(
+                class,
+                InstallationClass::Managed | InstallationClass::LegacyManaged
+            )
+        {
+            return Err(Error::new(
+                "unmanaged",
+                "Let Arcade Tools manage this installation first.",
             ));
         }
         if request.operation == Operation::Install && (old.is_some() || peer.is_some()) {
@@ -576,7 +1545,7 @@ impl Manager {
         if request.operation == Operation::Uninstall {
             check_cancel(cancel)?;
             progress(Progress::new(id, "Closing app", None, false));
-            self.stop_peer(id, peer.as_ref(), request, false)?;
+            self.stop_peer(id, peer, request, false)?;
             progress(Progress::new(id, "Removing app", None, false));
             return self.uninstall(old.as_ref().unwrap(), request.remove_data);
         }
@@ -584,8 +1553,11 @@ impl Manager {
         check_cancel(cancel)?;
         let checked = self.checked(id)?;
         history.to = Some(checked.release.version.clone());
-        if old.as_ref().is_some_and(|r| r.kind != checked.asset.kind) {
-            return Err(Error::new("installer_changed", "This channel uses a different installer format. Uninstall while keeping data, then install the new channel."));
+        let migration = old
+            .as_ref()
+            .is_some_and(|r| r.kind == Kind::Tarball && checked.asset.kind == Kind::Appimage);
+        if old.as_ref().is_some_and(|r| r.kind != checked.asset.kind) && !migration {
+            return Err(Error::new("installer_changed", "This release changes installer format. Uninstall while keeping data, then install the new channel."));
         }
         if request.operation == Operation::Update
             && old.as_ref().is_some_and(|r| {
@@ -599,10 +1571,10 @@ impl Manager {
         let destination =
             self.paths
                 .executable(id, Os::current(), checked.asset.kind == Kind::Tarball);
-        if old.is_none() && destination.exists() {
+        if (old.is_none() || migration) && destination.exists() {
             return Err(Error::new(
                 "unmanaged",
-                "The managed install location already contains a file. Move it before installing.",
+                "The install location already contains a file. Adopt it before installing.",
             ));
         }
         progress(Progress::new(id, "Downloading", Some(0.0), true));
@@ -620,51 +1592,176 @@ impl Manager {
                 ))
             },
         )?;
+        let package = installation::retain(&self.paths, &checked, downloaded.path())?;
         progress(Progress::new(id, "Verified SHA-256", Some(1.0), true));
         check_cancel(cancel)?;
-        // Verification always precedes app.quit. Never force quit a busy app.
-        let resume = self.stop_peer(id, peer.as_ref(), request, true)?;
+        self.apply_package(
+            request,
+            &package,
+            Prior {
+                record: old.as_ref(),
+                receipt: receipt.as_ref(),
+                peer,
+            },
+            cancel,
+            progress,
+            replaced,
+        )
+    }
+
+    fn apply_package(
+        &self,
+        request: &Request,
+        package: &Package,
+        prior: Prior<'_>,
+        cancel: &AtomicBool,
+        progress: &mut dyn FnMut(Progress),
+        replaced: &mut bool,
+    ) -> Result<String> {
+        package.verify(&self.paths, &request.id)?;
+        self.ensure_compatible(&request.id, &package.release)?;
+        let resume = self.stop_peer(&request.id, prior.peer, request, true)?;
         if let Err(error) = check_cancel(cancel) {
             if let Some(mode) = resume {
-                let _ = self.launch_inner(id, mode);
+                let _ = self.launch_inner(&request.id, mode);
             }
             return Err(error);
         }
+        let result = self.install_package(request, package, prior, resume, progress, replaced);
+        if result.is_err() {
+            if let Some(mode) = resume {
+                let _ = self.launch_inner(&request.id, mode);
+            }
+        }
+        result
+    }
+
+    fn install_package(
+        &self,
+        request: &Request,
+        package: &Package,
+        prior: Prior<'_>,
+        resume: Option<LaunchMode>,
+        progress: &mut dyn FnMut(Progress),
+        replaced: &mut bool,
+    ) -> Result<String> {
+        let old = prior.record;
+        let receipt = prior.receipt;
+        let id = &request.id;
+        let expected =
+            self.paths
+                .executable(id, Os::current(), package.asset.kind == Kind::Tarball);
+        let prospective = Record {
+            id: id.clone(),
+            version: package.release.version.clone(),
+            channel: package.release.channel,
+            kind: package.asset.kind,
+            sha256: package.asset.sha256.clone(),
+            executable_sha256: String::new(),
+            last_mode: resume.or(request.mode).or(old.and_then(|r| r.last_mode)),
+            executable: Some(expected.clone()),
+            package: Some(package.clone()),
+            installed_by_app: false,
+        };
+        let old_target = old
+            .map(|record| installation::target(&self.paths, record, receipt))
+            .unwrap_or_else(|| installation::target(&self.paths, &prospective, None));
+        let mut transaction = Transaction::begin(&self.paths, id, &old_target, receipt)?;
+        transaction.include(&installation::target(&self.paths, &prospective, None))?;
+        let previous = old.map(|record| transaction.previous(record.clone(), receipt.cloned()));
+        let previous_pointer = previous
+            .as_ref()
+            .and_then(|previous| previous.pointer(&self.paths));
         let login = platform::autostart_enabled(&self.paths, id);
         progress(Progress::new(id, "Installing", None, false));
-        let result = (|| {
-            let (exe, replacement) = platform::install_observed(
+        *replaced = true;
+        let install_args = installation::install_args(&package.asset, package.release.channel)?;
+        if let Some(old) = old {
+            if receipt.is_none() {
+                // Bootstrap ownership for an old Tools install so Link's
+                // installer can replace its existing stable AppImage safely.
+                Store::new(&self.paths.link)
+                    .write(&installation::legacy_receipt(&self.paths, old))?;
+            }
+        }
+        let mut replacement = None;
+        let executable = if package.asset.kind == Kind::Appimage && install_args.is_some() {
+            installation::run_app_installer(
+                &self.paths,
+                &package.path,
+                install_args.clone().unwrap(),
+            )?;
+            let installed = self.receipt(id)?.ok_or_else(|| {
+                Error::new("receipt", "The app installer did not write its receipt.")
+            })?;
+            installation::validate_receipt(
+                &self.paths,
+                &installed,
+                id,
+                &package.release.version,
+                package.release.channel,
+            )?;
+            let executable = installation::executable(&self.paths, &installed);
+            if checksum(&executable)? != package.asset.sha256 {
+                return Err(Error::new(
+                    "checksum",
+                    "The app did not install the verified AppImage bytes.",
+                ));
+            }
+            executable
+        } else {
+            // Transition release only for Linux/macOS manifests without installArgs.
+            // Windows always runs its verified native installer (old and new releases).
+            let (executable, rollback) = platform::install_with_options(
                 &self.paths,
                 id,
-                &checked.asset,
-                downloaded.path(),
-                &mut || *replaced = true,
+                &package.asset,
+                &package.path,
+                package.release.channel,
+                login,
             )?;
-            let record = Record {
-                id: id.into(),
-                version: checked.release.version.clone(),
-                channel: checked.release.channel,
-                kind: checked.asset.kind,
-                sha256: checked.asset.sha256.clone(),
-                executable_sha256: checksum(&exe)?,
-                last_mode: resume
-                    .or(request.mode)
-                    .or(old.as_ref().and_then(|r| r.last_mode)),
-            };
-            if login {
-                platform::set_autostart(&self.paths, id, &exe, true)?;
+            replacement = Some(rollback);
+            if let Some(args) = &install_args {
+                installation::run_app_installer(&self.paths, &executable, args.clone())?;
             }
-            self.write(&self.paths.state().join(format!("{id}.json")), &record)?;
-            replacement.commit();
-            *replaced = false;
-            Ok(())
-        })();
-        if let Err(error) = result {
-            if let Some(mode) = resume {
-                let _ = self.launch_inner(id, mode);
-            }
-            return Err(error);
+            executable
+        };
+        let app_receipt = self.receipt(id)?;
+        let app_written = app_receipt.as_ref().is_some_and(|r| {
+            r.version == package.release.version && r.channel == package.release.channel.as_str()
+        });
+        if install_args.is_some() && !app_written {
+            return Err(Error::new(
+                "receipt",
+                "The app installer did not write a matching receipt.",
+            ));
         }
+        let mut record = prospective;
+        record.executable = Some(executable.clone());
+        record.executable_sha256 = checksum(&executable)?;
+        record.installed_by_app =
+            app_written && (install_args.is_some() || Os::current() == Os::Windows);
+        if login && !record.installed_by_app {
+            platform::set_autostart(&self.paths, id, &executable, true)?;
+        }
+        let mut installed_receipt = if app_written {
+            app_receipt.unwrap()
+        } else {
+            installation::legacy_receipt(&self.paths, &record)
+        };
+        installation::validate_receipt(
+            &self.paths,
+            &installed_receipt,
+            id,
+            &record.version,
+            record.channel,
+        )?;
+        if let Some(old) = receipt {
+            installed_receipt.installed_at = old.installed_at.clone();
+        }
+        self.write(&self.paths.state().join(format!("{id}.json")), &record)?;
+        // Launch before claiming: the app rewrites its own manifest/receipt. It
+        // remains the only writer of capabilities, including when Link is off.
         let mode = resume.or(if request.operation == Operation::Install {
             Some(request.mode.unwrap_or(LaunchMode::Foreground))
         } else {
@@ -672,14 +1769,377 @@ impl Manager {
         });
         if let Some(mode) = mode {
             progress(Progress::new(id, "Launching", None, false));
-            self.launch_inner(id, mode)?; // App owns its manifest and first-run integration.
-                                          // First-run app integration can enable autostart. No preference is silently changed here.
+            platform::spawn_detached(&self.paths, &executable, &mode.args())?;
         }
+        // Keep the app's receipt-addressed previous when it created one; shared
+        // installers must retain ownership of their stable .previous filename.
+        // The supplemental Tools snapshot additionally saves integration/state.
+        let previous_pointer = if record.installed_by_app && Os::current() == Os::Linux {
+            installed_receipt.previous.clone().or(previous_pointer)
+        } else {
+            previous_pointer
+        };
+        installation::claim(&self.paths, installed_receipt, previous_pointer)?;
+        if old.is_some_and(|old| old.kind == Kind::Tarball && package.asset.kind == Kind::Appimage)
+        {
+            self.paths.guard(&old_target)?;
+            platform::remove(&old_target)?;
+        }
+        transaction.commit(previous)?;
+        if let Some(replacement) = replacement {
+            replacement.commit();
+        }
+        *replaced = false;
         progress(Progress::new(id, "Done", Some(1.0), false));
         Ok(format!(
             "{} {} installed.",
             crate::apps::app_name(id),
-            checked.release.version
+            package.release.version
+        ))
+    }
+
+    fn ensure_compatible(&self, id: &str, release: &crate::release::Release) -> Result<()> {
+        let catalog = self.catalog()?;
+        let app = catalog
+            .install_entry(id)
+            .ok_or_else(|| Error::new("unavailable", "This app is absent from the catalog."))?;
+        let peers = self.update_inputs()?.1;
+        if let Some(reason) = updates::held_back(&app, release, &peers) {
+            return Err(Error::new("version_mismatch", reason));
+        }
+        Ok(())
+    }
+
+    fn adopt_inner(
+        &self,
+        request: &Request,
+        peer: Option<&Manifest>,
+        old_receipt: Option<Receipt>,
+        cancel: &AtomicBool,
+        progress: &mut dyn FnMut(Progress),
+    ) -> Result<String> {
+        let peer = peer.ok_or_else(|| {
+            Error::new(
+                "not_installed",
+                "There is no installed registry entry to adopt.",
+            )
+        })?;
+        if old_receipt
+            .as_ref()
+            .is_some_and(|r| r.managed_by == ManagedBy::Tools)
+        {
+            return Ok("Already managed by Arcade Tools.".into());
+        }
+        let catalog = self.catalog()?;
+        let app = catalog
+            .install_entry(&request.id)
+            .ok_or_else(|| Error::new("unavailable", "This app is absent from the catalog."))?;
+        if let Some(reason) = app.install_reason {
+            return Err(Error::new("version_mismatch", reason));
+        }
+        check_cancel(cancel)?;
+        let source = PathBuf::from(&peer.executable);
+        if arcade_link::install::is_dev_build(&source) {
+            return Err(Error::new(
+                "dev_build",
+                "Development builds are never adopted.",
+            ));
+        }
+        let resume = self.stop_peer(&request.id, Some(peer), request, true)?;
+        let destination = self.paths.executable(&request.id, Os::current(), false);
+        let target = if Os::current() == Os::Macos {
+            self.paths.install_root(&request.id, Os::Macos, false)
+        } else {
+            destination.clone()
+        };
+        let transaction =
+            Transaction::begin(&self.paths, &request.id, &target, old_receipt.as_ref())?;
+        progress(Progress::new(
+            &request.id,
+            "Adopting installation",
+            None,
+            false,
+        ));
+        let result = (|| {
+            let receipt = if Os::current() == Os::Linux {
+                let channel = old_receipt
+                    .as_ref()
+                    .map(receipt_channel)
+                    .transpose()?
+                    .unwrap_or_default();
+                if old_receipt.is_none() && source == destination {
+                    // The user explicitly chose ownership of this existing file.
+                    let now = manifest::now_rfc3339();
+                    let receipt = Receipt {
+                        schema: 1,
+                        id: request.id.clone(),
+                        version: peer.version.clone(),
+                        channel: channel.as_str().into(),
+                        method: InstallMethod::Appimage,
+                        managed_by: ManagedBy::SelfManaged,
+                        path: source.clone(),
+                        integration: Default::default(),
+                        previous: None,
+                        installed_at: now.clone(),
+                        updated_at: now,
+                    };
+                    Store::new(&self.paths.link).write(&receipt)?;
+                }
+                // Stage an explicit adoption too: self installers may remove
+                // their source; the user's current manual file stays untouched.
+                installation::run_app_installer(
+                    &self.paths,
+                    &source,
+                    vec![
+                        "--install".into(),
+                        "--silent".into(),
+                        "--channel".into(),
+                        channel.as_str().into(),
+                        "--no-launch".into(),
+                    ],
+                )?;
+                self.receipt(&request.id)?.ok_or_else(|| Error::new("receipt", "The app did not write an install receipt; use a release supporting --install."))?
+            } else if let Some(receipt) = old_receipt.clone() {
+                receipt
+            } else {
+                // Older native installs may predate receipts. Adoption explicitly
+                // records the selected per-user file/bundle and its uninstaller.
+                let record = Record {
+                    id: request.id.clone(),
+                    version: peer.version.clone(),
+                    channel: Channel::Stable,
+                    kind: if Os::current() == Os::Windows {
+                        windows_kind(
+                            source
+                                .parent()
+                                .map(|p| p.join("unins000.exe"))
+                                .filter(|p| p.is_file())
+                                .as_deref(),
+                        )
+                    } else {
+                        Kind::Dmg
+                    },
+                    sha256: String::new(),
+                    executable_sha256: checksum(&source)?,
+                    last_mode: resume,
+                    executable: Some(source.clone()),
+                    package: None,
+                    installed_by_app: true,
+                };
+                let mut receipt = installation::legacy_receipt(&self.paths, &record);
+                if Os::current() == Os::Macos {
+                    receipt.path = arcade_link::install::platform::macos::bundle_for(&source)
+                        .ok_or_else(|| {
+                            Error::new(
+                                "receipt",
+                                "The registry executable is not in an app bundle.",
+                            )
+                        })?;
+                } else {
+                    let root = source.parent().unwrap();
+                    receipt.integration.uninstaller =
+                        platform::windows_uninstall(record.kind, root)
+                            .ok()
+                            .map(|p| p.program)
+                            .filter(|p| p.is_file());
+                    if receipt.integration.uninstaller.is_none() {
+                        return Err(Error::new("receipt", "The native uninstaller is missing; reinstall the app before adopting it."));
+                    }
+                }
+                receipt
+            };
+            let channel = receipt_channel(&receipt)?;
+            installation::validate_receipt(
+                &self.paths,
+                &receipt,
+                &request.id,
+                &peer.version,
+                channel,
+            )?;
+            let mut record = self.record_from_receipt(&receipt)?;
+            record.last_mode = resume.or(request.mode);
+            if record.kind == Kind::Appimage {
+                record.sha256 = record.executable_sha256.clone();
+            }
+            self.write(
+                &self.paths.state().join(format!("{}.json", request.id)),
+                &record,
+            )?;
+            let exe = self.executable(&record);
+            if let Some(mode) = resume {
+                platform::spawn_detached(&self.paths, &exe, &mode.args())?;
+            }
+            installation::claim(&self.paths, receipt.clone(), receipt.previous.clone())?;
+            Ok(())
+        })();
+        if let Err(error) = result {
+            drop(transaction);
+            if let Some(mode) = resume {
+                let _ = platform::spawn_detached(&self.paths, &source, &mode.args());
+            }
+            return Err(error);
+        }
+        transaction.commit(None)?;
+        progress(Progress::new(&request.id, "Done", Some(1.0), false));
+        Ok(format!("{} is now managed by Arcade Tools.", peer.name))
+    }
+
+    fn rollback_inner(
+        &self,
+        request: &Request,
+        prior: Prior<'_>,
+        cancel: &AtomicBool,
+        progress: &mut dyn FnMut(Progress),
+        history: &mut HistoryEntry,
+        replaced: &mut bool,
+    ) -> Result<String> {
+        let receipt = prior.receipt;
+        let peer = prior.peer;
+        let old = prior.record.ok_or_else(|| {
+            Error::new(
+                "unmanaged",
+                "There is no managed installation to roll back.",
+            )
+        })?;
+        if receipt.is_some_and(|r| r.managed_by != ManagedBy::Tools) {
+            return Err(Error::new(
+                "unmanaged",
+                "Let Arcade Tools manage this first.",
+            ));
+        }
+        let previous = PreviousInstallation::read(&self.paths, &request.id)?
+            .ok_or_else(|| Error::new("no_previous", "There is no retained previous version."))?;
+        history.to = Some(previous.record.version.clone());
+        check_cancel(cancel)?;
+        if let Some(package) = &previous.record.package {
+            self.apply_package(request, package, prior, cancel, progress, replaced)?;
+        } else {
+            let pointer = previous.pointer(&self.paths).ok_or_else(|| {
+                Error::new("no_previous", "The retained previous file is missing.")
+            })?;
+            let exe = if previous.record.kind == Kind::Dmg {
+                let original =
+                    installation::target(&self.paths, &previous.record, previous.receipt.as_ref());
+                pointer.path.join(
+                    self.executable(&previous.record)
+                        .strip_prefix(original)
+                        .map_err(|_| Error::new("paths", "Invalid previous bundle layout."))?,
+                )
+            } else {
+                pointer.path.clone()
+            };
+            if checksum(&exe)? != previous.record.executable_sha256 {
+                return Err(Error::new(
+                    "checksum",
+                    "The previous executable failed verification.",
+                ));
+            }
+            if previous.record.kind == Kind::Appimage && previous.record.installed_by_app {
+                let asset = crate::release::Asset {
+                    os: Os::Linux,
+                    arch: Arch::current()?,
+                    kind: Kind::Appimage,
+                    file: pointer.path.file_name().unwrap().to_string_lossy().into(),
+                    sha256: previous.record.executable_sha256.clone(),
+                    size: Some(fs::metadata(&pointer.path)?.len()),
+                    silent: None,
+                    install_args: Some(vec!["--install".into(), "--silent".into()]),
+                };
+                let release = crate::release::Release {
+                    schema: 1,
+                    id: request.id.clone(),
+                    version: previous.record.version.clone(),
+                    channel: previous.record.channel,
+                    link_protocol: previous.protocols(&self.paths),
+                    notes: String::new(),
+                    assets: vec![asset.clone()],
+                };
+                let package = Package {
+                    release,
+                    asset,
+                    path: pointer.path,
+                };
+                let retained = installation::retain(
+                    &self.paths,
+                    &CheckedRelease {
+                        release: package.release.clone(),
+                        asset: package.asset.clone(),
+                        url: String::new(),
+                    },
+                    &package.path,
+                )?;
+                self.apply_package(request, &retained, prior, cancel, progress, replaced)?;
+            } else {
+                let release = crate::release::Release {
+                    schema: 1,
+                    id: request.id.clone(),
+                    version: previous.record.version.clone(),
+                    channel: previous.record.channel,
+                    link_protocol: previous.protocols(&self.paths),
+                    notes: String::new(),
+                    assets: Vec::new(),
+                };
+                self.ensure_compatible(&request.id, &release)?;
+                let resume = self.stop_peer(&request.id, peer, request, true)?;
+                let result = (|| -> Result<()> {
+                    let mut transaction = Transaction::begin(
+                        &self.paths,
+                        &request.id,
+                        &installation::target(&self.paths, old, receipt),
+                        receipt,
+                    )?;
+                    transaction.include(&installation::target(
+                        &self.paths,
+                        &previous.record,
+                        previous.receipt.as_ref(),
+                    ))?;
+                    let current = transaction.previous(old.clone(), receipt.cloned());
+                    *replaced = true;
+                    previous.restore(&self.paths)?;
+                    let mut record = previous.record.clone();
+                    record.last_mode = resume.or(request.mode);
+                    let exe = self.executable(&record);
+                    if record.installed_by_app && record.kind == Kind::Dmg {
+                        installation::run_app_installer(
+                            &self.paths,
+                            &exe,
+                            vec![
+                                "--install".into(),
+                                "--silent".into(),
+                                "--channel".into(),
+                                record.channel.as_str().into(),
+                                "--no-launch".into(),
+                            ],
+                        )?;
+                    }
+                    let restored = self
+                        .receipt(&request.id)?
+                        .unwrap_or_else(|| installation::legacy_receipt(&self.paths, &record));
+                    self.write(
+                        &self.paths.state().join(format!("{}.json", request.id)),
+                        &record,
+                    )?;
+                    if let Some(mode) = resume {
+                        platform::spawn_detached(&self.paths, &exe, &mode.args())?;
+                    }
+                    installation::claim(&self.paths, restored, current.pointer(&self.paths))?;
+                    transaction.commit(Some(current))?;
+                    *replaced = false;
+                    Ok(())
+                })();
+                if let Err(error) = result {
+                    if let Some(mode) = resume {
+                        let _ = self.launch_inner(&request.id, mode);
+                    }
+                    return Err(error);
+                }
+            }
+        }
+        progress(Progress::new(&request.id, "Rolled back", Some(1.0), false));
+        Ok(format!(
+            "{} rolled back to {}.",
+            crate::apps::app_name(&request.id),
+            previous.record.version
         ))
     }
     fn stop_peer(
@@ -750,34 +2210,88 @@ impl Manager {
         let root = self
             .paths
             .install_root(id, Os::current(), record.kind == Kind::Tarball);
-        let target = if record.kind == Kind::Appimage {
-            &exe
-        } else {
-            &root
-        };
-        self.paths.guard(target)?;
+        let receipt = self.receipt(id)?;
+        let previous = PreviousInstallation::read(&self.paths, id)?;
+        let target = installation::target(&self.paths, record, receipt.as_ref());
+        self.paths.guard(&target)?;
+        if let Some(receipt) = &receipt {
+            installation::owned_paths(&self.paths, receipt)?;
+            if let Some(previous) = &receipt.previous {
+                self.paths.guard(&previous.path)?;
+            }
+        }
         if remove_data {
             for folder in self.paths.data_folders(id, Os::current()) {
                 self.paths.guard(&folder)?;
             }
         }
-        if platform::login_supported(id, Os::current()) {
-            platform::set_autostart(&self.paths, id, &exe, false)?;
-        }
-        #[cfg(windows)]
-        {
-            let uninstaller = platform::windows_uninstall(record.kind, &root)?;
-            self.paths.guard(&uninstaller.program)?;
-            if uninstaller.program.is_file() {
-                uninstaller.run(&self.paths)?;
+        if record.installed_by_app {
+            if Os::current() == Os::Windows {
+                let uninstaller = receipt
+                    .as_ref()
+                    .and_then(|r| r.integration.uninstaller.as_ref())
+                    .ok_or_else(|| {
+                        Error::new(
+                            "installer",
+                            "The receipt's native uninstaller is missing. Repair the app first.",
+                        )
+                    })?;
+                self.paths.guard(uninstaller)?;
+                if !uninstaller.is_file() {
+                    return Err(Error::new(
+                        "installer",
+                        "The native uninstaller is missing. Repair the app first.",
+                    ));
+                }
+                let mut command = platform::windows_uninstall(
+                    windows_kind(Some(uninstaller)),
+                    uninstaller.parent().unwrap(),
+                )?;
+                command.program = uninstaller.clone();
+                command.run(&self.paths)?;
             } else {
+                if !exe.is_file() {
+                    return Err(Error::new(
+                        "installer",
+                        "The app's uninstaller is missing. Repair the app first.",
+                    ));
+                }
+                let mut args = vec!["--uninstall".into(), "--silent".into()];
+                if remove_data {
+                    args.push("--remove-data".into());
+                }
+                platform::CommandSpec {
+                    program: exe.clone(),
+                    args,
+                }
+                .run(&self.paths)?;
+            }
+            if exe.exists() {
                 return Err(Error::new(
                     "installer",
-                    "The platform uninstaller is missing. Repair the app first.",
+                    "The app's uninstaller left its executable in place.",
                 ));
             }
+        } else {
+            // Transition releases without installArgs use the pre-v0.3 removal
+            // path. Never use this fallback for an app with an own installer.
+            if platform::login_supported(id, Os::current()) {
+                platform::set_autostart(&self.paths, id, &exe, false)?;
+            }
+            #[cfg(windows)]
+            {
+                let uninstaller = platform::windows_uninstall(record.kind, &root)?;
+                self.paths.guard(&uninstaller.program)?;
+                if !uninstaller.program.is_file() {
+                    return Err(Error::new(
+                        "installer",
+                        "The platform uninstaller is missing. Repair the app first.",
+                    ));
+                }
+                uninstaller.run(&self.paths)?;
+            }
+            platform::remove(&target)?;
         }
-        platform::remove(target)?;
         // Remove launch entries only when their Exec references the managed installation.
         if Os::current() == Os::Linux {
             let applications = self.paths.data.join("applications");
@@ -806,6 +2320,12 @@ impl Manager {
             }
         }
         manifest::remove_manifest(&self.paths.link, id)?;
+        self.paths.guard_receipt(id)?;
+        Store::new(&self.paths.link).remove(id)?;
+        if let Some(previous) = previous {
+            previous.remove(&self.paths)?;
+        }
+        platform::remove(&self.paths.state().join(format!("{id}.previous.json")))?;
         platform::remove(&self.paths.state().join(format!("{id}.json")))?;
         Ok(format!(
             "{} removed. {}",
@@ -870,4 +2390,32 @@ fn link_error(id: &str, error: arcade_link::LinkError) -> Error {
         error.code.as_str(),
         error.user_message(crate::apps::app_name(id)),
     )
+}
+
+/// Pure known-install contract check; safe on any thread. Tools has its own
+/// catalog entry, distinct from the seven apps shown on the Apps page.
+fn manager_id(id: &str) -> Result<()> {
+    if id == ids::TOOLS {
+        Ok(())
+    } else {
+        app_id(id)
+    }
+}
+fn receipt_channel(receipt: &Receipt) -> Result<Channel> {
+    match receipt.channel.as_str() {
+        "stable" => Ok(Channel::Stable),
+        "nightly" => Ok(Channel::Nightly),
+        _ => Err(Error::new("receipt", "Unsupported receipt channel.")),
+    }
+}
+fn windows_kind(uninstaller: Option<&Path>) -> Kind {
+    if uninstaller.and_then(Path::file_name).is_some_and(|name| {
+        name.to_string_lossy()
+            .to_ascii_lowercase()
+            .starts_with("unins")
+    }) {
+        Kind::Inno
+    } else {
+        Kind::Nsis
+    }
 }

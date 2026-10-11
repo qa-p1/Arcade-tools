@@ -11,7 +11,7 @@ fn windows_installer_flags_and_paths_are_per_user_arguments() {
     let root = paths.install_root("arcade.look", Os::Windows, false);
     assert_eq!(
         root,
-        Path::new("/tmp/windows-logic/local/Programs/Arcade Look")
+        Path::new("/tmp/windows-logic/AppData/Local/Programs/Arcade Look")
     );
     let mut asset = Asset {
         os: Os::Windows,
@@ -21,6 +21,7 @@ fn windows_installer_flags_and_paths_are_per_user_arguments() {
         sha256: "0".repeat(64),
         size: None,
         silent: Some(vec!["/S".into()]),
+        install_args: None,
     };
     let plan = windows_install(&asset, Path::new("verified.exe"), &root).unwrap();
     let target = format!("/D={}", root.display());

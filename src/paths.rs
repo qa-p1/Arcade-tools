@@ -25,9 +25,7 @@ impl Paths {
             if !root.is_absolute() {
                 return Err(Error::new("paths", "ARCADE_HOME must be absolute."));
             }
-            let mut paths = Self::under(&root);
-            paths.link = Locations::under(&root);
-            return Ok(paths);
+            return Ok(Self::under(&root));
         }
         let base = directories::BaseDirs::new()
             .ok_or_else(|| Error::new("paths", "A home directory is required."))?;
@@ -50,13 +48,15 @@ impl Paths {
     /// Pure isolated path calculation, safe on any thread.
     pub fn under(root: &Path) -> Self {
         Self {
-            home: root.join("home"),
-            config: root.join("config"),
-            data: root.join("data"),
-            cache: root.join("cache"),
-            local: root.join("local"),
-            roaming: root.join("roaming"),
-            link: Locations::under(&root.join("arcade")),
+            // Match Link's install::Environment::under exactly, including the
+            // receipt store. Child --install processes inherit this one root.
+            home: root.into(),
+            config: root.join(".config"),
+            data: root.join(".local/share"),
+            cache: root.join(".cache"),
+            local: root.join("AppData/Local"),
+            roaming: root.join("AppData/Roaming"),
+            link: Locations::under(root),
             isolated: true,
         }
     }
@@ -137,6 +137,7 @@ impl Paths {
                     self.data.join("dev.arcade.clipboard"),
                     self.data.join("clipboard"),
                 ],
+                ids::TOOLS => vec![self.state()],
                 _ => vec![],
             },
             Os::Windows => match id {
@@ -156,6 +157,7 @@ impl Paths {
                     self.local.join("Arcade/Arcade Find"),
                 ],
                 ids::CLIPBOARD => vec![self.roaming.join("dev.arcade/clipboard")],
+                ids::TOOLS => vec![self.state()],
                 _ => vec![],
             },
             Os::Macos => {
@@ -173,6 +175,7 @@ impl Paths {
                     crate::apps::SHELF => vec![support.join("qa-p1/ArcadeShelf")],
                     crate::apps::FIND => vec![support.join("Arcade Find")],
                     ids::CLIPBOARD => vec![support.join("dev.arcade.clipboard")],
+                    ids::TOOLS => vec![self.state()],
                     _ => vec![],
                 }
             }
@@ -270,6 +273,18 @@ impl Paths {
             }
         }
         Ok(())
+    }
+
+    /// Validate a receipt/registry path on a worker. These private stores are
+    /// siblings, not app data; only their own children may be modified.
+    pub fn guard_receipt(&self, id: &str) -> Result<PathBuf> {
+        let path = arcade_link::receipt::Store::new(&self.link).path(id)?;
+        for parent in path.ancestors() {
+            if std::fs::symlink_metadata(parent).is_ok_and(|m| m.file_type().is_symlink()) {
+                return Err(Error::new("paths", "Receipt paths must not be symlinked."));
+            }
+        }
+        Ok(path)
     }
 }
 

@@ -36,12 +36,8 @@ impl CommandSpec {
         }
         #[cfg(not(windows))]
         command.args(&self.args);
-        let out = command
-            .env("HOME", &paths.home)
-            .env("XDG_CONFIG_HOME", &paths.config)
-            .env("XDG_DATA_HOME", &paths.data)
-            .env("XDG_CACHE_HOME", &paths.cache)
-            .output()?;
+        child_environment(&mut command, paths);
+        let out = command.stdin(std::process::Stdio::null()).output()?;
         if !out.status.success() {
             return Err(Error::new(
                 "installer",
@@ -55,6 +51,48 @@ impl CommandSpec {
         }
         Ok(())
     }
+}
+
+pub(crate) fn child_environment(command: &mut Command, paths: &Paths) {
+    command
+        .env("HOME", &paths.home)
+        .env("USERPROFILE", &paths.home)
+        .env("LOCALAPPDATA", &paths.local)
+        .env("APPDATA", &paths.roaming)
+        .env("XDG_CONFIG_HOME", &paths.config)
+        .env("XDG_DATA_HOME", &paths.data)
+        .env("XDG_CACHE_HOME", &paths.cache)
+        .env("ARCADE_NO_INSTALL_PROMPT", "1");
+    if paths.isolated {
+        command.env("ARCADE_HOME", &paths.home);
+    }
+}
+
+/// Launch on a worker with process-scoped paths and no inherited stdio. The
+/// reaper blocks on child exit; there is no timer or idle polling.
+pub fn spawn_detached(paths: &Paths, executable: &Path, args: &[String]) -> Result<()> {
+    let mut command = Command::new(executable);
+    child_environment(&mut command, paths);
+    command
+        .args(args)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        command.process_group(0);
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0x00000008 | 0x00000200);
+    }
+    let mut child = command.spawn()?;
+    std::thread::spawn(move || {
+        let _ = child.wait();
+    });
+    Ok(())
 }
 pub fn windows_install(asset: &Asset, file: &Path, destination: &Path) -> Result<CommandSpec> {
     let expected: &[&str] = match asset.kind {
@@ -97,6 +135,39 @@ pub fn windows_install(asset: &Asset, file: &Path, destination: &Path) -> Result
         program: file.into(),
         args,
     })
+}
+/// Pure silent command planning, safe on any thread. Shared v0.3 installer
+/// tasks preserve the caller's login preference without creating shortcuts here.
+pub fn windows_install_options(
+    asset: &Asset,
+    file: &Path,
+    destination: &Path,
+    channel: crate::release::Channel,
+    login: bool,
+) -> Result<CommandSpec> {
+    let mut command = windows_install(asset, file, destination)?;
+    let destination = command.args.pop().unwrap();
+    command
+        .args
+        .push(format!("/ARCADECHANNEL={}", channel.as_str()));
+    command.args.push("/ARCADEMANAGEDBY=tools".into());
+    if asset.kind == Kind::Inno {
+        command.args.push(format!(
+            "/MERGETASKS={},!arcade_desktop",
+            if login {
+                "arcade_startup"
+            } else {
+                "!arcade_startup"
+            }
+        ));
+    } else {
+        command
+            .args
+            .push(format!("/STARTATLOGIN={}", u8::from(login)));
+        command.args.push("/DESKTOPSHORTCUT=0".into());
+    }
+    command.args.push(destination); // NSIS's /D must remain the final raw tail.
+    Ok(command)
 }
 pub fn windows_uninstall(kind: Kind, root: &Path) -> Result<CommandSpec> {
     match kind {
@@ -197,16 +268,24 @@ pub fn install(
     asset: &Asset,
     verified: &Path,
 ) -> Result<(PathBuf, Replacement)> {
-    install_observed(paths, id, asset, verified, &mut || {})
+    install_with_options(
+        paths,
+        id,
+        asset,
+        verified,
+        crate::release::Channel::Stable,
+        autostart_enabled(paths, id),
+    )
 }
-/// Installer/process/disk work on a worker thread. The callback marks the exact
-/// point where replacement begins, allowing the manager to log real rollbacks.
-pub(crate) fn install_observed(
+/// Verified native/transition installer work on a worker. The app's own
+/// installer receives the selected channel and existing login preference.
+pub fn install_with_options(
     paths: &Paths,
     id: &str,
     asset: &Asset,
     verified: &Path,
-    on_replace: &mut dyn FnMut(),
+    channel: crate::release::Channel,
+    login: bool,
 ) -> Result<(PathBuf, Replacement)> {
     let tarball = asset.kind == Kind::Tarball;
     let executable = paths.executable(id, Os::current(), tarball);
@@ -228,7 +307,7 @@ pub(crate) fn install_observed(
         None
     };
     let replacement = Replacement::begin(paths, destination)?;
-    on_replace();
+    let _ = (channel, login); // Native Windows arguments; no extra Linux policy.
     #[cfg(target_os = "linux")]
     match asset.kind {
         Kind::Appimage => {
@@ -243,6 +322,8 @@ pub(crate) fn install_observed(
                 .persist(&executable)
                 .map_err(|e| Error::from(e.error))?;
         }
+        // Transition release only: retain Shelf/Clipboard tarballs until the
+        // coordinated AppImage release has shipped. New manifests use installArgs.
         Kind::Tarball if id == crate::apps::SHELF => {
             // The bundle is data, never an executable installation script.
             let (_, package) = prepared.as_ref().unwrap();
@@ -275,7 +356,7 @@ pub(crate) fn install_observed(
             .tempfile_in(paths.downloads())?;
         fs::copy(verified, temp.path())?;
         let temp_path = temp.into_temp_path();
-        windows_install(asset, &temp_path, &root)?.run(paths)?;
+        windows_install_options(asset, &temp_path, &root, channel, login)?.run(paths)?;
     }
     #[cfg(target_os = "macos")]
     {

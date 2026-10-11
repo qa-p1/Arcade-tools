@@ -25,10 +25,10 @@ fn find_metadata_install_data_and_login_paths_match_the_app() {
     // and the DMG's "Arcade Find.app" with CFBundleExecutable arcade-find.
     assert!(paths
         .executable(apps::FIND, Os::Linux, false)
-        .ends_with("home/Applications/Arcade/Arcade-Find.AppImage"));
+        .ends_with("Applications/Arcade/Arcade-Find.AppImage"));
     assert!(paths
         .executable(apps::FIND, Os::Windows, false)
-        .ends_with("local/Programs/Arcade Find/arcade-find.exe"));
+        .ends_with("Local/Programs/Arcade Find/arcade-find.exe"));
     assert!(paths
         .executable(apps::FIND, Os::Macos, false)
         .ends_with("Applications/Arcade Find.app/Contents/MacOS/arcade-find"));

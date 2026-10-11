@@ -224,7 +224,7 @@ impl<C: Clock, S: ReleaseSource> Scheduler<C, S> {
             state.reason = None;
         }
         for installed in installed {
-            let Some(app) = catalog.app(&installed.id) else {
+            let Some(app) = catalog.install_entry(&installed.id) else {
                 continue;
             };
             let state = self.state.apps.entry(installed.id.clone()).or_default();
@@ -234,7 +234,7 @@ impl<C: Clock, S: ReleaseSource> Scheduler<C, S> {
                 if let Some(cache) = &latest.cache {
                     latest.update_available =
                         is_newer(installed, &cache.release, &cache.asset.sha256);
-                    latest.reason = held_back(app, &cache.release, peers);
+                    latest.reason = held_back(&app, &cache.release, peers);
                     latest.held_back = latest.reason.is_some();
                 }
             }
@@ -302,7 +302,7 @@ impl<C: Clock, S: ReleaseSource> Scheduler<C, S> {
             return Ok(outcome);
         }
         for installed in context.installed {
-            let Some(app) = context.catalog.app(&installed.id) else {
+            let Some(app) = context.catalog.install_entry(&installed.id) else {
                 continue;
             };
             let state = self.state.apps.entry(installed.id.clone()).or_default();
@@ -312,7 +312,7 @@ impl<C: Clock, S: ReleaseSource> Scheduler<C, S> {
             for channel in [Channel::Stable, Channel::Nightly] {
                 let latest = state.latest.entry(channel.as_str().into()).or_default();
                 match self.source.check_release(ReleaseRequest {
-                    app,
+                    app: &app,
                     channel,
                     os: context.os,
                     arch: context.arch,
@@ -323,7 +323,7 @@ impl<C: Clock, S: ReleaseSource> Scheduler<C, S> {
                         latest.latest_version = Some(release.version.clone());
                         latest.update_available =
                             is_newer(installed, release, &check.checked.asset.sha256);
-                        latest.reason = held_back(app, release, context.peers);
+                        latest.reason = held_back(&app, release, context.peers);
                         latest.held_back = latest.reason.is_some();
                         latest.error = None;
                         latest.cache = Some(check.cache);
@@ -434,6 +434,12 @@ pub fn held_back(app: &CatalogApp, release: &Release, peers: &[PeerProtocols]) -
 pub struct AutoUpdateDecision {
     pub eligible: bool,
     pub reason: String,
+}
+#[derive(Debug, Clone, Serialize)]
+pub struct AutoUpdateOutcome {
+    pub decision: AutoUpdateDecision,
+    /// Present after execution. The desktop may notify once this is returned.
+    pub message: Option<String>,
 }
 /// Pure opt-in/idle policy, safe on any thread. Unknown status or last-used time
 /// is ineligible; the caller supplies `app.status` and its last-used timestamp.
