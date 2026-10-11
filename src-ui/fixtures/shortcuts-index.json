@@ -1,0 +1,124 @@
+{
+  "schema": 1,
+  "builtAt": "2026-10-11T18:24:00Z",
+  "os": "linux",
+  "apps": [
+    {
+      "id": "firefox",
+      "name": "Firefox",
+      "source": "catalog",
+      "match": { "class": ["firefox"] },
+      "groups": [
+        {
+          "title": "Tabs and windows",
+          "context": "tabs",
+          "shortcuts": [
+            { "id": "new-tab", "title": "Open a new tab", "keys": ["Ctrl+T"], "display": ["Ctrl+T"], "description": null },
+            { "id": "close-tab", "title": "Close the current tab", "keys": ["Ctrl+W"], "display": ["Ctrl+W"], "description": "Closes the current tab or window." },
+            { "id": "reopen-tab", "title": "Reopen the last closed tab", "keys": ["Ctrl+Shift+T"], "display": ["Ctrl+Shift+T"], "description": null }
+          ]
+        },
+        {
+          "title": "Navigation",
+          "context": "browser",
+          "shortcuts": [
+            { "id": "focus-address", "title": "Focus the address bar", "keys": ["Ctrl+L"], "display": ["Ctrl+L"], "description": null },
+            { "id": "find-page", "title": "Find in this page", "keys": ["Ctrl+F"], "display": ["Ctrl+F"], "description": null }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vscode",
+      "name": "Visual Studio Code",
+      "source": "catalog",
+      "match": { "class": ["code", "Code"] },
+      "groups": [
+        {
+          "title": "Editing",
+          "context": "editor",
+          "shortcuts": [
+            { "id": "command-palette", "title": "Open the command palette", "keys": ["Ctrl+Shift+P"], "display": ["Ctrl+Shift+P"], "description": null },
+            { "id": "quick-open", "title": "Go to a file", "keys": ["Ctrl+P"], "display": ["Ctrl+P"], "description": "Search the current workspace by file name." },
+            { "id": "toggle-terminal", "title": "Show or hide the terminal", "keys": ["Ctrl+`"], "display": ["Ctrl+`"], "description": null }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "arcade.find",
+      "name": "Arcade Find",
+      "source": "arcade",
+      "groups": [
+        {
+          "title": "Search",
+          "context": "window",
+          "shortcuts": [
+            { "id": "focus-search", "title": "Focus search", "keys": ["Ctrl+F"], "display": ["Ctrl+F"], "description": "Jump to the search field." },
+            { "id": "next-result", "title": "Move to the next result", "keys": ["Down"], "display": ["↓"], "description": null }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "kitty",
+      "name": "Kitty",
+      "source": "catalog",
+      "match": { "class": ["kitty"] },
+      "groups": [
+        {
+          "title": "Windows and tabs",
+          "context": "terminal",
+          "shortcuts": [
+            { "id": "new-window", "title": "New window", "keys": ["Ctrl+Shift+Enter"], "display": ["Ctrl+Shift+Enter"], "description": null },
+            { "id": "new-tab", "title": "New tab", "keys": ["Ctrl+Shift+T"], "display": ["Ctrl+Shift+T"], "description": null }
+          ]
+        }
+      ]
+    }
+  ],
+  "arcade": [
+    { "app": "arcade.find", "name": "Arcade Find", "id": "show", "title": "Show or hide Find", "keys": ["Ctrl+Alt+F"], "display": ["Ctrl+Alt+F"], "rebindable": true },
+    { "app": "arcade.lens", "name": "Arcade Lens", "id": "capture", "title": "Capture screen", "keys": ["Ctrl+Alt+L"], "display": ["Ctrl+Alt+L"], "rebindable": true },
+    { "app": "arcade.tools", "name": "Arcade Tools", "id": "shortcuts", "title": "Show shortcut cheat sheet", "keys": ["Super+/"], "display": ["Super+/"], "rebindable": true }
+  ],
+  "wm": {
+    "name": "hyprland",
+    "configKind": "lua",
+    "groups": [
+      {
+        "title": "Media",
+        "shortcuts": [
+          { "chord": "Ctrl+Super+Space", "display": "Ctrl+Super+Space", "label": "Media toggle", "detail": "Caelestia: mediaToggle", "submap": null, "state": "active", "origin": { "file": "~/.config/hypr/hyprland/keybinds.lua", "line": 199 } },
+          { "chord": "Ctrl+Super+Up", "display": "Ctrl+Super+↑", "label": "Raise volume", "detail": "Audio: raise volume", "submap": "media", "state": "configuredOnly", "origin": { "file": "~/.config/hypr/hyprland/keybinds.lua", "line": 204 } }
+        ]
+      },
+      {
+        "title": "Windows",
+        "shortcuts": [
+          { "chord": "Super+Q", "display": "Super+Q", "label": "Close focused window", "detail": "hyprctl: killactive", "submap": null, "state": "active", "origin": { "file": "~/.config/hypr/hyprland/keybinds.lua", "line": 82 } },
+          { "chord": "Super+F", "display": "Super+F", "label": "Toggle floating", "detail": "hyprctl: togglefloating", "submap": null, "state": "runtimeOnly", "origin": { "file": "runtime", "line": 0 } }
+        ]
+      },
+      {
+        "title": "Applications",
+        "shortcuts": [
+          { "chord": "Super+Return", "display": "Super+Enter", "label": "Open terminal", "detail": "Run: kitty", "submap": null, "state": "active", "origin": { "file": "~/.config/hypr/hyprland/keybinds.lua", "line": 112 } }
+        ]
+      }
+    ],
+    "warnings": []
+  },
+  "conflicts": [
+    {
+      "chord": "Ctrl+Alt+V",
+      "a": { "kind": "arcade", "owner": "arcade.clipboard", "label": "Show clipboard" },
+      "b": { "kind": "wm", "owner": "hyprland", "label": "Audio settings" }
+    },
+    {
+      "chord": "Super+F",
+      "a": { "kind": "arcade", "owner": "arcade.find", "label": "Show or hide Find" },
+      "b": { "kind": "wm", "owner": "hyprland", "label": "Toggle floating" }
+    }
+  ]
+}

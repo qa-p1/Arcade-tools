@@ -17,7 +17,18 @@ pub struct Paths {
     pub isolated: bool,
 }
 impl Paths {
+    /// Environment/platform discovery on a worker thread. ARCADE_HOME replaces
+    /// every root for isolation; no environment/startup files are changed.
     pub fn discover() -> Result<Self> {
+        if let Some(root) = std::env::var_os("ARCADE_HOME").filter(|v| !v.is_empty()) {
+            let root = PathBuf::from(root);
+            if !root.is_absolute() {
+                return Err(Error::new("paths", "ARCADE_HOME must be absolute."));
+            }
+            let mut paths = Self::under(&root);
+            paths.link = Locations::under(&root);
+            return Ok(paths);
+        }
         let base = directories::BaseDirs::new()
             .ok_or_else(|| Error::new("paths", "A home directory is required."))?;
         let home = base.home_dir().to_path_buf();
@@ -36,6 +47,7 @@ impl Paths {
             isolated: false,
         })
     }
+    /// Pure isolated path calculation, safe on any thread.
     pub fn under(root: &Path) -> Self {
         Self {
             home: root.join("home"),
@@ -53,6 +65,14 @@ impl Paths {
     }
     pub fn downloads(&self) -> PathBuf {
         self.cache.join("arcade-tools/downloads")
+    }
+    /// Path calculation only; no I/O, safe on any thread.
+    pub fn catalog(&self) -> PathBuf {
+        self.cache.join("arcade/tools/catalog")
+    }
+    /// Path calculation only; no I/O, safe on any thread.
+    pub fn docs(&self) -> PathBuf {
+        self.cache.join("arcade/tools/docs")
     }
     pub fn install_root(&self, id: &str, os: Os, tarball: bool) -> PathBuf {
         match os {
@@ -190,6 +210,7 @@ impl Paths {
                 )),
         }
     }
+    /// Filesystem validation on a worker thread, including symlink resolution.
     pub fn check_persistent_executable(&self, executable: &Path) -> Result<()> {
         if !executable.is_absolute() || !executable.is_file() {
             return Err(Error::new("paths", "The installed executable is missing."));
@@ -214,6 +235,7 @@ impl Paths {
         }
         Ok(())
     }
+    /// Filesystem/path validation on a worker thread; performs no mutation.
     pub fn guard(&self, path: &Path) -> Result<()> {
         // No symlinked parents, path traversal or deletion outside these per-user roots.
         if !path.is_absolute()

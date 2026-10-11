@@ -1,6 +1,7 @@
-//! The managed Arcade apps, straight from Arcade Link's shared metadata
-//! (v0.2.0 lists Shelf and Find). Kept as a module so callers have one place
-//! to ask.
+//! Compiled app IDs and installation knowledge from Arcade Link v0.2.0.
+//! `catalog` controls manager membership and display metadata. Keep these IDs,
+//! names (native paths), and the per-app contracts in `paths`/`platform` until
+//! release manifests can describe their installation specifics safely.
 use arcade_link::manifest::{self, ids};
 
 pub const SHELF: &str = ids::SHELF;
