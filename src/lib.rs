@@ -2,6 +2,7 @@ pub mod apps;
 pub mod catalog;
 pub mod docs;
 pub mod engines;
+pub mod installation;
 pub mod link;
 pub mod manager;
 pub mod markdown;

@@ -1,0 +1,613 @@
+//! Receipt ownership, verified retained packages and reversible installation
+//! snapshots. All filesystem/process APIs are synchronous worker work. Receipts
+//! describe ownership/layout; Tools records only add hashes and release metadata.
+use crate::manager::Record;
+use crate::paths::Paths;
+use crate::platform::{self, CommandSpec};
+use crate::release::{self, Asset, Channel, Kind, Os, Release};
+use crate::{Error, Result};
+use arcade_link::receipt::{InstallMethod, Integration, ManagedBy, Previous, Receipt, Store};
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeSet;
+use std::fs;
+use std::path::{Path, PathBuf};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Package {
+    pub release: Release,
+    pub asset: Asset,
+    pub path: PathBuf,
+}
+impl Package {
+    /// Validate retained release metadata, SHA-256 and size on a worker thread.
+    pub fn verify(&self, paths: &Paths, id: &str) -> Result<()> {
+        paths.guard(&self.path)?;
+        let release = Release::parse(&serde_json::to_vec(&self.release)?)?;
+        release.compatible(id, self.release.channel)?;
+        if release.select(Os::current(), release::Arch::current()?)? != self.asset {
+            return Err(Error::new(
+                "manifest",
+                "Retained installer metadata does not match its release.",
+            ));
+        }
+        install_args(&self.asset, self.release.channel)?;
+        release::verify(&self.path, &self.asset)
+    }
+}
+
+/// Retain a verified package in the normal cache, on a worker thread. Only a
+/// checksum-addressed, schema-checked package can become a rollback installer.
+pub fn retain(
+    paths: &Paths,
+    checked: &crate::source::CheckedRelease,
+    file: &Path,
+) -> Result<Package> {
+    release::verify(file, &checked.asset)?;
+    install_args(&checked.asset, checked.release.channel)?;
+    let extension = match checked.asset.kind {
+        Kind::Appimage => "AppImage",
+        Kind::Nsis | Kind::Inno => "exe",
+        Kind::Dmg => "dmg",
+        Kind::Tarball => "tar.gz",
+        _ => return Err(Error::new("unavailable", "Unsupported installer.")),
+    };
+    let dir = paths
+        .cache
+        .join("arcade/tools/installers")
+        .join(&checked.release.id);
+    let path = dir.join(format!("{}.{}", checked.asset.sha256, extension));
+    paths.guard(&path)?;
+    fs::create_dir_all(&dir)?;
+    if !path.exists() || release::verify(&path, &checked.asset).is_err() {
+        let mut temporary = tempfile::NamedTempFile::new_in(&dir)?;
+        std::io::copy(&mut fs::File::open(file)?, &mut temporary)?;
+        temporary.as_file().sync_all()?;
+        temporary.persist(&path).map_err(|e| e.error)?;
+    }
+    let package = Package {
+        release: checked.release.clone(),
+        asset: checked.asset.clone(),
+        path,
+    };
+    package.verify(paths, &checked.release.id)?;
+    Ok(package)
+}
+
+/// Pure argument policy, safe on any thread. A present installArgs opts into the
+/// shared self-install contract. Unsafe/destructive flags never reach a process.
+pub fn install_args(asset: &Asset, channel: Channel) -> Result<Option<Vec<String>>> {
+    let Some(args) = &asset.install_args else {
+        return Ok(None);
+    };
+    if !matches!(asset.kind, Kind::Appimage | Kind::Dmg)
+        || args.iter().map(String::as_str).collect::<Vec<_>>() != ["--install", "--silent"]
+    {
+        return Err(Error::new(
+            "manifest",
+            "installArgs must be --install --silent for an AppImage or macOS bundle.",
+        ));
+    }
+    Ok(Some(vec![
+        "--install".into(),
+        "--silent".into(),
+        "--channel".into(),
+        channel.as_str().into(),
+    ]))
+}
+
+/// Run the app's own installer on a worker thread; never edits integration itself.
+/// The verified file is made executable only after hash/size verification.
+pub fn run_app_installer(paths: &Paths, executable: &Path, args: Vec<String>) -> Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        paths.guard(executable)?;
+        fs::set_permissions(executable, fs::Permissions::from_mode(0o755))?;
+    }
+    CommandSpec {
+        program: executable.into(),
+        args,
+    }
+    .run(paths)
+}
+
+/// Resolve a receipt's launcher in memory, safe on any thread. A macOS receipt
+/// names its bundle; the compiled contract supplies CFBundleExecutable.
+pub fn executable(paths: &Paths, receipt: &Receipt) -> PathBuf {
+    if receipt.method == InstallMethod::MacosBundle {
+        let expected = paths.executable(&receipt.id, Os::Macos, false);
+        let root = paths.install_root(&receipt.id, Os::Macos, false);
+        receipt.path.join(expected.strip_prefix(root).unwrap())
+    } else {
+        receipt.path.clone()
+    }
+}
+
+/// Validate an app-written receipt against this operation, on a worker. The
+/// app owns integration, but may not redirect Tools outside per-user roots.
+pub fn validate_receipt(
+    paths: &Paths,
+    receipt: &Receipt,
+    id: &str,
+    version: &str,
+    channel: Channel,
+) -> Result<()> {
+    receipt.validate()?;
+    if receipt.id != id
+        || receipt.version != version
+        || receipt.channel != channel.as_str()
+        || receipt.method == InstallMethod::Dev
+    {
+        return Err(Error::new(
+            "receipt",
+            "The installer receipt does not match this app/version/channel.",
+        ));
+    }
+    paths.guard(&receipt.path)?;
+    owned_paths(paths, receipt)?;
+    if !executable(paths, receipt).is_file() {
+        return Err(Error::new(
+            "installer",
+            "The installer receipt points at a missing executable.",
+        ));
+    }
+    Ok(())
+}
+
+/// Write Tools ownership atomically through Link on a worker. Keeps the app's
+/// integration and original installedAt, and updates the one-step previous.
+pub fn claim(paths: &Paths, mut receipt: Receipt, previous: Option<Previous>) -> Result<Receipt> {
+    paths.guard_receipt(&receipt.id)?;
+    paths.guard(&receipt.path)?;
+    owned_paths(paths, &receipt)?;
+    if let Some(previous) = &previous {
+        paths.guard(&previous.path)?;
+    }
+    receipt.managed_by = ManagedBy::Tools;
+    receipt.previous = previous;
+    receipt.updated_at = arcade_link::manifest::now_rfc3339().max(receipt.installed_at.clone());
+    Store::new(&paths.link).write(&receipt)?;
+    Ok(receipt)
+}
+
+/// Transition-only receipt for a release with no self-install contract. Disk
+/// inspection on a worker; no integration files are created or rewritten.
+pub fn legacy_receipt(paths: &Paths, record: &Record) -> Receipt {
+    let os = Os::current();
+    let exe = record
+        .executable
+        .clone()
+        .unwrap_or_else(|| paths.executable(&record.id, os, record.kind == Kind::Tarball));
+    let root = paths.install_root(&record.id, os, record.kind == Kind::Tarball);
+    let now = arcade_link::manifest::now_rfc3339();
+    let autostart = paths.autostart(&record.id, os);
+    let uninstaller = platform::windows_uninstall(record.kind, &root)
+        .ok()
+        .map(|p| p.program)
+        .filter(|p| p.is_file());
+    Receipt {
+        schema: 1,
+        id: record.id.clone(),
+        version: record.version.clone(),
+        channel: record.channel.as_str().into(),
+        method: match record.kind {
+            Kind::Appimage => InstallMethod::Appimage,
+            Kind::Nsis | Kind::Inno => InstallMethod::WindowsInstaller,
+            Kind::Dmg => InstallMethod::MacosBundle,
+            _ => InstallMethod::Tarball,
+        },
+        managed_by: ManagedBy::Tools,
+        path: if record.kind == Kind::Dmg { root } else { exe },
+        integration: Integration {
+            autostart: autostart.is_file().then_some(autostart),
+            uninstaller,
+            ..Integration::default()
+        },
+        previous: None,
+        installed_at: now.clone(),
+        updated_at: now,
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+enum Saved {
+    Missing,
+    Object { relative: PathBuf },
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct SavedEntry {
+    path: PathBuf,
+    saved: Saved,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct PreviousInstallation {
+    pub schema: u32,
+    pub record: Record,
+    pub receipt: Option<Receipt>,
+    pub directory: PathBuf,
+    entries: Vec<SavedEntry>,
+}
+impl PreviousInstallation {
+    pub fn read(paths: &Paths, id: &str) -> Result<Option<Self>> {
+        let file = paths.state().join(format!("{id}.previous.json"));
+        let bytes = match crate::catalog::read_bounded(&file, 1024 * 1024) {
+            Ok(b) => b,
+            Err(e) if !file.exists() && e.code == "io" => return Ok(None),
+            Err(e) => return Err(e),
+        };
+        let previous: Self = serde_json::from_slice(&bytes)?;
+        if previous.schema != 1 || previous.record.id != id {
+            return Err(Error::new(
+                "schema",
+                "Invalid previous installation schema or app ID.",
+            ));
+        }
+        paths.guard(&previous.directory)?;
+        if !previous.directory.starts_with(snapshot_root(paths)) {
+            return Err(Error::new(
+                "paths",
+                "Previous installation escaped its store.",
+            ));
+        }
+        for entry in &previous.entries {
+            guard_entry(paths, &entry.path)?;
+            if let Saved::Object { relative } = &entry.saved {
+                crate::catalog::relative_path(&relative.to_string_lossy())?;
+            }
+        }
+        Ok(Some(previous))
+    }
+    pub fn pointer(&self, paths: &Paths) -> Option<Previous> {
+        let path = if self.record.kind == Kind::Nsis || self.record.kind == Kind::Inno {
+            self.record.package.as_ref()?.path.clone()
+        } else {
+            let target = target(paths, &self.record, self.receipt.as_ref());
+            let entry = self.entries.iter().find(|entry| entry.path == target)?;
+            let Saved::Object { relative } = &entry.saved else {
+                return None;
+            };
+            let backup = self.directory.join(relative);
+            if self.record.kind == Kind::Tarball {
+                let exe = self
+                    .record
+                    .executable
+                    .clone()
+                    .unwrap_or_else(|| paths.executable(&self.record.id, Os::current(), true));
+                backup.join(exe.strip_prefix(target).ok()?)
+            } else {
+                backup
+            }
+        };
+        path.exists().then_some(Previous {
+            version: self.record.version.clone(),
+            path,
+        })
+    }
+    pub fn restore(&self, paths: &Paths) -> Result<()> {
+        restore_entries(paths, &self.directory, &self.entries)
+    }
+    pub fn protocols(&self, paths: &Paths) -> Vec<u32> {
+        if let Some(package) = &self.record.package {
+            return package.release.link_protocol.clone();
+        }
+        let registry_path = paths.link.registry.join(format!("{}.json", self.record.id));
+        self.entries
+            .iter()
+            .find(|entry| entry.path == registry_path)
+            .and_then(|entry| match &entry.saved {
+                Saved::Object { relative } => {
+                    crate::catalog::read_bounded(&self.directory.join(relative), 1024 * 1024).ok()
+                }
+                Saved::Missing => None,
+            })
+            .and_then(|bytes| {
+                arcade_link::manifest::ManifestDocument::from_json(&String::from_utf8_lossy(&bytes))
+                    .ok()
+            })
+            .map(|document| document.manifest.link.protocol)
+            .unwrap_or_else(|| vec![1])
+    }
+    pub fn remove(&self, paths: &Paths) -> Result<()> {
+        paths.guard(&self.directory)?;
+        platform::remove(&self.directory)
+    }
+}
+
+pub(crate) struct Transaction {
+    directory: Option<tempfile::TempDir>,
+    entries: Vec<SavedEntry>,
+    paths: Paths,
+    committed: bool,
+}
+impl Transaction {
+    pub fn begin(
+        paths: &Paths,
+        id: &str,
+        target: &Path,
+        receipt: Option<&Receipt>,
+    ) -> Result<Self> {
+        let root = snapshot_root(paths);
+        paths.guard(&root)?;
+        fs::create_dir_all(&root)?;
+        let directory = tempfile::Builder::new()
+            .prefix(&format!("tools-{id}-"))
+            .tempdir_in(&root)?;
+        let mut transaction = Self {
+            directory: Some(directory),
+            entries: Vec::new(),
+            paths: paths.clone(),
+            committed: false,
+        };
+        let mut files = BTreeSet::from([
+            target.to_path_buf(),
+            paths.guard_receipt(id)?,
+            paths.state().join(format!("{id}.json")),
+            paths.link.registry.join(format!("{id}.json")),
+        ]);
+        if Os::current() == Os::Linux {
+            files.insert(
+                paths
+                    .home
+                    .join("Applications/Arcade/.previous")
+                    .join(paths.executable(id, Os::Linux, false).file_name().unwrap()),
+            );
+        }
+        files.extend(integration_candidates(paths, id));
+        if let Some(receipt) = receipt {
+            files.extend(owned_paths(paths, receipt)?);
+            if let Some(previous) = &receipt.previous {
+                files.insert(previous.path.clone());
+            }
+        }
+        for path in files {
+            transaction.include(&path)?;
+        }
+        Ok(transaction)
+    }
+    pub fn include(&mut self, path: &Path) -> Result<()> {
+        if self.entries.iter().any(|entry| entry.path == path) {
+            return Ok(());
+        }
+        let path = path.to_path_buf();
+        guard_entry(&self.paths, &path)?;
+        let saved = if fs::symlink_metadata(&path).is_ok() {
+            let relative = PathBuf::from(format!(
+                "{}-{}",
+                self.entries.len(),
+                path.file_name().unwrap_or_default().to_string_lossy()
+            ));
+            copy_object(
+                &path,
+                &self.directory.as_ref().unwrap().path().join(&relative),
+            )?;
+            Saved::Object { relative }
+        } else {
+            Saved::Missing
+        };
+        self.entries.push(SavedEntry { path, saved });
+        Ok(())
+    }
+    pub fn previous(&self, record: Record, receipt: Option<Receipt>) -> PreviousInstallation {
+        PreviousInstallation {
+            schema: 1,
+            record,
+            receipt,
+            directory: self.directory.as_ref().unwrap().path().into(),
+            entries: self.entries.clone(),
+        }
+    }
+    pub fn commit(mut self, previous: Option<PreviousInstallation>) -> Result<()> {
+        if let Some(previous) = previous {
+            let file = self
+                .paths
+                .state()
+                .join(format!("{}.previous.json", previous.record.id));
+            let old = PreviousInstallation::read(&self.paths, &previous.record.id)?;
+            arcade_link::paths::write_atomic(&file, &serde_json::to_vec_pretty(&previous)?, true)?;
+            let _ = self.directory.take().unwrap().keep();
+            self.committed = true;
+            if let Some(old) = old {
+                if let Err(e) = old.remove(&self.paths) {
+                    eprintln!("Previous installation cleanup: {e}");
+                }
+            }
+        } else {
+            self.committed = true;
+        }
+        Ok(())
+    }
+}
+impl Drop for Transaction {
+    fn drop(&mut self) {
+        if !self.committed {
+            if let Some(directory) = &self.directory {
+                if let Err(e) = restore_entries(&self.paths, directory.path(), &self.entries) {
+                    eprintln!("Installation rollback: {e}");
+                }
+            }
+        }
+    }
+}
+
+pub(crate) fn target(paths: &Paths, record: &Record, receipt: Option<&Receipt>) -> PathBuf {
+    if record.kind == Kind::Tarball || matches!(record.kind, Kind::Nsis | Kind::Inno) {
+        record
+            .executable
+            .as_ref()
+            .and_then(|p| p.parent())
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| {
+                paths.install_root(&record.id, Os::current(), record.kind == Kind::Tarball)
+            })
+    } else if let Some(receipt) = receipt {
+        receipt.path.clone()
+    } else if record.kind == Kind::Dmg {
+        paths.install_root(&record.id, Os::Macos, false)
+    } else {
+        record
+            .executable
+            .clone()
+            .unwrap_or_else(|| paths.executable(&record.id, Os::current(), false))
+    }
+}
+
+fn snapshot_root(paths: &Paths) -> PathBuf {
+    // Link's Linux installer/uninstaller validates previous within this root.
+    // Keep metadata in Tools state and receipt-addressed binary backups here.
+    if Os::current() == Os::Linux {
+        paths.home.join("Applications/Arcade/.previous")
+    } else {
+        paths.state().join("installations")
+    }
+}
+
+pub(crate) fn owned_paths(paths: &Paths, receipt: &Receipt) -> Result<Vec<PathBuf>> {
+    let integration = &receipt.integration;
+    let mut entries = Vec::new();
+    for path in integration
+        .icons
+        .iter()
+        .chain(integration.desktop_entry.iter())
+        .chain(integration.cli.iter())
+        .chain(integration.autostart.iter())
+        .chain(integration.uninstaller.iter())
+    {
+        let roots = [
+            paths.data.join("applications"),
+            paths.data.join("icons/hicolor"),
+            paths.home.join(".local/bin"),
+            paths.config.join("autostart"),
+            paths.home.join("Library/LaunchAgents"),
+            paths.local.join("Arcade/bin"),
+            paths.local.join("Programs"),
+            paths.roaming.join("Microsoft/Windows/Start Menu/Programs"),
+        ];
+        if !roots
+            .iter()
+            .any(|root| path.starts_with(root) && path != root)
+        {
+            return Err(Error::new(
+                "paths",
+                "Receipt integration escaped Arcade's generated-file locations.",
+            ));
+        }
+        guard_entry(paths, path)?;
+        entries.push(path.clone());
+    }
+    Ok(entries)
+}
+fn integration_candidates(paths: &Paths, id: &str) -> Vec<PathBuf> {
+    let desktop_id = match id {
+        "arcade.box" => "dev.arcadebox.app",
+        "arcade.wheel" => "com.arcadewheel.ArcadeWheel",
+        "arcade.shelf" => "arcade.shelf",
+        "arcade.clipboard" => "dev.arcade.clipboard",
+        _ => return common_integration(paths, id, &id.replace('.', "-")),
+    };
+    common_integration(paths, id, desktop_id)
+}
+fn common_integration(paths: &Paths, id: &str, desktop_id: &str) -> Vec<PathBuf> {
+    let mut paths_out = vec![
+        paths
+            .data
+            .join("applications")
+            .join(format!("{desktop_id}.desktop")),
+        paths.home.join(".local/bin").join(id.replace('.', "-")),
+        paths.autostart(id, Os::current()),
+        paths
+            .config
+            .join("autostart")
+            .join(format!("{desktop_id}.desktop")),
+    ];
+    for size in [16, 22, 24, 32, 48, 64, 96, 128, 192, 256, 512] {
+        paths_out.push(
+            paths
+                .data
+                .join("icons/hicolor")
+                .join(format!("{size}x{size}/apps/{desktop_id}.png")),
+        );
+    }
+    paths_out.push(
+        paths
+            .data
+            .join("icons/hicolor/scalable/apps")
+            .join(format!("{desktop_id}.svg")),
+    );
+    paths_out
+}
+fn guard_entry(paths: &Paths, path: &Path) -> Result<()> {
+    if path
+        == Store::new(&paths.link)
+            .path(
+                path.file_stem()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .as_ref(),
+            )
+            .unwrap_or_default()
+    {
+        paths.guard_receipt(&path.file_stem().unwrap().to_string_lossy())?;
+        return Ok(());
+    }
+    // A CLI symlink itself is owned; its parents must never be symlinked.
+    if fs::symlink_metadata(path).is_ok_and(|m| m.file_type().is_symlink()) {
+        let parent = path
+            .parent()
+            .ok_or_else(|| Error::new("paths", "No integration parent."))?;
+        paths.guard(&parent.join(".arcade-path-check"))
+    } else {
+        paths.guard(path)
+    }
+}
+fn restore_entries(paths: &Paths, directory: &Path, entries: &[SavedEntry]) -> Result<()> {
+    for entry in entries.iter().rev() {
+        guard_entry(paths, &entry.path)?;
+        platform::remove(&entry.path)?;
+        if let Saved::Object { relative } = &entry.saved {
+            fs::create_dir_all(entry.path.parent().unwrap())?;
+            copy_object(&directory.join(relative), &entry.path)?;
+        }
+    }
+    Ok(())
+}
+fn copy_object(source: &Path, destination: &Path) -> Result<()> {
+    let meta = fs::symlink_metadata(source)?;
+    if meta.file_type().is_symlink() {
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(fs::read_link(source)?, destination)?;
+        }
+        #[cfg(windows)]
+        {
+            return Err(Error::new(
+                "paths",
+                "Unexpected Windows installation symlink.",
+            ));
+        }
+    } else if meta.is_dir() {
+        #[cfg(target_os = "macos")]
+        if source.extension().is_some_and(|e| e == "app") {
+            let status = std::process::Command::new("ditto")
+                .arg(source)
+                .arg(destination)
+                .status()?;
+            if !status.success() {
+                return Err(Error::new("installer", "Bundle snapshot failed."));
+            }
+            return Ok(());
+        }
+        fs::create_dir_all(destination)?;
+        for child in fs::read_dir(source)? {
+            let child = child?;
+            copy_object(&child.path(), &destination.join(child.file_name()))?;
+        }
+        fs::set_permissions(destination, meta.permissions())?;
+    } else if meta.is_file() {
+        fs::copy(source, destination)?;
+        fs::set_permissions(destination, meta.permissions())?;
+    } else {
+        return Err(Error::new("paths", "Installation contains a special file."));
+    }
+    Ok(())
+}
