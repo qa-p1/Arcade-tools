@@ -19,10 +19,10 @@ fn shelf_metadata_install_and_data_paths_match_native_application() {
     let paths = Paths::under(Path::new("/isolated"));
     assert!(paths
         .executable(apps::SHELF, Os::Linux, true)
-        .ends_with("data/arcade-shelf/arcade-shelf"));
+        .ends_with("share/arcade-shelf/arcade-shelf"));
     assert!(paths
         .executable(apps::SHELF, Os::Windows, false)
-        .ends_with("local/Programs/Arcade Shelf/arcade-shelf.exe"));
+        .ends_with("Local/Programs/Arcade Shelf/arcade-shelf.exe"));
     assert!(paths
         .executable(apps::SHELF, Os::Macos, false)
         .ends_with("Applications/Arcade Shelf.app/Contents/MacOS/arcade-shelf"));
@@ -144,6 +144,7 @@ fn shelf_bundle_install_replacement_rollback_and_login_ownership() {
         sha256: "0".repeat(64),
         size: None,
         silent: None,
+        install_args: None,
     };
     let (executable, replacement) =
         platform::install(&paths, apps::SHELF, &asset, &archive).unwrap();

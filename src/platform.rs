@@ -36,12 +36,8 @@ impl CommandSpec {
         }
         #[cfg(not(windows))]
         command.args(&self.args);
-        let out = command
-            .env("HOME", &paths.home)
-            .env("XDG_CONFIG_HOME", &paths.config)
-            .env("XDG_DATA_HOME", &paths.data)
-            .env("XDG_CACHE_HOME", &paths.cache)
-            .output()?;
+        child_environment(&mut command, paths);
+        let out = command.stdin(std::process::Stdio::null()).output()?;
         if !out.status.success() {
             return Err(Error::new(
                 "installer",
@@ -55,6 +51,48 @@ impl CommandSpec {
         }
         Ok(())
     }
+}
+
+pub(crate) fn child_environment(command: &mut Command, paths: &Paths) {
+    command
+        .env("HOME", &paths.home)
+        .env("USERPROFILE", &paths.home)
+        .env("LOCALAPPDATA", &paths.local)
+        .env("APPDATA", &paths.roaming)
+        .env("XDG_CONFIG_HOME", &paths.config)
+        .env("XDG_DATA_HOME", &paths.data)
+        .env("XDG_CACHE_HOME", &paths.cache)
+        .env("ARCADE_NO_INSTALL_PROMPT", "1");
+    if paths.isolated {
+        command.env("ARCADE_HOME", &paths.home);
+    }
+}
+
+/// Launch on a worker with process-scoped paths and no inherited stdio. The
+/// reaper blocks on child exit; there is no timer or idle polling.
+pub fn spawn_detached(paths: &Paths, executable: &Path, args: &[String]) -> Result<()> {
+    let mut command = Command::new(executable);
+    child_environment(&mut command, paths);
+    command
+        .args(args)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        command.process_group(0);
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0x00000008 | 0x00000200);
+    }
+    let mut child = command.spawn()?;
+    std::thread::spawn(move || {
+        let _ = child.wait();
+    });
+    Ok(())
 }
 pub fn windows_install(asset: &Asset, file: &Path, destination: &Path) -> Result<CommandSpec> {
     let expected: &[&str] = match asset.kind {
@@ -243,6 +281,8 @@ pub(crate) fn install_observed(
                 .persist(&executable)
                 .map_err(|e| Error::from(e.error))?;
         }
+        // Transition release only: retain Shelf/Clipboard tarballs until the
+        // coordinated AppImage release has shipped. New manifests use installArgs.
         Kind::Tarball if id == crate::apps::SHELF => {
             // The bundle is data, never an executable installation script.
             let (_, package) = prepared.as_ref().unwrap();

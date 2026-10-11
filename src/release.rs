@@ -69,6 +69,7 @@ pub enum Kind {
     Inno,
     Msi,
     Dmg,
+    Portable,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Asset {
@@ -81,6 +82,12 @@ pub struct Asset {
     pub size: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub silent: Option<Vec<String>>,
+    #[serde(
+        rename = "installArgs",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub install_args: Option<Vec<String>>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -114,7 +121,7 @@ impl Release {
         let value: serde_json::Value = serde_json::from_slice(bytes)?;
         if let Some(assets) = value.get("assets").and_then(|a| a.as_array()) {
             for a in assets {
-                for key in ["size", "silent"] {
+                for key in ["size", "silent", "installArgs"] {
                     if a.get(key).is_some_and(|v| v.is_null()) {
                         return Err(Error::new("manifest", format!("{key} cannot be null")));
                     }
