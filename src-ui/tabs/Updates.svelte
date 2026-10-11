@@ -35,7 +35,7 @@
   }
 
   function updateAll(): Promise<void> {
-    return (async () => { for (const row of rows) await onUpdate(row.app); })();
+    return (async () => { for (const row of rows) if (!row.state.heldBack) await onUpdate(row.app); })();
   }
 </script>
 
@@ -60,7 +60,7 @@
           <div class="update-app-heading">
             <img class="app-glyph" src="/glyphs/{row.app.id}.svg" alt="" width="30" height="30" />
             <div><h2 id="update-{row.app.id}">{row.app.name}</h2><p class="setting-description">{row.state.installedVersion ?? row.app.version ?? 'Installed version unknown'} → {row.latest?.latestVersion ?? 'New version'} · {row.state.channel}</p></div>
-            <button class="primary-action" type="button" disabled={busy || checking} onclick={() => run(() => onUpdate(row.app), row.app.name)}>Review update</button>
+            <button class="primary-action" type="button" disabled={busy || checking || row.state.heldBack} onclick={() => run(() => onUpdate(row.app), row.app.name)}>{row.state.heldBack ? 'Blocked' : 'Review update'}</button>
           </div>
           {#if row.state.heldBack}<p class="status-warning">This update is held back: {row.state.reason ?? row.latest?.reason ?? 'It is not compatible with a connected app.'}</p>{/if}
           {#if row.latest?.error}<p class="status-warning">Release check issue: {row.latest.error}</p>{/if}

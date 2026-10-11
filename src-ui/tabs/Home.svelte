@@ -15,7 +15,7 @@
   let { active, apps, updates, busy, onOpen, onStartAll, onCheckNow, onSelectTab, run }: Props = $props();
   const installed = $derived(apps.filter((app) => app.installed));
   const running = $derived(installed.filter((app) => app.running));
-  const updatesAvailable = $derived(apps.filter((app) => app.managed && updates?.apps[app.id]?.updateAvailable));
+  const updatesAvailable = $derived(apps.filter((app) => app.managed && updates?.apps[app.id]?.updateAvailable && !updates.apps[app.id]?.heldBack));
   const lastChecked = $derived(updates?.lastCheck ? new Date(updates.lastCheck * 1000).toLocaleString() : 'Not checked yet');
 </script>
 
