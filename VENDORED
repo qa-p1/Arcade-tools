@@ -2,3 +2,11 @@ scripts/arcade-release.py is vendored unchanged from Arcade-link/tools/arcade-re
 Source: https://github.com/qa-p1/Arcade-link
 Commit: 539fa91 (539fa9174f88c3f95a9d84f41253ec2630f72021).
 License: MIT. Keep the canonical generator in sync deliberately; do not fork its schema.
+
+packaging/windows/arcade.iss, arcade.nsh and arcade-integration.ps1 are vendored
+unchanged from Arcade Link commit 01d50d8 (01d50d8611830cfcb63660635ff4958e3b05fc6d).
+SHA-256: arcade.iss 8a3419c09b0f0a4ca16cac91420512d4ed450ed968e65011421dfc5a46ee2ae8;
+arcade.nsh 89e8561134fbde1a15fd0fbc7aba675d2f0092a0d84bee4048bef4732bed6287;
+arcade-integration.ps1 42941e61b3da59bdf58c7df30098bb7bf75b827d6f81e4d5fb62e0f75fdfae5b.
+The Link accelerator and shortcut APIs are consumed from that pinned git revision,
+not copied into this repository.
