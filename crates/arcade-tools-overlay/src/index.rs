@@ -3,118 +3,23 @@
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 
-use serde::Deserialize;
-
 pub const MISSING_MESSAGE: &str = "Open Arcade Tools once to build the shortcut index";
 const MAX_INDEX_BYTES: u64 = 8 * 1024 * 1024;
 
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Index {
-    pub schema: u32,
-    pub built_at: String,
-    pub os: String,
-    pub apps: Vec<App>,
-    pub arcade: Vec<ArcadeShortcut>,
-    pub wm: Option<WindowManager>,
-    #[serde(default)]
-    pub conflicts: Vec<Conflict>,
-}
+/// Thin overlay behavior around the builder's shared schema types.
+#[derive(Debug)]
+pub struct Index(pub arcade_shortcuts::Index);
 
-#[derive(Debug, Deserialize)]
-pub struct App {
-    pub id: String,
-    pub name: String,
-    pub source: String,
-    #[serde(rename = "match")]
-    pub matches: AppMatch,
-    pub groups: Vec<Group>,
+impl std::ops::Deref for Index {
+    type Target = arcade_shortcuts::Index;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
-
-#[derive(Debug, Default, Deserialize)]
-pub struct AppMatch {
-    #[serde(default)]
-    pub class: Vec<String>,
-    #[serde(default)]
-    pub exe: Vec<String>,
-    #[serde(default)]
-    pub bundle: Vec<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct Group {
-    pub title: String,
-    #[serde(default)]
-    pub context: Option<String>,
-    pub shortcuts: Vec<Shortcut>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct Shortcut {
-    pub id: String,
-    pub title: String,
-    pub keys: Vec<String>,
-    pub display: Vec<String>,
-    #[serde(default)]
-    pub description: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct ArcadeShortcut {
-    pub app: String,
-    pub name: String,
-    pub id: String,
-    pub title: String,
-    pub keys: Vec<String>,
-    pub display: Vec<String>,
-    pub rebindable: bool,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct WindowManager {
-    pub name: String,
-    pub config_kind: Option<String>,
-    pub groups: Vec<WmGroup>,
-    #[serde(default)]
-    pub warnings: Vec<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct WmGroup {
-    pub title: String,
-    pub shortcuts: Vec<WmShortcut>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct WmShortcut {
-    pub chord: String,
-    pub display: String,
-    pub label: String,
-    pub detail: Option<String>,
-    pub submap: Option<String>,
-    pub state: String,
-    pub origin: Option<Origin>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct Origin {
-    pub file: String,
-    pub line: u32,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct Conflict {
-    pub chord: String,
-    pub a: ConflictSide,
-    pub b: ConflictSide,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct ConflictSide {
-    pub kind: String,
-    pub owner: String,
-    pub label: String,
+impl std::ops::DerefMut for Index {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -126,14 +31,15 @@ pub enum MatchKind {
 
 impl Index {
     pub fn parse(bytes: &[u8]) -> Result<Self, String> {
-        let index: Self = serde_json::from_slice(bytes).map_err(|e| e.to_string())?;
+        let index: arcade_shortcuts::Index =
+            serde_json::from_slice(bytes).map_err(|e| e.to_string())?;
         if index.schema != 1 {
             return Err(format!(
                 "unsupported shortcut index schema {}",
                 index.schema
             ));
         }
-        Ok(index)
+        Ok(Self(index))
     }
 
     pub fn load(path: &Path) -> Result<Self, String> {
@@ -153,49 +59,56 @@ impl Index {
             _ => identity,
         };
         self.apps.iter().position(|app| {
-            let list = match kind {
-                MatchKind::Class => &app.matches.class,
-                MatchKind::Exe => &app.matches.exe,
-                MatchKind::Bundle => &app.matches.bundle,
+            let key = match kind {
+                MatchKind::Class => "class",
+                MatchKind::Exe => "exe",
+                MatchKind::Bundle => "bundle",
             };
-            list.iter()
-                .any(|candidate| candidate.eq_ignore_ascii_case(identity))
+            app.matches.get(key).is_some_and(|list| {
+                list.iter()
+                    .any(|candidate| candidate.eq_ignore_ascii_case(identity))
+            })
         })
     }
 
     pub fn has_conflict(&self, kind: &str, owner: &str, label: &str, keys: &[String]) -> bool {
         self.conflicts.iter().any(|conflict| {
-            keys.iter()
-                .any(|key| normalized_chord(key) == normalized_chord(&conflict.chord))
-                && [&conflict.a, &conflict.b].iter().any(|side| {
-                    side.kind.eq_ignore_ascii_case(kind)
-                        && side.owner.eq_ignore_ascii_case(owner)
-                        && side.label.eq_ignore_ascii_case(label)
-                })
+            keys.iter().any(|key| {
+                arcade_shortcuts::keys::conflicts(
+                    &normalized_chord(key),
+                    &normalized_chord(&conflict.chord),
+                )
+            }) && [&conflict.a, &conflict.b].iter().any(|side| {
+                side.kind.eq_ignore_ascii_case(kind)
+                    && side.owner.eq_ignore_ascii_case(owner)
+                    && side.label.eq_ignore_ascii_case(label)
+            })
         })
     }
 }
 
 fn normalized_chord(chord: &str) -> String {
-    let mut parts: Vec<_> = chord
-        .split('+')
-        .map(|p| p.trim().to_ascii_lowercase())
-        .collect();
-    parts.sort_unstable();
-    parts.join("+")
+    arcade_shortcuts::keys::normalize(chord).unwrap_or_else(|| chord.to_owned())
 }
 
 pub fn default_path() -> io::Result<PathBuf> {
-    if let Some(root) = std::env::var_os("ARCADE_HOME") {
-        return Ok(PathBuf::from(root).join("cache/arcade/tools/shortcuts-index.json"));
+    arcade_shortcuts::default_index_path()
+}
+
+/// A missing override file is normal. A bad one does not hide a valid index.
+pub fn apply_saved_labels(index: &mut Index) {
+    let result = arcade_shortcuts::labels::default_path()
+        .map_err(|error| error.to_string())
+        .and_then(|path| {
+            if !path.exists() {
+                return Ok(Default::default());
+            }
+            arcade_shortcuts::labels::load_user_labels(&path)
+        });
+    match result {
+        Ok(labels) => index.apply_user_labels(&labels),
+        Err(error) => eprintln!("arcade-tools-overlay: shortcut labels: {error}"),
     }
-    #[cfg(target_os = "linux")]
-    if let Some(cache) = std::env::var_os("XDG_CACHE_HOME") {
-        return Ok(PathBuf::from(cache).join("arcade/tools/shortcuts-index.json"));
-    }
-    directories::BaseDirs::new()
-        .map(|dirs| dirs.cache_dir().join("arcade/tools/shortcuts-index.json"))
-        .ok_or_else(|| io::Error::other("cannot locate the user cache directory"))
 }
 
 #[cfg(test)]
@@ -211,7 +124,6 @@ mod tests {
         assert_eq!(
             index
                 .wm
-                .unwrap()
                 .groups
                 .iter()
                 .map(|g| g.shortcuts.len())
@@ -264,5 +176,60 @@ mod tests {
             &["Alt+Ctrl+V".into()]
         ));
         assert!(!index.has_conflict("app", "firefox", "Paste", &["Ctrl+Alt+V".into()]));
+    }
+
+    #[test]
+    fn shared_schema_overrides_global_and_submap_labels_without_losing_badges() {
+        let mut index = Index::parse(FIXTURE).unwrap();
+        let global = index
+            .wm
+            .groups
+            .iter()
+            .flat_map(|group| &group.shortcuts)
+            .find(|bind| bind.chord == "Ctrl+Alt+V")
+            .unwrap()
+            .clone();
+        let mut modal = global.clone();
+        modal.submap = Some("resize".into());
+        index.wm.groups[0].shortcuts.push(modal);
+        index.apply_user_labels(&arcade_shortcuts::labels::UserLabels::from([
+            ("|Ctrl+Alt+V".into(), "My audio".into()),
+            ("resize|Ctrl+Alt+V".into(), "Resize audio".into()),
+            ("|Super+T".into(), "  ".into()),
+        ]));
+        let binds = index
+            .wm
+            .groups
+            .iter()
+            .flat_map(|group| &group.shortcuts)
+            .filter(|bind| bind.chord == "Ctrl+Alt+V")
+            .collect::<Vec<_>>();
+        assert_eq!(
+            binds
+                .iter()
+                .find(|bind| bind.submap.is_none())
+                .unwrap()
+                .label,
+            "My audio"
+        );
+        assert_eq!(
+            binds
+                .iter()
+                .find(|bind| bind.submap.is_some())
+                .unwrap()
+                .label,
+            "Resize audio"
+        );
+        assert!(index.has_conflict("wm", "hyprland", "My audio", &["Alt+Ctrl+V".into()]));
+        assert_eq!(index.conflicts.len(), 3);
+        assert!(index.has_conflict("wm", "hyprland", "Resize audio", &["Ctrl+Alt+V".into()]));
+        let mut model = crate::model::Model::new(Some(index), Some(0));
+        model.type_text("My audio");
+        assert!(model
+            .sections()
+            .iter()
+            .flat_map(|section| &section.groups)
+            .flat_map(|group| &group.rows)
+            .any(|row| row.title == "My audio" && row.conflict));
     }
 }

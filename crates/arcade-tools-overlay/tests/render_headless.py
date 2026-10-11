@@ -200,6 +200,29 @@ def run(binary: Path, samples: int, output: Path) -> None:
                 active = None
                 assert not (root / "arcade/run/tools-overlay/instance.json").exists(), "idle instance metadata left behind"
 
+            # Labels saved by the Shortcuts tab are read on the next launch.
+            labels = root / "arcade/config/arcade/tools/shortcut-labels.json"
+            labels.parent.mkdir(parents=True)
+            labels.write_text(json.dumps({"|Ctrl+Alt+V": "Custom audio panel"}))
+            target.focus()
+            active = Render(binary, env)
+            command(env, "xdotool", "type", "--delay", "0", "custom audio panel")
+            screenshot(env, output / "custom-label.png", active.window)
+            command(env, "xdotool", "key", "ctrl+u")
+            command(env, "xdotool", "type", "--delay", "0", "no such shortcut zzz")
+            screenshot(env, output / "no-label-match.png", active.window)
+            assert pixels(output / "custom-label.png", "1100x490+0+190") != pixels(output / "no-label-match.png", "1100x490+0+190"), "saved label was not searchable"
+            command(env, str(binary), "--hide")
+            active.closed()
+            active = None
+            labels.write_text("{invalid")
+            active = Render(binary, env)
+            assert any("shortcut labels:" in line for line in active.lines), "corrupt labels lacked a diagnostic"
+            command(env, str(binary), "--hide")
+            active.closed()
+            active = None
+            labels.unlink()
+
             # --show on an existing instance is idempotent; --toggle closes it.
             active = Render(binary, env)
             command(env, str(binary), "--show", "--index", str(FIXTURE))

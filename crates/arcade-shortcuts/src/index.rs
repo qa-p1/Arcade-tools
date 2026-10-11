@@ -1,13 +1,17 @@
 //! Pinned overlay index, assembled on a worker and atomically published once.
 
-use crate::{
-    hyprland::{ConfigKind, HyprlandReport},
-    keys, labels, read, BindState, Origin, WmBind,
-};
+#[cfg(feature = "builder")]
+use crate::{hyprland::HyprlandReport, read, WmBind};
+use crate::{keys, labels, BindState, ConfigKind, Origin};
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "builder")]
 use serde_json::Value;
-use std::collections::{BTreeMap, BTreeSet};
-use std::io::{self, BufWriter, Read, Write};
+use std::collections::BTreeMap;
+#[cfg(feature = "builder")]
+use std::collections::BTreeSet;
+use std::io;
+#[cfg(feature = "builder")]
+use std::io::{BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -35,6 +39,7 @@ impl Os {
             Self::Macos => "macos",
         }
     }
+    #[cfg(feature = "builder")]
     fn match_key(self) -> &'static str {
         match self {
             Self::Linux => "class",
@@ -44,6 +49,7 @@ impl Os {
     }
 }
 
+#[cfg(feature = "builder")]
 #[derive(Debug, Clone)]
 pub struct BuildInputs {
     pub os: Os,
@@ -56,6 +62,7 @@ pub struct BuildInputs {
     pub built_at: Option<String>,
 }
 
+#[cfg(feature = "builder")]
 impl Default for BuildInputs {
     fn default() -> Self {
         Self {
@@ -78,7 +85,9 @@ pub struct Index {
     pub os: Os,
     pub apps: Vec<AppSheet>,
     pub arcade: Vec<ArcadeShortcut>,
+    #[serde(default, deserialize_with = "wm_or_empty")]
     pub wm: WmIndex,
+    #[serde(default)]
     pub conflicts: Vec<Conflict>,
 }
 
@@ -95,6 +104,7 @@ pub struct AppSheet {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AppGroup {
     pub title: String,
+    #[serde(default, deserialize_with = "context_or_empty")]
     pub context: String,
     pub shortcuts: Vec<AppShortcut>,
 }
@@ -123,8 +133,10 @@ pub struct ArcadeShortcut {
 #[serde(rename_all = "camelCase")]
 pub struct WmIndex {
     pub name: String,
+    #[serde(default)]
     pub config_kind: ConfigKind,
     pub groups: Vec<WmGroup>,
+    #[serde(default)]
     pub warnings: Vec<String>,
 }
 
@@ -159,8 +171,95 @@ pub struct Conflict {
     pub b: ConflictParty,
 }
 
+impl Default for WmIndex {
+    fn default() -> Self {
+        Self {
+            name: "none".into(),
+            config_kind: ConfigKind::None,
+            groups: Vec::new(),
+            warnings: Vec::new(),
+        }
+    }
+}
+
+fn wm_or_empty<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<WmIndex, D::Error> {
+    Ok(Option::<WmIndex>::deserialize(deserializer)?.unwrap_or_default())
+}
+
+fn context_or_empty<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<String, D::Error> {
+    Ok(Option::<String>::deserialize(deserializer)?.unwrap_or_default())
+}
+
+impl Index {
+    /// Apply labels edited after publication and retain every conflict participant,
+    /// including submaps whose original labels were identical.
+    pub fn apply_user_labels(&mut self, overrides: &labels::UserLabels) {
+        if overrides.is_empty() {
+            return;
+        }
+        let mut renamed = Vec::new();
+        for bind in self
+            .wm
+            .groups
+            .iter_mut()
+            .flat_map(|group| &mut group.shortcuts)
+        {
+            let previous = bind.label.clone();
+            if let Some(label) =
+                labels::user_label(overrides, bind.submap.as_deref(), Some(&bind.chord))
+            {
+                bind.label = label.trim().to_owned();
+            }
+            renamed.push((bind.chord.clone(), previous, bind.label.clone()));
+        }
+        let original = std::mem::take(&mut self.conflicts);
+        for conflict in original {
+            let mut variants = vec![conflict];
+            for a_side in [true, false] {
+                let mut expanded = Vec::new();
+                for variant in variants {
+                    let side = if a_side { &variant.a } else { &variant.b };
+                    let candidates = renamed
+                        .iter()
+                        .filter(|(chord, previous, _)| {
+                            side.kind == "wm"
+                                && side.owner == self.wm.name
+                                && side.label == *previous
+                                && keys::conflicts(chord, &variant.chord)
+                        })
+                        .map(|(_, _, label)| label)
+                        .collect::<Vec<_>>();
+                    if candidates.is_empty() {
+                        expanded.push(variant);
+                    } else {
+                        for label in candidates {
+                            let mut updated = variant.clone();
+                            let side = if a_side {
+                                &mut updated.a
+                            } else {
+                                &mut updated.b
+                            };
+                            side.label.clone_from(label);
+                            if !expanded.contains(&updated) {
+                                expanded.push(updated);
+                            }
+                        }
+                    }
+                }
+                variants = expanded;
+            }
+            for variant in variants {
+                if !self.conflicts.contains(&variant) {
+                    self.conflicts.push(variant);
+                }
+            }
+        }
+    }
+}
+
 /// Input failures are isolated per file and reported in `wm.warnings`; valid
 /// sources still produce an index. This function performs no Hyprland IPC.
+#[cfg(feature = "builder")]
 pub fn build_index(inputs: &BuildInputs) -> Index {
     let mut warnings = Vec::new();
     let user_labels = inputs
@@ -296,6 +395,7 @@ pub fn build_index(inputs: &BuildInputs) -> Index {
     }
 }
 
+#[cfg(feature = "builder")]
 fn read_json(path: &Path, warnings: &mut Vec<String>) -> Option<Value> {
     let result = std::fs::File::open(path)
         .and_then(|file| {
@@ -319,6 +419,7 @@ fn read_json(path: &Path, warnings: &mut Vec<String>) -> Option<Value> {
     }
 }
 
+#[cfg(feature = "builder")]
 fn json_files(dir: &Path, warnings: &mut Vec<String>) -> Vec<PathBuf> {
     let entries = match std::fs::read_dir(dir) {
         Ok(entries) => entries,
@@ -336,6 +437,7 @@ fn json_files(dir: &Path, warnings: &mut Vec<String>) -> Vec<PathBuf> {
     files
 }
 
+#[cfg(feature = "builder")]
 fn effective_keys(
     value: Option<&Value>,
     os: Os,
@@ -375,6 +477,7 @@ fn effective_keys(
     result
 }
 
+#[cfg(feature = "builder")]
 fn sheet(
     value: &Value,
     source: &str,
@@ -470,6 +573,7 @@ fn sheet(
     })
 }
 
+#[cfg(feature = "builder")]
 fn doc_shortcut<'a>(doc: &'a Value, id: &str) -> Option<&'a Value> {
     doc.get("groups")?
         .as_array()?
@@ -480,6 +584,7 @@ fn doc_shortcut<'a>(doc: &'a Value, id: &str) -> Option<&'a Value> {
         .find(|s| s.get("id").and_then(Value::as_str) == Some(id))
 }
 
+#[cfg(feature = "builder")]
 fn inferred_match(manifest: &Value, id: &str, os: Os) -> BTreeMap<String, Vec<String>> {
     let values = match os {
         Os::Linux => vec![id.to_owned(), id.replace('.', "-")],
@@ -499,6 +604,7 @@ fn inferred_match(manifest: &Value, id: &str, os: Os) -> BTreeMap<String, Vec<St
     BTreeMap::from([(os.match_key().into(), values)])
 }
 
+#[cfg(feature = "builder")]
 fn wm_groups(
     binds: &[WmBind],
     os: Os,
@@ -580,6 +686,7 @@ fn wm_groups(
     groups
 }
 
+#[cfg(feature = "builder")]
 fn conflicts(arcade: &[ArcadeShortcut], wm: &WmIndex) -> Vec<Conflict> {
     let party = |a: &ArcadeShortcut| ConflictParty {
         kind: "arcade".into(),
@@ -645,6 +752,7 @@ fn conflicts(arcade: &[ArcadeShortcut], wm: &WmIndex) -> Vec<Conflict> {
     result
 }
 
+#[cfg(feature = "builder")]
 impl Index {
     /// Same-directory temp file + flush + atomic replace. Interrupted writes
     /// leave the last complete index intact; no startup configuration is edited.
@@ -701,7 +809,7 @@ fn cache_path(
     Some(cache.join("arcade/tools/shortcuts-index.json"))
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "builder"))]
 mod tests {
     use super::*;
     use serde_json::json;

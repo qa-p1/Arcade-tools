@@ -3,6 +3,8 @@
 An on-demand native shortcut sheet. The process reads the prebuilt schema-1
 index, captures the focused application before mapping, shows the sheet, and
 exits on close. It does not build the index or evaluate shortcut configurations.
+It reads shared schema types from `arcade-shortcuts` with its builder feature
+disabled, so Lua/config readers are not linked into this binary.
 
 ## Run
 
@@ -31,6 +33,13 @@ path. Unknown JSON fields are ignored and `wm: null` is accepted. Missing,
 corrupt, oversized, or incompatible indexes display:
 
 > Open Arcade Tools once to build the shortcut index
+
+Labels saved by the Shortcuts tab are read from
+`<config>/arcade/tools/shortcut-labels.json`, or
+`$ARCADE_HOME/config/arcade/tools/shortcut-labels.json`. The object keys are
+`<submap>|<canonical chord>`; an empty submap means global. Nonempty overrides
+replace WM labels and remain searchable, and conflict badges keep their labels
+aligned. A missing or corrupt labels file leaves the indexed labels usable.
 
 ## Interaction and platforms
 
@@ -101,6 +110,7 @@ attribution under MIT OR Apache-2.0. There is no dependency on Find.
 
 | Dependency | Purpose |
 | --- | --- |
+| arcade-shortcuts (local, builder disabled) | Shared index types, key normalization, label overrides |
 | winit 0.30.13, softbuffer 0.4 | Native window and software presentation |
 | cosmic-text 0.15, tiny-skia 0.11 | Cached text shaping and opaque software drawing |
 | smithay-client-toolkit 0.19, wayland-client 0.31 | Linux layer shell, input, scaling, shared-memory buffers |

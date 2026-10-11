@@ -252,7 +252,8 @@ impl Model {
         }
         if self.scope == Scope::All || self.scope == Scope::WindowManager {
             let mut groups = Vec::new();
-            if let Some(wm) = &index.wm {
+            {
+                let wm = &index.wm;
                 for group in &wm.groups {
                     let rows: Vec<_> = group
                         .shortcuts
@@ -270,9 +271,11 @@ impl Model {
                                 return None;
                             }
                             let mut detail = shortcut.detail.clone().unwrap_or_default();
-                            let state = match shortcut.state.as_str() {
-                                "configuredOnly" => "Configured, not active",
-                                "runtimeOnly" => "Runtime binding",
+                            let state = match shortcut.state {
+                                arcade_shortcuts::BindState::ConfiguredOnly => {
+                                    "Configured, not active"
+                                }
+                                arcade_shortcuts::BindState::RuntimeOnly => "Runtime binding",
                                 _ => "",
                             };
                             for extra in [state, shortcut.submap.as_deref().unwrap_or_default()] {

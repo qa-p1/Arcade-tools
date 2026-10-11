@@ -75,7 +75,10 @@ fn run(timing: Timing) -> Result<(), String> {
         .spawn(move || {
             let began = Instant::now();
             let index = match index::Index::load(&path) {
-                Ok(index) => Some(index),
+                Ok(mut index) => {
+                    index::apply_saved_labels(&mut index);
+                    Some(index)
+                }
                 Err(error) => {
                     eprintln!("arcade-tools-overlay: index {}: {error}", path.display());
                     None
