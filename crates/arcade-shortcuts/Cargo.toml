@@ -6,11 +6,23 @@ rust-version = "1.88"
 license = "MIT"
 description = "Prebuilt shortcut index and sandboxed Hyprland sources for Arcade Tools"
 
+[features]
+default = ["builder"]
+builder = ["dep:mlua", "dep:glob", "dep:tempfile", "dep:chrono"]
+
 [dependencies]
-mlua = { version = "0.12", features = ["lua55", "vendored"] }
+mlua = { version = "0.12", features = ["lua55", "vendored"], optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-glob = "0.3"
+glob = { version = "0.3", optional = true }
 directories = "6"
-tempfile = "3"
-chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+tempfile = { version = "3", optional = true }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"], optional = true }
+
+[[example]]
+name = "dump"
+required-features = ["builder"]
+
+[[test]]
+name = "fixtures"
+required-features = ["builder"]

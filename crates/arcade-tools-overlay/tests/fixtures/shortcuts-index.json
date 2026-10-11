@@ -1,0 +1,868 @@
+{
+  "schema": 1,
+  "builtAt": "2026-10-11T12:00:00Z",
+  "os": "linux",
+  "apps": [
+    {
+      "id": "firefox",
+      "name": "Firefox",
+      "source": "catalog",
+      "match": {
+        "class": [
+          "firefox",
+          "org.mozilla.firefox"
+        ],
+        "exe": [
+          "firefox.exe"
+        ],
+        "bundle": [
+          "org.mozilla.firefox"
+        ]
+      },
+      "groups": [
+        {
+          "title": "Tabs",
+          "context": "tabs",
+          "shortcuts": [
+            {
+              "id": "new-tab",
+              "title": "Open a new tab",
+              "keys": [
+                "Ctrl+T"
+              ],
+              "display": [
+                "Ctrl+T"
+              ],
+              "description": null
+            },
+            {
+              "id": "close-tab",
+              "title": "Close this tab",
+              "keys": [
+                "Ctrl+W"
+              ],
+              "display": [
+                "Ctrl+W"
+              ],
+              "description": null
+            },
+            {
+              "id": "restore-tab",
+              "title": "Restore closed tab",
+              "keys": [
+                "Ctrl+Shift+T"
+              ],
+              "display": [
+                "Ctrl+Shift+T"
+              ],
+              "description": null
+            },
+            {
+              "id": "next-tab",
+              "title": "Next tab",
+              "keys": [
+                "Ctrl+Tab"
+              ],
+              "display": [
+                "Ctrl+Tab"
+              ],
+              "description": null
+            }
+          ]
+        },
+        {
+          "title": "Navigation",
+          "context": "browser",
+          "shortcuts": [
+            {
+              "id": "address",
+              "title": "Focus address bar",
+              "keys": [
+                "Ctrl+L"
+              ],
+              "display": [
+                "Ctrl+L"
+              ],
+              "description": null
+            },
+            {
+              "id": "back",
+              "title": "Go back",
+              "keys": [
+                "Alt+Left"
+              ],
+              "display": [
+                "Alt+Left"
+              ],
+              "description": null
+            },
+            {
+              "id": "reload",
+              "title": "Reload page",
+              "keys": [
+                "Ctrl+R"
+              ],
+              "display": [
+                "Ctrl+R"
+              ],
+              "description": null
+            },
+            {
+              "id": "find",
+              "title": "Find in page",
+              "keys": [
+                "Ctrl+F"
+              ],
+              "display": [
+                "Ctrl+F"
+              ],
+              "description": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "kitty",
+      "name": "Kitty",
+      "source": "catalog",
+      "match": {
+        "class": [
+          "kitty"
+        ]
+      },
+      "groups": [
+        {
+          "title": "Terminal",
+          "context": "terminal",
+          "shortcuts": [
+            {
+              "id": "copy",
+              "title": "Copy selection",
+              "keys": [
+                "Ctrl+Shift+C"
+              ],
+              "display": [
+                "Ctrl+Shift+C"
+              ],
+              "description": null
+            },
+            {
+              "id": "paste",
+              "title": "Paste clipboard",
+              "keys": [
+                "Ctrl+Shift+V"
+              ],
+              "display": [
+                "Ctrl+Shift+V"
+              ],
+              "description": null
+            },
+            {
+              "id": "split",
+              "title": "Split window",
+              "keys": [
+                "Ctrl+Shift+Enter"
+              ],
+              "display": [
+                "Ctrl+Shift+Enter"
+              ],
+              "description": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "arcade.find",
+      "name": "Arcade Find",
+      "source": "arcade",
+      "match": {
+        "class": [
+          "arcade-find",
+          "Arcade.Find"
+        ],
+        "exe": [
+          "arcade-find.exe"
+        ],
+        "bundle": [
+          "app.arcade.find"
+        ]
+      },
+      "groups": [
+        {
+          "title": "Search",
+          "context": "overlay",
+          "shortcuts": [
+            {
+              "id": "open",
+              "title": "Open selected file",
+              "keys": [
+                "Enter"
+              ],
+              "display": [
+                "Enter"
+              ],
+              "description": null
+            },
+            {
+              "id": "actions",
+              "title": "Show file actions",
+              "keys": [
+                "Tab"
+              ],
+              "display": [
+                "Tab"
+              ],
+              "description": null
+            },
+            {
+              "id": "dismiss",
+              "title": "Close Find",
+              "keys": [
+                "Esc"
+              ],
+              "display": [
+                "Esc"
+              ],
+              "description": null
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "arcade": [
+    {
+      "app": "arcade.find",
+      "name": "Arcade Find",
+      "id": "toggle",
+      "title": "Show or hide Find",
+      "keys": [
+        "Ctrl+Alt+F"
+      ],
+      "display": [
+        "Ctrl+Alt+F"
+      ],
+      "rebindable": true
+    },
+    {
+      "app": "arcade.clipboard",
+      "name": "Arcade Clipboard",
+      "id": "toggle",
+      "title": "Show clipboard",
+      "keys": [
+        "Ctrl+Alt+V"
+      ],
+      "display": [
+        "Ctrl+Alt+V"
+      ],
+      "rebindable": true
+    },
+    {
+      "app": "arcade.lens",
+      "name": "Arcade Lens",
+      "id": "toggle",
+      "title": "Show Lens",
+      "keys": [
+        "Ctrl+Alt+Shift+L"
+      ],
+      "display": [
+        "Ctrl+Alt+Shift+L"
+      ],
+      "rebindable": true
+    },
+    {
+      "app": "arcade.box",
+      "name": "Arcade Box",
+      "id": "toggle",
+      "title": "Open Box",
+      "keys": [
+        "Ctrl+Alt+Space"
+      ],
+      "display": [
+        "Ctrl+Alt+Space"
+      ],
+      "rebindable": true
+    },
+    {
+      "app": "arcade.look",
+      "name": "Arcade Look",
+      "id": "toggle",
+      "title": "Show Look",
+      "keys": [
+        "Super+Shift+Space"
+      ],
+      "display": [
+        "Super+Shift+Space"
+      ],
+      "rebindable": true
+    },
+    {
+      "app": "arcade.wheel",
+      "name": "Arcade Wheel",
+      "id": "toggle",
+      "title": "Open Wheel",
+      "keys": [
+        "Ctrl+Shift+Space"
+      ],
+      "display": [
+        "Ctrl+Shift+Space"
+      ],
+      "rebindable": true
+    },
+    {
+      "app": "arcade.shelf",
+      "name": "Arcade Shelf",
+      "id": "toggle",
+      "title": "Show Shelf",
+      "keys": [
+        "F8"
+      ],
+      "display": [
+        "F8"
+      ],
+      "rebindable": true
+    }
+  ],
+  "wm": {
+    "name": "hyprland",
+    "configKind": "lua",
+    "groups": [
+      {
+        "title": "Windows",
+        "shortcuts": [
+          {
+            "chord": "Super+Q",
+            "display": "Super+Q",
+            "label": "Close active window",
+            "detail": "Caelestia: Close active window",
+            "submap": null,
+            "state": "active",
+            "origin": {
+              "file": "~/.config/hypr/hyprland/keybinds.lua",
+              "line": 121
+            }
+          },
+          {
+            "chord": "Super+F",
+            "display": "Super+F",
+            "label": "Toggle fullscreen",
+            "detail": "Caelestia: Toggle fullscreen",
+            "submap": null,
+            "state": "active",
+            "origin": {
+              "file": "~/.config/hypr/hyprland/keybinds.lua",
+              "line": 122
+            }
+          },
+          {
+            "chord": "Super+V",
+            "display": "Super+V",
+            "label": "Toggle floating",
+            "detail": "Caelestia: Toggle floating",
+            "submap": null,
+            "state": "active",
+            "origin": {
+              "file": "~/.config/hypr/hyprland/keybinds.lua",
+              "line": 123
+            }
+          },
+          {
+            "chord": "Super+J",
+            "display": "Super+J",
+            "label": "Move focus down",
+            "detail": "Caelestia: Move focus down",
+            "submap": null,
+            "state": "active",
+            "origin": {
+              "file": "~/.config/hypr/hyprland/keybinds.lua",
+              "line": 124
+            }
+          },
+          {
+            "chord": "Super+K",
+            "display": "Super+K",
+            "label": "Move focus up",
+            "detail": "Caelestia: Move focus up",
+            "submap": null,
+            "state": "active",
+            "origin": {
+              "file": "~/.config/hypr/hyprland/keybinds.lua",
+              "line": 125
+            }
+          },
+          {
+            "chord": "Super+H",
+            "display": "Super+H",
+            "label": "Move focus left",
+            "detail": "Caelestia: Move focus left",
+            "submap": null,
+            "state": "active",
+            "origin": {
+              "file": "~/.config/hypr/hyprland/keybinds.lua",
+              "line": 126
+            }
+          },
+          {
+            "chord": "Super+L",
+            "display": "Super+L",
+            "label": "Move focus right",
+            "detail": "Caelestia: Move focus right",
+            "submap": null,
+            "state": "active",
+            "origin": {
+              "file": "~/.config/hypr/hyprland/keybinds.lua",
+              "line": 127
+            }
+          },
+          {
+            "chord": "Super+Shift+J",
+            "display": "Super+Shift+J",
+            "label": "Move window down",
+            "detail": "Caelestia: Move window down",
+            "submap": null,
+            "state": "active",
+            "origin": {
+              "file": "~/.config/hypr/hyprland/keybinds.lua",
+              "line": 128
+            }
+          }
+        ]
+      },
+      {
+        "title": "Workspaces",
+        "shortcuts": [
+          {
+            "chord": "Super+1",
+            "display": "Super+1",
+            "label": "Go to workspace 1",
+            "detail": "Caelestia: Go to workspace 1",
+            "submap": null,
+            "state": "active",
+            "origin": {
+              "file": "~/.config/hypr/hyprland/keybinds.lua",
+              "line": 129
+            }
+          },
+          {
+            "chord": "Super+2",
+            "display": "Super+2",
+            "label": "Go to workspace 2",
+            "detail": "Caelestia: Go to workspace 2",
+            "submap": null,
+            "state": "active",
+            "origin": {
+              "file": "~/.config/hypr/hyprland/keybinds.lua",
+              "line": 130
+            }
+          },
+          {
+            "chord": "Super+3",
+            "display": "Super+3",
+            "label": "Go to workspace 3",
+            "detail": "Caelestia: Go to workspace 3",
+            "submap": null,
+            "state": "active",
+            "origin": {
+              "file": "~/.config/hypr/hyprland/keybinds.lua",
+              "line": 131
+            }
+          },
+          {
+            "chord": "Super+4",
+            "display": "Super+4",
+            "label": "Go to workspace 4",
+            "detail": "Caelestia: Go to workspace 4",
+            "submap": null,
+            "state": "active",
+            "origin": {
+              "file": "~/.config/hypr/hyprland/keybinds.lua",
+              "line": 132
+            }
+          },
+          {
+            "chord": "Super+5",
+            "display": "Super+5",
+            "label": "Go to workspace 5",
+            "detail": "Caelestia: Go to workspace 5",
+            "submap": null,
+            "state": "active",
+            "origin": {
+              "file": "~/.config/hypr/hyprland/keybinds.lua",
+              "line": 133
+            }
+          },
+          {
+            "chord": "Super+6",
+            "display": "Super+6",
+            "label": "Go to workspace 6",
+            "detail": "Caelestia: Go to workspace 6",
+            "submap": null,
+            "state": "active",
+            "origin": {
+              "file": "~/.config/hypr/hyprland/keybinds.lua",
+              "line": 134
+            }
+          },
+          {
+            "chord": "Super+7",
+            "display": "Super+7",
+            "label": "Go to workspace 7",
+            "detail": "Caelestia: Go to workspace 7",
+            "submap": null,
+            "state": "active",
+            "origin": {
+              "file": "~/.config/hypr/hyprland/keybinds.lua",
+              "line": 135
+            }
+          },
+          {
+            "chord": "Super+8",
+            "display": "Super+8",
+            "label": "Go to workspace 8",
+            "detail": "Caelestia: Go to workspace 8",
+            "submap": null,
+            "state": "active",
+            "origin": {
+              "file": "~/.config/hypr/hyprland/keybinds.lua",
+              "line": 136
+            }
+          }
+        ]
+      },
+      {
+        "title": "Move windows",
+        "shortcuts": [
+          {
+            "chord": "Super+Shift+1",
+            "display": "Super+Shift+1",
+            "label": "Move to workspace 1",
+            "detail": "Caelestia: Move to workspace 1",
+            "submap": null,
+            "state": "active",
+            "origin": {
+              "file": "~/.config/hypr/hyprland/keybinds.lua",
+              "line": 137
+            }
+          },
+          {
+            "chord": "Super+Shift+2",
+            "display": "Super+Shift+2",
+            "label": "Move to workspace 2",
+            "detail": "Caelestia: Move to workspace 2",
+            "submap": null,
+            "state": "active",
+            "origin": {
+              "file": "~/.config/hypr/hyprland/keybinds.lua",
+              "line": 138
+            }
+          },
+          {
+            "chord": "Super+Shift+3",
+            "display": "Super+Shift+3",
+            "label": "Move to workspace 3",
+            "detail": "Caelestia: Move to workspace 3",
+            "submap": null,
+            "state": "active",
+            "origin": {
+              "file": "~/.config/hypr/hyprland/keybinds.lua",
+              "line": 139
+            }
+          },
+          {
+            "chord": "Super+Shift+4",
+            "display": "Super+Shift+4",
+            "label": "Move to workspace 4",
+            "detail": "Caelestia: Move to workspace 4",
+            "submap": null,
+            "state": "active",
+            "origin": {
+              "file": "~/.config/hypr/hyprland/keybinds.lua",
+              "line": 140
+            }
+          },
+          {
+            "chord": "Super+Shift+5",
+            "display": "Super+Shift+5",
+            "label": "Move to workspace 5",
+            "detail": "Caelestia: Move to workspace 5",
+            "submap": null,
+            "state": "active",
+            "origin": {
+              "file": "~/.config/hypr/hyprland/keybinds.lua",
+              "line": 141
+            }
+          },
+          {
+            "chord": "Super+Shift+6",
+            "display": "Super+Shift+6",
+            "label": "Move to workspace 6",
+            "detail": "Caelestia: Move to workspace 6",
+            "submap": null,
+            "state": "active",
+            "origin": {
+              "file": "~/.config/hypr/hyprland/keybinds.lua",
+              "line": 142
+            }
+          },
+          {
+            "chord": "Super+Shift+7",
+            "display": "Super+Shift+7",
+            "label": "Move to workspace 7",
+            "detail": "Caelestia: Move to workspace 7",
+            "submap": null,
+            "state": "active",
+            "origin": {
+              "file": "~/.config/hypr/hyprland/keybinds.lua",
+              "line": 143
+            }
+          },
+          {
+            "chord": "Super+Shift+8",
+            "display": "Super+Shift+8",
+            "label": "Move to workspace 8",
+            "detail": "Caelestia: Move to workspace 8",
+            "submap": null,
+            "state": "active",
+            "origin": {
+              "file": "~/.config/hypr/hyprland/keybinds.lua",
+              "line": 144
+            }
+          }
+        ]
+      },
+      {
+        "title": "Media",
+        "shortcuts": [
+          {
+            "chord": "Ctrl+Super+Space",
+            "display": "Ctrl+Super+Space",
+            "label": "Media toggle",
+            "detail": "Caelestia: Media toggle",
+            "submap": null,
+            "state": "active",
+            "origin": {
+              "file": "~/.config/hypr/hyprland/keybinds.lua",
+              "line": 145
+            }
+          },
+          {
+            "chord": "Ctrl+Alt+V",
+            "display": "Ctrl+Alt+V",
+            "label": "Audio settings",
+            "detail": "Caelestia: Audio settings",
+            "submap": null,
+            "state": "active",
+            "origin": {
+              "file": "~/.config/hypr/hyprland/keybinds.lua",
+              "line": 146
+            }
+          },
+          {
+            "chord": "XF86AudioRaiseVolume",
+            "display": "XF86AudioRaiseVolume",
+            "label": "Raise volume",
+            "detail": "Caelestia: Raise volume",
+            "submap": null,
+            "state": "active",
+            "origin": {
+              "file": "~/.config/hypr/hyprland/keybinds.lua",
+              "line": 147
+            }
+          },
+          {
+            "chord": "XF86AudioLowerVolume",
+            "display": "XF86AudioLowerVolume",
+            "label": "Lower volume",
+            "detail": "Caelestia: Lower volume",
+            "submap": null,
+            "state": "active",
+            "origin": {
+              "file": "~/.config/hypr/hyprland/keybinds.lua",
+              "line": 148
+            }
+          },
+          {
+            "chord": "XF86AudioMute",
+            "display": "XF86AudioMute",
+            "label": "Toggle mute",
+            "detail": "Caelestia: Toggle mute",
+            "submap": null,
+            "state": "active",
+            "origin": {
+              "file": "~/.config/hypr/hyprland/keybinds.lua",
+              "line": 149
+            }
+          },
+          {
+            "chord": "XF86AudioPlay",
+            "display": "XF86AudioPlay",
+            "label": "Play or pause",
+            "detail": "Caelestia: Play or pause",
+            "submap": null,
+            "state": "active",
+            "origin": {
+              "file": "~/.config/hypr/hyprland/keybinds.lua",
+              "line": 150
+            }
+          },
+          {
+            "chord": "XF86AudioNext",
+            "display": "XF86AudioNext",
+            "label": "Next track",
+            "detail": "Caelestia: Next track",
+            "submap": null,
+            "state": "active",
+            "origin": {
+              "file": "~/.config/hypr/hyprland/keybinds.lua",
+              "line": 151
+            }
+          },
+          {
+            "chord": "XF86AudioPrev",
+            "display": "XF86AudioPrev",
+            "label": "Previous track",
+            "detail": "Caelestia: Previous track",
+            "submap": null,
+            "state": "active",
+            "origin": {
+              "file": "~/.config/hypr/hyprland/keybinds.lua",
+              "line": 152
+            }
+          }
+        ]
+      },
+      {
+        "title": "Desktop",
+        "shortcuts": [
+          {
+            "chord": "Super+Return",
+            "display": "Super+Return",
+            "label": "Open terminal",
+            "detail": "Caelestia: Open terminal",
+            "submap": null,
+            "state": "active",
+            "origin": {
+              "file": "~/.config/hypr/hyprland/keybinds.lua",
+              "line": 153
+            }
+          },
+          {
+            "chord": "Super+Space",
+            "display": "Super+Space",
+            "label": "Open launcher",
+            "detail": "Caelestia: Open launcher",
+            "submap": null,
+            "state": "active",
+            "origin": {
+              "file": "~/.config/hypr/hyprland/keybinds.lua",
+              "line": 154
+            }
+          },
+          {
+            "chord": "Super+Shift+L",
+            "display": "Super+Shift+L",
+            "label": "Lock session",
+            "detail": "Caelestia: Lock session",
+            "submap": null,
+            "state": "active",
+            "origin": {
+              "file": "~/.config/hypr/hyprland/keybinds.lua",
+              "line": 155
+            }
+          },
+          {
+            "chord": "Super+Shift+S",
+            "display": "Super+Shift+S",
+            "label": "Capture region",
+            "detail": "Caelestia: Capture region",
+            "submap": null,
+            "state": "configuredOnly",
+            "origin": {
+              "file": "~/.config/hypr/hyprland/keybinds.lua",
+              "line": 156
+            }
+          },
+          {
+            "chord": "Print",
+            "display": "Print",
+            "label": "Capture screen",
+            "detail": "Caelestia: Capture screen",
+            "submap": null,
+            "state": "active",
+            "origin": {
+              "file": "~/.config/hypr/hyprland/keybinds.lua",
+              "line": 157
+            }
+          },
+          {
+            "chord": "Super+E",
+            "display": "Super+E",
+            "label": "Open file manager",
+            "detail": "Caelestia: Open file manager",
+            "submap": null,
+            "state": "active",
+            "origin": {
+              "file": "~/.config/hypr/hyprland/keybinds.lua",
+              "line": 158
+            }
+          },
+          {
+            "chord": "Ctrl+Alt+F",
+            "display": "Ctrl+Alt+F",
+            "label": "File search menu",
+            "detail": "Caelestia: File search menu",
+            "submap": null,
+            "state": "active",
+            "origin": {
+              "file": "~/.config/hypr/hyprland/keybinds.lua",
+              "line": 159
+            }
+          },
+          {
+            "chord": "Super+Escape",
+            "display": "Super+Escape",
+            "label": "Session menu",
+            "detail": "Caelestia: Session menu",
+            "submap": null,
+            "state": "runtimeOnly",
+            "origin": {
+              "file": "~/.config/hypr/hyprland/keybinds.lua",
+              "line": 160
+            }
+          }
+        ]
+      }
+    ],
+    "warnings": []
+  },
+  "conflicts": [
+    {
+      "chord": "Ctrl+Alt+V",
+      "a": {
+        "kind": "arcade",
+        "owner": "arcade.clipboard",
+        "label": "Show clipboard"
+      },
+      "b": {
+        "kind": "wm",
+        "owner": "hyprland",
+        "label": "Audio settings"
+      }
+    },
+    {
+      "chord": "Ctrl+Alt+F",
+      "a": {
+        "kind": "arcade",
+        "owner": "arcade.find",
+        "label": "Show or hide Find"
+      },
+      "b": {
+        "kind": "wm",
+        "owner": "hyprland",
+        "label": "File search menu"
+      }
+    }
+  ]
+}
