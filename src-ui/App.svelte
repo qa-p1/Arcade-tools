@@ -6,16 +6,25 @@
   import Sidebar from './components/Sidebar.svelte';
   import { api, appEvents, type AppView, type Channel, type Operation, type UiControlReport, type UiRenderReport } from './lib/api';
   import {
-    attempt, cancelOperation, changeChannel, changeLogin, checkUpdates, confirmOperation,
-    initialize, launchApp, openReleases, receiveInstallRequest, receiveProgress, refresh, reviewInstall, setMessage, toggleLink,
+    attempt, cancelOperation, changeChannel, changeLogin, checkAllUpdates, checkUpdates, checkUpdatesOnWindowOpen, confirmOperation,
+    initialize, launchAll, launchApp, openReleases, receiveInstallRequest, receiveProgress, refresh, reviewInstall, reviewUpdate, setAutoUpdate, setMessage, toggleLink,
   } from './lib/controller';
   import Apps from './tabs/Apps.svelte';
+  import Connections from './tabs/Connections.svelte';
+  import Engines from './tabs/Engines.svelte';
+  import Home from './tabs/Home.svelte';
+  import Learn from './tabs/Learn.svelte';
+  import Onboarding from './tabs/Onboarding.svelte';
   import Settings from './tabs/Settings.svelte';
+  import Updates from './tabs/Updates.svelte';
   import { ui, type Theme } from './lib/state.svelte';
   import { tabs, type ShellTab } from './lib/tabs';
 
   let revision = 0;
   let linkInput: HTMLInputElement;
+  let updateTimer: number | undefined;
+  let initialized = false;
+  let hasSeenFocus = false;
   const activeTabLabel = $derived(tabs.find((tab) => tab.id === ui.tab)?.label ?? 'Apps');
 
   function run(action: () => Promise<void>, appName?: string): void {
@@ -36,7 +45,7 @@
     ui.tab = tab;
   }
 
-  function sendRenderedReport(snapshot: Omit<UiRenderReport, 'revision' | 'controls'>): void {
+  function sendRenderedReport(snapshot: Omit<UiRenderReport, 'revision' | 'controls' | 'tab' | 'visiblePanel'>): void {
     const controls = [...document.querySelectorAll<HTMLElement>('button, select, input')].map((control): UiControlReport => {
       const rect = control.getBoundingClientRect();
       const item: UiControlReport = {
@@ -56,6 +65,8 @@
     const dialog = document.querySelector<HTMLDialogElement>('#confirm');
     const report: UiRenderReport = {
       revision: ++revision,
+      tab: ui.tab,
+      visiblePanel: document.querySelector<HTMLElement>('.tab-panel:not([hidden])')?.id ?? null,
       ...snapshot,
       dialog: dialog?.open ? document.querySelector('#confirm-title')?.textContent ?? null : null,
       controls,
@@ -105,6 +116,13 @@
       }
     };
     const unlistenResize = () => window.removeEventListener('resize', onScroll);
+    const onFocus = () => {
+      if (!initialized) return;
+      if (!hasSeenFocus) { hasSeenFocus = true; return; }
+      if (ui.testing || !ui.updateChecksEnabled) return;
+      const stale = !ui.updates?.lastCheck || Date.now() / 1000 - ui.updates.lastCheck > 60 * 60;
+      if (stale) void attempt(checkUpdatesOnWindowOpen);
+    };
 
     try {
       const storedTheme = localStorage.getItem('arcade-tools-theme');
@@ -125,6 +143,18 @@
         if (disposed) handlers.forEach((stop) => stop());
         else unlisten = handlers;
         await initialize();
+        initialized = true;
+        hasSeenFocus = true;
+        if (!ui.testing) {
+          const scheduleUpdateCheck = (delay: number) => {
+            if (updateTimer !== undefined) window.clearTimeout(updateTimer);
+            updateTimer = window.setTimeout(async () => {
+              if (ui.updateChecksEnabled && navigator.onLine) await attempt(checkAllUpdates);
+              scheduleUpdateCheck(6 * 60 * 60 * 1000);
+            }, delay);
+          };
+          scheduleUpdateCheck(60 * 1000);
+        }
       } catch (error) {
         setMessage(error instanceof Error ? error.message : String(error), true);
       }
@@ -132,10 +162,13 @@
 
     window.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('resize', onScroll);
+    window.addEventListener('focus', onFocus);
     return () => {
       disposed = true;
       unlisten.forEach((stop) => stop());
       unlistenResize();
+      window.removeEventListener('focus', onFocus);
+      if (updateTimer !== undefined) window.clearTimeout(updateTimer);
       window.removeEventListener('scroll', onScroll);
     };
   });
@@ -186,6 +219,17 @@
     </header>
     <Message text={ui.message} error={ui.messageError} />
     <main class="page-main">
+      <Home
+        active={ui.tab === 'home'}
+        apps={ui.apps}
+        updates={ui.updates}
+        busy={ui.busy}
+        onOpen={(app) => launchApp(app, 'foreground')}
+        onStartAll={launchAll}
+        onCheckNow={checkAllUpdates}
+        onSelectTab={selectTab}
+        {run}
+      />
       <Apps
         active={ui.tab === 'apps'}
         apps={ui.apps}
@@ -201,6 +245,23 @@
         onReleases={openReleases}
         {run}
       />
+      <Updates
+        active={ui.tab === 'updates'}
+        apps={ui.apps}
+        updates={ui.updates}
+        autoUpdate={ui.autoUpdate}
+        busy={ui.busy}
+        checking={ui.updateChecking}
+        updateChecksEnabled={ui.updateChecksEnabled}
+        onCheckNow={checkAllUpdates}
+        onUpdate={reviewUpdate}
+        onAutoUpdate={setAutoUpdate}
+        onSelectApps={() => selectTab('apps')}
+        {run}
+      />
+      <Learn active={ui.tab === 'learn'} {run} />
+      <Connections active={ui.tab === 'connections'} onSettings={() => selectTab('settings')} {run} />
+      <Engines active={ui.tab === 'engines'} {run} />
       <Settings
         active={ui.tab === 'settings'}
         theme={ui.theme}
@@ -209,6 +270,13 @@
         busy={ui.busy}
         onTheme={updateTheme}
         onLink={setLink}
+        {run}
+      />
+      <Onboarding
+        active={ui.tab === 'onboarding'}
+        apps={ui.apps}
+        onInstall={install}
+        onComplete={() => selectTab('home')}
         {run}
       />
     </main>
