@@ -3,6 +3,15 @@
 Worker-side shortcut readers and the schema-1 overlay index for Arcade Tools.
 Rust 1.88, vendored Lua 5.5 (`mlua` 0.12). No UI integration or background polling.
 
+The default `builder` feature enables config readers and index publication.
+Consumers of an existing index can disable default features to share
+`index::Index`, key normalization, and label helpers without Lua or the
+builder dependencies. Readers ignore unknown fields, accept `wm: null` as an
+empty WM section, and accept omitted/null app-group contexts.
+`labels::default_path` uses the same config root as Tools, including
+`ARCADE_HOME/config`; `Index::apply_user_labels` updates WM labels and conflict
+participants after publication.
+
 See [VALIDATION.md](VALIDATION.md) for check results, merge statistics and
 measured rebuild times.
 

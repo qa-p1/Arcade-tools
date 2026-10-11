@@ -1,0 +1,31 @@
+{
+  "type": "root",
+  "focused": false,
+  "nodes": [
+    {
+      "type": "workspace",
+      "focused": false,
+      "nodes": [
+        {
+          "type": "con",
+          "app_id": "org.mozilla.firefox",
+          "focused": true,
+          "nodes": [],
+          "floating_nodes": []
+        }
+      ]
+    }
+  ],
+  "floating_nodes": [
+    {
+      "type": "con",
+      "focused": false,
+      "app_id": null,
+      "window_properties": {
+        "class": "Arcade.Find",
+        "instance": "arcade-find"
+      },
+      "nodes": []
+    }
+  ]
+}

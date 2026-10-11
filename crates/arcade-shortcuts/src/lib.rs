@@ -10,21 +10,41 @@
 //! Nothing here edits the user's configuration or talks to Hyprland except to
 //! read `hyprctl binds -j`.
 
+#[cfg(feature = "builder")]
 pub mod conf;
+#[cfg(feature = "builder")]
 pub mod hyprland;
 pub mod index;
 pub mod keys;
 pub mod labels;
+#[cfg(feature = "builder")]
 pub mod lua;
+#[cfg(feature = "builder")]
 mod read;
+#[cfg(feature = "builder")]
 pub mod runtime;
 
-pub use index::{build_index, default_index_path, BuildInputs, Index, Os};
+#[cfg(feature = "builder")]
+pub use index::{build_index, BuildInputs};
+pub use index::{default_index_path, Index, Os};
+#[cfg(feature = "builder")]
 pub use read::{ConfigReport, ReadPolicy};
 
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ConfigKind {
+    Lua,
+    Conf,
+    Kconfig,
+    Gsettings,
+    #[default]
+    #[serde(other)]
+    None,
+}
 
 /// What a bind does.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
