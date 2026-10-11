@@ -234,6 +234,11 @@ fn docs_resource_dir(app: &AppHandle) -> PathBuf {
 
 fn docs_url(repo: &str, path: &str) -> String {
     let path = path.trim_start_matches('/');
+    let path = if path == "README.md" {
+        "docs/user"
+    } else {
+        path
+    };
     let route = if path.to_ascii_lowercase().ends_with(".md") {
         "blob"
     } else {
