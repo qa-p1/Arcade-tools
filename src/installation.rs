@@ -92,20 +92,57 @@ pub fn install_args(asset: &Asset, channel: Channel) -> Result<Option<Vec<String
         "--silent".into(),
         "--channel".into(),
         channel.as_str().into(),
+        "--no-launch".into(),
     ]))
 }
 
-/// Run the app's own installer on a worker thread; never edits integration itself.
-/// The verified file is made executable only after hash/size verification.
+/// Run the app's own installer from a verified disposable copy on a worker.
+/// Self installers may remove their source; retained packages and adopted files
+/// must survive. --no-launch leaves relaunch/receipt ownership to the manager.
+/// Input bytes must already match the release hash, or the explicitly adopted
+/// current executable. This rechecks the staged copy before executing it.
 pub fn run_app_installer(paths: &Paths, executable: &Path, args: Vec<String>) -> Result<()> {
+    if !args.iter().any(|arg| arg == "--no-launch") {
+        return Err(Error::new(
+            "installer",
+            "Managed installation requires --no-launch.",
+        ));
+    }
+    // A macOS executable must remain inside its copied bundle for resources.
+    if Os::current() == Os::Macos {
+        return CommandSpec {
+            program: executable.into(),
+            args,
+        }
+        .run(paths);
+    }
+    let sha256 = release::checksum(executable)?;
+    let size = fs::metadata(executable)?.len();
+    let directory = paths.downloads();
+    paths.guard(&directory)?;
+    fs::create_dir_all(&directory)?;
+    let mut staged = tempfile::Builder::new()
+        .prefix("install-")
+        .suffix(".AppImage")
+        .tempfile_in(&directory)?;
+    std::io::copy(&mut fs::File::open(executable)?, &mut staged)?;
+    staged.as_file().sync_all()?;
+    if fs::metadata(staged.path())?.len() != size || release::checksum(staged.path())? != sha256 {
+        return Err(Error::new(
+            "checksum",
+            "The staged installer differs from its verified source.",
+        ));
+    }
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        paths.guard(executable)?;
-        fs::set_permissions(executable, fs::Permissions::from_mode(0o755))?;
+        fs::set_permissions(staged.path(), fs::Permissions::from_mode(0o755))?;
     }
+    // Close the writer before exec (Linux rejects executing a writable open
+    // file), while retaining deletion ownership if the app doesn't remove it.
+    let staged = staged.into_temp_path();
     CommandSpec {
-        program: executable.into(),
+        program: staged.to_path_buf(),
         args,
     }
     .run(paths)

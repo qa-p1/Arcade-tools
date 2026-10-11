@@ -19,7 +19,13 @@ fn self_install_arguments_are_exact_and_channel_is_explicit() {
     asset.install_args = Some(vec!["--install".into(), "--silent".into()]);
     assert_eq!(
         install_args(&asset, Channel::Nightly).unwrap().unwrap(),
-        ["--install", "--silent", "--channel", "nightly"]
+        [
+            "--install",
+            "--silent",
+            "--channel",
+            "nightly",
+            "--no-launch"
+        ]
     );
     asset
         .install_args

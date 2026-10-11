@@ -1822,18 +1822,19 @@ impl Manager {
                     };
                     Store::new(&self.paths.link).write(&receipt)?;
                 }
-                // Existing manual files are never chmod'ed, moved or deleted by
-                // Tools. The app owns its explicit silent installation.
-                platform::CommandSpec {
-                    program: source.clone(),
-                    args: vec![
+                // Stage an explicit adoption too: self installers may remove
+                // their source; the user's current manual file stays untouched.
+                installation::run_app_installer(
+                    &self.paths,
+                    &source,
+                    vec![
                         "--install".into(),
                         "--silent".into(),
                         "--channel".into(),
                         channel.as_str().into(),
+                        "--no-launch".into(),
                     ],
-                }
-                .run(&self.paths)?;
+                )?;
                 self.receipt(&request.id)?.ok_or_else(|| Error::new("receipt", "The app did not write an install receipt; use a release supporting --install."))?
             } else if let Some(receipt) = old_receipt.clone() {
                 receipt
@@ -2029,16 +2030,17 @@ impl Manager {
                 record.last_mode = resume.or(request.mode);
                 let exe = self.executable(&record);
                 if record.installed_by_app && record.kind == Kind::Dmg {
-                    platform::CommandSpec {
-                        program: exe.clone(),
-                        args: vec![
+                    installation::run_app_installer(
+                        &self.paths,
+                        &exe,
+                        vec![
                             "--install".into(),
                             "--silent".into(),
                             "--channel".into(),
                             record.channel.as_str().into(),
+                            "--no-launch".into(),
                         ],
-                    }
-                    .run(&self.paths)?;
+                    )?;
                 }
                 let restored = self
                     .receipt(&request.id)?

@@ -2,6 +2,9 @@
 mod support;
 use arcade_link::manifest::{Manifest, ManifestAdditions, ManifestDocument};
 use arcade_link::receipt::{ManagedBy, Store};
+use arcade_link::server::{Handler, InvokeContext, Reply, Server, ServerConfig};
+use arcade_link::wire::{InvokeRequest, PeerInfo};
+use arcade_link::{Action, LinkError};
 use arcade_tools_core::health::{FixAction, HealthKind};
 use arcade_tools_core::manager::{InstallationClass, LaunchMode, Manager, Operation, Request};
 use arcade_tools_core::paths::Paths;
@@ -9,11 +12,12 @@ use arcade_tools_core::release::{checksum, Os};
 use arcade_tools_core::self_update::{SelfUpdatePlan, StagedSelfUpdate};
 use arcade_tools_core::source::Source;
 use arcade_tools_core::updates::{Clock, HistoryEntry, HistoryResult};
-use serde_json::json;
+use serde_json::{json, Value};
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use support::FakeRelease;
 
@@ -71,6 +75,9 @@ def remove(path):
     if path.is_symlink() or path.is_file(): path.unlink()
     elif path.is_dir(): shutil.rmtree(path)
 if '--install' in args:
+    # A real resident such as Find execs itself unless Tools suppresses launch.
+    # Refuse here so a missing --no-launch fails promptly instead of hanging.
+    assert '--no-launch' in args, 'Managed installer would launch a resident'
     old = json.loads(receipt_file.read_text()) if receipt_file.exists() else None
     previous = old.get('previous') if old else None
     source = pathlib.Path(sys.argv[0]).resolve()
@@ -94,6 +101,7 @@ if '--install' in args:
     write(receipt_file, {'schema': 1, 'id': ID, 'version': VERSION, 'channel': channel, 'method': 'appimage', 'managedBy': 'self',
         'path': str(dest), 'integration': {'desktopEntry': str(desktop), 'icons': [], 'cli': str(cli), 'autostart': None, 'uninstaller': None},
         'previous': previous, 'installedAt': old['installedAt'] if old else stamp, 'updatedAt': stamp})
+    if source != dest.resolve(): source.unlink() # Find's default remove_download
     if FAIL: sys.exit(9)
 elif '--uninstall' in args:
     receipt = json.loads(receipt_file.read_text())
@@ -108,15 +116,12 @@ else:
     write(registry, DOC)
 "#;
     let constants = format!(
-        "{}, {}, {}, {}, {}",
+        "{}, {}, {}, json.loads({}), json.loads({})",
         json!(id),
         json!(version),
         if fail { "True" } else { "False" },
-        format!("json.loads({})", json!(manifest.to_json())),
-        format!(
-            "json.loads({})",
-            json!(serde_json::to_string(&paths.data_folders(id, Os::Linux)).unwrap())
-        )
+        json!(manifest.to_json()),
+        json!(serde_json::to_string(&paths.data_folders(id, Os::Linux)).unwrap())
     );
     source.replace("__CONSTANTS__", &constants).into_bytes()
 }
@@ -181,8 +186,15 @@ fn hub_lifecycle_install_update_rollback_repeated_updates_and_uninstall() {
     assert!(
         fs::read_to_string(manager.paths.home.join("installer-events"))
             .unwrap()
-            .contains("\"--install\", \"--silent\", \"--channel\", \"stable\"")
+            .contains("\"--install\", \"--silent\", \"--channel\", \"stable\", \"--no-launch\"")
     );
+    let retained = manager
+        .record("arcade.look")
+        .unwrap()
+        .unwrap()
+        .package
+        .unwrap();
+    retained.verify(&manager.paths, "arcade.look").unwrap();
     let data = manager.paths.data_folders("arcade.look", Os::Linux)[0].clone();
     fs::create_dir_all(&data).unwrap();
     fs::write(data.join("keep"), "settings").unwrap();
@@ -211,6 +223,7 @@ fn hub_lifecycle_install_update_rollback_repeated_updates_and_uninstall() {
         history(&manager).last().unwrap().result,
         HistoryResult::RolledBack
     ));
+    retained.verify(&manager.paths, "arcade.look").unwrap();
     publish(&server, &manager, "arcade.look", "3.0.0", false);
     operate(&manager, "arcade.look", Operation::Update).unwrap();
     assert_eq!(
@@ -278,11 +291,11 @@ fn hub_lifecycle_adopt_manual_self_and_refuse_dev() {
         fs::write(&manual, fake_app(&manager.paths, id, "1.0.0", false)).unwrap();
         fs::set_permissions(&manual, fs::Permissions::from_mode(0o755)).unwrap();
         if self_install {
-            arcade_tools_core::platform::CommandSpec {
-                program: manual.clone(),
-                args: vec!["--install".into(), "--silent".into()],
-            }
-            .run(&manager.paths)
+            arcade_tools_core::installation::run_app_installer(
+                &manager.paths,
+                &manual,
+                vec!["--install".into(), "--silent".into(), "--no-launch".into()],
+            )
             .unwrap();
         }
         let exe = if self_install {
@@ -492,7 +505,7 @@ fn hub_lifecycle_tools_self_update_handoff_verification_and_helper_flow() {
     fs::set_permissions(&file, fs::Permissions::from_mode(0o755)).unwrap();
     arcade_tools_core::platform::CommandSpec {
         program: file.clone(),
-        args: vec!["--install".into(), "--silent".into()],
+        args: vec!["--install".into(), "--silent".into(), "--no-launch".into()],
     }
     .run(&manager.paths)
     .unwrap();
@@ -548,4 +561,173 @@ fn hub_lifecycle_tools_self_update_handoff_verification_and_helper_flow() {
     assert!(history(&manager)
         .iter()
         .any(|entry| entry.app == "arcade.tools"));
+}
+
+struct RunningApp {
+    server: Mutex<Option<Server>>,
+    busy: AtomicBool,
+    quit: AtomicBool,
+}
+impl Handler for RunningApp {
+    fn describe(&self) -> Vec<Action> {
+        vec![]
+    }
+    fn invoke(&self, _: InvokeRequest, _: &InvokeContext) -> Result<Reply, LinkError> {
+        Err(LinkError::busy())
+    }
+    fn status(&self) -> Value {
+        json!({ "busy": self.busy.load(Ordering::SeqCst), "background": true })
+    }
+    fn activate(&self) -> Result<(), LinkError> {
+        Ok(())
+    }
+    fn quit(&self) -> Result<(), LinkError> {
+        self.quit.store(true, Ordering::SeqCst);
+        self.server.lock().unwrap().take();
+        Ok(())
+    }
+}
+fn running(manager: &Manager) -> Arc<RunningApp> {
+    let app = Arc::new(RunningApp {
+        server: Mutex::new(None),
+        busy: AtomicBool::new(true),
+        quit: AtomicBool::new(false),
+    });
+    let server = Server::start(
+        ServerConfig {
+            app: PeerInfo {
+                id: "arcade.look".into(),
+                version: "1.0.0".into(),
+            },
+            locations: manager.paths.link.clone(),
+        },
+        app.clone(),
+    )
+    .unwrap();
+    *app.server.lock().unwrap() = Some(server);
+    app
+}
+
+#[test]
+fn hub_lifecycle_busy_holds_verification_before_quit_and_same_mode_restart() {
+    let (server, manager) = fixture();
+    installed(&server, &manager, "arcade.look");
+    let app = running(&manager);
+    publish(&server, &manager, "arcade.look", "2.0.0", false);
+    assert_eq!(
+        operate(&manager, "arcade.look", Operation::Update)
+            .unwrap_err()
+            .code,
+        "busy"
+    );
+    assert!(!app.quit.load(Ordering::SeqCst));
+    manager.set_auto_update("arcade.look", true).unwrap();
+    assert!(
+        !manager
+            .auto_update(
+                "arcade.look",
+                Some(0),
+                &Time(1000),
+                &AtomicBool::new(false),
+                &mut |_| {}
+            )
+            .unwrap()
+            .decision
+            .eligible
+    );
+    let mut held: Value = serde_json::from_str(arcade_tools_core::catalog::SNAPSHOT).unwrap();
+    for entry in held["apps"].as_array_mut().unwrap() {
+        entry["minTools"] = json!("9.0.0");
+    }
+    // Reuse the catalog client to populate its real envelope, not a synthetic
+    // manager setting; minTools is checked before download/quit.
+    server.routes.lock().unwrap().insert(
+        "/held/catalog.json".into(),
+        serde_json::to_vec(&held).unwrap(),
+    );
+    arcade_tools_core::catalog::CatalogClient::with_url(
+        manager.paths.clone(),
+        Source::test_server(&server.url).unwrap(),
+        &format!("{}held/catalog.json", server.url),
+    )
+    .unwrap()
+    .refresh_catalog();
+    assert_eq!(
+        operate(&manager, "arcade.look", Operation::Update)
+            .unwrap_err()
+            .code,
+        "version_mismatch"
+    );
+    assert!(!app.quit.load(Ordering::SeqCst));
+    arcade_tools_core::catalog::CatalogClient::with_url(
+        manager.paths.clone(),
+        Source::test_server(&server.url).unwrap(),
+        &format!("{}catalog.json", server.url),
+    )
+    .unwrap()
+    .refresh_catalog();
+    app.busy.store(false, Ordering::SeqCst);
+    let mut verified = false;
+    manager
+        .operate(
+            &request("arcade.look", Operation::Update),
+            &AtomicBool::new(false),
+            &mut |progress| {
+                if progress.phase == "Verified SHA-256" {
+                    verified = true;
+                    assert!(!app.quit.load(Ordering::SeqCst));
+                }
+                if progress.phase == "Installing" {
+                    assert!(verified && app.quit.load(Ordering::SeqCst));
+                }
+            },
+        )
+        .unwrap();
+    wait_for(&manager.paths.home.join("installer-events"), |text| {
+        text.lines().any(|line| {
+            serde_json::from_str::<Value>(line).is_ok_and(|event| {
+                event["version"] == "2.0.0" && event["args"] == json!(["--background"])
+            })
+        })
+    });
+}
+
+#[test]
+fn hub_lifecycle_refuses_corrupt_rollback_and_cleans_first_install_failure() {
+    let (server, manager) = fixture();
+    publish(&server, &manager, "arcade.look", "1.0.0", true);
+    assert_eq!(
+        operate(&manager, "arcade.look", Operation::Install)
+            .unwrap_err()
+            .code,
+        "installer"
+    );
+    assert!(manager.receipt("arcade.look").unwrap().is_none());
+    assert!(!manager
+        .paths
+        .executable("arcade.look", Os::Linux, false)
+        .exists());
+    assert!(!manager
+        .paths
+        .data
+        .join("applications/arcade-look.desktop")
+        .exists());
+    assert!(fs::symlink_metadata(manager.paths.home.join(".local/bin/arcade-look")).is_err());
+    installed(&server, &manager, "arcade.look");
+    publish(&server, &manager, "arcade.look", "2.0.0", false);
+    operate(&manager, "arcade.look", Operation::Update).unwrap();
+    let record: Value = serde_json::from_slice(
+        &fs::read(manager.paths.state().join("arcade.look.previous.json")).unwrap(),
+    )
+    .unwrap();
+    let package = record["record"]["package"]["path"].as_str().unwrap();
+    fs::write(package, "corrupted").unwrap();
+    let before = manager.receipt("arcade.look").unwrap().unwrap();
+    assert_eq!(
+        operate(&manager, "arcade.look", Operation::Rollback)
+            .unwrap_err()
+            .code,
+        "checksum"
+    );
+    assert_eq!(manager.receipt("arcade.look").unwrap().unwrap(), before);
 }
