@@ -135,7 +135,6 @@ impl Renderer {
             240.0,
             full_clip,
         );
-        drop(label);
         fill(&mut pixmap, rect(layout.search), palette.inset);
         border(&mut pixmap, rect(layout.search), palette.accent, scale);
         let placeholder = if model.picking {
