@@ -18,6 +18,9 @@ fn owner() -> HyprlandReport {
     let config = home.join(".config");
     let hypr = config.join("hypr");
     let mut options = lua::SandboxOptions::new(&hypr);
+    // These assertions test parsed content. Debug builds and parallel CI need
+    // scheduler headroom; dedicated sandbox tests enforce the production limit.
+    options.duration_limit = Duration::from_secs(2);
     options.read_policy = ReadPolicy::new([config.clone()]);
     options
         .environment
@@ -270,6 +273,7 @@ fn owner_overrides_preserve_disabled_bind_and_do_not_create_optional_files() {
     std::fs::copy(fixture("hypr/caelestia/owner-overrides.lua"), &overrides).unwrap();
     let original = std::fs::read(&overrides).unwrap();
     let mut options = lua::SandboxOptions::new(config.join("hypr"));
+    options.duration_limit = Duration::from_secs(2);
     options.read_policy = ReadPolicy::new([config.clone()]);
     options
         .environment

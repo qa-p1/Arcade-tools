@@ -3,6 +3,15 @@
 Worker-side shortcut readers and the schema-1 overlay index for Arcade Tools.
 Rust 1.88, vendored Lua 5.5 (`mlua` 0.12). No UI integration or background polling.
 
+The default `builder` feature enables config readers and index publication.
+Consumers of an existing index can disable default features to share
+`index::Index`, key normalization, and label helpers without Lua or the
+builder dependencies. Readers ignore unknown fields, accept `wm: null` as an
+empty WM section, and accept omitted/null app-group contexts.
+`labels::default_path` uses the same config root as Tools, including
+`ARCADE_HOME/config`; `Index::apply_user_labels` updates WM labels and conflict
+participants after publication.
+
 See [VALIDATION.md](VALIDATION.md) for check results, merge statistics and
 measured rebuild times.
 
@@ -32,7 +41,11 @@ optional missing modules to detect their creation.
 
 `SandboxOptions` supplies canonical read roots, environment overrides and VM
 limits without changing process environment variables. Defaults are 64 MiB
-of Lua memory, 50 million instructions, and a 100 ms evaluation deadline.
+of Lua memory and a primary limit of 50 million instructions. A configurable
+two-second wall-clock backstop allows scheduling delays on busy machines.
+Time aborts explicitly mark config labels incomplete in `wm.warnings`; merging
+with runtime binds preserves every active registration, even when evaluation
+only captures part of the config. Resident callers can schedule a delayed retry.
 Sources, file-handle data, descriptor traversal and recorded binds have
 separate Rust-side bounds. Module errors and top-level errors preserve prior
 binds with warnings. Limit aborts cannot be swallowed by Lua `pcall`/`xpcall`.

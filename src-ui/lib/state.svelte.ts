@@ -1,5 +1,6 @@
 import type { AppView, Operation, OperationRequest, Release } from './api';
-import type { ShellTab } from './tabs';
+import type { ShortcutsIndex } from './shortcuts';
+import type { ShellTab } from './tabs.svelte';
 
 export type Theme = 'system' | 'light' | 'dark';
 export type ConfirmationKind = 'remove-data' | 'background' | 'reopen-mode' | 'app-closed' | null;
@@ -43,6 +44,9 @@ export const ui = $state({
   diagnostics: '',
   theme: 'system' as Theme,
   tab: 'apps' as ShellTab,
+  shortcutsIndex: null as ShortcutsIndex | null,
+  shortcutLabels: {} as Record<string, string>,
+  shortcutsRevision: 0,
 });
 
 let confirmationResolver: ((result: ConfirmationResult) => void) | null = null;

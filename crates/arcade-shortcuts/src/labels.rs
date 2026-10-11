@@ -3,13 +3,46 @@
 use crate::{Action, ConfigBind, Origin};
 use serde_json::Value;
 use std::collections::BTreeMap;
+use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 
 pub type UserLabels = BTreeMap<String, String>;
 
 pub fn load_user_labels(path: &Path) -> Result<UserLabels, String> {
-    let bytes = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    let mut bytes = Vec::new();
+    std::fs::File::open(path)
+        .and_then(|file| file.take(1024 * 1024 + 1).read_to_end(&mut bytes))
+        .map_err(|e| format!("{}: {e}", path.display()))?;
+    if bytes.len() > 1024 * 1024 {
+        return Err("shortcut labels exceed 1 MiB".into());
+    }
     serde_json::from_slice(&bytes).map_err(|e| format!("{}: {e}", path.display()))
+}
+
+/// Same config root as Tools' Paths::discover, including ARCADE_HOME isolation.
+pub fn default_path() -> io::Result<PathBuf> {
+    let arcade_home = std::env::var_os("ARCADE_HOME")
+        .filter(|root| !root.is_empty())
+        .map(PathBuf::from);
+    let config = directories::BaseDirs::new().map(|dirs| dirs.config_dir().to_owned());
+    labels_path(arcade_home.as_deref(), config.as_deref())
+}
+
+fn labels_path(arcade_home: Option<&Path>, config: Option<&Path>) -> io::Result<PathBuf> {
+    let root = if let Some(home) = arcade_home {
+        if !home.is_absolute() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "ARCADE_HOME must be absolute",
+            ));
+        }
+        home.join("config")
+    } else {
+        config
+            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no user config directory"))?
+            .to_owned()
+    };
+    Ok(root.join("arcade/tools/shortcut-labels.json"))
 }
 
 /// Empty submap is keyed as `|Super+T`.
@@ -464,6 +497,31 @@ pub fn dispatcher_label(action: &Action) -> Option<String> {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn labels_use_tools_config_path_and_ignore_blank_overrides() {
+        let base = std::env::temp_dir();
+        assert_eq!(
+            labels_path(Some(&base), Some(Path::new("ignored"))).unwrap(),
+            base.join("config/arcade/tools/shortcut-labels.json")
+        );
+        assert_eq!(
+            labels_path(None, Some(&base)).unwrap(),
+            base.join("arcade/tools/shortcut-labels.json")
+        );
+        assert!(labels_path(Some(Path::new("relative")), Some(&base)).is_err());
+        let labels = UserLabels::from([
+            ("|Super+T".into(), "Terminal".into()),
+            ("resize|Super+T".into(), "Grow".into()),
+            ("|Super+Q".into(), " ".into()),
+        ]);
+        assert_eq!(user_label(&labels, None, Some("Super+T")), Some("Terminal"));
+        assert_eq!(
+            user_label(&labels, Some("resize"), Some("Super+T")),
+            Some("Grow")
+        );
+        assert_eq!(user_label(&labels, None, Some("Super+Q")), None);
+    }
 
     #[test]
     fn identifiers_comments_and_multiline_calls() {
