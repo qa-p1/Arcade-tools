@@ -30,6 +30,8 @@ pub struct SandboxOptions {
     pub environment: BTreeMap<String, Option<String>>,
     pub memory_limit: usize,
     pub instruction_limit: u64,
+    /// Wall-clock backstop, independent of the primary instruction budget.
+    /// Allow scheduling delays on busy machines without truncating valid configs.
     pub duration_limit: Duration,
 }
 
@@ -41,7 +43,7 @@ impl SandboxOptions {
             environment: BTreeMap::new(),
             memory_limit: 64 * 1024 * 1024,
             instruction_limit: 50_000_000,
-            duration_limit: Duration::from_millis(100),
+            duration_limit: Duration::from_secs(2),
         }
     }
 
@@ -74,10 +76,17 @@ pub fn evaluate(path: &Path, options: &SandboxOptions) -> ConfigReport {
             .warnings
             .push(format!("Lua evaluation: {e}")),
         Err(payload) => match payload.downcast::<LimitExceeded>() {
-            Ok(reason) => report
-                .borrow_mut()
-                .warnings
-                .push(format!("Lua evaluation aborted: {}", reason.0)),
+            Ok(reason) => {
+                let detail = if reason.0 == "time limit exceeded" {
+                    "; config labels are incomplete. Runtime binds are retained when available."
+                } else {
+                    ""
+                };
+                report
+                    .borrow_mut()
+                    .warnings
+                    .push(format!("Lua evaluation aborted: {}{detail}", reason.0));
+            }
             Err(payload) => std::panic::resume_unwind(payload),
         },
     }
