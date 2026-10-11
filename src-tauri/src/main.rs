@@ -1,10 +1,19 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod desktop;
+mod helpers;
+mod installation;
 mod shortcuts;
 use arcade_tools_core::link;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
+    if let Some(result) = helpers::run(&args).or_else(|| installation::run(&args)) {
+        if let Err(error) = result {
+            eprintln!("{error}");
+            std::process::exit(1);
+        }
+        return;
+    }
     if args.iter().any(|a| a == "--version" || a == "-V") {
         println!("Arcade Tools {}", env!("CARGO_PKG_VERSION"));
         return;

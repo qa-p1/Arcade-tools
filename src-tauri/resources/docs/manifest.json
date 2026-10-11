@@ -1,0 +1,116 @@
+{
+  "schema": 1,
+  "contentBytes": 21690,
+  "entries": [
+    {
+      "id": "arcade.box",
+      "repo": "qa-p1/Arcade-box",
+      "version": "local",
+      "ref": "working-tree",
+      "status": "no_docs",
+      "files": []
+    },
+    {
+      "id": "arcade.clipboard",
+      "repo": "qa-p1/Arcade-clipboard",
+      "version": "local",
+      "ref": "working-tree",
+      "status": "no_docs",
+      "files": []
+    },
+    {
+      "id": "arcade.find",
+      "repo": "qa-p1/Arcade-Find",
+      "version": "local",
+      "ref": "working-tree",
+      "status": "no_docs",
+      "files": []
+    },
+    {
+      "id": "arcade.lens",
+      "repo": "qa-p1/Arcade-lens",
+      "version": "local",
+      "ref": "working-tree",
+      "status": "no_docs",
+      "files": []
+    },
+    {
+      "id": "arcade.look",
+      "repo": "qa-p1/arcade-look",
+      "version": "local",
+      "ref": "working-tree",
+      "status": "no_docs",
+      "files": []
+    },
+    {
+      "id": "arcade.shelf",
+      "repo": "qa-p1/Arcade-Shelf",
+      "version": "local",
+      "ref": "working-tree",
+      "status": "no_docs",
+      "files": []
+    },
+    {
+      "id": "arcade.wheel",
+      "repo": "qa-p1/Arcade-wheel",
+      "version": "local",
+      "ref": "working-tree",
+      "status": "no_docs",
+      "files": []
+    },
+    {
+      "id": "arcade.ecosystem",
+      "repo": "qa-p1/Arcade-catalog",
+      "version": "local",
+      "ref": "working-tree",
+      "status": "snapshotted",
+      "files": [
+        {
+          "path": "faq.md",
+          "size": 2362,
+          "sha256": "12eebced1791907ea2855ffd64faed722383ca92e6e2eddd9074b513bfa8a320"
+        },
+        {
+          "path": "glossary.md",
+          "size": 1848,
+          "sha256": "640b269b845e57164245ab02b48b9cd2d638c91cb7c3c1251a5e0c8fa24c446c"
+        },
+        {
+          "path": "how-apps-connect.md",
+          "size": 3356,
+          "sha256": "17be8363ee79717a96730678196729c710ef76ae26dade954d830d6a15fd57c5"
+        },
+        {
+          "path": "index.md",
+          "size": 1460,
+          "sha256": "5a6d6b18d937e83e67218387b4dbf863a29dfb537533cfee6c50814090bc5141"
+        },
+        {
+          "path": "installing.md",
+          "size": 3315,
+          "sha256": "f626aaa02fa3535604bbb1d5192fd13b04c84d121159c072acf25b2bcc44b9fb"
+        },
+        {
+          "path": "privacy.md",
+          "size": 3564,
+          "sha256": "073c996bfbd45028035fa313900f5932a6f96bb5da7b430366de8c92eb3ffd67"
+        },
+        {
+          "path": "shortcuts.md",
+          "size": 1857,
+          "sha256": "2a1ea2af4ab62377ed84f78a8991644d1e200b41bc6bf764ef33e982d129078f"
+        },
+        {
+          "path": "tray.md",
+          "size": 912,
+          "sha256": "510320647b3b4c24be8e7904ad4779dfbc8b1b6c88ccb22a4569781eed56be56"
+        },
+        {
+          "path": "uninstalling.md",
+          "size": 3016,
+          "sha256": "2b7f0450ce5c8df06719d9e6d83ec253dac1c38dac1005a3c0d830957e6f1e9b"
+        }
+      ]
+    }
+  ]
+}

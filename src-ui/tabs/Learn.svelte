@@ -1,8 +1,13 @@
 <script lang="ts">
-  import { api, type DocsSearchHit, type LearnApp } from '../lib/api';
+  import { api, type DocPage, type DocsSearchHit, type LearnApp } from '../lib/api';
 
-  type Props = { active: boolean; run: (action: () => Promise<void>, label?: string) => void };
-  let { active, run }: Props = $props();
+  type Props = { active: boolean; target: string; run: (action: () => Promise<void>, label?: string) => void };
+  let { active, target, run }: Props = $props();
+  let readerApp = $state<string | null>(null);
+  let pages = $state<{ path: string; title: string }[]>([]);
+  let page = $state<DocPage | null>(null);
+  let readerError = $state<string | null>(null);
+  let openedTarget = '';
   let apps = $state<LearnApp[]>([]);
   let hits = $state<DocsSearchHit[]>([]);
   let query = $state('');
@@ -45,8 +50,22 @@
     } finally { fetchBusy = { ...fetchBusy, [app.id]: false }; }
   }
 
+  async function openReader(id: string, path?: string): Promise<void> {
+    readerError = null;
+    try {
+      if (readerApp !== id) { pages = await api.docsPages(id); readerApp = id; }
+      const chosen = path ?? pages[0]?.path;
+      page = chosen ? await api.readDoc(id, chosen) : null;
+      if (!chosen) readerError = 'No pages are available offline for this app yet.';
+    } catch (problem) { readerError = problem instanceof Error ? problem.message : String(problem); }
+  }
+
   $effect(() => {
     if (active && !loaded && !loading) void loadApps();
+  });
+  // Other tabs open Learn on a specific app's guide.
+  $effect(() => {
+    if (active && target && target !== openedTarget) { openedTarget = target; void openReader(target); }
   });
 </script>
 
@@ -71,6 +90,19 @@
     {/if}
   </section>
 
+  {#if readerApp}
+    <section class="feature-section docs-reader" aria-labelledby="learn-reader-heading">
+      <div class="section-heading"><div><h2 id="learn-reader-heading">{apps.find((app) => app.id === readerApp)?.name ?? (readerApp === 'arcade.ecosystem' ? 'Arcade' : readerApp)} guide</h2>{#if page}<p class="setting-description">v{page.version} · {page.source}</p>{/if}</div><button type="button" onclick={() => { readerApp = null; page = null; }}>Close</button></div>
+      {#if readerError}<p class="status-warning">{readerError}</p>{/if}
+      {#if pages.length}
+        <div class="docs-reader-body">
+          <nav aria-label="Guide pages"><ul>{#each pages as entry (entry.path)}<li><button type="button" class="text-action" class:current={page?.path === entry.path} onclick={() => run(() => openReader(readerApp!, entry.path))}>{entry.title}</button></li>{/each}</ul></nav>
+          {#if page}<article class="markdown-body">{@html page.html}</article>{/if}
+        </div>
+      {/if}
+    </section>
+  {/if}
+
   <section class="feature-section" aria-labelledby="learn-apps-heading">
     <div class="section-heading"><div><h2 id="learn-apps-heading">App guides</h2><p class="setting-description">Documentation links come from Arcade’s app catalog.</p></div><button type="button" disabled={loading} onclick={() => run(loadApps)}>{loading ? 'Loading…' : 'Refresh list'}</button></div>
     {#if apps.length}
@@ -80,7 +112,8 @@
             <div class="learn-app-info"><strong>{app.name}</strong><span>{app.installedVersion ? `Installed v${app.installedVersion}` : 'Not installed'} · {app.available ? `${app.source} docs${app.docsVersion ? ` · v${app.docsVersion}` : ''}` : 'No local docs yet'}</span></div>
             <div class="actions-inline">
               {#if app.installedVersion && app.needsFetch}<button type="button" disabled={fetchBusy[app.id]} onclick={() => run(() => fetchInstalledDocs(app), app.name)}>{fetchBusy[app.id] ? 'Downloading…' : 'Download installed-version docs'}</button>{/if}
-              <button type="button" class="primary-action" onclick={() => run(() => api.openDocs(app.id), app.name)}>Open guide online</button>
+              {#if app.available}<button type="button" class="primary-action" onclick={() => run(() => openReader(app.id), app.name)}>Read here</button>{/if}
+              <button type="button" class:primary-action={!app.available} onclick={() => run(() => api.openDocs(app.id), app.name)}>Open guide online</button>
             </div>
           </div>
         {/each}

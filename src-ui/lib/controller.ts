@@ -37,6 +37,14 @@ export async function refresh(): Promise<void> {
   try {
     ui.apps = await api.listApps();
     ui.updates = await api.updateState();
+    ui.toolsApp = await api.toolsApp();
+    const preferences = await api.preferences();
+    ui.autoUpdate = preferences.updates.autoUpdate;
+    ui.updateChecksEnabled = preferences.updates.enabled;
+    ui.notificationsEnabled = preferences.notificationsEnabled;
+    ui.linkEnabled = preferences.linkEnabled;
+    ui.theme = preferences.theme;
+    document.documentElement.dataset.theme = ui.theme;
   } finally {
     ui.refreshing = false;
     if (ui.refreshPending) {
@@ -55,16 +63,16 @@ export async function initialize(): Promise<void> {
   ui.linkEnabled = bootstrap.preferences.linkEnabled;
   ui.updateChecksEnabled = bootstrap.preferences.updates.enabled;
   ui.autoUpdate = bootstrap.preferences.updates.autoUpdate;
+  ui.toolsApp = await api.toolsApp();
+  ui.notificationsEnabled = bootstrap.preferences.notificationsEnabled;
+  ui.theme = bootstrap.preferences.theme;
+  document.documentElement.dataset.theme = ui.theme;
   ui.diagnostics = bootstrap.diagnostics.map(([name, value]) => `${name}: ${value}`).join('\n');
   setMessage(bootstrap.selected ? 'Review the selected app before installing.' : 'Choose an app to install, or check for updates.');
   if (bootstrap.selected) {
     pendingInstall = bootstrap.selected;
     await reviewHandoff();
-  } else if (!bootstrap.testing && !ui.apps.some((app) => app.installed)) {
-    let complete = false;
-    try { complete = localStorage.getItem('arcade-tools-onboarding-complete') === 'yes'; } catch { /* continue this session */ }
-    if (!complete) ui.tab = 'onboarding';
-  }
+  } else if (!bootstrap.testing) ui.tab = bootstrap.preferences.onboardingComplete ? 'home' : 'onboarding';
 }
 
 export async function changeChannel(app: AppView, channel: Channel): Promise<void> {
@@ -204,10 +212,15 @@ export async function reviewHandoff(): Promise<void> {
 export async function confirmOperation(app: AppView, operation: Operation): Promise<void> {
   const labels: Record<Operation, string> = {
     install: 'Install', update: 'Update', repair: 'Repair', uninstall: 'Remove',
+    adopt: 'Adopt', rollback: 'Roll back',
   };
   const release = ui.releases.get(app.id);
-  const title = `${labels[operation]} ${app.name}${release && operation !== 'uninstall' ? ` ${release.version}` : ''}?`;
-  const copy = operation === 'uninstall'
+  const title = `${labels[operation]} ${app.name}${release && ['install', 'update', 'repair'].includes(operation) ? ` ${release.version}` : ''}?`;
+  const copy = operation === 'adopt'
+    ? 'Let Tools manage this installation by running the app’s own installer. Settings and data are kept. Development builds are left unchanged.'
+    : operation === 'rollback'
+    ? `Reinstall the previous version (${app.rollbackVersion ?? 'saved build'}) and reopen in the same mode. Settings and data are kept.`
+    : operation === 'uninstall'
     ? 'The app will close and its installation will be removed. Settings and data are kept unless you select the option below.'
     : operation === 'install'
       ? `Install the ${app.channel} release for your user account and open the app.`
@@ -239,7 +252,7 @@ export function receiveProgress(progress: OperationProgress): void {
   ui.cancellable = progress.cancellable;
 }
 
-async function runOperation(request: OperationRequest): Promise<void> {
+export async function runOperation(request: OperationRequest): Promise<void> {
   ui.busy = true;
   try {
     const text = await api.operate(request);
@@ -281,5 +294,31 @@ async function runOperation(request: OperationRequest): Promise<void> {
     ui.busy = false;
     await refresh();
     void attempt(reviewHandoff);
+  }
+}
+export async function withBusy(action: () => Promise<void>, phase: string): Promise<void> {
+  ui.busy = true;
+  ui.phase = phase;
+  ui.progress = null;
+  try { await action(); }
+  finally { ui.busy = false; await refresh(); }
+}
+export async function installBundle(bundleId: string, ids: string[]): Promise<void> {
+  await withBusy(async () => { const messages = await api.installCatalogBundle(bundleId, ids); setMessage(messages.join(' ')); }, 'Installing bundle');
+}
+export function openLearn(id: string): Promise<void> {
+  ui.learnTarget = id;
+  ui.tab = 'learn';
+  return Promise.resolve();
+}
+export async function updateAll(apps: AppView[]): Promise<void> {
+  const available = apps.filter((app) => ui.updates?.apps[app.id]?.updateAvailable && !ui.updates.apps[app.id]?.heldBack && app.managed);
+  if (!available.length) return;
+  const choice = await askForConfirmation({ title: `Update ${available.length} apps?`, copy: available.map((app) => `${app.name} → ${ui.updates?.apps[app.id]?.latest[app.channel]?.latestVersion ?? 'latest'}`).join('\n') + '\nBusy apps will be left running. Settings and data are kept.', action: 'Update all', destructive: false, kind: null, folders: [] });
+  if (!choice.confirmed) return;
+  for (const app of available) {
+    if (app.id === 'arcade.tools') { await withBusy(api.selfUpdate, 'Updating Arcade Tools'); return; }
+    await runOperation(operationRequest(app.id, 'update'));
+    if (ui.messageError) return;
   }
 }

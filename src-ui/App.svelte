@@ -7,24 +7,27 @@
   import { api, appEvents, type AppView, type Channel, type Operation, type UiControlReport, type UiRenderReport } from './lib/api';
   import {
     attempt, cancelOperation, changeChannel, changeLogin, checkAllUpdates, checkUpdates, checkUpdatesOnWindowOpen, confirmOperation,
-    initialize, launchAll, launchApp, openReleases, receiveInstallRequest, receiveProgress, refresh, reviewInstall, reviewUpdate, setAutoUpdate, setMessage, toggleLink,
+    initialize, installBundle, openLearn, updateAll, withBusy, launchAll, launchApp, openReleases, receiveInstallRequest, receiveProgress, refresh, reviewInstall, reviewUpdate, setAutoUpdate, setMessage, toggleLink,
+    setUpdateChecks,
   } from './lib/controller';
   import Apps from './tabs/Apps.svelte';
-  import Connections from './tabs/Connections.svelte';
   import Engines from './tabs/Engines.svelte';
   import Home from './tabs/Home.svelte';
-  import Learn from './tabs/Learn.svelte';
   import Onboarding from './tabs/Onboarding.svelte';
   import Settings from './tabs/Settings.svelte';
   import Updates from './tabs/Updates.svelte';
   import Shortcuts from './tabs/Shortcuts.svelte';
   import { ui, type Theme } from './lib/state.svelte';
   import { setShortcutsEnabled, tabs, type ShellTab } from './lib/tabs.svelte';
-  import type { ShortcutsIndex } from './lib/shortcuts';
 
   let revision = 0;
   let linkInput: HTMLInputElement;
-  let updateTimer: number | undefined;
+  let LearnView = $state<typeof import('./tabs/Learn.svelte').default | null>(null);
+  let ConnectionsView = $state<typeof import('./tabs/Connections.svelte').default | null>(null);
+  $effect(() => {
+    if (ui.tab === 'learn' && !LearnView) void import('./tabs/Learn.svelte').then((module) => LearnView = module.default);
+    if (ui.tab === 'connections' && !ConnectionsView) void import('./tabs/Connections.svelte').then((module) => ConnectionsView = module.default);
+  });
   let initialized = false;
   let hasSeenFocus = false;
   const activeTabLabel = $derived(tabs.find((tab) => tab.id === ui.tab)?.label ?? 'Apps');
@@ -36,11 +39,7 @@
   function updateTheme(theme: Theme): void {
     ui.theme = theme;
     document.documentElement.dataset.theme = theme;
-    try {
-      localStorage.setItem('arcade-tools-theme', theme);
-    } catch {
-      // The theme remains active for this session if storage is unavailable.
-    }
+    void attempt(() => api.setTheme(theme));
   }
 
   function selectTab(tab: ShellTab): void {
@@ -132,35 +131,6 @@
       if (stale) void attempt(checkUpdatesOnWindowOpen);
     };
 
-    try {
-      const storedTheme = localStorage.getItem('arcade-tools-theme');
-      if (storedTheme === 'light' || storedTheme === 'dark' || storedTheme === 'system') ui.theme = storedTheme;
-    } catch {
-      // Use the system theme when local storage is unavailable.
-    }
-    document.documentElement.dataset.theme = ui.theme;
-
-    const loadShortcutFixture = async (): Promise<void> => {
-      try {
-        const { default: fixture } = await import('./fixtures/shortcuts-index.json');
-        ui.shortcutsIndex = fixture as ShortcutsIndex;
-        ui.shortcutLabels = {};
-        ui.message = 'Development shortcut fixture loaded.';
-        ui.messageError = false;
-        setShortcutsEnabled(true);
-        ui.tab = 'shortcuts';
-      } catch (error) {
-        setMessage(error instanceof Error ? error.message : String(error), true);
-      }
-    };
-
-    if (import.meta.env.DEV && import.meta.env.VITE_SHORTCUTS_FIXTURE === '1') {
-      void loadShortcutFixture();
-      return () => {
-        disposed = true;
-      };
-    }
-
     void (async () => {
       try {
         const handlers = await Promise.all([
@@ -168,22 +138,13 @@
           appEvents.installRequest((id) => receiveInstallRequest(id)),
           appEvents.registryChanged(() => { void attempt(refresh); }),
           appEvents.managerMessage((message) => setMessage(message, true)),
+          appEvents.updatesChanged((updates) => { ui.updates = updates; }),
         ]);
         if (disposed) handlers.forEach((stop) => stop());
         else unlisten = handlers;
         await initialize();
         initialized = true;
         hasSeenFocus = true;
-        if (!ui.testing) {
-          const scheduleUpdateCheck = (delay: number) => {
-            if (updateTimer !== undefined) window.clearTimeout(updateTimer);
-            updateTimer = window.setTimeout(async () => {
-              if (ui.updateChecksEnabled && navigator.onLine) await attempt(checkAllUpdates);
-              scheduleUpdateCheck(6 * 60 * 60 * 1000);
-            }, delay);
-          };
-          scheduleUpdateCheck(60 * 1000);
-        }
         const [index, labels, catalogData] = await Promise.all([
           api.shortcutsIndex(), api.shortcutLabels(), api.catalogData(),
         ]);
@@ -204,7 +165,6 @@
       unlisten.forEach((stop) => stop());
       unlistenResize();
       window.removeEventListener('focus', onFocus);
-      if (updateTimer !== undefined) window.clearTimeout(updateTimer);
       window.removeEventListener('scroll', onScroll);
     };
   });
@@ -264,8 +224,7 @@
   }
 
   async function persistShortcutLabel(key: string, label: string | null): Promise<void> {
-    const fixtureMode = import.meta.env.DEV && import.meta.env.VITE_SHORTCUTS_FIXTURE === '1';
-    if (!fixtureMode) await api.setShortcutLabel(key, label);
+    await api.setShortcutLabel(key, label);
     const next = { ...ui.shortcutLabels };
     const cleanLabel = label?.trim();
     if (cleanLabel) next[key] = cleanLabel;
@@ -301,6 +260,7 @@
         onStartAll={launchAll}
         onCheckNow={checkAllUpdates}
         onSelectTab={selectTab}
+        onFix={(app, operation) => confirmOperation(app, operation)}
         {run}
       />
       <Apps
@@ -322,29 +282,31 @@
         onReleases={openReleases}
         onCatalogRefresh={refreshCatalog}
         onCheckLatest={checkCatalogLatest}
-        onOpenDocs={api.openCatalogDocs}
-        onInstallCatalogApp={api.installCatalogApp}
-        onUpdateCatalogApp={api.updateCatalogApp}
-        onUninstallCatalogApp={api.uninstallCatalogApp}
-        onInstallBundle={api.installCatalogBundle}
+        onOpenDocs={openLearn}
+        onInstallCatalogApp={(id) => reviewInstall(ui.apps.find((app) => app.id === id)!)}
+        onUpdateCatalogApp={(id) => reviewUpdate(ui.apps.find((app) => app.id === id)!)}
+        onUninstallCatalogApp={(id) => confirmOperation(ui.apps.find((app) => app.id === id)!, 'uninstall')}
+        onInstallBundle={installBundle}
         {run}
       />
       <Updates
         active={ui.tab === 'updates'}
-        apps={ui.apps}
+        apps={ui.toolsApp ? [ui.toolsApp, ...ui.apps] : ui.apps}
         updates={ui.updates}
         autoUpdate={ui.autoUpdate}
         busy={ui.busy}
         checking={ui.updateChecking}
         updateChecksEnabled={ui.updateChecksEnabled}
         onCheckNow={checkAllUpdates}
-        onUpdate={reviewUpdate}
+        onUpdate={(app) => app.id === 'arcade.tools' ? withBusy(api.selfUpdate, 'Updating Arcade Tools') : reviewUpdate(app)}
+        onUpdateAll={updateAll}
+        onRollback={(app) => confirmOperation(app, 'rollback')}
         onAutoUpdate={setAutoUpdate}
         onSelectApps={() => selectTab('apps')}
         {run}
       />
-      <Learn active={ui.tab === 'learn'} {run} />
-      <Connections active={ui.tab === 'connections'} onSettings={() => selectTab('settings')} {run} />
+      {#if LearnView}<LearnView active={ui.tab === 'learn'} target={ui.learnTarget} {run} />{/if}
+      {#if ConnectionsView}<ConnectionsView active={ui.tab === 'connections'} onSettings={() => selectTab('settings')} onLearn={openLearn} {run} />{/if}
       <Engines active={ui.tab === 'engines'} {run} />
       <Settings
         active={ui.tab === 'settings'}
@@ -352,6 +314,12 @@
         linkEnabled={ui.linkEnabled}
         diagnostics={ui.diagnostics}
         busy={ui.busy}
+        toolsApp={ui.toolsApp}
+        apps={ui.apps}
+        updateChecksEnabled={ui.updateChecksEnabled}
+        notificationsEnabled={ui.notificationsEnabled}
+        onUpdateChecks={setUpdateChecks}
+        onOnboarding={() => selectTab('onboarding')}
         onTheme={updateTheme}
         onLink={setLink}
         {run}
@@ -361,6 +329,8 @@
         apps={ui.apps}
         onInstall={install}
         onComplete={() => selectTab('home')}
+        onSelectTab={selectTab}
+        shortcuts={ui.shortcutsIndex}
         {run}
       />
       <Shortcuts
@@ -371,7 +341,7 @@
         onChange={shortcutsChanged}
       />
     </main>
-    <footer class="shell-footer"><span>Arcade Tools · 0.1.0</span><span>Apps stay independent; Tools makes them easier to manage.</span></footer>
+    <footer class="shell-footer"><span>Arcade Tools · 0.2.0</span><span>Apps stay independent; Tools makes them easier to manage.</span></footer>
   </div>
 </div>
 <ProgressBar visible={ui.busy} phase={ui.phase} progress={ui.progress} cancellable={ui.cancellable} onCancel={() => run(cancelOperation)} />

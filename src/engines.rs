@@ -111,6 +111,16 @@ impl Engine {
     }
     /// Environment/disk/process work on a worker thread, never a UI thread.
     pub fn detect_current(&self) -> Result<EngineStatus> {
+        if self.id == "tesseract" {
+            if let Some(binary) = arcade_link::engines::find_tesseract() {
+                if let Some(directory) = binary.parent() {
+                    let status = self.detect(directory.as_os_str(), VERSION_TIMEOUT)?;
+                    if status != EngineStatus::Missing {
+                        return Ok(status);
+                    }
+                }
+            }
+        }
         self.detect(
             &std::env::var_os("PATH").unwrap_or_default(),
             VERSION_TIMEOUT,
@@ -307,6 +317,14 @@ impl EngineCatalog {
         let catalog: Self = serde_json::from_slice(bytes)?;
         let mut ids = HashSet::new();
         for engine in &catalog.engines {
+            if !reqwest::Url::parse(&engine.homepage).is_ok_and(|url| {
+                url.scheme() == "https"
+                    && url.host_str().is_some()
+                    && url.username().is_empty()
+                    && url.password().is_none()
+            }) {
+                return Err(Error::new("engines", "Engine homepage must use HTTPS."));
+            }
             if engine.id.is_empty()
                 || !ids.insert(&engine.id)
                 || engine.detect.binaries.is_empty()

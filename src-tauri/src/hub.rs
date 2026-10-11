@@ -1,0 +1,575 @@
+use super::{desktop, worker, Active, Desktop};
+use arcade_link::manifest::ids;
+use arcade_tools_core::catalog::BundleApps;
+use arcade_tools_core::manager::{LaunchMode, Manager, Operation, Preferences, Progress, Request};
+use arcade_tools_core::updates::{Clock, HistoryEntry, SystemClock, Trigger, UpdateState};
+use arcade_tools_core::{backup, dashboard, diagnostics, docs, health, removal, Error, Result};
+use std::path::PathBuf;
+use std::sync::atomic::Ordering;
+use std::sync::{mpsc, Arc};
+use std::time::Duration;
+use tauri::{AppHandle, Emitter};
+use tauri_plugin_notification::NotificationExt;
+
+fn begin(app: &AppHandle) -> Result<Arc<Desktop>> {
+    let state = desktop(app);
+    if state
+        .active
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
+        return Err(Error::new("busy", "Another manager operation is running."));
+    }
+    state.cancel.store(false, Ordering::SeqCst);
+    state.cancellable.store(true, Ordering::SeqCst);
+    Ok(state)
+}
+fn progress(app: &AppHandle, state: &Desktop, progress: Progress) {
+    state
+        .cancellable
+        .store(progress.cancellable, Ordering::SeqCst);
+    let _ = app.emit("operation-progress", progress);
+}
+fn notify(app: &AppHandle, manager: &Manager, message: &str) {
+    if manager
+        .preferences()
+        .is_ok_and(|prefs| prefs.notifications_enabled)
+    {
+        let _ = app
+            .notification()
+            .builder()
+            .title("Arcade Tools")
+            .body(message)
+            .show();
+    }
+}
+pub(super) fn wake_updates(state: &Desktop) {
+    if let Some(sender) = state.update_wake.lock().unwrap().as_ref() {
+        let _ = sender.send(());
+    }
+}
+pub(super) fn start_updates(
+    app: AppHandle,
+    state: Arc<Desktop>,
+    manager: Arc<Manager>,
+) -> Result<()> {
+    manager.update_state()?;
+    if manager.paths.isolated {
+        return Ok(());
+    }
+    let (tx, rx) = mpsc::channel();
+    *state.update_wake.lock().unwrap() = Some(tx);
+    std::thread::spawn(move || loop {
+        let wait = manager
+            .update_deadline()
+            .ok()
+            .flatten()
+            .map(|deadline| Duration::from_secs(deadline.saturating_sub(SystemClock.now())));
+        let timeout = match wait {
+            Some(wait) => match rx.recv_timeout(wait) {
+                Ok(()) => false,
+                Err(mpsc::RecvTimeoutError::Timeout) => true,
+                Err(mpsc::RecvTimeoutError::Disconnected) => break,
+            },
+            None => {
+                if rx.recv().is_err() {
+                    break;
+                }
+                false
+            }
+        };
+        if timeout {
+            if let Err(error) = check(&app, &state, &manager, Trigger::Timer, true) {
+                let _ = app.emit("manager-message", error.message);
+            }
+        }
+    });
+    Ok(())
+}
+fn check(
+    app: &AppHandle,
+    state: &Arc<Desktop>,
+    manager: &Arc<Manager>,
+    trigger: Trigger,
+    online: bool,
+) -> Result<UpdateState> {
+    if state.update_running.swap(true, Ordering::SeqCst) {
+        return manager.update_state();
+    }
+    let result = (|| {
+        let (updates, notifications) = manager.check_updates_with(trigger, online)?;
+        for update in notifications {
+            notify(
+                app,
+                manager,
+                &format!(
+                    "{} {} is available on {}.",
+                    arcade_tools_core::apps::app_name(&update.app),
+                    update.version,
+                    update.channel.as_str()
+                ),
+            );
+        }
+        let _ = app.emit("updates-changed", &updates);
+        // Last-used status is optional. Unknown use, busy and compatibility
+        // holds all keep an opted-in app unchanged.
+        for (id, update) in &updates.apps {
+            if !update.update_available || update.held_back || id == ids::TOOLS {
+                continue;
+            }
+            if !manager
+                .preferences()?
+                .updates
+                .auto_update
+                .get(id)
+                .copied()
+                .unwrap_or(false)
+            {
+                continue;
+            }
+            if state
+                .active
+                .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+                .is_err()
+            {
+                break;
+            }
+            let _active = Active(state.clone());
+            state.cancel.store(false, Ordering::SeqCst);
+            let outcome = manager.auto_update(
+                id,
+                manager.last_used(id),
+                &SystemClock,
+                &state.cancel,
+                &mut |p| progress(app, state, p),
+            );
+            match outcome {
+                Ok(outcome) => {
+                    if let Some(message) = outcome.message {
+                        notify(app, manager, &message);
+                        let _ = app.emit("registry-changed", ());
+                    }
+                }
+                Err(error) => {
+                    let _ = app.emit("manager-message", error.message);
+                }
+            }
+        }
+        manager.update_state()
+    })();
+    state.update_running.store(false, Ordering::SeqCst);
+    result
+}
+
+#[tauri::command]
+pub async fn check_updates(app: AppHandle, online: Option<bool>) -> Result<UpdateState> {
+    worker(move || {
+        let state = desktop(&app);
+        let manager = state.manager()?;
+        check(
+            &app,
+            &state,
+            &manager,
+            Trigger::Manual,
+            online.unwrap_or(true),
+        )
+    })
+    .await
+}
+#[tauri::command]
+pub async fn check_updates_window_open(
+    app: AppHandle,
+    online: Option<bool>,
+) -> Result<UpdateState> {
+    worker(move || {
+        let state = desktop(&app);
+        let manager = state.manager()?;
+        check(
+            &app,
+            &state,
+            &manager,
+            Trigger::WindowOpen,
+            online.unwrap_or(true),
+        )
+    })
+    .await
+}
+#[tauri::command]
+pub async fn preferences(app: AppHandle) -> Result<Preferences> {
+    worker(move || desktop(&app).manager()?.preferences()).await
+}
+#[tauri::command]
+pub async fn set_notifications(app: AppHandle, enabled: bool) -> Result<()> {
+    worker(move || desktop(&app).manager()?.set_notifications(enabled)).await
+}
+#[tauri::command]
+pub async fn set_theme(app: AppHandle, theme: String) -> Result<()> {
+    worker(move || desktop(&app).manager()?.set_theme(&theme)).await
+}
+#[tauri::command]
+pub async fn complete_onboarding(app: AppHandle) -> Result<()> {
+    worker(move || desktop(&app).manager()?.complete_onboarding()).await
+}
+#[tauri::command]
+pub async fn tools_app(app: AppHandle) -> Result<Option<arcade_tools_core::manager::AppView>> {
+    worker(move || desktop(&app).manager()?.tools_view()).await
+}
+#[tauri::command]
+pub async fn update_history(app: AppHandle) -> Result<Vec<HistoryEntry>> {
+    worker(move || desktop(&app).manager()?.history()).await
+}
+#[tauri::command]
+pub async fn dashboard(app: AppHandle) -> Result<dashboard::Dashboard> {
+    worker(move || {
+        let state = desktop(&app);
+        let manager = state.manager()?;
+        let result = state.metrics.lock().unwrap().sample(&manager);
+        result
+    })
+    .await
+}
+#[tauri::command]
+pub async fn health(app: AppHandle) -> Result<Vec<health::HealthIssue>> {
+    worker(move || {
+        let manager = desktop(&app).manager()?;
+        let mut issues = manager.health()?;
+        let installed = manager.list(false)?;
+        for engine in manager.engines(false)?.engines {
+            let affected = engine
+                .used_by
+                .iter()
+                .filter(|usage| {
+                    installed
+                        .iter()
+                        .any(|app| app.id == usage.app && app.installed)
+                })
+                .collect::<Vec<_>>();
+            if affected.is_empty() {
+                continue;
+            }
+            let status = engine.detect_current();
+            if matches!(
+                status,
+                Ok(arcade_tools_core::engines::EngineStatus::Found { .. })
+            ) {
+                continue;
+            }
+            for usage in affected {
+                issues.push(health::HealthIssue {
+                    app: usage.app.clone(),
+                    kind: health::HealthKind::MissingEngine,
+                    path: None,
+                    reason: format!(
+                        "{} is unavailable or too old for {}.",
+                        engine.name, usage.purpose
+                    ),
+                    fix_action: health::FixAction::OpenEngines,
+                    can_fix: true,
+                });
+            }
+        }
+        if let Some(index) = crate::shortcuts::read_index()? {
+            for conflict in index["conflicts"].as_array().into_iter().flatten() {
+                issues.push(health::HealthIssue {
+                    app: "arcade.tools".into(),
+                    kind: health::HealthKind::ShortcutConflict,
+                    path: None,
+                    reason: format!(
+                        "{} is claimed by {} and {}.",
+                        conflict["chord"].as_str().unwrap_or("A shortcut"),
+                        conflict["a"]["label"].as_str().unwrap_or("an app"),
+                        conflict["b"]["label"].as_str().unwrap_or("another app")
+                    ),
+                    fix_action: health::FixAction::OpenShortcuts,
+                    can_fix: true,
+                });
+            }
+        }
+        Ok(issues)
+    })
+    .await
+}
+#[tauri::command]
+pub async fn fix_health(app: AppHandle, id: String, action: health::FixAction) -> Result<String> {
+    let state = begin(&app)?;
+    worker(move || {
+        let _active = Active(state.clone());
+        let result = state
+            .manager()?
+            .fix_health(&id, action, &state.cancel, &mut |p| {
+                progress(&app, &state, p)
+            });
+        let _ = app.emit("registry-changed", ());
+        result
+    })
+    .await
+}
+#[tauri::command]
+pub async fn open_app_settings(app: AppHandle, id: String) -> Result<()> {
+    worker(move || desktop(&app).manager()?.open_settings(&id)).await
+}
+#[tauri::command]
+pub async fn restart_app(app: AppHandle, id: String) -> Result<()> {
+    worker(move || desktop(&app).manager()?.restart(&id, None)).await
+}
+#[tauri::command]
+pub async fn create_diagnostics(app: AppHandle, id: String) -> Result<diagnostics::Report> {
+    worker(move || diagnostics::create(desktop(&app).manager()?.as_ref(), &id)).await
+}
+#[tauri::command]
+pub async fn export_backup(app: AppHandle) -> Result<backup::BackupReport> {
+    let state = begin(&app)?;
+    worker(move || {
+        let _active = Active(state.clone());
+        backup::export(state.manager()?.as_ref(), &state.cancel)
+    })
+    .await
+}
+#[tauri::command]
+pub async fn plan_restore(app: AppHandle, path: PathBuf) -> Result<backup::RestorePlan> {
+    worker(move || backup::plan_restore(desktop(&app).manager()?.as_ref(), &path)).await
+}
+#[tauri::command]
+pub async fn restore_backup(
+    app: AppHandle,
+    path: PathBuf,
+    sha256: String,
+) -> Result<Vec<backup::RestoreResult>> {
+    let state = begin(&app)?;
+    worker(move || {
+        let _active = Active(state.clone());
+        let manager = state.manager()?;
+        let result = backup::restore(&manager, &path, &sha256, &state.cancel);
+        let prefs = manager.preferences()?;
+        state
+            .link_enabled
+            .store(prefs.link_enabled, Ordering::SeqCst);
+        if let Some(presence) = state.presence.lock().unwrap().as_ref() {
+            presence.update(arcade_tools_core::link::manifest(prefs.link_enabled));
+        }
+        wake_updates(&state);
+        let _ = app.emit("registry-changed", ());
+        result
+    })
+    .await
+}
+#[tauri::command]
+pub async fn reveal_archive(app: AppHandle, path: PathBuf) -> Result<()> {
+    worker(move || {
+        use tauri_plugin_opener::OpenerExt;
+        let manager = desktop(&app).manager()?;
+        manager.paths.guard(&path)?;
+        if !path.starts_with(manager.paths.state().join("exports")) || !path.is_file() {
+            return Err(Error::new("paths", "Choose a Tools export file."));
+        }
+        app.opener()
+            .reveal_item_in_dir(path)
+            .map_err(|e| Error::new("open", e.to_string()))
+    })
+    .await
+}
+#[tauri::command]
+pub async fn open_issue(app: AppHandle, id: String) -> Result<()> {
+    worker(move || {
+        use tauri_plugin_opener::OpenerExt;
+        let entry = desktop(&app)
+            .manager()?
+            .catalog()?
+            .install_entry(&id)
+            .ok_or_else(|| Error::new("unsupported_input", "Unknown app."))?;
+        app.opener()
+            .open_url(
+                format!(
+                    "https://github.com/{}/issues/new?template=bug_report.yml",
+                    entry.repo
+                ),
+                None::<&str>,
+            )
+            .map_err(|e| Error::new("open", e.to_string()))
+    })
+    .await
+}
+fn location(app: &AppHandle, manager: &Manager, id: &str) -> Result<docs::DocLocation> {
+    let version = if id == "arcade.ecosystem" {
+        None
+    } else {
+        manager
+            .list(false)?
+            .into_iter()
+            .find(|app| app.id == id)
+            .and_then(|app| app.version)
+    };
+    if id != "arcade.ecosystem" && manager.catalog()?.app(id).is_none() {
+        return Err(Error::new("docs", "Unknown guide."));
+    }
+    docs::DocsResolver::new(manager.paths.clone(), super::docs_resource_dir(app)).resolve(id, version.as_deref(), None)?
+        .ok_or_else(|| Error::new("docs", "No offline guide is available; fetch the installed version or open the repository guide."))
+}
+#[tauri::command]
+pub async fn docs_pages(app: AppHandle, id: String) -> Result<Vec<docs::PageInfo>> {
+    worker(move || docs::pages(&location(&app, desktop(&app).manager()?.as_ref(), &id)?)).await
+}
+#[tauri::command]
+pub async fn read_doc(app: AppHandle, id: String, path: String) -> Result<docs::Page> {
+    worker(move || {
+        docs::read_page(
+            &location(&app, desktop(&app).manager()?.as_ref(), &id)?,
+            &path,
+        )
+    })
+    .await
+}
+#[tauri::command]
+pub async fn install_catalog_bundle(
+    app: AppHandle,
+    bundle_id: String,
+    app_ids: Vec<String>,
+) -> Result<Vec<String>> {
+    let state = begin(&app)?;
+    worker(move || {
+        let _active = Active(state.clone());
+        let manager = state.manager()?;
+        let catalog = manager.catalog()?;
+        let bundle = catalog
+            .bundles
+            .iter()
+            .find(|b| b.id == bundle_id)
+            .ok_or_else(|| Error::new("unsupported_input", "Unknown bundle."))?;
+        let allowed = match &bundle.apps {
+            BundleApps::All(_) => catalog.apps.iter().map(|a| &a.id).collect::<Vec<_>>(),
+            BundleApps::Ids(ids) => ids.iter().collect(),
+        };
+        let mut selected = std::collections::BTreeSet::new();
+        if app_ids.is_empty()
+            || app_ids
+                .iter()
+                .any(|id| !allowed.contains(&id) || !selected.insert(id))
+        {
+            return Err(Error::new(
+                "unsupported_input",
+                "Choose distinct apps from the bundle.",
+            ));
+        }
+        let mut results = Vec::new();
+        for id in app_ids {
+            let request = Request {
+                id,
+                operation: Operation::Install,
+                mode: Some(LaunchMode::Background),
+                remove_data: false,
+                app_closed: false,
+            };
+            results.push(
+                manager.operate(&request, &state.cancel, &mut |p| progress(&app, &state, p))?,
+            );
+            let _ = app.emit("registry-changed", ());
+        }
+        Ok(results)
+    })
+    .await
+}
+#[tauri::command]
+pub async fn plan_uninstall_all(
+    app: AppHandle,
+    remove_data: bool,
+) -> Result<removal::UninstallPlan> {
+    worker(move || desktop(&app).manager()?.plan_uninstall_all(remove_data)).await
+}
+#[tauri::command]
+pub async fn uninstall_all(
+    app: AppHandle,
+    plan: removal::UninstallPlan,
+) -> Result<removal::UninstallOutcome> {
+    let state = begin(&app)?;
+    worker(move || {
+        let _active = Active(state.clone());
+        let manager = state.manager()?;
+        let outcome =
+            manager.uninstall_all(&plan, &state.cancel, &mut |p| progress(&app, &state, p))?;
+        if let Some(plan) = &outcome.self_uninstall {
+            let file = manager.paths.state().join("self-update/uninstall.json");
+            manager.paths.guard(&file)?;
+            arcade_link::paths::write_atomic(&file, &serde_json::to_vec_pretty(plan)?, true)?;
+            crate::helpers::launch(&manager.paths, "--finish-self-uninstall", &file)?;
+            app.exit(0);
+        }
+        let _ = app.emit("registry-changed", ());
+        Ok(outcome)
+    })
+    .await
+}
+#[tauri::command]
+pub async fn self_update(app: AppHandle) -> Result<()> {
+    let state = desktop(&app);
+    if state.active.load(Ordering::SeqCst) {
+        return Err(Error::new("busy", "Finish the current operation first."));
+    }
+    state.cancel.store(false, Ordering::SeqCst);
+    worker(move || {
+        let _active = Active(state.clone());
+        let manager = state.manager()?;
+        let mut hook = |staged: &arcade_tools_core::self_update::StagedSelfUpdate| {
+            crate::helpers::launch(&manager.paths, "--finish-self-update", &staged.file)?;
+            // The tray lane listens here to announce restarting before shutdown.
+            let _ = app.emit("tools-self-update-staged", &staged.file);
+            app.exit(0);
+            Ok(())
+        };
+        manager.prepare_self_update(
+            LaunchMode::Foreground,
+            &state.cancel,
+            &mut |p| {
+                state.active.store(true, Ordering::SeqCst);
+                progress(&app, &state, p);
+            },
+            &mut hook,
+        )?;
+        Ok(())
+    })
+    .await
+}
+#[tauri::command]
+pub async fn install_tools(app: AppHandle) -> Result<()> {
+    let state = begin(&app)?;
+    worker(move || {
+        let _active = Active(state.clone());
+        let manager = state.manager()?;
+        let receipt = crate::installation::install("stable", false)?;
+        arcade_tools_core::installation::claim(&manager.paths, receipt, None)?;
+        let _ = app.emit("registry-changed", ());
+        Ok(())
+    })
+    .await
+}
+#[tauri::command]
+pub async fn download_engine(app: AppHandle, id: String) -> Result<String> {
+    let state = begin(&app)?;
+    worker(move || {
+        let _active = Active(state.clone());
+        let manager = state.manager()?;
+        if id != "tesseract"
+            || !manager
+                .engines(false)?
+                .engines
+                .iter()
+                .any(|engine| engine.id == id && engine.link_download)
+            || arcade_link::engines::tesseract_source().is_none()
+        {
+            return Err(Error::new(
+                "unavailable",
+                "Use the platform's install guidance for this engine.",
+            ));
+        }
+        manager.paths.guard(&arcade_link::engines::engines_dir())?;
+        state.cancellable.store(false, Ordering::SeqCst);
+        match arcade_link::engines::download_tesseract().map_err(|e| Error::new("engine", e))? {
+            arcade_link::engines::Download::Ready(path) => {
+                Ok(format!("Tesseract is ready at {}.", path.display()))
+            }
+            arcade_link::engines::Download::InstallerOpened => Ok(
+                "The verified Tesseract installer is open; finish it and refresh detection.".into(),
+            ),
+        }
+    })
+    .await
+}

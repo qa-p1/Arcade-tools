@@ -20,6 +20,8 @@ pub enum FixAction {
     RemoveStaleReceipt,
     OpenSettings,
     CheckUpdates,
+    OpenEngines,
+    OpenShortcuts,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -30,6 +32,8 @@ pub enum HealthKind {
     UnsupportedVersion,
     LinkOff,
     InvalidReceipt,
+    MissingEngine,
+    ShortcutConflict,
 }
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]

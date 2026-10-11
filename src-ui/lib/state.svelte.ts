@@ -29,6 +29,9 @@ export interface ConfirmationResult {
 
 export const ui = $state({
   apps: [] as AppView[],
+  toolsApp: null as AppView | null,
+  notificationsEnabled: true,
+  learnTarget: 'arcade.ecosystem',
   releases: new Map<string, Release>(),
   updates: null as UpdateState | null,
   updateChecking: false,

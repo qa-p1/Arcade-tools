@@ -6,7 +6,7 @@ import type { ShortcutsIndex } from './shortcuts';
 
 export type Channel = 'stable' | 'nightly';
 export type LaunchMode = 'foreground' | 'background';
-export type Operation = 'install' | 'update' | 'repair' | 'uninstall';
+export type Operation = 'install' | 'update' | 'repair' | 'uninstall' | 'adopt' | 'rollback';
 
 export interface AppView {
   id: string;
@@ -31,6 +31,8 @@ export interface AppView {
   minTools: string;
   installReason: string | null;
   installSupported: boolean;
+  installationClass: 'managed' | 'legacyManaged' | 'selfInstalled' | 'manual' | 'dev';
+  rollbackVersion: string | null;
 }
 
 export interface Release {
@@ -48,7 +50,7 @@ export interface ChannelUpdate {
   heldBack: boolean;
   reason: string | null;
   error: string | null;
-  cache: { release: { version: string; notes: string; channel: Channel } } | null;
+  cache: { body: string; release: { version: string; notes: string; channel: Channel } } | null;
 }
 
 export interface AppUpdate {
@@ -107,7 +109,33 @@ export interface EngineView {
   status: { status: string; path?: string; version?: string | null; minimum?: string; message?: string };
   installHint: string | null;
   linkDownload: boolean;
+  downloaded: boolean;
 }
+export interface Preferences {
+  linkEnabled: boolean;
+  channels: Record<string, Channel>;
+  updates: { enabled: boolean; autoUpdate: Record<string, boolean> };
+  notificationsEnabled: boolean;
+  theme: 'system' | 'light' | 'dark';
+  onboardingComplete: boolean;
+}
+export interface Dashboard {
+  apps: { id: string; pid: number | null; memoryBytes: number | null; cpuPercent: number | null; uptimeSeconds: number | null; tray: string | null; linkEnabled: boolean; reachable: boolean }[];
+  totalMemoryBytes: number;
+  totalCpuPercent: number;
+}
+export interface HealthIssue {
+  app: string; kind: string; path: string | null; reason: string; canFix: boolean;
+  fixAction: 'repair' | 'adopt' | 'remove_stale_registry' | 'remove_stale_receipt' | 'open_settings' | 'check_updates' | 'open_engines' | 'open_shortcuts';
+}
+export interface HistoryEntry { time: number; app: string; from: string | null; to: string | null; result: string; reason: string | null }
+export interface DiagnosticsReport { file: string; issueUrl: string; omitted: string[] }
+export interface BackupApp { id: string; version: string; channel: Channel; settings: string[]; notIncluded: string | null }
+export interface BackupReport { file: string; apps: BackupApp[] }
+export interface RestorePlan { sha256: string; apps: { backup: BackupApp; installed: boolean }[] }
+export interface RestoreResult { app: string; imported: boolean; restartRequired: boolean; message: string }
+export interface UninstallPlan { schema: number; fingerprint: string; removeData: boolean; apps: { id: string; version: string | null; canUninstall: boolean; requiresSelfShutdown: boolean; folders: string[]; dataFolders: string[]; reason: string | null }[] }
+export interface DocPage { app: string; version: string; path: string; title: string; html: string; source: string; needsFetch: boolean }
 
 export interface ConnectionPeer {
   id: string;
@@ -142,11 +170,7 @@ export interface OperationRequest {
 
 export interface Bootstrap {
   apps: AppView[];
-  preferences: {
-    linkEnabled: boolean;
-    channels: Record<string, Channel>;
-    updates: { enabled: boolean; autoUpdate: Record<string, boolean> };
-  };
+  preferences: Preferences;
   updates: UpdateState;
   selected: string | null;
   diagnostics: [string, string][];
@@ -188,8 +212,8 @@ export const api = {
   listApps: () => invoke<AppView[]>('list_apps'),
   checkRelease: (id: string) => invoke<Release>('check_release', { id }),
   updateState: () => invoke<UpdateState>('update_state'),
-  checkUpdates: () => invoke<UpdateState>('check_updates'),
-  checkUpdatesWindowOpen: () => invoke<UpdateState>('check_updates_window_open'),
+  checkUpdates: () => invoke<UpdateState>('check_updates', { online: navigator.onLine }),
+  checkUpdatesWindowOpen: () => invoke<UpdateState>('check_updates_window_open', { online: navigator.onLine }),
   setUpdateChecks: (enabled: boolean) => invoke<void>('set_update_checks', { enabled }),
   setAutoUpdate: (id: string, enabled: boolean) => invoke<void>('set_auto_update', { id, enabled }),
   operate: (request: OperationRequest) => invoke<string>('operate', { request }),
@@ -203,11 +227,8 @@ export const api = {
   refreshCatalog: () => invoke<CatalogData>('refresh_catalog'),
   openCatalogDocs: (id: string) => invoke<void>('open_catalog_docs', { id }),
   renderMarkdown: (markdown: string) => invoke<string>('render_markdown', { markdown }),
-  installCatalogApp: (id: string) => invoke<void>('install_catalog_app', { id }),
-  updateCatalogApp: (id: string) => invoke<void>('update_catalog_app', { id }),
-  uninstallCatalogApp: (id: string) => invoke<void>('uninstall_catalog_app', { id }),
   installCatalogBundle: (bundleId: string, appIds: string[]) =>
-    invoke<void>('install_catalog_bundle', { bundleId, appIds }),
+    invoke<string[]>('install_catalog_bundle', { bundleId, appIds }),
   listBundles: () => invoke<Bundle[]>('list_bundles'),
   listEngines: (refresh: boolean) => invoke<EngineView[]>('list_engines', { refresh }),
   listConnections: () => invoke<ConnectionsView>('list_connections'),
@@ -215,6 +236,30 @@ export const api = {
   searchDocs: (query: string) => invoke<DocsSearchHit[]>('search_docs', { query }),
   fetchDocs: (id: string, version: string) => invoke<void>('fetch_docs', { id, version }),
   openDocs: (id: string) => invoke<void>('open_docs', { id }),
+  preferences: () => invoke<Preferences>('preferences'),
+  toolsApp: () => invoke<AppView | null>('tools_app'),
+  setNotifications: (enabled: boolean) => invoke<void>('set_notifications', { enabled }),
+  setTheme: (theme: string) => invoke<void>('set_theme', { theme }),
+  completeOnboarding: () => invoke<void>('complete_onboarding'),
+  dashboard: () => invoke<Dashboard>('dashboard'),
+  health: () => invoke<HealthIssue[]>('health'),
+  fixHealth: (id: string, action: HealthIssue['fixAction']) => invoke<string>('fix_health', { id, action }),
+  openAppSettings: (id: string) => invoke<void>('open_app_settings', { id }),
+  restartApp: (id: string) => invoke<void>('restart_app', { id }),
+  updateHistory: () => invoke<HistoryEntry[]>('update_history'),
+  createDiagnostics: (id: string) => invoke<DiagnosticsReport>('create_diagnostics', { id }),
+  exportBackup: () => invoke<BackupReport>('export_backup'),
+  planRestore: (path: string) => invoke<RestorePlan>('plan_restore', { path }),
+  restoreBackup: (path: string, sha256: string) => invoke<RestoreResult[]>('restore_backup', { path, sha256 }),
+  revealArchive: (path: string) => invoke<void>('reveal_archive', { path }),
+  openIssue: (id: string) => invoke<void>('open_issue', { id }),
+  docsPages: (id: string) => invoke<{ path: string; title: string }[]>('docs_pages', { id }),
+  readDoc: (id: string, path: string) => invoke<DocPage>('read_doc', { id, path }),
+  downloadEngine: (id: string) => invoke<string>('download_engine', { id }),
+  selfUpdate: () => invoke<void>('self_update'),
+  installTools: () => invoke<void>('install_tools'),
+  planUninstallAll: (removeData: boolean) => invoke<UninstallPlan>('plan_uninstall_all', { removeData }),
+  uninstallAll: (plan: UninstallPlan) => invoke<{ results: { app: string; removed: boolean; reason: string }[] }>('uninstall_all', { plan }),
   uiRendered: (report: UiRenderReport) => invoke<void>('ui_rendered', { report }),
   shortcutsIndex: () => invoke<ShortcutsIndex | null>('shortcuts_index'),
   shortcutLabels: () => invoke<Record<string, string>>('shortcut_labels'),
@@ -231,4 +276,6 @@ export const appEvents = {
     listen('registry-changed', handler),
   managerMessage: (handler: (message: string) => void): Promise<UnlistenFn> =>
     listen<string>('manager-message', ({ payload }) => handler(payload)),
+  updatesChanged: (handler: (state: UpdateState) => void): Promise<UnlistenFn> =>
+    listen<UpdateState>('updates-changed', ({ payload }) => handler(payload)),
 };

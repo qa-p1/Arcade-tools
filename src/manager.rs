@@ -860,12 +860,24 @@ impl Manager {
     }
     pub fn update_deadline(&self) -> Result<Option<u64>> {
         self.update_state()?;
-        Ok(self.scheduler.lock().unwrap().as_ref().unwrap().next_deadline(&self.preferences()?.updates))
+        Ok(self
+            .scheduler
+            .lock()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .next_deadline(&self.preferences()?.updates))
     }
     pub fn last_used(&self, id: &str) -> Option<u64> {
-        let status = Client::connect_with(&self.paths.link, id, &me(), Duration::from_millis(250)).ok()?.status().ok()?;
-        status.pointer("/status/lastUsed").or_else(|| status.pointer("/status/lastUsedAt"))
-            .or_else(|| status.get("lastUsed")).and_then(Value::as_u64)
+        let status = Client::connect_with(&self.paths.link, id, &me(), Duration::from_millis(250))
+            .ok()?
+            .status()
+            .ok()?;
+        status
+            .pointer("/status/lastUsed")
+            .or_else(|| status.pointer("/status/lastUsedAt"))
+            .or_else(|| status.get("lastUsed"))
+            .and_then(Value::as_u64)
     }
     /// Fetch and cache one app's docs for the selected installed version. This
     /// method never runs unless Learn explicitly requests the download.
@@ -1469,6 +1481,10 @@ impl Manager {
             FixAction::CheckUpdates => self
                 .checked(id)
                 .map(|checked| format!("Latest release: {}.", checked.release.version)),
+            FixAction::OpenEngines | FixAction::OpenShortcuts => Err(Error::new(
+                "guidance",
+                "Open the corresponding Tools page to review this issue.",
+            )),
         }
     }
     /// Open app-owned settings using a feature-detected Link helper, or the

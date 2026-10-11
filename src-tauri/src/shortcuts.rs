@@ -20,7 +20,7 @@ fn labels_file() -> Result<PathBuf> {
     Ok(Paths::discover()?.config.join(LABELS_PATH))
 }
 
-fn read_index() -> Result<Option<Value>> {
+pub(crate) fn read_index() -> Result<Option<Value>> {
     match fs::read(cache_file()?) {
         Ok(bytes) => serde_json::from_slice(&bytes)
             .map(Some)

@@ -1,14 +1,18 @@
 <script lang="ts">
   import { api, type AppView, type Bundle } from '../lib/api';
+  import type { ShellTab } from '../lib/tabs.svelte';
+  import type { ShortcutsIndex } from '../lib/shortcuts';
 
   type Props = {
     active: boolean;
     apps: AppView[];
     onInstall: (app: AppView) => Promise<void>;
     onComplete: () => void;
+    onSelectTab: (tab: ShellTab) => void;
+    shortcuts: ShortcutsIndex | null;
     run: (action: () => Promise<void>, label?: string) => void;
   };
-  let { active, apps, onInstall, onComplete, run }: Props = $props();
+  let { active, apps, onInstall, onComplete, onSelectTab, shortcuts, run }: Props = $props();
   let bundles = $state<Bundle[]>([]);
   let step = $state<'welcome' | 'choose' | 'review' | 'done'>('welcome');
   let selected = $state<Set<string>>(new Set());
@@ -43,6 +47,8 @@
 
   function finish(): void {
     try { localStorage.setItem('arcade-tools-onboarding-complete', 'yes'); } catch { /* finish for this session */ }
+    // The preference is the durable record; the local flag only covers a failed write.
+    run(() => api.completeOnboarding());
     step = 'done';
   }
 
@@ -71,6 +77,6 @@
     <div class="onboarding-app-list review-list">{#each selectedApps as app (app.id)}<div class="onboarding-app-row"><img class="app-glyph" src="/glyphs/{app.id}.svg" alt="" width="30" height="30" /><span class="onboarding-app-info"><strong>{app.name}</strong><small>{app.pitch}</small></span>{#if app.installed || app.managed}<span class="badge">Already installed</span>{:else if !app.installSupported}<span class="badge">Unavailable</span>{:else}<button type="button" class="primary-action" onclick={() => run(() => onInstall(app), app.name)}>Review &amp; install</button>{/if}</div>{/each}</div>
     <div class="onboarding-footer"><button type="button" onclick={() => step = 'choose'}>Change selection</button><button type="button" class="primary-action" onclick={finish}>Finish setup</button></div>
   {:else}
-    <header class="onboarding-welcome"><p class="eyebrow">ARCADE TOOLS / READY</p><h1>You’re set.</h1><p class="intro">Your selections are ready in Apps. You can reopen this guide any time from Onboarding.</p><div class="onboarding-actions"><button type="button" class="primary-action" onclick={onComplete}>Go to Home</button><button type="button" onclick={() => step = 'choose'}>Choose more apps</button></div></header>
+    <header class="onboarding-welcome"><p class="eyebrow">ARCADE TOOLS / READY</p><h1>You’re set.</h1><p class="intro">Your selections are ready in Apps. You can reopen this guide any time from Onboarding.</p>{#if shortcuts}<p class="setting-description">Tip: press <strong>Super + /</strong> in any app to see its shortcuts, or browse them all in <button type="button" class="text-action" onclick={() => onSelectTab('shortcuts')}>Shortcuts</button>.</p>{/if}<div class="onboarding-actions"><button type="button" class="primary-action" onclick={onComplete}>Go to Home</button><button type="button" onclick={() => step = 'choose'}>Choose more apps</button></div></header>
   {/if}
 </div>

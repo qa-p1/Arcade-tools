@@ -1,8 +1,8 @@
 <script lang="ts">
   import { api, type ConnectionsView } from '../lib/api';
 
-  type Props = { active: boolean; run: (action: () => Promise<void>, label?: string) => void; onSettings: () => void };
-  let { active, run, onSettings }: Props = $props();
+  type Props = { active: boolean; run: (action: () => Promise<void>, label?: string) => void; onSettings: () => void; onLearn: (id: string) => Promise<void> };
+  let { active, run, onSettings, onLearn }: Props = $props();
   let connections = $state<ConnectionsView | null>(null);
   let loading = $state(false);
   let loaded = $state(false);
@@ -23,7 +23,7 @@
   <header class="page-heading"><div><p class="eyebrow">ARCADE TOOLS / CONNECTIONS</p><h1>See which apps can talk.</h1><p class="intro">Arcade Link lists the apps that have registered with Tools and checks whether their local endpoint responds.</p></div><button type="button" disabled={loading} onclick={() => run(refresh)}>{loading ? 'Checking…' : 'Refresh connections'}</button></header>
 
   {#if connections}
-    <section class="feature-section connection-summary"><div><strong>Arcade Link in Tools</strong><span class:status-on={connections.linkEnabled} class:status-off={!connections.linkEnabled}>{connections.linkEnabled ? 'Enabled' : 'Disabled'}</span></div><button type="button" onclick={onSettings}>Open Settings</button></section>
+    <section class="feature-section connection-summary"><div><strong>Arcade Link in Tools</strong><span class:status-on={connections.linkEnabled} class:status-off={!connections.linkEnabled}>{connections.linkEnabled ? 'Enabled' : 'Disabled'}</span></div><div class="actions-inline"><button type="button" onclick={() => run(() => onLearn('arcade.ecosystem'))}>How apps connect</button><button type="button" onclick={onSettings}>Open Settings</button></div></section>
     {#if connections.peers.length}
       <div class="connection-list">
         {#each connections.peers as peer (peer.id)}

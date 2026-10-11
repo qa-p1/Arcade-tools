@@ -1,3 +1,5 @@
+#[path = "hub.rs"]
+mod hub;
 use arcade_link::client::Client;
 use arcade_link::manifest::ids;
 use arcade_link::registry::{Registry, SharedRegistry};
@@ -5,7 +7,7 @@ use arcade_link::server::{Handler, InvokeContext, Reply};
 use arcade_link::wire::{InvokeRequest, InvokeResult};
 use arcade_link::{LinkError, Presence};
 use arcade_tools_core::catalog::Bundle;
-use arcade_tools_core::catalog::{BundleApps, Catalog};
+use arcade_tools_core::catalog::Catalog;
 use arcade_tools_core::docs::{DocSource, DocsResolver, SearchHit, SearchIndex};
 use arcade_tools_core::engines::EngineCatalog;
 use arcade_tools_core::engines::EngineUse;
@@ -13,11 +15,10 @@ use arcade_tools_core::manager::{AppView, CheckView, LaunchMode, Manager, Prefer
 use arcade_tools_core::paths::Paths;
 use arcade_tools_core::release::{Channel, Os};
 use arcade_tools_core::source::Source;
-use arcade_tools_core::updates::{Trigger, UpdateState};
+use arcade_tools_core::updates::UpdateState;
 use arcade_tools_core::{link, Error, Result};
 use serde::Serialize;
 use serde_json::{json, Value};
-use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
@@ -36,6 +37,9 @@ struct Desktop {
     link_enabled: AtomicBool,
     selected: Mutex<Option<String>>,
     docs_index: Mutex<Option<Arc<SearchIndex>>>,
+    metrics: Mutex<arcade_tools_core::dashboard::Metrics>,
+    update_wake: Mutex<Option<std::sync::mpsc::Sender<()>>>,
+    update_running: AtomicBool,
     #[cfg(debug_assertions)]
     audit: Mutex<()>,
 }
@@ -53,6 +57,9 @@ impl Desktop {
             link_enabled: AtomicBool::new(true),
             selected: Mutex::new(None),
             docs_index: Mutex::new(None),
+            metrics: Mutex::new(Default::default()),
+            update_wake: Mutex::new(None),
+            update_running: AtomicBool::new(false),
             #[cfg(debug_assertions)]
             audit: Mutex::new(()),
         }
@@ -202,6 +209,7 @@ struct EngineView {
     status: Value,
     install_hint: Option<String>,
     link_download: bool,
+    downloaded: bool,
 }
 
 #[derive(Serialize)]
@@ -235,10 +243,16 @@ struct ConnectionsView {
 }
 
 fn docs_resource_dir(app: &AppHandle) -> PathBuf {
-    app.path()
+    let root = app
+        .path()
         .resource_dir()
         .map(|root| root.join("docs"))
-        .unwrap_or_else(|_| PathBuf::from("__arcade_docs_snapshot_missing__"))
+        .unwrap_or_else(|_| PathBuf::from("__arcade_docs_snapshot_missing__"));
+    #[cfg(debug_assertions)]
+    if !root.join("manifest.json").exists() {
+        return PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/docs");
+    }
+    root
 }
 
 fn docs_url(repo: &str, path: &str) -> String {
@@ -273,6 +287,9 @@ fn build_docs_index(app: &AppHandle, manager: &Manager) -> Result<SearchIndex> {
         )? {
             locations.push(location);
         }
+    }
+    if let Some(location) = resolver.resolve("arcade.ecosystem", None, None)? {
+        locations.push(location);
     }
     SearchIndex::build(&locations)
 }
@@ -372,6 +389,7 @@ fn initialize_desktop(app: &AppHandle) -> Result<Arc<Manager>> {
         let locations = manager.paths.link.clone();
         let initial = watch_state(&registry.snapshot(), &locations);
         let last = Mutex::new(initial);
+        let docs_state = state.clone();
         if !registry.watch(move |registry| {
             // SharedRegistry also reports endpoint reads. Probing those files
             // must not trigger another probe or cost anything while idle.
@@ -379,12 +397,14 @@ fn initialize_desktop(app: &AppHandle) -> Result<Arc<Manager>> {
             let mut previous = last.lock().unwrap();
             if *previous != current {
                 *previous = current;
+                docs_state.docs_index.lock().unwrap().take();
                 let _ = handle.emit("registry-changed", ());
             }
         }) {
             return Err(Error::new("watch", "Could not watch the Arcade registry."));
         }
         *state.registry.lock().unwrap() = Some(registry);
+        hub::start_updates(app.clone(), state.clone(), manager)?;
     }
     state.manager()
 }
@@ -417,21 +437,14 @@ async fn update_state(app: AppHandle) -> Result<UpdateState> {
     worker(move || desktop(&app).manager()?.update_state()).await
 }
 #[tauri::command]
-async fn check_updates(app: AppHandle) -> Result<UpdateState> {
-    worker(move || desktop(&app).manager()?.check_updates()).await
-}
-#[tauri::command]
-async fn check_updates_window_open(app: AppHandle) -> Result<UpdateState> {
+async fn set_update_checks(app: AppHandle, enabled: bool) -> Result<()> {
     worker(move || {
-        desktop(&app)
-            .manager()?
-            .check_updates_for(Trigger::WindowOpen)
+        let state = desktop(&app);
+        state.manager()?.set_updates_enabled(enabled)?;
+        hub::wake_updates(&state);
+        Ok(())
     })
     .await
-}
-#[tauri::command]
-async fn set_update_checks(app: AppHandle, enabled: bool) -> Result<()> {
-    worker(move || desktop(&app).manager()?.set_updates_enabled(enabled)).await
 }
 #[tauri::command]
 async fn set_auto_update(app: AppHandle, id: String, enabled: bool) -> Result<()> {
@@ -461,6 +474,15 @@ async fn list_engines(app: AppHandle, refresh: bool) -> Result<Vec<EngineView>> 
                     Ok(status) => serde_json::to_value(status)?,
                     Err(error) => json!({"status":"error", "message":error.message}),
                 };
+                let link_download = engine.link_download
+                    && engine.id == "tesseract"
+                    && arcade_link::engines::tesseract_source().is_some();
+                let downloaded = status
+                    .get("path")
+                    .and_then(Value::as_str)
+                    .is_some_and(|path| {
+                        PathBuf::from(path).starts_with(arcade_link::engines::engines_dir())
+                    });
                 Ok(EngineView {
                     id: engine.id,
                     name: engine.name,
@@ -471,7 +493,8 @@ async fn list_engines(app: AppHandle, refresh: bool) -> Result<Vec<EngineView>> 
                     used_by: engine.used_by,
                     status,
                     install_hint,
-                    link_download: engine.link_download,
+                    link_download,
+                    downloaded,
                 })
             })
             .collect()
@@ -546,7 +569,18 @@ async fn list_learn_apps(app: AppHandle) -> Result<Vec<LearnAppView>> {
             .map(|entry| (entry.id, entry.version))
             .collect::<std::collections::BTreeMap<_, _>>();
         let resolver = DocsResolver::new(manager.paths.clone(), docs_resource_dir(&app));
-        catalog
+        let ecosystem = resolver.resolve("arcade.ecosystem", None, None)?;
+        let mut apps = vec![LearnAppView {
+            id: "arcade.ecosystem".into(),
+            name: "Arcade guides".into(),
+            installed_version: None,
+            docs_version: ecosystem.as_ref().map(|location| location.version.clone()),
+            available: ecosystem.is_some(),
+            source: ecosystem.as_ref().map(|location| location.source),
+            needs_fetch: false,
+            docs_url: "https://github.com/qa-p1/Arcade-catalog/tree/main/docs".into(),
+        }];
+        let guides = catalog
             .apps
             .into_iter()
             .map(|entry| {
@@ -564,7 +598,9 @@ async fn list_learn_apps(app: AppHandle) -> Result<Vec<LearnAppView>> {
                     installed_version,
                 })
             })
-            .collect()
+            .collect::<Result<Vec<_>>>()?;
+        apps.extend(guides);
+        Ok(apps)
     })
     .await
 }
@@ -593,6 +629,15 @@ async fn open_docs(app: AppHandle, id: String) -> Result<()> {
     worker(move || {
         use tauri_plugin_opener::OpenerExt;
         let manager = desktop(&app).manager()?;
+        if id == "arcade.ecosystem" {
+            return app
+                .opener()
+                .open_url(
+                    "https://github.com/qa-p1/Arcade-catalog/tree/main/docs",
+                    None::<&str>,
+                )
+                .map_err(|e| Error::new("open", e.to_string()));
+        }
         let catalog = manager.catalog()?;
         let entry = catalog
             .app(&id)
@@ -741,107 +786,6 @@ async fn render_markdown(markdown: String) -> Result<String> {
     })
     .await
 }
-fn validate_catalog_app(manager: &Manager, id: &str) -> Result<()> {
-    if manager.catalog()?.app(id).is_some() {
-        Ok(())
-    } else {
-        Err(Error::new(
-            "unavailable",
-            "This app is absent from the Arcade catalog.",
-        ))
-    }
-}
-fn catalog_lifecycle_unavailable(manager: &Manager, id: &str, action: &str) -> Result<()> {
-    validate_catalog_app(manager, id)?;
-    // TODO(core B): delegate to the catalog lifecycle operations when they land.
-    Err(Error::new(
-        "unavailable",
-        format!("Catalog app {action} is not available yet."),
-    ))
-}
-#[tauri::command]
-async fn install_catalog_app(app: AppHandle, id: String) -> Result<()> {
-    worker(move || {
-        let manager = desktop(&app).manager()?;
-        catalog_lifecycle_unavailable(manager.as_ref(), &id, "install")
-    })
-    .await
-}
-#[tauri::command]
-async fn update_catalog_app(app: AppHandle, id: String) -> Result<()> {
-    worker(move || {
-        let manager = desktop(&app).manager()?;
-        catalog_lifecycle_unavailable(manager.as_ref(), &id, "update")
-    })
-    .await
-}
-#[tauri::command]
-async fn uninstall_catalog_app(app: AppHandle, id: String) -> Result<()> {
-    worker(move || {
-        let manager = desktop(&app).manager()?;
-        catalog_lifecycle_unavailable(manager.as_ref(), &id, "uninstall")
-    })
-    .await
-}
-fn bundle_lifecycle_unavailable(
-    manager: &Manager,
-    bundle_id: &str,
-    app_ids: &[String],
-) -> Result<()> {
-    let catalog = manager.catalog()?;
-    let bundle = catalog
-        .bundles
-        .iter()
-        .find(|bundle| bundle.id == bundle_id)
-        .ok_or_else(|| Error::new("unavailable", "This bundle is absent from the catalog."))?;
-    if app_ids.is_empty() || app_ids.len() > catalog.apps.len() {
-        return Err(Error::new(
-            "unsupported_input",
-            "Choose at least one app from this bundle.",
-        ));
-    }
-    let allowed = match &bundle.apps {
-        BundleApps::All(value) if value == "*" => None,
-        BundleApps::Ids(ids) => Some(ids.iter().map(String::as_str).collect::<HashSet<_>>()),
-        _ => {
-            return Err(Error::new(
-                "catalog",
-                "The bundle has an invalid app selector.",
-            ));
-        }
-    };
-    let mut selected = HashSet::new();
-    for id in app_ids {
-        validate_catalog_app(manager, id)?;
-        if !selected.insert(id.as_str())
-            || allowed
-                .as_ref()
-                .is_some_and(|ids| !ids.contains(id.as_str()))
-        {
-            return Err(Error::new(
-                "unsupported_input",
-                "The bundle selection contains an invalid or duplicate app.",
-            ));
-        }
-    }
-    // TODO(core B): delegate the confirmed selection to the bundle installer when it lands.
-    Err(Error::new(
-        "unavailable",
-        "Catalog bundle installation is not available yet.",
-    ))
-}
-#[tauri::command]
-async fn install_catalog_bundle(
-    app: AppHandle,
-    bundle_id: String,
-    app_ids: Vec<String>,
-) -> Result<()> {
-    worker(move || {
-        let manager = desktop(&app).manager()?;
-        bundle_lifecycle_unavailable(manager.as_ref(), &bundle_id, &app_ids)
-    })
-    .await
-}
 #[tauri::command]
 async fn ui_rendered(app: AppHandle, report: Value) -> Result<()> {
     worker(move || {
@@ -877,6 +821,7 @@ pub fn run(background: bool, quit: bool) {
             }
         }))
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_notification::init())
         .on_page_load(|window, payload| {
             audit(window.app_handle(), json!({"event":"page-load", "url":payload.url().as_str(), "stage":format!("{:?}", payload.event())}));
         })
@@ -919,13 +864,7 @@ pub fn run(background: bool, quit: bool) {
             refresh_catalog,
             open_catalog_docs,
             render_markdown,
-            install_catalog_app,
-            update_catalog_app,
-            uninstall_catalog_app,
-            install_catalog_bundle,
             update_state,
-            check_updates,
-            check_updates_window_open,
             set_update_checks,
             set_auto_update,
             list_bundles,
@@ -935,6 +874,33 @@ pub fn run(background: bool, quit: bool) {
             search_docs,
             fetch_docs,
             open_docs,
+            hub::check_updates,
+            hub::check_updates_window_open,
+            hub::preferences,
+            hub::set_notifications,
+            hub::set_theme,
+            hub::complete_onboarding,
+            hub::tools_app,
+            hub::update_history,
+            hub::dashboard,
+            hub::health,
+            hub::fix_health,
+            hub::open_app_settings,
+            hub::restart_app,
+            hub::create_diagnostics,
+            hub::export_backup,
+            hub::plan_restore,
+            hub::restore_backup,
+            hub::reveal_archive,
+            hub::open_issue,
+            hub::docs_pages,
+            hub::read_doc,
+            hub::install_catalog_bundle,
+            hub::plan_uninstall_all,
+            hub::uninstall_all,
+            hub::self_update,
+            hub::install_tools,
+            hub::download_engine,
             ui_rendered,
             crate::shortcuts::shortcuts_index,
             crate::shortcuts::shortcut_labels,

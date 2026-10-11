@@ -16,10 +16,11 @@ tauri-build = { version = "2.7", features = [] }
 [dependencies]
 arcade-tools-core = { path = ".." }
 # Keep the source/features additive with ../Cargo.toml and the tray task.
-arcade-link = { git = "https://github.com/qa-p1/Arcade-Link", branch = "arcade/tools-hub", features = ["watch", "install"] }
+arcade-link = { git = "https://github.com/qa-p1/Arcade-Link", tag = "v0.3.0", features = ["watch", "install"] }
 tauri = { version = "2.12", features = [] }
 tauri-plugin-single-instance = "2.5"
 tauri-plugin-opener = "2.7"
 tauri-plugin-notification = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+tempfile = "3"

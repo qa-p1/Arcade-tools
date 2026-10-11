@@ -449,7 +449,7 @@ fn validate_sheet_id(id: &str) -> Result<()> {
     }
     Ok(())
 }
-pub(crate) fn read_bounded(path: &Path, limit: u64) -> Result<Vec<u8>> {
+pub fn read_bounded(path: &Path, limit: u64) -> Result<Vec<u8>> {
     let mut bytes = Vec::new();
     File::open(path)?.take(limit + 1).read_to_end(&mut bytes)?;
     if bytes.len() as u64 > limit {
