@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Theme } from '../lib/state.svelte';
+  import TraySettings from '../components/TraySettings.svelte';
 
   type Props = {
     active: boolean;
@@ -44,6 +45,8 @@
     </div>
     <label class="settings-link-toggle"><input id="settings-link-toggle" type="checkbox" checked={linkEnabled} disabled={busy} onchange={(event) => run(() => onLink(event.currentTarget.checked))} /> Connect with other Arcade apps</label>
   </section>
+
+  <TraySettings {active} {busy} />
 
   <section class="settings-card diagnostics-card" aria-labelledby="diagnostics-heading">
     <div>
