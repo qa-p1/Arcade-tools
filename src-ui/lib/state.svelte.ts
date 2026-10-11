@@ -1,5 +1,6 @@
 import type { AppView, Operation, OperationRequest, Release } from './api';
 import type { ShortcutsIndex } from './shortcuts';
+import type { CatalogData } from './catalog';
 import type { ShellTab } from './tabs.svelte';
 
 export type Theme = 'system' | 'light' | 'dark';
@@ -42,6 +43,9 @@ export const ui = $state({
   cancellable: true,
   linkEnabled: true,
   diagnostics: '',
+  catalogData: null as CatalogData | null,
+  catalogLoading: false,
+  releaseNotesHtml: {} as Record<string, string>,
   theme: 'system' as Theme,
   tab: 'apps' as ShellTab,
   shortcutsIndex: null as ShortcutsIndex | null,

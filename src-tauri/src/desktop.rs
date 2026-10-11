@@ -2,6 +2,8 @@ use arcade_link::registry::{Registry, SharedRegistry};
 use arcade_link::server::{Handler, InvokeContext, Reply};
 use arcade_link::wire::{InvokeRequest, InvokeResult};
 use arcade_link::{LinkError, Presence};
+use arcade_tools_core::catalog::{BundleApps, Catalog};
+use arcade_tools_core::engines::EngineCatalog;
 use arcade_tools_core::manager::{AppView, CheckView, LaunchMode, Manager, Preferences, Request};
 use arcade_tools_core::paths::Paths;
 use arcade_tools_core::release::Channel;
@@ -9,6 +11,7 @@ use arcade_tools_core::source::Source;
 use arcade_tools_core::{link, Error, Result};
 use serde::Serialize;
 use serde_json::{json, Value};
+use std::collections::HashSet;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use tauri::{AppHandle, Emitter, Manager as TauriManager, State};
@@ -154,6 +157,12 @@ struct Bootstrap {
     selected: Option<String>,
     diagnostics: Vec<(String, String)>,
     testing: bool,
+}
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CatalogPayload {
+    catalog: Catalog,
+    engines: EngineCatalog,
 }
 #[tauri::command]
 async fn initialize(app: AppHandle) -> Result<Bootstrap> {
@@ -352,6 +361,169 @@ async fn open_releases(app: AppHandle, id: String) -> Result<()> {
     })
     .await
 }
+fn catalog_payload(manager: &Manager, refresh: bool) -> Result<CatalogPayload> {
+    let catalog = if refresh {
+        manager.refresh_catalog()?
+    } else {
+        manager.catalog()?
+    };
+    let engines = manager.engines(refresh)?;
+    Ok(CatalogPayload { catalog, engines })
+}
+#[tauri::command]
+async fn catalog_data(app: AppHandle) -> Result<CatalogPayload> {
+    worker(move || {
+        let manager = desktop(&app).manager()?;
+        catalog_payload(&manager, false)
+    })
+    .await
+}
+#[tauri::command]
+async fn refresh_catalog(app: AppHandle) -> Result<CatalogPayload> {
+    worker(move || {
+        let manager = desktop(&app).manager()?;
+        catalog_payload(&manager, true)
+    })
+    .await
+}
+#[tauri::command]
+async fn open_catalog_docs(app: AppHandle, id: String) -> Result<()> {
+    worker(move || {
+        use tauri_plugin_opener::OpenerExt;
+        let manager = desktop(&app).manager()?;
+        let catalog = manager.catalog()?;
+        let entry = catalog
+            .app(&id)
+            .ok_or_else(|| Error::new("unavailable", "This app is absent from the catalog."))?;
+        let resource_kind = if std::path::Path::new(&entry.docs).extension().is_some() {
+            "blob"
+        } else {
+            "tree"
+        };
+        let url = format!(
+            "https://github.com/{}/{}/{}/{}",
+            entry.repo, resource_kind, "main", entry.docs
+        );
+        app.opener()
+            .open_url(url, None::<&str>)
+            .map_err(|error| Error::new("open", error.to_string()))
+    })
+    .await
+}
+#[tauri::command]
+async fn render_markdown(markdown: String) -> Result<String> {
+    worker(move || {
+        if markdown.len() > 1024 * 1024 {
+            return Err(Error::new(
+                "too_large",
+                "Release notes exceed the rendering limit.",
+            ));
+        }
+        Ok(arcade_tools_core::markdown::render(&markdown, &[]))
+    })
+    .await
+}
+fn validate_catalog_app(manager: &Manager, id: &str) -> Result<()> {
+    if manager.catalog()?.app(id).is_some() {
+        Ok(())
+    } else {
+        Err(Error::new(
+            "unavailable",
+            "This app is absent from the Arcade catalog.",
+        ))
+    }
+}
+fn catalog_lifecycle_unavailable(manager: &Manager, id: &str, action: &str) -> Result<()> {
+    validate_catalog_app(manager, id)?;
+    // TODO(core B): delegate to the catalog lifecycle operations when they land.
+    Err(Error::new(
+        "unavailable",
+        format!("Catalog app {action} is not available yet."),
+    ))
+}
+#[tauri::command]
+async fn install_catalog_app(app: AppHandle, id: String) -> Result<()> {
+    worker(move || {
+        let manager = desktop(&app).manager()?;
+        catalog_lifecycle_unavailable(manager.as_ref(), &id, "install")
+    })
+    .await
+}
+#[tauri::command]
+async fn update_catalog_app(app: AppHandle, id: String) -> Result<()> {
+    worker(move || {
+        let manager = desktop(&app).manager()?;
+        catalog_lifecycle_unavailable(manager.as_ref(), &id, "update")
+    })
+    .await
+}
+#[tauri::command]
+async fn uninstall_catalog_app(app: AppHandle, id: String) -> Result<()> {
+    worker(move || {
+        let manager = desktop(&app).manager()?;
+        catalog_lifecycle_unavailable(manager.as_ref(), &id, "uninstall")
+    })
+    .await
+}
+fn bundle_lifecycle_unavailable(
+    manager: &Manager,
+    bundle_id: &str,
+    app_ids: &[String],
+) -> Result<()> {
+    let catalog = manager.catalog()?;
+    let bundle = catalog
+        .bundles
+        .iter()
+        .find(|bundle| bundle.id == bundle_id)
+        .ok_or_else(|| Error::new("unavailable", "This bundle is absent from the catalog."))?;
+    if app_ids.is_empty() || app_ids.len() > catalog.apps.len() {
+        return Err(Error::new(
+            "unsupported_input",
+            "Choose at least one app from this bundle.",
+        ));
+    }
+    let allowed = match &bundle.apps {
+        BundleApps::All(value) if value == "*" => None,
+        BundleApps::Ids(ids) => Some(ids.iter().map(String::as_str).collect::<HashSet<_>>()),
+        _ => {
+            return Err(Error::new(
+                "catalog",
+                "The bundle has an invalid app selector.",
+            ));
+        }
+    };
+    let mut selected = HashSet::new();
+    for id in app_ids {
+        validate_catalog_app(manager, id)?;
+        if !selected.insert(id.as_str())
+            || allowed
+                .as_ref()
+                .is_some_and(|ids| !ids.contains(id.as_str()))
+        {
+            return Err(Error::new(
+                "unsupported_input",
+                "The bundle selection contains an invalid or duplicate app.",
+            ));
+        }
+    }
+    // TODO(core B): delegate the confirmed selection to the bundle installer when it lands.
+    Err(Error::new(
+        "unavailable",
+        "Catalog bundle installation is not available yet.",
+    ))
+}
+#[tauri::command]
+async fn install_catalog_bundle(
+    app: AppHandle,
+    bundle_id: String,
+    app_ids: Vec<String>,
+) -> Result<()> {
+    worker(move || {
+        let manager = desktop(&app).manager()?;
+        bundle_lifecycle_unavailable(manager.as_ref(), &bundle_id, &app_ids)
+    })
+    .await
+}
 #[tauri::command]
 async fn ui_rendered(app: AppHandle, report: Value) -> Result<()> {
     worker(move || {
@@ -425,6 +597,14 @@ pub fn run(background: bool, quit: bool) {
             set_login,
             set_link,
             open_releases,
+            catalog_data,
+            refresh_catalog,
+            open_catalog_docs,
+            render_markdown,
+            install_catalog_app,
+            update_catalog_app,
+            uninstall_catalog_app,
+            install_catalog_bundle,
             ui_rendered,
             crate::shortcuts::shortcuts_index,
             crate::shortcuts::shortcut_labels,

@@ -13,12 +13,13 @@
     onCheckUpdates: (app: AppView) => Promise<void>;
     onOperation: (app: AppView, operation: Operation) => Promise<void>;
     onReleases: (app: AppView) => Promise<void>;
+    onDetails: (app: AppView) => void;
     run: (action: () => Promise<void>, appName: string) => void;
   };
 
   let {
     app, selected, release, busy, onChannel, onLogin, onLaunch, onInstall, onCheckUpdates,
-    onOperation, onReleases, run,
+    onOperation, onReleases, onDetails, run,
   }: Props = $props();
 
   const status = $derived(app.running ? 'Running' : app.installed ? 'Installed' : app.managed ? 'Needs repair' : 'Not installed');
@@ -63,5 +64,6 @@
       <button class="quiet danger" type="button" disabled={busy} onclick={() => run(() => onOperation(app, 'uninstall'), app.name)}>Remove</button>
     {/if}
     <button class="quiet" type="button" disabled={busy} onclick={() => run(() => onReleases(app), app.name)}>Releases ↗</button>
+    <button class="quiet" type="button" disabled={busy} onclick={() => onDetails(app)}>Details</button>
   </div>
 </article>
