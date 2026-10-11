@@ -1,0 +1,26 @@
+# Apps
+set $mod Mod4
+set $term foot
+# Terminal
+bindsym $mod+Return exec $term
+# Clipboard controls
+bindsym Ctrl+Alt+v exec clipboard-ui
+include parts/*.conf # file names expand, commands do not execute
+
+# Windows
+bindsym --release $mod+q kill
+bindsym $mod+h focus left
+bindcode $mod+38 exec keycode-example
+bindsym $mod+slash exec arcade-tools-overlay --toggle
+
+mode "resize" {
+    # Grow window
+    bindsym $mod+Right resize grow width 10px
+    # Modal clipboard
+    bindsym Ctrl+Alt+v exec resize-clipboard
+    bindsym Return mode "default"
+    include parts/resize.inc
+}
+
+bindsym $mod+d exec "printf 'literal # value'" \
+    --example

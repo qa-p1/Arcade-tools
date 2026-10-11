@@ -26,3 +26,7 @@ required-features = ["builder"]
 [[test]]
 name = "fixtures"
 required-features = ["builder"]
+
+[[test]]
+name = "desktop_readers"
+required-features = ["builder"]

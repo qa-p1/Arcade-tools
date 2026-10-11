@@ -16,13 +16,13 @@ See [VALIDATION.md](VALIDATION.md) for check results, merge statistics and
 measured rebuild times.
 
 ```rust,no_run
-use arcade_shortcuts::{build_index, default_index_path, hyprland, BuildInputs};
+use arcade_shortcuts::{build_index, default_index_path, wm, BuildInputs};
 
 let inputs = BuildInputs {
     catalog_dir: Some("catalog-cache/shortcuts".into()),
     arcade_docs: vec!["docs-cache/arcade.find/shortcuts.json".into()],
     registry_dir: Some("registry/arcade/apps".into()),
-    hyprland: Some(hyprland::read_machine(&Default::default())),
+    wm: Some(wm::read_machine(&Default::default())),
     user_labels: Some("tools/shortcut-labels.json".into()),
     ..Default::default()
 };
@@ -32,8 +32,9 @@ index.write_index(&default_index_path()?)?;
 ```
 
 Run this entire operation on a worker. `build_index` performs disk reads and
-never queries Hyprland; `read_machine` is the convenience config + runtime
-reader. `lua::evaluate`, `conf::parse`, `runtime::parse_json` and
+never queries the desktop; `wm::read_machine` selects the current desktop and
+reads it once. The legacy `BuildInputs.hyprland` still works; `wm` takes
+precedence. `lua::evaluate`, `conf::parse`, `runtime::parse_json` and
 `hyprland::merge` accept separate inputs for tests or integrations with their
 own runtime transport. `HyprlandReport.files` lists read config files for
 change-triggered watching. The caller should also watch parent directories of
@@ -84,8 +85,37 @@ cargo run -p arcade-shortcuts --release --example dump --locked -- \
 
 Additional example options: `--registry`, repeatable `--docs`, `--labels`, and
 `--output` for an explicitly chosen generated index. Without `--output` it
-writes no index. Only `hyprctl binds -j` is executed, with a one-second timeout
-and only when `HYPRLAND_INSTANCE_SIGNATURE` is set.
+writes no index. Hyprland executes only `hyprctl binds -j`, with a one-second
+timeout and only when `HYPRLAND_INSTANCE_SIGNATURE` is set.
+
+Other Linux desktops are fixture-tested and **not run on a real desktop**:
+
+- Sway reads `swaymsg -r -t get_binding_modes`, `get_config`, and `get_version`.
+  The config parser handles variables, quoted words, continuations, bind
+  blocks/flags, keycodes, includes/globs and modes. Includes use bounded,
+  canonical read roots and reject symlink escapes. Comments and dispatcher
+  descriptions supply labels. IPC mode names do not prove each binding is
+  registered, so entries remain `configuredOnly`.
+- KDE reads `<config>/kglobalshortcutsrc`. Current keys supply alternatives
+  and sequences; empty/`none` keys stay disabled even when a default is present.
+  KConfig escapes, component/context names and action labels are preserved.
+- GNOME reads effective media-keys and WM keybindings with
+  `gsettings list-recursively`, plus up to 16 enabled custom shortcut schemas.
+  GTK modifiers and GVariant strings/arrays are parsed without evaluation.
+  When GSettings cannot be read, `dconf dump /org/gnome/` supplies saved
+  overrides only; schema defaults are explicitly unavailable.
+
+Sway/GNOME subprocess output is capped at 2 MiB and each query at 500 ms.
+KDE/GNOME runtime registration is not verified, so their entries are also
+`configuredOnly`. The selected desktop name, groups, sources, warnings, labels
+and Arcade-global/sequence-prefix conflicts use the same index pipeline as
+Hyprland. No reader executes a configured action or writes WM settings.
+`WmReport.files` lists files already read for caller-owned event watching;
+no polling or resident lifecycle is added.
+
+Formats follow upstream [Sway IPC](https://github.com/swaywm/sway/blob/master/sway/sway-ipc.7.scd),
+[KGlobalAccel settings](https://invent.kde.org/plasma/kglobalacceld/-/blob/master/src/component.cpp),
+and [GNOME media-keys schemas](https://gitlab.gnome.org/GNOME/gnome-settings-daemon/-/blob/master/data/org.gnome.settings-daemon.plugins.media-keys.gschema.xml.in).
 
 Fixture timing, including config evaluation, 31 sheets, docs, manifests,
 serialization, file sync and atomic rename:

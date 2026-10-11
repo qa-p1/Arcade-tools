@@ -1,0 +1,22 @@
+[$Version]
+update_info=irrelevant
+
+[kwin]
+Window Close=Alt+F4,Alt+F4,Close window
+Audio Settings=Ctrl+Alt+V,none,Audio settings
+Window Maximize=Meta+PgUp\tAlt+F10,Meta+PgUp,Maximize window
+Disabled=none,Meta+D,Disabled action
+Empty=,Meta+E,Empty action
+Sequence=Meta+K\, Meta+C,none,Sequence action
+Comma=Ctrl+\,,none,Comma key
+Slash=Meta+/,none,Shortcut sheet
+_k_friendly_name=KWin
+
+[kmix]
+increase_volume=Volume Up,Volume Up,Increase volume
+mute=Volume Mute,Volume Mute,Mute audio
+_k_friendly_name=Audio Volume
+
+[kwin][resize]
+Audio Settings=Ctrl+Alt+V,none,Modal audio
+_k_friendly_name=Resize windows
