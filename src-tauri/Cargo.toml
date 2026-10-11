@@ -19,7 +19,7 @@ resvg = { version = "0.45", default-features = false }
 [dependencies]
 arcade-tools-core = { path = ".." }
 # The orchestrator pins the integration branch to v0.3.0 at merge.
-arcade-link = { git = "https://github.com/qa-p1/Arcade-Link", branch = "arcade/tools-hub", features = ["watch", "trayhost"] }
+arcade-link = { git = "https://github.com/qa-p1/Arcade-Link", branch = "arcade/tools-hub", features = ["watch", "install", "trayhost"] }
 arcade-shortcuts = { path = "../crates/arcade-shortcuts" }
 tauri = { version = "2.12", features = [] }
 tauri-plugin-single-instance = "2.5"

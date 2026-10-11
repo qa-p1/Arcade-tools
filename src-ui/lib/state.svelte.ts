@@ -1,5 +1,6 @@
-import type { AppView, Operation, OperationRequest, Release } from './api';
+import type { AppView, Operation, OperationRequest, Release, UpdateState } from './api';
 import type { ShortcutsIndex } from './shortcuts';
+import type { CatalogData } from './catalog';
 import type { ShellTab } from './tabs.svelte';
 
 export type Theme = 'system' | 'light' | 'dark';
@@ -29,6 +30,10 @@ export interface ConfirmationResult {
 export const ui = $state({
   apps: [] as AppView[],
   releases: new Map<string, Release>(),
+  updates: null as UpdateState | null,
+  updateChecking: false,
+  updateChecksEnabled: true,
+  autoUpdate: {} as Record<string, boolean>,
   selected: null as string | null,
   busy: false,
   refreshing: false,
@@ -42,6 +47,9 @@ export const ui = $state({
   cancellable: true,
   linkEnabled: true,
   diagnostics: '',
+  catalogData: null as CatalogData | null,
+  catalogLoading: false,
+  releaseNotesHtml: {} as Record<string, string>,
   theme: 'system' as Theme,
   tab: 'apps' as ShellTab,
   shortcutsIndex: null as ShortcutsIndex | null,

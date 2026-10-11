@@ -1,4 +1,4 @@
-export type ShellTab = 'home' | 'apps' | 'updates' | 'shortcuts' | 'learn' | 'connections' | 'engines' | 'settings';
+export type ShellTab = 'home' | 'apps' | 'updates' | 'shortcuts' | 'learn' | 'connections' | 'engines' | 'settings' | 'onboarding';
 export interface ShellTabModel {
   id: ShellTab;
   label: string;
@@ -6,14 +6,15 @@ export interface ShellTabModel {
 }
 
 export const tabs: ShellTabModel[] = $state([
-  { id: 'home', label: 'Home', enabled: false },
+  { id: 'home', label: 'Home', enabled: true },
   { id: 'apps', label: 'Apps', enabled: true },
-  { id: 'updates', label: 'Updates', enabled: false },
+  { id: 'updates', label: 'Updates', enabled: true },
   { id: 'shortcuts', label: 'Shortcuts', enabled: false },
-  { id: 'learn', label: 'Learn', enabled: false },
-  { id: 'connections', label: 'Connections', enabled: false },
-  { id: 'engines', label: 'Engines', enabled: false },
+  { id: 'learn', label: 'Learn', enabled: true },
+  { id: 'connections', label: 'Connections', enabled: true },
+  { id: 'engines', label: 'Engines', enabled: true },
   { id: 'settings', label: 'Settings', enabled: true },
+  { id: 'onboarding', label: 'Onboarding', enabled: true },
 ]);
 
 export function setShortcutsEnabled(enabled: boolean): void {

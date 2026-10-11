@@ -29,6 +29,12 @@ fn discovery_env_probe() {
         );
     }
     assert!(paths.isolated);
+    let install = arcade_link::install::Environment::under(&root);
+    assert_eq!(paths.home, install.home);
+    assert_eq!(paths.config, install.config);
+    assert_eq!(paths.data, install.data);
+    assert_eq!(paths.local, install.local_app_data);
+    assert_eq!(paths.link.registry, install.locations.registry);
 }
 #[test]
 fn arcade_home_discovery_stays_in_the_childs_isolated_environment() {

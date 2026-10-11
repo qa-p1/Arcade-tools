@@ -18,7 +18,7 @@
 </script>
 
 <aside class="sidebar" aria-label="Arcade Tools">
-  <a class="brand" href="#apps" aria-label="Arcade Tools home" onclick={(event) => { event.preventDefault(); onSelect('apps'); }}>
+  <a class="brand" href="#home" aria-label="Arcade Tools home" onclick={(event) => { event.preventDefault(); onSelect('home'); }}>
     <span class="brand-mark" aria-hidden="true">A</span>
     <span><strong>Arcade</strong><small>TOOLS</small></span>
   </a>

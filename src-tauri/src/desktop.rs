@@ -1,18 +1,29 @@
 use crate::tray::hosting::Presence;
 use crate::{index_service, resident, tray};
+use arcade_link::client::Client;
+use arcade_link::manifest::ids;
 use arcade_link::registry::{Registry, SharedRegistry};
 use arcade_link::server::{Handler, InvokeContext, Reply};
 use arcade_link::wire::{InvokeRequest, InvokeResult};
 use arcade_link::LinkError;
+use arcade_tools_core::catalog::Bundle;
+use arcade_tools_core::catalog::{BundleApps, Catalog};
+use arcade_tools_core::docs::{DocSource, DocsResolver, SearchHit, SearchIndex};
+use arcade_tools_core::engines::EngineCatalog;
+use arcade_tools_core::engines::EngineUse;
 use arcade_tools_core::manager::{AppView, CheckView, LaunchMode, Manager, Preferences, Request};
 use arcade_tools_core::paths::Paths;
-use arcade_tools_core::release::Channel;
+use arcade_tools_core::release::{Channel, Os};
 use arcade_tools_core::source::Source;
+use arcade_tools_core::updates::{Trigger, UpdateState};
 use arcade_tools_core::{link, Error, Result};
 use serde::Serialize;
 use serde_json::{json, Value};
+use std::collections::HashSet;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
+use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager as TauriManager, State};
 
 struct Desktop {
@@ -28,6 +39,7 @@ struct Desktop {
     selected: Mutex<Option<String>>,
     resident: Mutex<resident::Resident>,
     restarting: AtomicBool,
+    docs_index: Mutex<Option<Arc<SearchIndex>>>,
     #[cfg(debug_assertions)]
     audit: Mutex<()>,
 }
@@ -46,6 +58,7 @@ impl Desktop {
             selected: Mutex::new(None),
             resident: Mutex::new(resident::Resident::new(background)),
             restarting: AtomicBool::new(false),
+            docs_index: Mutex::new(None),
             #[cfg(debug_assertions)]
             audit: Mutex::new(()),
         }
@@ -202,10 +215,132 @@ async fn worker<T: Send + 'static>(work: impl FnOnce() -> Result<T> + Send + 'st
 struct Bootstrap {
     apps: Vec<AppView>,
     preferences: Preferences,
+    updates: UpdateState,
     selected: Option<String>,
     diagnostics: Vec<(String, String)>,
     testing: bool,
 }
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CatalogPayload {
+    catalog: Catalog,
+    engines: EngineCatalog,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LearnAppView {
+    id: String,
+    name: String,
+    installed_version: Option<String>,
+    docs_version: Option<String>,
+    available: bool,
+    source: Option<DocSource>,
+    needs_fetch: bool,
+    docs_url: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct EngineView {
+    id: String,
+    name: String,
+    homepage: String,
+    binaries: Vec<String>,
+    version_args: Vec<String>,
+    minimum_version: Option<String>,
+    used_by: Vec<EngineUse>,
+    status: Value,
+    install_hint: Option<String>,
+    link_download: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ConnectionActionView {
+    id: String,
+    title: String,
+    verb: String,
+    available: bool,
+    reason: Option<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ConnectionPeerView {
+    id: String,
+    name: String,
+    version: String,
+    link_enabled: bool,
+    reachable: bool,
+    busy: Option<bool>,
+    protocols: Vec<u32>,
+    actions: Vec<ConnectionActionView>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ConnectionsView {
+    link_enabled: bool,
+    peers: Vec<ConnectionPeerView>,
+}
+
+fn docs_resource_dir(app: &AppHandle) -> PathBuf {
+    app.path()
+        .resource_dir()
+        .map(|root| root.join("docs"))
+        .unwrap_or_else(|_| PathBuf::from("__arcade_docs_snapshot_missing__"))
+}
+
+fn docs_url(repo: &str, path: &str) -> String {
+    let path = path.trim_start_matches('/');
+    let path = if path == "README.md" {
+        "docs/user"
+    } else {
+        path
+    };
+    let route = if path.to_ascii_lowercase().ends_with(".md") {
+        "blob"
+    } else {
+        "tree"
+    };
+    format!("https://github.com/{repo}/{route}/main/{path}")
+}
+
+fn build_docs_index(app: &AppHandle, manager: &Manager) -> Result<SearchIndex> {
+    let catalog = manager.catalog()?;
+    let versions = manager
+        .list(false)?
+        .into_iter()
+        .map(|entry| (entry.id, entry.version))
+        .collect::<std::collections::BTreeMap<_, _>>();
+    let resolver = DocsResolver::new(manager.paths.clone(), docs_resource_dir(app));
+    let mut locations = Vec::new();
+    for entry in &catalog.apps {
+        if let Some(location) = resolver.resolve(
+            &entry.id,
+            versions.get(&entry.id).and_then(Option::as_deref),
+            None,
+        )? {
+            locations.push(location);
+        }
+    }
+    SearchIndex::build(&locations)
+}
+
+fn cached_docs_index(
+    app: &AppHandle,
+    state: &Desktop,
+    manager: &Manager,
+) -> Result<Arc<SearchIndex>> {
+    if let Some(index) = state.docs_index.lock().unwrap().clone() {
+        return Ok(index);
+    }
+    let index = Arc::new(build_docs_index(app, manager)?);
+    let mut cached = state.docs_index.lock().unwrap();
+    Ok(cached.get_or_insert_with(|| index.clone()).clone())
+}
+
 #[tauri::command]
 async fn initialize(app: AppHandle) -> Result<Bootstrap> {
     worker(move || {
@@ -225,6 +360,7 @@ async fn initialize(app: AppHandle) -> Result<Bootstrap> {
         Ok(Bootstrap {
             apps: manager.list(true)?,
             preferences: manager.preferences()?,
+            updates: manager.update_state()?,
             selected,
             diagnostics,
             testing: cfg!(debug_assertions) && manager.paths.isolated,
@@ -379,6 +515,197 @@ async fn list_apps(app: AppHandle) -> Result<Vec<AppView>> {
 async fn check_release(app: AppHandle, id: String) -> Result<CheckView> {
     worker(move || desktop(&app).manager()?.check(&id)).await
 }
+#[tauri::command]
+async fn update_state(app: AppHandle) -> Result<UpdateState> {
+    worker(move || desktop(&app).manager()?.update_state()).await
+}
+#[tauri::command]
+async fn check_updates(app: AppHandle) -> Result<UpdateState> {
+    worker(move || desktop(&app).manager()?.check_updates()).await
+}
+#[tauri::command]
+async fn check_updates_window_open(app: AppHandle) -> Result<UpdateState> {
+    worker(move || {
+        desktop(&app)
+            .manager()?
+            .check_updates_for(Trigger::WindowOpen)
+    })
+    .await
+}
+#[tauri::command]
+async fn set_update_checks(app: AppHandle, enabled: bool) -> Result<()> {
+    worker(move || desktop(&app).manager()?.set_updates_enabled(enabled)).await
+}
+#[tauri::command]
+async fn set_auto_update(app: AppHandle, id: String, enabled: bool) -> Result<()> {
+    worker(move || desktop(&app).manager()?.set_auto_update(&id, enabled)).await
+}
+#[tauri::command]
+async fn list_bundles(app: AppHandle) -> Result<Vec<Bundle>> {
+    worker(move || Ok(desktop(&app).manager()?.catalog()?.bundles)).await
+}
+#[tauri::command]
+async fn list_engines(app: AppHandle, refresh: bool) -> Result<Vec<EngineView>> {
+    worker(move || {
+        let manager = desktop(&app).manager()?;
+        let catalog = manager.engines(refresh)?;
+        let os = Os::current();
+        let os_release = if os == Os::Linux {
+            std::fs::read_to_string("/etc/os-release").unwrap_or_default()
+        } else {
+            String::new()
+        };
+        catalog
+            .engines
+            .into_iter()
+            .map(|engine| {
+                let install_hint = engine.install_hint(os, &os_release).map(str::to_owned);
+                let status = match engine.detect_current() {
+                    Ok(status) => serde_json::to_value(status)?,
+                    Err(error) => json!({"status":"error", "message":error.message}),
+                };
+                Ok(EngineView {
+                    id: engine.id,
+                    name: engine.name,
+                    homepage: engine.homepage,
+                    binaries: engine.detect.binaries,
+                    version_args: engine.detect.version_args,
+                    minimum_version: engine.detect.min_version,
+                    used_by: engine.used_by,
+                    status,
+                    install_hint,
+                    link_download: engine.link_download,
+                })
+            })
+            .collect()
+    })
+    .await
+}
+#[tauri::command]
+async fn list_connections(app: AppHandle) -> Result<ConnectionsView> {
+    worker(move || {
+        let manager = desktop(&app).manager()?;
+        let link_enabled = manager.preferences()?.link_enabled;
+        let registry = Registry::load(&manager.paths.link);
+        let me = arcade_tools_core::manager::me();
+        let peers = registry
+            .peers(ids::TOOLS)
+            .map(|manifest| {
+                let (reachable, busy) = match Client::connect_with(
+                    &manager.paths.link,
+                    &manifest.id,
+                    &me,
+                    Duration::from_millis(500),
+                ) {
+                    Ok(mut client) => match client.status() {
+                        Ok(status) => (
+                            true,
+                            status
+                                .pointer("/status/busy")
+                                .or_else(|| status.get("busy"))
+                                .and_then(Value::as_bool),
+                        ),
+                        Err(_) => (false, None),
+                    },
+                    Err(_) => (false, None),
+                };
+                ConnectionPeerView {
+                    id: manifest.id.clone(),
+                    name: manifest.name.clone(),
+                    version: manifest.version.clone(),
+                    link_enabled: manifest.settings.link_enabled,
+                    reachable,
+                    busy,
+                    protocols: manifest.link.protocol.clone(),
+                    actions: manifest
+                        .actions
+                        .iter()
+                        .map(|action| ConnectionActionView {
+                            id: action.id.clone(),
+                            title: action.title.clone(),
+                            verb: action.verb.clone(),
+                            available: action.available,
+                            reason: action.reason.clone(),
+                        })
+                        .collect(),
+                }
+            })
+            .collect();
+        Ok(ConnectionsView {
+            link_enabled,
+            peers,
+        })
+    })
+    .await
+}
+#[tauri::command]
+async fn list_learn_apps(app: AppHandle) -> Result<Vec<LearnAppView>> {
+    worker(move || {
+        let manager = desktop(&app).manager()?;
+        let catalog = manager.catalog()?;
+        let versions = manager
+            .list(false)?
+            .into_iter()
+            .map(|entry| (entry.id, entry.version))
+            .collect::<std::collections::BTreeMap<_, _>>();
+        let resolver = DocsResolver::new(manager.paths.clone(), docs_resource_dir(&app));
+        catalog
+            .apps
+            .into_iter()
+            .map(|entry| {
+                let installed_version = versions.get(&entry.id).cloned().flatten();
+                let location = resolver.resolve(&entry.id, installed_version.as_deref(), None)?;
+                Ok(LearnAppView {
+                    id: entry.id,
+                    name: entry.name,
+                    docs_version: location.as_ref().map(|item| item.version.clone()),
+                    available: location.is_some(),
+                    source: location.as_ref().map(|item| item.source),
+                    needs_fetch: installed_version.is_some()
+                        && location.as_ref().is_none_or(|item| item.needs_fetch),
+                    docs_url: docs_url(&entry.repo, &entry.docs),
+                    installed_version,
+                })
+            })
+            .collect()
+    })
+    .await
+}
+#[tauri::command]
+async fn search_docs(app: AppHandle, query: String) -> Result<Vec<SearchHit>> {
+    worker(move || {
+        let state = desktop(&app);
+        let manager = state.manager()?;
+        let index = cached_docs_index(&app, &state, &manager)?;
+        Ok(index.search(&query, 30))
+    })
+    .await
+}
+#[tauri::command]
+async fn fetch_docs(app: AppHandle, id: String, version: String) -> Result<()> {
+    let state = desktop(&app);
+    worker(move || {
+        state.manager()?.fetch_docs(&id, &version)?;
+        state.docs_index.lock().unwrap().take();
+        Ok(())
+    })
+    .await
+}
+#[tauri::command]
+async fn open_docs(app: AppHandle, id: String) -> Result<()> {
+    worker(move || {
+        use tauri_plugin_opener::OpenerExt;
+        let manager = desktop(&app).manager()?;
+        let catalog = manager.catalog()?;
+        let entry = catalog
+            .app(&id)
+            .ok_or_else(|| Error::new("unavailable", "This app is absent from the catalog."))?;
+        app.opener()
+            .open_url(docs_url(&entry.repo, &entry.docs), None::<&str>)
+            .map_err(|error| Error::new("open", error.to_string()))
+    })
+    .await
+}
 struct Active(Arc<Desktop>);
 impl Drop for Active {
     fn drop(&mut self) {
@@ -452,6 +779,169 @@ async fn open_releases(app: AppHandle, id: String) -> Result<()> {
         app.opener()
             .open_url(arcade_link::manifest::releases_url(&id), None::<&str>)
             .map_err(|e| Error::new("open", e.to_string()))
+    })
+    .await
+}
+fn catalog_payload(manager: &Manager, refresh: bool) -> Result<CatalogPayload> {
+    let catalog = if refresh {
+        manager.refresh_catalog()?
+    } else {
+        manager.catalog()?
+    };
+    let engines = manager.engines(refresh)?;
+    Ok(CatalogPayload { catalog, engines })
+}
+#[tauri::command]
+async fn catalog_data(app: AppHandle) -> Result<CatalogPayload> {
+    worker(move || {
+        let manager = desktop(&app).manager()?;
+        catalog_payload(&manager, false)
+    })
+    .await
+}
+#[tauri::command]
+async fn refresh_catalog(app: AppHandle) -> Result<CatalogPayload> {
+    worker(move || {
+        let manager = desktop(&app).manager()?;
+        catalog_payload(&manager, true)
+    })
+    .await
+}
+#[tauri::command]
+async fn open_catalog_docs(app: AppHandle, id: String) -> Result<()> {
+    worker(move || {
+        use tauri_plugin_opener::OpenerExt;
+        let manager = desktop(&app).manager()?;
+        let catalog = manager.catalog()?;
+        let entry = catalog
+            .app(&id)
+            .ok_or_else(|| Error::new("unavailable", "This app is absent from the catalog."))?;
+        let resource_kind = if std::path::Path::new(&entry.docs).extension().is_some() {
+            "blob"
+        } else {
+            "tree"
+        };
+        let url = format!(
+            "https://github.com/{}/{}/{}/{}",
+            entry.repo, resource_kind, "main", entry.docs
+        );
+        app.opener()
+            .open_url(url, None::<&str>)
+            .map_err(|error| Error::new("open", error.to_string()))
+    })
+    .await
+}
+#[tauri::command]
+async fn render_markdown(markdown: String) -> Result<String> {
+    worker(move || {
+        if markdown.len() > 1024 * 1024 {
+            return Err(Error::new(
+                "too_large",
+                "Release notes exceed the rendering limit.",
+            ));
+        }
+        Ok(arcade_tools_core::markdown::render(&markdown, &[]))
+    })
+    .await
+}
+fn validate_catalog_app(manager: &Manager, id: &str) -> Result<()> {
+    if manager.catalog()?.app(id).is_some() {
+        Ok(())
+    } else {
+        Err(Error::new(
+            "unavailable",
+            "This app is absent from the Arcade catalog.",
+        ))
+    }
+}
+fn catalog_lifecycle_unavailable(manager: &Manager, id: &str, action: &str) -> Result<()> {
+    validate_catalog_app(manager, id)?;
+    // TODO(core B): delegate to the catalog lifecycle operations when they land.
+    Err(Error::new(
+        "unavailable",
+        format!("Catalog app {action} is not available yet."),
+    ))
+}
+#[tauri::command]
+async fn install_catalog_app(app: AppHandle, id: String) -> Result<()> {
+    worker(move || {
+        let manager = desktop(&app).manager()?;
+        catalog_lifecycle_unavailable(manager.as_ref(), &id, "install")
+    })
+    .await
+}
+#[tauri::command]
+async fn update_catalog_app(app: AppHandle, id: String) -> Result<()> {
+    worker(move || {
+        let manager = desktop(&app).manager()?;
+        catalog_lifecycle_unavailable(manager.as_ref(), &id, "update")
+    })
+    .await
+}
+#[tauri::command]
+async fn uninstall_catalog_app(app: AppHandle, id: String) -> Result<()> {
+    worker(move || {
+        let manager = desktop(&app).manager()?;
+        catalog_lifecycle_unavailable(manager.as_ref(), &id, "uninstall")
+    })
+    .await
+}
+fn bundle_lifecycle_unavailable(
+    manager: &Manager,
+    bundle_id: &str,
+    app_ids: &[String],
+) -> Result<()> {
+    let catalog = manager.catalog()?;
+    let bundle = catalog
+        .bundles
+        .iter()
+        .find(|bundle| bundle.id == bundle_id)
+        .ok_or_else(|| Error::new("unavailable", "This bundle is absent from the catalog."))?;
+    if app_ids.is_empty() || app_ids.len() > catalog.apps.len() {
+        return Err(Error::new(
+            "unsupported_input",
+            "Choose at least one app from this bundle.",
+        ));
+    }
+    let allowed = match &bundle.apps {
+        BundleApps::All(value) if value == "*" => None,
+        BundleApps::Ids(ids) => Some(ids.iter().map(String::as_str).collect::<HashSet<_>>()),
+        _ => {
+            return Err(Error::new(
+                "catalog",
+                "The bundle has an invalid app selector.",
+            ));
+        }
+    };
+    let mut selected = HashSet::new();
+    for id in app_ids {
+        validate_catalog_app(manager, id)?;
+        if !selected.insert(id.as_str())
+            || allowed
+                .as_ref()
+                .is_some_and(|ids| !ids.contains(id.as_str()))
+        {
+            return Err(Error::new(
+                "unsupported_input",
+                "The bundle selection contains an invalid or duplicate app.",
+            ));
+        }
+    }
+    // TODO(core B): delegate the confirmed selection to the bundle installer when it lands.
+    Err(Error::new(
+        "unavailable",
+        "Catalog bundle installation is not available yet.",
+    ))
+}
+#[tauri::command]
+async fn install_catalog_bundle(
+    app: AppHandle,
+    bundle_id: String,
+    app_ids: Vec<String>,
+) -> Result<()> {
+    worker(move || {
+        let manager = desktop(&app).manager()?;
+        bundle_lifecycle_unavailable(manager.as_ref(), &bundle_id, &app_ids)
     })
     .await
 }
@@ -576,6 +1066,26 @@ pub fn run(background: bool, quit: bool) {
             set_login,
             set_link,
             open_releases,
+            catalog_data,
+            refresh_catalog,
+            open_catalog_docs,
+            render_markdown,
+            install_catalog_app,
+            update_catalog_app,
+            uninstall_catalog_app,
+            install_catalog_bundle,
+            update_state,
+            check_updates,
+            check_updates_window_open,
+            set_update_checks,
+            set_auto_update,
+            list_bundles,
+            list_engines,
+            list_connections,
+            list_learn_apps,
+            search_docs,
+            fetch_docs,
+            open_docs,
             ui_rendered,
             crate::shortcuts::shortcuts_index,
             crate::shortcuts::shortcut_labels,

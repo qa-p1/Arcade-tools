@@ -1,0 +1,11 @@
+org.gnome.desktop.wm.keybindings close ['<Alt>F4']
+org.gnome.desktop.wm.keybindings switch-windows ['<Alt>Tab', '<Super>Tab']
+org.gnome.desktop.wm.keybindings move-to-workspace-left ['<Control><Shift><Alt>Left']
+org.gnome.desktop.wm.keybindings disabled ['disabled']
+org.gnome.desktop.wm.keybindings empty @as []
+org.gnome.settings-daemon.plugins.media-keys volume-up ['XF86AudioRaiseVolume']
+org.gnome.settings-daemon.plugins.media-keys play ['XF86AudioPlay']
+org.gnome.settings-daemon.plugins.media-keys audio-settings ['<Control><Alt>v']
+org.gnome.settings-daemon.plugins.media-keys custom-keybindings ['/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/']
+org.gnome.settings-daemon.plugins.media-keys maximum-screencast-length uint32 30
+org.gnome.settings-daemon.plugins.media-keys enable-sound true

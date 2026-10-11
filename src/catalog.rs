@@ -46,7 +46,7 @@ impl CatalogApp {
     /// Pure calculation, safe on any thread. Unknown apps can be displayed but
     /// require a compiled install contract before the manager can modify them.
     pub fn supported_install(&self) -> bool {
-        crate::apps::APPS.contains(&self.id.as_str())
+        crate::apps::APPS.contains(&self.id.as_str()) || self.id == "arcade.tools"
     }
 }
 
@@ -143,6 +143,34 @@ impl Catalog {
     /// In-memory lookup, safe on any thread.
     pub fn app(&self, id: &str) -> Option<&CatalogApp> {
         self.apps.iter().find(|app| app.id == id)
+    }
+    /// Pure install metadata, safe on any thread. Tools has a separate catalog
+    /// entry and participates in update discovery without an Apps-page row.
+    pub fn install_entry(&self, id: &str) -> Option<CatalogApp> {
+        if id != "arcade.tools" {
+            return self.app(id).cloned();
+        }
+        Some(CatalogApp {
+            id: self.tools.id.clone(),
+            name: self.tools.name.clone(),
+            repo: self.tools.repo.clone(),
+            pitch: String::new(),
+            description: String::new(),
+            category: "tools".into(),
+            icon: self.tools.icon.clone(),
+            screenshots: Vec::new(),
+            platforms: BTreeMap::new(),
+            link_protocol: vec![1],
+            min_tools: self.tools.min_tools.clone(),
+            docs: "docs/user".into(),
+            resident: true,
+            homepage: format!("https://github.com/{}", self.tools.repo),
+            install_reason: parse_version(env!("CARGO_PKG_VERSION"))
+                .ok()
+                .zip(parse_version(&self.tools.min_tools).ok())
+                .filter(|(current, minimum)| current.cmp_precedence(minimum).is_lt())
+                .map(|_| "Update Arcade Tools to install this".into()),
+        })
     }
 }
 

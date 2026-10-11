@@ -118,6 +118,7 @@ impl FakeRelease {
         for app in catalog["apps"].as_array_mut().unwrap() {
             app["minTools"] = serde_json::json!("0.1.0");
         }
+        catalog["tools"]["minTools"] = serde_json::json!("0.1.0");
         server.routes.lock().unwrap().insert(
             "/catalog.json".into(),
             serde_json::to_vec(&catalog).unwrap(),
@@ -196,6 +197,41 @@ impl FakeRelease {
             "draft": false, "prerelease": channel == "nightly", "assets": assets,
         })).unwrap());
         dir
+    }
+    /// Modify the test release's manifest and API validator together.
+    pub fn amend_manifest(
+        &self,
+        id: &str,
+        version: &str,
+        channel: &str,
+        edit: impl FnOnce(&mut serde_json::Value),
+    ) {
+        let prefix = format!("/assets/{}-{version}-{channel}/", id.replace('.', "-"));
+        let route = format!("{prefix}arcade-release.json");
+        let mut routes = self.routes.lock().unwrap();
+        let mut manifest: serde_json::Value = serde_json::from_slice(&routes[&route]).unwrap();
+        edit(&mut manifest);
+        let bytes = serde_json::to_vec(&manifest).unwrap();
+        routes.insert(route, bytes.clone());
+        let repo = arcade_tools_core::apps::releases_url(id)
+            .trim_start_matches("https://github.com/")
+            .trim_end_matches("/releases");
+        let endpoint = format!(
+            "/repos/{repo}/releases/{}",
+            if channel == "stable" {
+                "latest"
+            } else {
+                "tags/nightly"
+            }
+        );
+        let mut api: serde_json::Value = serde_json::from_slice(&routes[&endpoint]).unwrap();
+        for asset in api["assets"].as_array_mut().unwrap() {
+            if asset["name"] == "arcade-release.json" {
+                asset["size"] = serde_json::json!(bytes.len());
+                asset["digest"] = serde_json::json!(format!("sha256:{:x}", Sha256::digest(&bytes)));
+            }
+        }
+        routes.insert(endpoint, serde_json::to_vec(&api).unwrap());
     }
 }
 impl Drop for FakeRelease {

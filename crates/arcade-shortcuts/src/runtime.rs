@@ -123,15 +123,19 @@ pub fn query() -> Result<Option<Vec<RuntimeBind>>, String> {
     parse_json(&output).map(Some)
 }
 
-fn command_output(command: &mut Command, timeout: Duration) -> Result<String, String> {
+pub(crate) fn command_output(command: &mut Command, timeout: Duration) -> Result<String, String> {
+    let name = command.get_program().to_string_lossy().into_owned();
     let start = Instant::now();
     let mut child = command
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .stdin(Stdio::null())
         .spawn()
-        .map_err(|e| format!("hyprctl: {e}"))?;
-    let stdout = child.stdout.take().ok_or("hyprctl stdout unavailable")?;
+        .map_err(|e| format!("{name}: {e}"))?;
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| format!("{name} stdout unavailable"))?;
     let (tx, rx) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
         let mut bytes = Vec::new();
@@ -149,24 +153,24 @@ fn command_output(command: &mut Command, timeout: Duration) -> Result<String, St
                 let _ = child.kill();
                 let _ = child.wait();
                 return Err(match result {
-                    Err(e) => format!("hyprctl: {e}"),
-                    _ => "hyprctl timed out after 1 s".into(),
+                    Err(e) => format!("{name}: {e}"),
+                    _ => format!("{name} timed out after {} ms", timeout.as_millis()),
                 });
             }
         }
     };
     if !status.success() {
-        return Err(format!("hyprctl failed: {status}"));
+        return Err(format!("{name} failed: {status}"));
     }
     let remaining = timeout.saturating_sub(start.elapsed());
     let bytes = rx
         .recv_timeout(remaining)
-        .map_err(|_| "hyprctl output timed out".to_owned())?
-        .map_err(|e| format!("hyprctl output: {e}"))?;
+        .map_err(|_| format!("{name} output timed out"))?
+        .map_err(|e| format!("{name} output: {e}"))?;
     if bytes.len() > 2 * 1024 * 1024 {
-        return Err("hyprctl output size limit exceeded".into());
+        return Err(format!("{name} output size limit exceeded"));
     }
-    String::from_utf8(bytes).map_err(|e| format!("hyprctl output: {e}"))
+    String::from_utf8(bytes).map_err(|e| format!("{name} output: {e}"))
 }
 
 #[cfg(test)]
