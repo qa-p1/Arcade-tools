@@ -1,7 +1,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod desktop;
+mod index_service;
+mod resident;
 mod shortcuts;
-use arcade_tools_core::link;
+mod tray;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -10,7 +12,7 @@ fn main() {
         return;
     }
     if args.iter().any(|a| a == "--arcade-manifest") {
-        println!("{}", link::manifest(true).to_json());
+        println!("{}", tray::hosting::manifest_from_disk().to_json());
         return;
     }
     if args.iter().any(|a| a == "--quit") {

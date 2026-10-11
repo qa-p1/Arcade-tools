@@ -41,7 +41,7 @@ impl Options {
             docs: cache.join("docs"),
             bundled_catalog: resources.map(|p| p.join("catalog/shortcuts")),
             bundled_docs: resources.map(|p| p.join("docs")),
-            labels: paths.state().join("shortcut-labels.json"),
+            labels: labels::default_path()?,
             hyprland_dir: None,
             query_runtime: cfg!(target_os = "linux"),
             lua_duration_limit: None,
