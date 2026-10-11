@@ -34,6 +34,7 @@ use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
 enum Event {
     Refresh,
     Changed(String),
+    Disconnected { id: String, token: String },
     Click(Action),
     Stop,
 }
@@ -131,6 +132,14 @@ impl Service {
                             service.refresh();
                             (service.on_registry)();
                             let _ = service.app.emit("app-changed", id);
+                        }
+                        Event::Disconnected { id, token } => {
+                            let mut peers = service.peers.lock().unwrap();
+                            if peers.get(&id).is_some_and(|peer| peer.token == token) {
+                                peers.remove(&id);
+                            }
+                            drop(peers);
+                            service.refresh();
                         }
                         Event::Click(action) => {
                             if let Err(error) = service.click(action) {
@@ -265,7 +274,7 @@ impl Service {
         peers.insert(
             id.clone(),
             PeerWatch {
-                token,
+                token: token.clone(),
                 control: client.connection_control(),
             },
         );
@@ -276,7 +285,7 @@ impl Service {
                     let _ = changes.send(Event::Changed(id.clone()));
                 }
             }
-            let _ = changes.send(Event::Refresh);
+            let _ = changes.send(Event::Disconnected { id, token });
         });
     }
 

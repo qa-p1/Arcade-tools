@@ -291,4 +291,69 @@ mod tests {
             ("app.menu.invoke", json!({"id":"private"}))
         );
     }
+
+    #[test]
+    fn old_peer_keeps_basic_controls_and_disables_unsupported_extras() {
+        let find = ManifestDocument::from_json(include_str!("../../tests/fixtures/find-menu.json"))
+            .unwrap();
+        let states = BTreeMap::from([(
+            ids::FIND.into(),
+            PeerState {
+                running: true,
+                ..Default::default()
+            },
+        )]);
+        let model = TrayModel::build(&[find], &states, &Preferences::default(), 0, true);
+        let items = model
+            .items
+            .iter()
+            .find_map(|item| match item {
+                Item::Submenu { items, .. } => Some(items),
+                _ => None,
+            })
+            .unwrap();
+        assert!(items.iter().any(|item| matches!(
+            item,
+            Item::Action {
+                action: Action::Peer {
+                    command: PeerCommand::Open,
+                    ..
+                },
+                enabled: true,
+                ..
+            }
+        )));
+        assert!(items.iter().any(|item| matches!(
+            item,
+            Item::Action {
+                action: Action::Peer {
+                    command: PeerCommand::Quit,
+                    ..
+                },
+                enabled: true,
+                ..
+            }
+        )));
+        assert!(!items.iter().any(|item| matches!(
+            item,
+            Item::Action {
+                action: Action::Peer {
+                    command: PeerCommand::Settings | PeerCommand::Restart,
+                    ..
+                },
+                ..
+            }
+        )));
+        assert!(items.iter().all(|item| !matches!(
+            item,
+            Item::Action {
+                action: Action::Peer {
+                    command: PeerCommand::Extra(_),
+                    ..
+                },
+                enabled: true,
+                ..
+            }
+        )));
+    }
 }
