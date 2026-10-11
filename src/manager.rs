@@ -300,6 +300,10 @@ impl Manager {
     pub fn refresh_catalog(&self) -> Result<Catalog> {
         Ok(CatalogClient::new(self.paths.clone(), self.source.clone())?.refresh_catalog())
     }
+    /// Read cached engine metadata or explicitly refresh it on a worker thread.
+    pub fn engines(&self, refresh: bool) -> Result<crate::engines::EngineCatalog> {
+        CatalogClient::new(self.paths.clone(), self.source.clone())?.engines(refresh)
+    }
     /// Disk/optional IPC work on a worker thread; no network refresh.
     pub fn list(&self, probe: bool) -> Result<Vec<AppView>> {
         let registry = Registry::load(&self.paths.link);

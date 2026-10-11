@@ -3,7 +3,7 @@
   "build": { "beforeDevCommand": "npm run dev", "devUrl": "http://localhost:1421", "beforeBuildCommand": "npm run build", "frontendDist": "../dist" },
   "app": {
     "windows": [{ "label": "main", "title": "Arcade Tools", "width": 940, "height": 780, "minWidth": 640, "minHeight": 540, "visible": false }],
-    "security": { "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost; img-src 'self' data:; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'self'" }
+    "security": { "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost; img-src 'self' data: https://raw.githubusercontent.com; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'self'" }
   },
   "bundle": {
     "active": true, "targets": ["nsis", "appimage", "dmg"], "category": "Utility", "publisher": "Arcade contributors", "license": "MIT",
