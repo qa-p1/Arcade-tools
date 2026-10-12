@@ -78,4 +78,4 @@ Windows/macOS and non-Hyprland Wayland are not verified on a real desktop here.
 No live Arcade installation is changed by these tests.
 
 Shared sources and their hashes are recorded in [VENDORED](VENDORED). Version tags
-publish stable packages; the orchestrator owns tagging, merging and releases.
+publish stable packages.

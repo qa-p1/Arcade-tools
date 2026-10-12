@@ -109,7 +109,7 @@ APIs, submaps, infinite loops (including protected calls), memory exhaustion
 and bounded Rust-side recording.
 
 Windows/macOS selection and display were fixture-tested; those desktops were
-not exercised. OS-reserved conflict lists remain omitted as allowed by the
-task. The four opaque runtime callbacks and the unavailable 1.88 compiler are
-the remaining validation limits. UI and Tauri integration belong to the
-orchestrator's separate worktrees.
+not exercised. OS-reserved conflicts come from the catalog's `windows-system`
+and `macos-system` sheets. The four opaque runtime callbacks remain a validation
+limit; CI checks the crate on Rust 1.88. The UI and Tauri integration live in
+`src-tauri/` and are covered by the app's own tests.
