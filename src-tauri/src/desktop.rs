@@ -1,11 +1,13 @@
 #[path = "hub.rs"]
 mod hub;
+use crate::tray::hosting::Presence;
+use crate::{hotkey, index_service, resident, tray};
 use arcade_link::client::Client;
 use arcade_link::manifest::ids;
 use arcade_link::registry::{Registry, SharedRegistry};
 use arcade_link::server::{Handler, InvokeContext, Reply};
 use arcade_link::wire::{InvokeRequest, InvokeResult};
-use arcade_link::{LinkError, Presence};
+use arcade_link::LinkError;
 use arcade_tools_core::catalog::Bundle;
 use arcade_tools_core::catalog::Catalog;
 use arcade_tools_core::docs::{DocSource, DocsResolver, SearchHit, SearchIndex};
@@ -36,6 +38,8 @@ struct Desktop {
     background: AtomicBool,
     link_enabled: AtomicBool,
     selected: Mutex<Option<String>>,
+    resident: Mutex<resident::Resident>,
+    restarting: AtomicBool,
     docs_index: Mutex<Option<Arc<SearchIndex>>>,
     metrics: Mutex<arcade_tools_core::dashboard::Metrics>,
     update_wake: Mutex<Option<std::sync::mpsc::Sender<()>>>,
@@ -56,6 +60,8 @@ impl Desktop {
             background: AtomicBool::new(background),
             link_enabled: AtomicBool::new(true),
             selected: Mutex::new(None),
+            resident: Mutex::new(resident::Resident::new(background)),
+            restarting: AtomicBool::new(false),
             docs_index: Mutex::new(None),
             metrics: Mutex::new(Default::default()),
             update_wake: Mutex::new(None),
@@ -76,13 +82,49 @@ fn desktop(app: &AppHandle) -> Arc<Desktop> {
 }
 fn show(app: &AppHandle, state: &Desktop) {
     state.background.store(false, Ordering::SeqCst);
+    state.resident.lock().unwrap().open();
     let app = app.clone();
     let handle = app.clone();
     let _ = handle.run_on_main_thread(move || {
-        if let Some(window) = app.get_webview_window("main") {
+        let window = app.get_webview_window("main").or_else(|| {
+            app.config().app.windows.first().and_then(|config| {
+                tauri::WebviewWindowBuilder::from_config(&app, config)
+                    .ok()?
+                    .build()
+                    .ok()
+                    .inspect(|window| {
+                        #[cfg(target_os = "linux")]
+                        let _ = window.with_webview(|webview| {
+                            use webkit2gtk::{SettingsExt, WebViewExt};
+                            if let Some(settings) = webview.inner().settings() {
+                                // This document UI needs no GPU compositor or
+                                // retained page cache after its window closes.
+                                settings.set_hardware_acceleration_policy(
+                                    webkit2gtk::HardwareAccelerationPolicy::Never,
+                                );
+                                settings.set_enable_page_cache(false);
+                            }
+                        });
+                        #[cfg(not(target_os = "linux"))]
+                        let _ = window;
+                    })
+            })
+        });
+        if let Some(window) = window {
             let _ = window.show();
             let _ = window.unminimize();
             let _ = window.set_focus();
+        }
+    });
+}
+
+fn reclaim_resident_memory(app: AppHandle) {
+    // Let GTK/WebKit finish deferred destruction, then release unused
+    // allocator and library pages once. No periodic idle timer.
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        if app.get_webview_window("main").is_none() {
+            resident::release_unused_runtime_pages();
         }
     });
 }
@@ -115,6 +157,16 @@ struct LinkHandler {
     state: Arc<Desktop>,
 }
 impl Handler for LinkHandler {
+    fn methods(&self) -> Vec<String> {
+        vec!["app.settings".into()]
+    }
+    fn settings(&self) -> std::result::Result<(), LinkError> {
+        if let Ok(service) = tray::service(&self.app) {
+            service.navigate("settings");
+        }
+        show(&self.app, &self.state);
+        Ok(())
+    }
     fn describe(&self) -> Vec<arcade_link::Action> {
         if self.state.link_enabled.load(Ordering::SeqCst) {
             link::actions()
@@ -156,8 +208,7 @@ impl Handler for LinkHandler {
         if self.state.active.load(Ordering::SeqCst) {
             return Err(LinkError::busy());
         }
-        self.state.presence.lock().unwrap().take();
-        self.app.exit(0);
+        request_quit(&self.app);
         Ok(())
     }
 }
@@ -316,10 +367,13 @@ async fn initialize(app: AppHandle) -> Result<Bootstrap> {
             show(&app, &state);
         }
         let selected = state.selected.lock().unwrap().take();
-        let diagnostics = arcade_link::presence::diagnostics(
-            state.presence.lock().unwrap().as_ref(),
-            &manager.paths.link,
-        );
+        let diagnostics = state
+            .presence
+            .lock()
+            .unwrap()
+            .as_ref()
+            .map(|p| p.diagnostics())
+            .unwrap_or_default();
         Ok(Bootstrap {
             apps: manager.list(true)?,
             preferences: manager.preferences()?,
@@ -375,15 +429,66 @@ fn initialize_desktop(app: &AppHandle) -> Result<Arc<Manager>> {
             .manager
             .set(manager.clone())
             .map_err(|_| Error::new("initializing", "Initialization already finished."))?;
+        let resources = app.path().resource_dir().ok();
+        let options = index_service::Options::discover(&manager.paths, resources.as_deref())?;
+        let handle = app.clone();
+        let index = index_service::IndexService::start(options, move |status| {
+            let _ = handle.emit("shortcut-index-built", status);
+        })?;
+        app.manage(index.clone());
+        let tools_handle = app.clone();
+        let settings_handle = app.clone();
+        let registry_handle = app.clone();
+        let tray = tray::Service::start(
+            app.clone(),
+            manager.clone(),
+            move |action| match action {
+                tray::model::Action::OpenTools => show(&tools_handle, &desktop(&tools_handle)),
+                tray::model::Action::Updates => {
+                    if let Ok(tray) = tray::service(&tools_handle) {
+                        tray.navigate("apps");
+                    }
+                    show(&tools_handle, &desktop(&tools_handle));
+                }
+                tray::model::Action::QuitTools => request_quit(&tools_handle),
+                _ => {}
+            },
+            move |prefs| {
+                let state = desktop(&settings_handle);
+                {
+                    let mut resident = state.resident.lock().unwrap();
+                    resident.hosting = prefs.host_icons;
+                    resident.shortcuts = prefs.shortcuts_enabled;
+                }
+                if let Some(presence) = state.presence.lock().unwrap().as_mut() {
+                    presence.update(state.link_enabled.load(Ordering::SeqCst), &prefs);
+                };
+                hotkey::configure(&settings_handle, &prefs);
+            },
+            move || {
+                index.changed();
+                let _ = registry_handle.emit("registry-changed", ());
+            },
+        )?;
+        let tray_prefs = tray.preferences();
+        {
+            let mut resident = state.resident.lock().unwrap();
+            resident.hosting = tray_prefs.host_icons;
+            resident.shortcuts = tray_prefs.shortcuts_enabled;
+        }
         let presence = Presence::start(
             manager.paths.link.clone(),
-            link::manifest(prefs.link_enabled),
+            tray.host(),
             Arc::new(LinkHandler {
                 app: app.clone(),
                 state: state.clone(),
             }),
+            prefs.link_enabled,
+            &tray_prefs,
         );
+        app.manage(tray);
         *state.presence.lock().unwrap() = Some(presence);
+        hotkey::configure(app, &tray_prefs);
         let registry = SharedRegistry::load(&manager.paths.link);
         let handle = app.clone();
         let locations = manager.paths.link.clone();
@@ -706,8 +811,8 @@ async fn set_link(app: AppHandle, enabled: bool) -> Result<()> {
         let state = desktop(&app);
         state.manager()?.set_link(enabled)?;
         state.link_enabled.store(enabled, Ordering::SeqCst);
-        if let Some(presence) = state.presence.lock().unwrap().as_ref() {
-            presence.update(link::manifest(enabled));
+        if let Some(presence) = state.presence.lock().unwrap().as_mut() {
+            presence.update(enabled, &tray::service(&app)?.preferences());
         }
         Ok(())
     })
@@ -797,31 +902,78 @@ async fn ui_rendered(app: AppHandle, report: Value) -> Result<()> {
 
 fn request_close(app: &AppHandle) {
     let state = desktop(app);
-    if state.active.load(Ordering::SeqCst) {
+    let close = state
+        .resident
+        .lock()
+        .unwrap()
+        .close(state.active.load(Ordering::SeqCst));
+    if close == resident::Close::DestroyWindow {
+        state.background.store(true, Ordering::SeqCst);
+        if let Some(window) = app.get_webview_window("main") {
+            let _ = window.destroy();
+        }
+    } else if close == resident::Close::Busy {
         let _ = app.emit(
             "manager-message",
             "Wait for the current operation to finish before closing Arcade Tools.",
         );
     } else {
-        let app = app.clone();
-        std::thread::spawn(move || {
-            state.presence.lock().unwrap().take();
-            app.exit(0);
-        });
+        request_quit(app);
+    }
+}
+
+fn request_quit(app: &AppHandle) {
+    let state = desktop(app);
+    if state.active.load(Ordering::SeqCst) {
+        let _ = app.emit(
+            "manager-message",
+            "Wait for the current operation before quitting Arcade Tools.",
+        );
+        return;
+    }
+    let app = app.clone();
+    std::thread::spawn(move || {
+        state.presence.lock().unwrap().take();
+        if let Ok(service) = tray::service(&app) {
+            service.stop(state.restarting.load(Ordering::SeqCst));
+        }
+        if let Some(index) = app.try_state::<Arc<index_service::IndexService>>() {
+            index.stop();
+        }
+        app.exit(0);
+    });
+}
+
+/// Core self-update/restart calls this on its worker before stopping Tools.
+#[expect(dead_code, reason = "Core self-update/restart integration hook")]
+pub fn announce_restarting(app: &AppHandle) {
+    desktop(app).restarting.store(true, Ordering::SeqCst);
+    if let Some(presence) = desktop(app).presence.lock().unwrap().as_mut() {
+        presence.announce_restarting();
+    }
+}
+
+/// Core calls this with its cached count, without checking the network here.
+#[expect(dead_code, reason = "Core update scheduling integration hook")]
+pub fn set_update_count(app: &AppHandle, count: usize) {
+    if let Ok(service) = tray::service(app) {
+        service.set_updates(count);
     }
 }
 pub fn run(background: bool, quit: bool) {
     tauri::Builder::default()
         .manage(Arc::new(Desktop::new(background)))
+        .manage(Arc::new(hotkey::Service::default()))
         .plugin(tauri_plugin_single_instance::init(|app, args, _| {
             if args.iter().any(|a| a == "--quit") {
-                request_close(app);
+                request_quit(app);
             } else if !args.iter().any(|a| a == "--background") {
                 show(app, &desktop(app));
             }
         }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_dialog::init())
         .on_page_load(|window, payload| {
             audit(window.app_handle(), json!({"event":"page-load", "url":payload.url().as_str(), "stage":format!("{:?}", payload.event())}));
         })
@@ -845,6 +997,8 @@ pub fn run(background: bool, quit: bool) {
                         &handle,
                         json!({"event":"initialization-error", "message":error.message}),
                     );
+                } else {
+                    reclaim_resident_memory(handle);
                 }
             });
             Ok(())
@@ -904,14 +1058,30 @@ pub fn run(background: bool, quit: bool) {
             ui_rendered,
             crate::shortcuts::shortcuts_index,
             crate::shortcuts::shortcut_labels,
-            crate::shortcuts::set_shortcut_label
+            crate::shortcuts::set_shortcut_label,
+            tray::tray_get_settings,
+            tray::tray_set_settings,
+            tray::tray_ui_intent,
+            tray::rebuild_shortcut_index,
+            tray::shortcut_index_status,
+            tray::configure_shortcut_sources
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
                 request_close(window.app_handle());
             }
+            if let tauri::WindowEvent::Destroyed = event {
+                desktop(window.app_handle()).resident.lock().unwrap().destroyed();
+                reclaim_resident_memory(window.app_handle().clone());
+            }
         })
-        .run(tauri::generate_context!())
-        .expect("could not run Arcade Tools");
+        .build(tauri::generate_context!())
+        .expect("could not build Arcade Tools")
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event { hotkey::stop(); }
+            if let tauri::RunEvent::ExitRequested { code: None, api, .. } = event {
+                if desktop(app).resident.lock().unwrap().keeps_running() { api.prevent_exit(); }
+            }
+        });
 }

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { api, type AppView, type BackupReport, type DiagnosticsReport, type RestorePlan, type RestoreResult, type UninstallPlan } from '../lib/api';
   import { askForConfirmation, type Theme } from '../lib/state.svelte';
+  import TraySettings from '../components/TraySettings.svelte';
 
   type Props = {
     active: boolean;
@@ -179,6 +180,7 @@
       {/if}
     </div>
   </section>
+  <TraySettings {active} {busy} />
 
   <section class="settings-card diagnostics-card" aria-labelledby="diagnostics-heading">
     <div>

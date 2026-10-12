@@ -94,8 +94,10 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libssl-dev patchelf
       - run: npm ci
       - run: npm run typecheck
+      - name: Build the packaged native shortcut overlay
+        run: python scripts/prepare-overlay.py --target ${{ matrix.target }}
       - name: Bundle using the OS webview
-        run: npm run tauri -- build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+        run: npm run tauri -- build --config src-tauri/tauri.bundle.conf.json --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
       - uses: actions/upload-artifact@v4
         with:
           name: tools-installer-${{ matrix.os }}

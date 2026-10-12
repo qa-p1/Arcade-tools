@@ -9,18 +9,35 @@ default-run = "arcade-tools"
 
 [features]
 custom-protocol = ["tauri/custom-protocol"]
+# Compile the Windows/macOS renderer on Linux without running a desktop tray.
+native-tray-check = ["tauri/tray-icon"]
 
 [build-dependencies]
 tauri-build = { version = "2.7", features = [] }
+resvg = { version = "0.45", default-features = false }
 
 [dependencies]
 arcade-tools-core = { path = ".." }
-# Keep the source/features additive with ../Cargo.toml and the tray task.
-arcade-link = { git = "https://github.com/qa-p1/Arcade-Link", tag = "v0.3.0", features = ["watch", "install"] }
+# Shared tray and installer contracts are pinned to the released Link tag.
+arcade-link = { git = "https://github.com/qa-p1/Arcade-Link", tag = "v0.3.0", features = ["watch", "install", "trayhost"] }
+arcade-shortcuts = { path = "../crates/arcade-shortcuts" }
+arcade-tools-overlay = { path = "../crates/arcade-tools-overlay" }
 tauri = { version = "2.12", features = [] }
 tauri-plugin-single-instance = "2.5"
 tauri-plugin-opener = "2.7"
+tauri-plugin-dialog = "2.7"
 tauri-plugin-notification = "2"
+notify = "8"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+ksni = { version = "0.3", features = ["blocking"] }
+libc = "0.2"
+webkit2gtk = { version = "2", features = ["v2_16"] }
+
+[target.'cfg(any(target_os = "windows", target_os = "macos"))'.dependencies]
+tauri = { version = "2.12", features = ["tray-icon"] }
+
+[dev-dependencies]
 tempfile = "3"
