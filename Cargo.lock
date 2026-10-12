@@ -156,6 +156,7 @@ dependencies = [
  "directories",
  "flate2",
  "pulldown-cmark",
+ "regex",
  "reqwest",
  "semver",
  "serde",
