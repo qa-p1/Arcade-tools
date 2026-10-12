@@ -138,7 +138,14 @@ fn audit(app: &AppHandle, event: Value) {
             (std::env::var_os("ARCADE_TOOLS_SMOKE_LOG"), state.manager())
         {
             let path = std::path::PathBuf::from(path);
-            if manager.paths.isolated && path.starts_with(manager.paths.home.parent().unwrap()) {
+            // The Link e2e runner places its report beside ARCADE_HOME, while
+            // Paths::discover() roots Tools under ARCADE_HOME itself.
+            let runner_root = std::env::var_os("ARCADE_E2E_ROOT")
+                .map(std::path::PathBuf::from)
+                .filter(|root| root.starts_with("/tmp"));
+            let inside_isolated_root = path.starts_with(manager.paths.home.parent().unwrap());
+            let inside_runner_root = runner_root.is_some_and(|root| path.starts_with(root));
+            if manager.paths.isolated && (inside_isolated_root || inside_runner_root) {
                 if let Ok(mut file) = std::fs::OpenOptions::new()
                     .create(true)
                     .append(true)
