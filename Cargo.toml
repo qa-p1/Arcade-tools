@@ -29,6 +29,7 @@ semver = "1"
 pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }
 ammonia = "4"
 wait-timeout = "0.2"
+regex = "1"
 base64 = "0.22"
 zip = { version = "2.4", default-features = false, features = ["deflate"] }
 sysinfo = { version = "0.35", default-features = false, features = ["system"] }

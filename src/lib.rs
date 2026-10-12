@@ -4,6 +4,8 @@ pub mod backup;
 pub mod catalog;
 pub mod dashboard;
 pub mod diagnostics;
+pub mod portable_backup;
+pub mod diagnostics_archive;
 pub mod docs;
 pub mod engines;
 pub mod health;
