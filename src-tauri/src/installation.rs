@@ -1,11 +1,10 @@
-use arcade_link::install::{
-    AppInfo, Environment, Icon, IconSize, InstallOptions, Runtime, UninstallOptions,
-};
-use arcade_link::receipt::ManagedBy;
+use arcade_link::install::{Environment, Runtime, UninstallOptions};
 use arcade_tools_core::paths::Paths;
 use arcade_tools_core::{Error, Result};
 
-fn info() -> AppInfo {
+#[cfg(target_os = "linux")]
+fn info() -> arcade_link::install::AppInfo {
+    use arcade_link::install::AppInfo;
     AppInfo {
         id: "arcade.tools".into(),
         name: "Arcade Tools".into(),
@@ -20,11 +19,31 @@ fn info() -> AppInfo {
 pub fn install(channel: &str, start_at_login: bool) -> Result<arcade_link::receipt::Receipt> {
     install_options(channel, start_at_login, false)
 }
+// Self-install is the Linux AppImage path; Windows and macOS use the
+// platform installer, which writes the receipt itself.
+#[cfg(not(target_os = "linux"))]
+fn install_options(
+    _channel: &str,
+    _start_at_login: bool,
+    _remove_download: bool,
+) -> Result<arcade_link::receipt::Receipt> {
+    Err(unsupported())
+}
+#[cfg(not(target_os = "linux"))]
+fn unsupported() -> Error {
+    Error::new(
+        "unsupported",
+        "Install Arcade Tools with its Windows installer or macOS app bundle.",
+    )
+}
+#[cfg(target_os = "linux")]
 fn install_options(
     channel: &str,
     start_at_login: bool,
     remove_download: bool,
 ) -> Result<arcade_link::receipt::Receipt> {
+    use arcade_link::install::{Icon, IconSize, InstallOptions};
+    use arcade_link::receipt::ManagedBy;
     let environment = Environment::discover()?;
     let runtime = Runtime::discover()?;
     let staging = tempfile::tempdir()?;
@@ -60,6 +79,14 @@ fn install_options(
     )?;
     Ok(receipt)
 }
+#[cfg(target_os = "linux")]
+fn repair(environment: &Environment) -> Result<arcade_link::receipt::Receipt> {
+    Ok(arcade_link::install::repair(environment, &info(), None)?)
+}
+#[cfg(not(target_os = "linux"))]
+fn repair(_environment: &Environment) -> Result<arcade_link::receipt::Receipt> {
+    Err(unsupported())
+}
 pub fn run(args: &[String]) -> Option<Result<()>> {
     let command = args.iter().find(|arg| {
         matches!(
@@ -90,16 +117,7 @@ pub fn run(args: &[String]) -> Option<Result<()>> {
                     )?;
                 }
             }
-            "--repair" => {
-                println!(
-                    "{}",
-                    serde_json::to_string(&arcade_link::install::repair(
-                        &environment,
-                        &info(),
-                        None
-                    )?)?
-                );
-            }
+            "--repair" => println!("{}", serde_json::to_string(&repair(&environment)?)?),
             "--uninstall" => {
                 let folders = Paths::discover()?
                     .data_folders("arcade.tools", arcade_tools_core::release::Os::current());
