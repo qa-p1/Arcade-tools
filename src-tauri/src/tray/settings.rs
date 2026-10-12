@@ -70,6 +70,10 @@ impl Preferences {
 /// Development builds never add themselves to the real login environment.
 pub fn login_available(paths: &Paths) -> bool {
     !cfg!(debug_assertions)
+        && (paths.isolated
+            || !arcade_link::install::is_dev_build(Path::new(
+                &arcade_link::manifest::current_executable(),
+            )))
         && paths
             .check_persistent_executable(Path::new(&arcade_link::manifest::current_executable()))
             .is_ok()

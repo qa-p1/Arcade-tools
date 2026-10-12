@@ -160,6 +160,9 @@ impl Service {
         self.prefs.lock().unwrap().clone()
     }
 
+    pub fn request_index_refresh(&self) {
+        (self.on_registry)();
+    }
     pub fn request_shortcuts(&self) {
         let _ = self.tx.send(Event::Click(Action::Shortcuts));
     }
@@ -295,9 +298,14 @@ impl Service {
 
     fn refresh_model(&self) {
         let registry = self.registry.snapshot();
-        let documents: Vec<_> = ids::APPS
+        let catalog = self
+            .manager
+            .catalog()
+            .unwrap_or_else(|_| arcade_tools_core::catalog::Catalog::snapshot());
+        let documents: Vec<_> = catalog
+            .apps
             .iter()
-            .filter_map(|id| registry.document(id))
+            .filter_map(|entry| registry.document(&entry.id))
             .collect();
         let model = TrayModel::build(
             &documents,
@@ -418,9 +426,24 @@ pub async fn tray_set_settings(
     preferences: settings::Preferences,
 ) -> Result<settings::Preferences> {
     let service = service(&app)?;
-    tauri::async_runtime::spawn_blocking(move || service.apply_preferences(preferences))
-        .await
-        .map_err(|e| Error::new("worker", e.to_string()))?
+    tauri::async_runtime::spawn_blocking(move || {
+        let previous = service.preferences();
+        if preferences.shortcuts_enabled
+            && (preferences.shortcut != previous.shortcut || !previous.shortcuts_enabled)
+        {
+            if let Some(index) = crate::shortcuts::read_index()? {
+                arcade_tools_core::shortcut_control::validate(
+                    &index,
+                    ids::TOOLS,
+                    "overlay",
+                    &preferences.shortcut,
+                )?;
+            }
+        }
+        service.apply_preferences(preferences)
+    })
+    .await
+    .map_err(|e| Error::new("worker", e.to_string()))?
 }
 
 #[tauri::command]

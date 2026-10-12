@@ -145,7 +145,8 @@ export interface ConnectionPeer {
   reachable: boolean;
   busy: boolean | null;
   protocols: number[];
-  actions: { id: string; title: string; verb: string; available: boolean; reason: string | null }[];
+  actions: { id: string; title: string; verb: string; available: boolean; reason: string | null; accepts: string[]; produces: string[] }[];
+  connectedApps: Record<string, unknown>;
 }
 
 export interface ConnectionsView {
@@ -235,6 +236,7 @@ export const api = {
   listLearnApps: () => invoke<LearnApp[]>('list_learn_apps'),
   searchDocs: (query: string) => invoke<DocsSearchHit[]>('search_docs', { query }),
   fetchDocs: (id: string, version: string) => invoke<void>('fetch_docs', { id, version }),
+  fetchLatestDocs: (id: string) => invoke<string>('fetch_latest_docs', { id }),
   openDocs: (id: string) => invoke<void>('open_docs', { id }),
   preferences: () => invoke<Preferences>('preferences'),
   toolsApp: () => invoke<AppView | null>('tools_app'),
@@ -246,22 +248,26 @@ export const api = {
   fixHealth: (id: string, action: HealthIssue['fixAction']) => invoke<string>('fix_health', { id, action }),
   openAppSettings: (id: string) => invoke<void>('open_app_settings', { id }),
   restartApp: (id: string) => invoke<void>('restart_app', { id }),
+  releaseHistory: (id: string) => invoke<{ version: string; publishedAt: string; prerelease: boolean; html: string }[]>('release_history', { id }),
+  refreshShortcutSheets: () => invoke<number>('refresh_shortcut_sheets'),
   updateHistory: () => invoke<HistoryEntry[]>('update_history'),
   createDiagnostics: (id: string) => invoke<DiagnosticsReport>('create_diagnostics', { id }),
   exportBackup: () => invoke<BackupReport>('export_backup'),
   planRestore: (path: string) => invoke<RestorePlan>('plan_restore', { path }),
   restoreBackup: (path: string, sha256: string) => invoke<RestoreResult[]>('restore_backup', { path, sha256 }),
   revealArchive: (path: string) => invoke<void>('reveal_archive', { path }),
-  openIssue: (id: string) => invoke<void>('open_issue', { id }),
-  docsPages: (id: string) => invoke<{ path: string; title: string }[]>('docs_pages', { id }),
-  readDoc: (id: string, path: string) => invoke<DocPage>('read_doc', { id, path }),
+  openIssue: (id: string, issueUrl?: string) => invoke<void>('open_issue', { id, issueUrl: issueUrl ?? null }),
+  docsPages: (id: string, latest = false) => invoke<{ path: string; title: string }[]>('docs_pages', { id, latest }),
+  readDoc: (id: string, path: string, latest = false) => invoke<DocPage>('read_doc', { id, path, latest }),
   downloadEngine: (id: string) => invoke<string>('download_engine', { id }),
   selfUpdate: () => invoke<void>('self_update'),
   installTools: () => invoke<void>('install_tools'),
   planUninstallAll: (removeData: boolean) => invoke<UninstallPlan>('plan_uninstall_all', { removeData }),
   uninstallAll: (plan: UninstallPlan) => invoke<{ results: { app: string; removed: boolean; reason: string }[] }>('uninstall_all', { plan }),
   uiRendered: (report: UiRenderReport) => invoke<void>('ui_rendered', { report }),
+  setAppShortcut: (id: string, shortcut: string, accelerator: string) => invoke<{ applied: boolean; via: string; hint?: string }>('set_app_shortcut', { id, shortcut, accelerator }),
   shortcutsIndex: () => invoke<ShortcutsIndex | null>('shortcuts_index'),
+  currentShortcutApp: () => invoke<string | null>('current_shortcut_app'),
   shortcutLabels: () => invoke<Record<string, string>>('shortcut_labels'),
   setShortcutLabel: (key: string, label: string | null) =>
     invoke<void>('set_shortcut_label', { key, label }),
@@ -276,6 +282,8 @@ export const appEvents = {
     listen('registry-changed', handler),
   managerMessage: (handler: (message: string) => void): Promise<UnlistenFn> =>
     listen<string>('manager-message', ({ payload }) => handler(payload)),
+  shortcutsChanged: (handler: () => void): Promise<UnlistenFn> => listen('shortcut-index-built', handler),
+  trayNavigation: (handler: (page: string) => void): Promise<UnlistenFn> => listen<string>('tray-navigation', ({ payload }) => handler(payload)),
   updatesChanged: (handler: (state: UpdateState) => void): Promise<UnlistenFn> =>
     listen<UpdateState>('updates-changed', ({ payload }) => handler(payload)),
 };

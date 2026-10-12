@@ -22,7 +22,7 @@ use arcade_tools_core::{link, Error, Result};
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager as TauriManager, State};
@@ -37,6 +37,7 @@ struct Desktop {
     cancel: AtomicBool,
     background: AtomicBool,
     link_enabled: AtomicBool,
+    last_used: AtomicU64,
     selected: Mutex<Option<String>>,
     resident: Mutex<resident::Resident>,
     restarting: AtomicBool,
@@ -59,6 +60,12 @@ impl Desktop {
             cancel: AtomicBool::new(false),
             background: AtomicBool::new(background),
             link_enabled: AtomicBool::new(true),
+            last_used: AtomicU64::new(
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs(),
+            ),
             selected: Mutex::new(None),
             resident: Mutex::new(resident::Resident::new(background)),
             restarting: AtomicBool::new(false),
@@ -77,11 +84,21 @@ impl Desktop {
             .ok_or_else(|| Error::new("initializing", "Arcade Tools is starting."))
     }
 }
+pub(crate) fn manager(app: &AppHandle) -> Result<Arc<Manager>> {
+    desktop(app).manager()
+}
 fn desktop(app: &AppHandle) -> Arc<Desktop> {
     app.state::<Arc<Desktop>>().inner().clone()
 }
 fn show(app: &AppHandle, state: &Desktop) {
     state.background.store(false, Ordering::SeqCst);
+    state.last_used.store(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs(),
+        Ordering::SeqCst,
+    );
     state.resident.lock().unwrap().open();
     let app = app.clone();
     let handle = app.clone();
@@ -165,7 +182,26 @@ struct LinkHandler {
 }
 impl Handler for LinkHandler {
     fn methods(&self) -> Vec<String> {
-        vec!["app.settings".into()]
+        vec!["app.settings".into(), "app.restart".into()]
+    }
+    fn restart_ready(&self, _: &str) -> std::result::Result<(), LinkError> {
+        if self.state.active.load(Ordering::SeqCst) {
+            Err(LinkError::busy())
+        } else {
+            Ok(())
+        }
+    }
+    fn restart(&self, mode: &str) -> std::result::Result<(), LinkError> {
+        self.restart_ready(mode)?;
+        let mut args = vec!["--wait-for-process".into(), std::process::id().to_string()];
+        if mode == "background" || mode == "normal" && self.state.background.load(Ordering::SeqCst)
+        {
+            args.push("--background".into());
+        }
+        announce_restarting(&self.app);
+        arcade_link::client::spawn_detached(&arcade_link::manifest::current_executable(), &args)?;
+        request_quit(&self.app);
+        Ok(())
     }
     fn settings(&self) -> std::result::Result<(), LinkError> {
         if let Ok(service) = tray::service(&self.app) {
@@ -278,6 +314,8 @@ struct ConnectionActionView {
     verb: String,
     available: bool,
     reason: Option<String>,
+    accepts: Vec<String>,
+    produces: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -291,6 +329,7 @@ struct ConnectionPeerView {
     busy: Option<bool>,
     protocols: Vec<u32>,
     actions: Vec<ConnectionActionView>,
+    connected_apps: Value,
 }
 
 #[derive(Serialize)]
@@ -337,7 +376,11 @@ fn build_docs_index(app: &AppHandle, manager: &Manager) -> Result<SearchIndex> {
         .collect::<std::collections::BTreeMap<_, _>>();
     let resolver = DocsResolver::new(manager.paths.clone(), docs_resource_dir(app));
     let mut locations = Vec::new();
-    for entry in &catalog.apps {
+    for entry in catalog
+        .apps
+        .iter()
+        .chain(catalog.install_entry(ids::TOOLS).as_ref())
+    {
         if let Some(location) = resolver.resolve(
             &entry.id,
             versions.get(&entry.id).and_then(Option::as_deref),
@@ -453,7 +496,7 @@ fn initialize_desktop(app: &AppHandle) -> Result<Arc<Manager>> {
                 tray::model::Action::OpenTools => show(&tools_handle, &desktop(&tools_handle)),
                 tray::model::Action::Updates => {
                     if let Ok(tray) = tray::service(&tools_handle) {
-                        tray.navigate("apps");
+                        tray.navigate("updates");
                     }
                     show(&tools_handle, &desktop(&tools_handle));
                 }
@@ -658,8 +701,18 @@ async fn list_connections(app: AppHandle) -> Result<ConnectionsView> {
                             verb: action.verb.clone(),
                             available: action.available,
                             reason: action.reason.clone(),
+                            accepts: action.accepts.clone(),
+                            produces: action.produces.clone(),
                         })
                         .collect(),
+                    connected_apps: registry
+                        .document(&manifest.id)
+                        .map(|document| {
+                            serde_json::from_str::<Value>(&document.to_json())
+                                .unwrap_or(Value::Null)["settings"]
+                                .clone()
+                        })
+                        .unwrap_or(Value::Null),
                 }
             })
             .collect();
@@ -692,9 +745,11 @@ async fn list_learn_apps(app: AppHandle) -> Result<Vec<LearnAppView>> {
             needs_fetch: false,
             docs_url: "https://github.com/qa-p1/Arcade-catalog/tree/main/docs".into(),
         }];
+        let tools = catalog.install_entry(ids::TOOLS);
         let guides = catalog
             .apps
             .into_iter()
+            .chain(tools)
             .map(|entry| {
                 let installed_version = versions.get(&entry.id).cloned().flatten();
                 let location = resolver.resolve(&entry.id, installed_version.as_deref(), None)?;
@@ -732,6 +787,7 @@ async fn fetch_docs(app: AppHandle, id: String, version: String) -> Result<()> {
     worker(move || {
         state.manager()?.fetch_docs(&id, &version)?;
         state.docs_index.lock().unwrap().take();
+        crate::tray::service(&app)?.request_index_refresh();
         Ok(())
     })
     .await
@@ -752,7 +808,7 @@ async fn open_docs(app: AppHandle, id: String) -> Result<()> {
         }
         let catalog = manager.catalog()?;
         let entry = catalog
-            .app(&id)
+            .install_entry(&id)
             .ok_or_else(|| Error::new("unavailable", "This app is absent from the catalog."))?;
         app.opener()
             .open_url(docs_url(&entry.repo, &entry.docs), None::<&str>)
@@ -916,6 +972,13 @@ fn request_close(app: &AppHandle) {
         .close(state.active.load(Ordering::SeqCst));
     if close == resident::Close::DestroyWindow {
         state.background.store(true, Ordering::SeqCst);
+        state.last_used.store(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs(),
+            Ordering::SeqCst,
+        );
         if let Some(window) = app.get_webview_window("main") {
             let _ = window.destroy();
         }
@@ -952,7 +1015,6 @@ fn request_quit(app: &AppHandle) {
 }
 
 /// Core self-update/restart calls this on its worker before stopping Tools.
-#[expect(dead_code, reason = "Core self-update/restart integration hook")]
 pub fn announce_restarting(app: &AppHandle) {
     desktop(app).restarting.store(true, Ordering::SeqCst);
     if let Some(presence) = desktop(app).presence.lock().unwrap().as_mut() {
@@ -961,7 +1023,6 @@ pub fn announce_restarting(app: &AppHandle) {
 }
 
 /// Core calls this with its cached count, without checking the network here.
-#[expect(dead_code, reason = "Core update scheduling integration hook")]
 pub fn set_update_count(app: &AppHandle, count: usize) {
     if let Ok(service) = tray::service(app) {
         service.set_updates(count);
@@ -1012,6 +1073,9 @@ pub fn run(background: bool, quit: bool) {
         })
         .invoke_handler(tauri::generate_handler![
             initialize,
+            crate::installation::self_install_proposal,
+            crate::installation::confirm_self_install,
+            crate::installation::dismiss_self_install,
             list_apps,
             check_release,
             operate,
@@ -1043,6 +1107,9 @@ pub fn run(background: bool, quit: bool) {
             hub::complete_onboarding,
             hub::tools_app,
             hub::update_history,
+            hub::release_history,
+            hub::fetch_latest_docs,
+            hub::refresh_shortcut_sheets,
             hub::dashboard,
             hub::health,
             hub::fix_health,
@@ -1064,8 +1131,10 @@ pub fn run(background: bool, quit: bool) {
             hub::download_engine,
             ui_rendered,
             crate::shortcuts::shortcuts_index,
+            crate::shortcuts::current_shortcut_app,
             crate::shortcuts::shortcut_labels,
             crate::shortcuts::set_shortcut_label,
+            crate::shortcuts::set_app_shortcut,
             tray::tray_get_settings,
             tray::tray_set_settings,
             tray::tray_ui_intent,

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { invoke } from '@tauri-apps/api/core';
   import { onMount, tick } from 'svelte';
   import AppDialog from './components/ConfirmDialog.svelte';
   import Message from './components/Message.svelte';
@@ -28,6 +29,12 @@
     if (ui.tab === 'learn' && !LearnView) void import('./tabs/Learn.svelte').then((module) => LearnView = module.default);
     if (ui.tab === 'connections' && !ConnectionsView) void import('./tabs/Connections.svelte').then((module) => ConnectionsView = module.default);
   });
+  let installProposal = $state<{ title: string; copy: string; installed: boolean } | null>(null);
+  let installLogin = $state(true);
+  let removeDownload = $state(true);
+  let installDialog: HTMLDialogElement;
+  $effect(() => { if (installProposal && installDialog && !installDialog.open) installDialog.showModal(); });
+  async function confirmSelfInstall(): Promise<void> { await invoke('confirm_self_install', { startAtLogin: installLogin, removeDownload }); }
   let initialized = false;
   let hasSeenFocus = false;
   const activeTabLabel = $derived(tabs.find((tab) => tab.id === ui.tab)?.label ?? 'Apps');
@@ -139,11 +146,14 @@
           appEvents.registryChanged(() => { void attempt(refresh); }),
           appEvents.managerMessage((message) => setMessage(message, true)),
           appEvents.updatesChanged((updates) => { ui.updates = updates; }),
+          appEvents.shortcutsChanged(() => { void api.shortcutsIndex().then((index) => { ui.shortcutsIndex = index; setShortcutsEnabled(true); }); }),
+          appEvents.trayNavigation((page) => { if (['home', 'apps', 'updates', 'shortcuts', 'learn', 'connections', 'engines', 'settings'].includes(page)) selectTab(page as ShellTab); }),
         ]);
         if (disposed) handlers.forEach((stop) => stop());
         else unlisten = handlers;
         await initialize();
         initialized = true;
+        installProposal = await invoke('self_install_proposal');
         hasSeenFocus = true;
         const [index, labels, catalogData] = await Promise.all([
           api.shortcutsIndex(), api.shortcutLabels(), api.catalogData(),
@@ -151,7 +161,9 @@
         ui.shortcutsIndex = index;
         ui.shortcutLabels = labels;
         ui.catalogData = catalogData;
-        setShortcutsEnabled(index !== null);
+        setShortcutsEnabled(true);
+        const trayIntent = await invoke<string | null>('tray_ui_intent');
+        if (trayIntent && ['home', 'apps', 'updates', 'shortcuts', 'learn', 'connections', 'engines', 'settings'].includes(trayIntent)) selectTab(trayIntent as ShellTab);
       } catch (error) {
         setMessage(error instanceof Error ? error.message : String(error), true);
       }
@@ -346,3 +358,11 @@
 </div>
 <ProgressBar visible={ui.busy} phase={ui.phase} progress={ui.progress} cancellable={ui.cancellable} onCancel={() => run(cancelOperation)} />
 <AppDialog />
+
+<dialog bind:this={installDialog} aria-labelledby="self-install-title">
+  {#if installProposal}<h2 id="self-install-title">{installProposal.title}</h2><p>{installProposal.copy}</p>
+    <label><input type="checkbox" bind:checked={installLogin} /> Start at login</label>
+    <label><input type="checkbox" bind:checked={removeDownload} /> Remove the downloaded file</label>
+    <div class="dialog-actions"><button type="button" onclick={() => run(confirmSelfInstall)}>Install</button><button type="button" onclick={() => { installProposal=null; installDialog.close(); }}>Just run it once</button><button type="button" onclick={() => run(async () => { await invoke('dismiss_self_install'); installProposal=null; installDialog.close(); })}>Don't ask again for this file</button></div>
+  {/if}
+</dialog>

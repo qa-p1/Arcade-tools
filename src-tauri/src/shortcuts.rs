@@ -63,6 +63,26 @@ pub async fn shortcuts_index() -> Result<Option<Value>> {
 }
 
 #[tauri::command]
+pub async fn current_shortcut_app() -> Result<Option<String>> {
+    tauri::async_runtime::spawn_blocking(|| {
+        let Some(value) = read_index()? else {
+            return Ok(None);
+        };
+        let index = arcade_tools_overlay::index::Index::parse(value.to_string().as_bytes())
+            .map_err(|error| Error::new("shortcuts_index", error))?;
+        let focus = arcade_tools_overlay::focus::detect();
+        Ok(focus
+            .identity
+            .as_deref()
+            .and_then(|identity| index.match_app(identity, focus.kind))
+            .and_then(|position| index.apps.get(position))
+            .map(|app| app.id.clone()))
+    })
+    .await
+    .map_err(|error| Error::new("worker", error.to_string()))?
+}
+
+#[tauri::command]
 pub async fn shortcut_labels() -> Result<BTreeMap<String, String>> {
     tauri::async_runtime::spawn_blocking(|| read_labels(&labels_file()?))
         .await
@@ -95,4 +115,33 @@ pub async fn set_shortcut_label(key: String, label: Option<String>) -> Result<()
     })
     .await
     .map_err(|error| Error::new("worker", error.to_string()))?
+}
+
+#[tauri::command]
+pub async fn set_app_shortcut(
+    app: tauri::AppHandle,
+    id: String,
+    shortcut: String,
+    accelerator: String,
+) -> Result<arcade_link::app::ShortcutSetResult> {
+    use tauri::Manager as _;
+    tauri::async_runtime::spawn_blocking(move || {
+        let manager = crate::desktop::manager(&app)?;
+        let index = read_index()?
+            .ok_or_else(|| Error::new("shortcuts_index", "Rebuild the shortcut index first."))?;
+        let result = arcade_tools_core::shortcut_control::set(
+            &manager,
+            &index,
+            &id,
+            &shortcut,
+            &accelerator,
+        )?;
+        if let Some(service) = app.try_state::<std::sync::Arc<crate::index_service::IndexService>>()
+        {
+            service.changed();
+        }
+        Ok(result)
+    })
+    .await
+    .map_err(|e| Error::new("worker", e.to_string()))?
 }

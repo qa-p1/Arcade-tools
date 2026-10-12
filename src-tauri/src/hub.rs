@@ -53,7 +53,15 @@ pub(super) fn start_updates(
     state: Arc<Desktop>,
     manager: Arc<Manager>,
 ) -> Result<()> {
-    manager.update_state()?;
+    let updates = manager.update_state()?;
+    super::set_update_count(
+        &app,
+        updates
+            .apps
+            .values()
+            .filter(|update| update.update_available && !update.held_back)
+            .count(),
+    );
     if manager.paths.isolated {
         return Ok(());
     }
@@ -110,11 +118,19 @@ fn check(
                 ),
             );
         }
+        super::set_update_count(
+            app,
+            updates
+                .apps
+                .values()
+                .filter(|update| update.update_available && !update.held_back)
+                .count(),
+        );
         let _ = app.emit("updates-changed", &updates);
         // Last-used status is optional. Unknown use, busy and compatibility
         // holds all keep an opted-in app unchanged.
         for (id, update) in &updates.apps {
-            if !update.update_available || update.held_back || id == ids::TOOLS {
+            if !update.update_available || update.held_back {
                 continue;
             }
             if !manager
@@ -136,6 +152,27 @@ fn check(
             }
             let _active = Active(state.clone());
             state.cancel.store(false, Ordering::SeqCst);
+            if id == ids::TOOLS {
+                let mode = if state.background.load(Ordering::SeqCst) {
+                    LaunchMode::Background
+                } else {
+                    LaunchMode::Foreground
+                };
+                let mut hook = |staged: &arcade_tools_core::self_update::StagedSelfUpdate| {
+                    crate::helpers::launch(&manager.paths, "--finish-self-update", &staged.file)?;
+                    super::announce_restarting(app);
+                    app.exit(0);
+                    Ok(())
+                };
+                manager.prepare_auto_self_update(
+                    manager.last_used(id),
+                    &SystemClock,
+                    mode,
+                    &state.cancel,
+                    &mut hook,
+                )?;
+                continue;
+            }
             let outcome = manager.auto_update(
                 id,
                 manager.last_used(id),
@@ -344,9 +381,12 @@ pub async fn restore_backup(
         state
             .link_enabled
             .store(prefs.link_enabled, Ordering::SeqCst);
-        if let Some(presence) = state.presence.lock().unwrap().as_ref() {
-            presence.update(arcade_tools_core::link::manifest(prefs.link_enabled));
+        if let Some(presence) = state.presence.lock().unwrap().as_mut() {
+            let tray = crate::tray::service(&app)?;
+            presence.update(prefs.link_enabled, &tray.preferences());
         }
+        let tray = crate::tray::service(&app)?;
+        tray.apply_preferences(crate::tray::settings::Preferences::load(&manager.paths)?)?;
         wake_updates(&state);
         let _ = app.emit("registry-changed", ());
         result
@@ -369,7 +409,7 @@ pub async fn reveal_archive(app: AppHandle, path: PathBuf) -> Result<()> {
     .await
 }
 #[tauri::command]
-pub async fn open_issue(app: AppHandle, id: String) -> Result<()> {
+pub async fn open_issue(app: AppHandle, id: String, issue_url: Option<String>) -> Result<()> {
     worker(move || {
         use tauri_plugin_opener::OpenerExt;
         let entry = desktop(&app)
@@ -377,19 +417,23 @@ pub async fn open_issue(app: AppHandle, id: String) -> Result<()> {
             .catalog()?
             .install_entry(&id)
             .ok_or_else(|| Error::new("unsupported_input", "Unknown app."))?;
+        let expected = format!("https://github.com/{}/issues/new", entry.repo);
+        let url = issue_url.unwrap_or_else(|| format!("{expected}?template=bug_report.yml"));
+        if !url.starts_with(&format!("{expected}?")) || url.contains(['\n', '\r']) {
+            return Err(Error::new("issue", "Choose this app's issue page."));
+        }
         app.opener()
-            .open_url(
-                format!(
-                    "https://github.com/{}/issues/new?template=bug_report.yml",
-                    entry.repo
-                ),
-                None::<&str>,
-            )
+            .open_url(url, None::<&str>)
             .map_err(|e| Error::new("open", e.to_string()))
     })
     .await
 }
-fn location(app: &AppHandle, manager: &Manager, id: &str) -> Result<docs::DocLocation> {
+fn location(
+    app: &AppHandle,
+    manager: &Manager,
+    id: &str,
+    latest: bool,
+) -> Result<docs::DocLocation> {
     let version = if id == "arcade.ecosystem" {
         None
     } else {
@@ -399,23 +443,57 @@ fn location(app: &AppHandle, manager: &Manager, id: &str) -> Result<docs::DocLoc
             .find(|app| app.id == id)
             .and_then(|app| app.version)
     };
-    if id != "arcade.ecosystem" && manager.catalog()?.app(id).is_none() {
+    if id != "arcade.ecosystem" && manager.catalog()?.install_entry(id).is_none() {
         return Err(Error::new("docs", "Unknown guide."));
     }
-    docs::DocsResolver::new(manager.paths.clone(), super::docs_resource_dir(app)).resolve(id, version.as_deref(), None)?
+    let resolver = docs::DocsResolver::new(manager.paths.clone(), super::docs_resource_dir(app));
+    (if latest { resolver.resolve_latest(id) } else { resolver.resolve(id, version.as_deref(), None) })?
         .ok_or_else(|| Error::new("docs", "No offline guide is available; fetch the installed version or open the repository guide."))
 }
 #[tauri::command]
-pub async fn docs_pages(app: AppHandle, id: String) -> Result<Vec<docs::PageInfo>> {
-    worker(move || docs::pages(&location(&app, desktop(&app).manager()?.as_ref(), &id)?)).await
+pub async fn docs_pages(
+    app: AppHandle,
+    id: String,
+    latest: Option<bool>,
+) -> Result<Vec<docs::PageInfo>> {
+    worker(move || {
+        docs::pages(&location(
+            &app,
+            desktop(&app).manager()?.as_ref(),
+            &id,
+            latest.unwrap_or(false),
+        )?)
+    })
+    .await
 }
 #[tauri::command]
-pub async fn read_doc(app: AppHandle, id: String, path: String) -> Result<docs::Page> {
+pub async fn read_doc(
+    app: AppHandle,
+    id: String,
+    path: String,
+    latest: Option<bool>,
+) -> Result<docs::Page> {
     worker(move || {
         docs::read_page(
-            &location(&app, desktop(&app).manager()?.as_ref(), &id)?,
+            &location(
+                &app,
+                desktop(&app).manager()?.as_ref(),
+                &id,
+                latest.unwrap_or(false),
+            )?,
             &path,
         )
+    })
+    .await
+}
+#[tauri::command]
+pub async fn fetch_latest_docs(app: AppHandle, id: String) -> Result<String> {
+    worker(move || {
+        let state = desktop(&app);
+        let version = state.manager()?.fetch_latest_docs(&id)?;
+        state.docs_index.lock().unwrap().take();
+        crate::tray::service(&app)?.request_index_refresh();
+        Ok(version)
     })
     .await
 }
@@ -500,17 +578,13 @@ pub async fn uninstall_all(
 }
 #[tauri::command]
 pub async fn self_update(app: AppHandle) -> Result<()> {
-    let state = desktop(&app);
-    if state.active.load(Ordering::SeqCst) {
-        return Err(Error::new("busy", "Finish the current operation first."));
-    }
-    state.cancel.store(false, Ordering::SeqCst);
+    let state = begin(&app)?;
     worker(move || {
         let _active = Active(state.clone());
         let manager = state.manager()?;
         let mut hook = |staged: &arcade_tools_core::self_update::StagedSelfUpdate| {
             crate::helpers::launch(&manager.paths, "--finish-self-update", &staged.file)?;
-            // The tray lane listens here to announce restarting before shutdown.
+            super::announce_restarting(&app);
             let _ = app.emit("tools-self-update-staged", &staged.file);
             app.exit(0);
             Ok(())
@@ -570,6 +644,30 @@ pub async fn download_engine(app: AppHandle, id: String) -> Result<String> {
                 "The verified Tesseract installer is open; finish it and refresh detection.".into(),
             ),
         }
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn release_history(app: AppHandle, id: String) -> Result<serde_json::Value> {
+    worker(move || desktop(&app).manager()?.release_history(&id)).await
+}
+#[tauri::command]
+pub async fn refresh_shortcut_sheets(app: AppHandle) -> Result<usize> {
+    worker(move || {
+        let manager = desktop(&app).manager()?;
+        let client = arcade_tools_core::catalog::CatalogClient::new(
+            manager.paths.clone(),
+            arcade_tools_core::source::Source::github()?,
+        )?;
+        let index = client.shortcut_index(true)?;
+        let mut count = 0;
+        for sheet in &index.sheets {
+            client.shortcut_sheet(sheet, true)?;
+            count += 1;
+        }
+        crate::tray::service(&app)?.request_index_refresh();
+        Ok(count)
     })
     .await
 }

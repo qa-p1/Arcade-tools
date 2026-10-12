@@ -317,8 +317,9 @@ export async function updateAll(apps: AppView[]): Promise<void> {
   const choice = await askForConfirmation({ title: `Update ${available.length} apps?`, copy: available.map((app) => `${app.name} → ${ui.updates?.apps[app.id]?.latest[app.channel]?.latestVersion ?? 'latest'}`).join('\n') + '\nBusy apps will be left running. Settings and data are kept.', action: 'Update all', destructive: false, kind: null, folders: [] });
   if (!choice.confirmed) return;
   for (const app of available) {
-    if (app.id === 'arcade.tools') { await withBusy(api.selfUpdate, 'Updating Arcade Tools'); return; }
+    if (app.id === 'arcade.tools') continue;
     await runOperation(operationRequest(app.id, 'update'));
     if (ui.messageError) return;
   }
+  if (available.some((app) => app.id === 'arcade.tools')) await withBusy(api.selfUpdate, 'Updating Arcade Tools');
 }

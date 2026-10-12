@@ -1,5 +1,6 @@
 <script lang="ts">
   import { api, type DocPage, type DocsSearchHit, type LearnApp } from '../lib/api';
+  import { onDestroy } from 'svelte';
 
   type Props = { active: boolean; target: string; run: (action: () => Promise<void>, label?: string) => void };
   let { active, target, run }: Props = $props();
@@ -7,6 +8,7 @@
   let pages = $state<{ path: string; title: string }[]>([]);
   let page = $state<DocPage | null>(null);
   let readerError = $state<string | null>(null);
+  let latest = $state(false);
   let openedTarget = '';
   let apps = $state<LearnApp[]>([]);
   let hits = $state<DocsSearchHit[]>([]);
@@ -16,6 +18,7 @@
   let error = $state<string | null>(null);
   let fetchBusy = $state<Record<string, boolean>>({});
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
+  onDestroy(() => { if (searchTimer) clearTimeout(searchTimer); });
 
   async function loadApps(): Promise<void> {
     loading = true;
@@ -53,11 +56,45 @@
   async function openReader(id: string, path?: string): Promise<void> {
     readerError = null;
     try {
-      if (readerApp !== id) { pages = await api.docsPages(id); readerApp = id; }
+      if (readerApp !== id) { latest = false; readerApp = id; }
+      pages = await api.docsPages(id, latest);
       const chosen = path ?? pages[0]?.path;
-      page = chosen ? await api.readDoc(id, chosen) : null;
+      page = chosen ? await api.readDoc(id, chosen, latest) : null;
       if (!chosen) readerError = 'No pages are available offline for this app yet.';
     } catch (problem) { readerError = problem instanceof Error ? problem.message : String(problem); }
+  }
+
+  async function changeVersion(useLatest: boolean): Promise<void> {
+    latest = useLatest;
+    if (readerApp) await openReader(readerApp);
+  }
+  async function fetchLatest(): Promise<void> {
+    if (!readerApp) return;
+    const id = readerApp;
+    fetchBusy = { ...fetchBusy, [id]: true };
+    try {
+      await api.fetchLatestDocs(id);
+      latest = true;
+      await openReader(id);
+      await loadApps();
+    } finally { fetchBusy = { ...fetchBusy, [id]: false }; }
+  }
+  function followLink(event: MouseEvent): void {
+    const link = (event.target as Element).closest('a');
+    if (!link || !readerApp || !page) return;
+    const href = link.getAttribute('href') ?? '';
+    if (!href || href.startsWith('#')) return;
+    if (/^[a-z][a-z0-9+.-]*:/i.test(href) || href.startsWith('//')) return;
+    event.preventDefault();
+    const base = new URL(page.path, 'https://arcade-docs.invalid/');
+    const target = new URL(href, base);
+    const path = decodeURIComponent(target.pathname.slice(1));
+    if (pages.some((entry) => entry.path === path)) run(() => openReader(readerApp!, path));
+    else readerError = 'This link points outside the available guide. Open the guide online to follow it.';
+  }
+  function docsNavigation(node: HTMLElement) {
+    node.addEventListener('click', followLink);
+    return { destroy() { node.removeEventListener('click', followLink); } };
   }
 
   $effect(() => {
@@ -84,7 +121,7 @@
     {#if hits.length}
       <div class="docs-results" aria-label="Documentation search results">
         {#each hits as hit (`${hit.app}:${hit.version}:${hit.path}`)}
-          <article class="docs-result"><div class="card-heading"><h3>{hit.title}</h3><span class="badge">{hit.app}</span><span class="badge">v{hit.version}</span></div><p class="pitch">{hit.path}</p><p class="docs-snippet">{hit.snippet}</p></article>
+          <article class="docs-result"><div class="card-heading"><h3>{hit.title}</h3><span class="badge">{hit.app}</span><span class="badge">v{hit.version}</span></div><p class="pitch">{hit.path}</p><p class="docs-snippet">{hit.snippet}</p><button type="button" onclick={() => run(() => openReader(hit.app, hit.path))}>Read this page</button></article>
         {/each}
       </div>
     {/if}
@@ -94,10 +131,14 @@
     <section class="feature-section docs-reader" aria-labelledby="learn-reader-heading">
       <div class="section-heading"><div><h2 id="learn-reader-heading">{apps.find((app) => app.id === readerApp)?.name ?? (readerApp === 'arcade.ecosystem' ? 'Arcade' : readerApp)} guide</h2>{#if page}<p class="setting-description">v{page.version} · {page.source}</p>{/if}</div><button type="button" onclick={() => { readerApp = null; page = null; }}>Close</button></div>
       {#if readerError}<p class="status-warning">{readerError}</p>{/if}
+      {#if readerApp !== 'arcade.ecosystem'}
+        <div class="actions-inline"><label>Documentation version <select value={latest ? 'latest' : 'installed'} onchange={(event) => run(() => changeVersion(event.currentTarget.value === 'latest'))}><option value="installed">For your installed version</option><option value="latest">Latest available offline</option></select></label><button type="button" disabled={fetchBusy[readerApp]} onclick={() => run(fetchLatest)}>{fetchBusy[readerApp] ? 'Downloading…' : 'Download latest stable docs'}</button></div>
+      {/if}
+      {#if page?.needsFetch}<p class="setting-description">This bundled guide is for another version. Download your installed version’s docs below.</p>{/if}
       {#if pages.length}
         <div class="docs-reader-body">
           <nav aria-label="Guide pages"><ul>{#each pages as entry (entry.path)}<li><button type="button" class="text-action" class:current={page?.path === entry.path} onclick={() => run(() => openReader(readerApp!, entry.path))}>{entry.title}</button></li>{/each}</ul></nav>
-          {#if page}<article class="markdown-body">{@html page.html}</article>{/if}
+          {#if page}<article class="markdown-body" use:docsNavigation>{@html page.html}</article>{/if}
         </div>
       {/if}
     </section>

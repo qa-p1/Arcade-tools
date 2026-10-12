@@ -57,7 +57,7 @@
   async function restore(): Promise<void> {
     if (!restorePlan) return;
     const names = restorePlan.apps.map((entry) => entry.backup.id).join(', ');
-    const choice = await askForConfirmation({ title: 'Restore settings from this backup?', copy: `Settings for ${names} will be replaced with the backed-up copies. Apps may ask to restart.`, action: 'Restore', destructive: false, kind: null, folders: [] });
+    const choice = await askForConfirmation({ title: 'Restore settings from this backup?', copy: `Settings for ${names} will be replaced with the backed-up copies. Missing apps will be installed on their saved channels. Apps may ask to restart.`, action: 'Restore', destructive: false, kind: null, folders: [] });
     if (!choice.confirmed) return;
     restored = await api.restoreBackup(restorePath.trim(), restorePlan.sha256);
     restorePlan = null;
@@ -148,7 +148,7 @@
         <p class="setting-description">Saved {report.file}{report.omitted.length ? ` · left out: ${report.omitted.join(', ')}` : ''}</p>
         <div class="actions-inline">
           <button type="button" onclick={() => run(() => api.revealArchive(report!.file))}>Show file</button>
-          <button type="button" class="primary-action" onclick={() => run(() => api.openIssue(supportApp))}>Open an issue</button>
+          <button type="button" class="primary-action" onclick={() => run(() => api.openIssue(supportApp, report!.issueUrl))}>Open an issue</button>
         </div>
       {/if}
     </div>
@@ -172,7 +172,7 @@
         <button type="submit" disabled={busy || !restorePath.trim()}>Review restore</button>
       </form>
       {#if restorePlan}
-        <ul class="settings-list">{#each restorePlan.apps as entry (entry.backup.id)}<li><strong>{entry.backup.id}</strong> v{entry.backup.version}{entry.installed ? '' : ' · not installed here, skipped'}</li>{/each}</ul>
+        <ul class="settings-list">{#each restorePlan.apps as entry (entry.backup.id)}<li><strong>{entry.backup.id}</strong> v{entry.backup.version}{entry.installed ? '' : ' · will be installed after confirmation'}</li>{/each}</ul>
         <div class="actions-inline"><button type="button" class="primary-action" disabled={busy} onclick={() => run(restore)}>Restore</button></div>
       {/if}
       {#if restored.length}
@@ -197,6 +197,8 @@
     </div>
     <div class="settings-stack">
       <p class="about-version">Arcade Tools <strong>{toolsApp?.version ?? '0.2.0'}</strong>{toolsApp?.managed ? ` · ${toolsApp.channel}` : ''}</p>
+      <p class="setting-description">Arcade Link 0.3.0 · Tools is MIT licensed. The overlay includes code from Arcade Find (MIT or Apache-2.0), and catalog guides and sheets use CC BY 4.0.</p>
+      <div class="actions-inline"><a href="https://github.com/qa-p1/Arcade-tools" target="_blank" rel="noreferrer">Repository</a><a href="https://github.com/qa-p1/Arcade-tools/blob/main/VENDORED" target="_blank" rel="noreferrer">Sources and licenses</a></div>
       <div class="actions-inline">
         {#if toolsApp?.installed}
           <button type="button" disabled={busy} onclick={() => run(updateTools)}>Update Arcade Tools</button>

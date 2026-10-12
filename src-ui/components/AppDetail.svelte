@@ -1,8 +1,10 @@
 <script lang="ts">
+  import { confirmOperation, changeChannel, changeLogin, launchApp } from '../lib/controller';
+  import { invoke } from '@tauri-apps/api/core';
   import { tick } from 'svelte';
   import AppShortcutRow from './AppShortcutRow.svelte';
   import KeyChips from './KeyChips.svelte';
-  import type { AppView, Release } from '../lib/api';
+  import { api, type AppView, type Release, type ConnectionPeer } from '../lib/api';
   import type { CatalogApp, Engine } from '../lib/catalog';
   import type { ShortcutsIndex } from '../lib/shortcuts';
 
@@ -29,6 +31,20 @@
     onBack, onCheckLatest, onOpenDocs, onInstall, onUpdate, onUninstall, run,
   }: Props = $props();
 
+  let history = $state<{ version: string; publishedAt: string; prerelease: boolean; html: string }[]>([]);
+  let peers = $state<ConnectionPeer[]>([]);
+  $effect(() => { void app.id; history = []; void api.listConnections().then((view) => peers = view.peers).catch(() => peers = []); });
+  const offeredActions = $derived(peers.find((peer) => peer.id === app.id)?.actions ?? []);
+  async function loadHistory(): Promise<void> { history=await api.releaseHistory(app.id); }
+  let ownIcon = $state(false);
+  $effect(() => { const id=app.id; void invoke<{ preferences: { excluded: string[] } }>('tray_get_settings').then((view) => ownIcon=view.preferences.excluded.includes(id)).catch(() => {}); });
+  async function setOwnIcon(enabled: boolean): Promise<void> {
+    const view = await invoke<{ preferences: { excluded: string[] } }>('tray_get_settings');
+    const excluded = view.preferences.excluded.filter((id) => id !== app.id);
+    if (enabled) excluded.push(app.id);
+    await invoke('tray_set_settings', { preferences: { ...view.preferences, excluded } });
+    ownIcon = enabled;
+  }
   let actionDialog: HTMLDialogElement;
   let pendingAction = $state<CatalogAction | null>(null);
   const installed = $derived(Boolean(installedApp?.installed || installedApp?.managed || installedApp?.version));
@@ -111,6 +127,10 @@
     </section>
   {/if}
 
+  <section class="detail-section" aria-label="Release history">
+    <button type="button" disabled={busy} onclick={() => run(loadHistory, app.name)}>Load version history</button>
+    {#each history as release (`${release.version}-${release.publishedAt}`)}<details><summary>{release.version} · {release.publishedAt}{release.prerelease ? ' · preview' : ''}</summary><div class="markdown-body">{@html release.html}</div></details>{/each}
+  </section>
   <section class="detail-section" aria-labelledby="detail-platforms-title">
     <div class="detail-section-heading"><h2 id="detail-platforms-title">Platform status</h2></div>
     <div class="platform-list">
@@ -169,6 +189,26 @@
     {/if}
   </section>
 
+  <section class="detail-section" aria-labelledby="detail-connections-title">
+    <h2 id="detail-connections-title">What it adds to your other apps</h2>
+    {#if offeredActions.length}<ul>{#each offeredActions as action (action.id)}<li><strong>{action.title}</strong>{action.accepts.length ? ` · accepts ${action.accepts.join(', ')}` : ''}{action.available ? '' : ` · ${action.reason ?? 'Currently unavailable'}`}</li>{/each}</ul>{:else}<p class="setting-description">Start this app to see the actions it advertises. Its guide explains how it works with other Arcade apps.</p>{/if}
+    <button type="button" onclick={() => run(onOpenDocs, app.name)}>Read the app guide</button>
+  </section>
+
+  {#if installedApp && installed}
+    <section class="detail-card" aria-label="Installed app management">
+      <div class="actions-inline">
+        <button type="button" disabled={busy} onclick={() => run(() => launchApp(installedApp!, 'foreground'), app.name)}>Open</button>
+        <button type="button" disabled={busy} onclick={() => run(() => api.openAppSettings(app.id), app.name)}>Open settings</button>
+        {#if installedApp.managed}<button type="button" disabled={busy} onclick={() => run(() => confirmOperation(installedApp!, 'repair'), app.name)}>Repair</button>{/if}
+        {#if !installedApp.managed && installedApp.installationClass !== 'dev'}<button type="button" disabled={busy} onclick={() => run(() => confirmOperation(installedApp!, 'adopt'), app.name)}>Let Tools manage it</button>{/if}
+        {#if installedApp.rollbackVersion}<button type="button" disabled={busy} onclick={() => run(() => confirmOperation(installedApp!, 'rollback'), app.name)}>Roll back to {installedApp.rollbackVersion}</button>{/if}
+      </div>
+      <label>Release channel <select value={installedApp.channel} disabled={busy} onchange={(event) => run(() => changeChannel(installedApp!, event.currentTarget.value as 'stable' | 'nightly'), app.name)}><option value="stable">Stable</option><option value="nightly">Nightly</option></select></label>
+      {#if installedApp.loginSupported}<label><input type="checkbox" checked={installedApp.startAtLogin} disabled={busy} onchange={(event) => run(() => changeLogin(installedApp!, event.currentTarget.checked), app.name)} /> Start at login</label>{/if}
+      <label><input type="checkbox" checked={ownIcon} disabled={busy} onchange={(event) => run(() => setOwnIcon(event.currentTarget.checked), app.name)} /> Keep its own tray icon</label>
+    </section>
+  {/if}
   <section class="detail-actions" aria-label="Catalog app actions">
     {#if !installed}
       <button class="primary" type="button" disabled={busy || Boolean(installReason) || !installedApp?.installSupported} onclick={() => askToConfirm('install')}>Install</button>

@@ -57,8 +57,8 @@
     let stopped = false;
     const sample = async () => { try { const next = await api.dashboard(); if (!stopped) dashboard = next; } catch { /* keep the last sample */ } };
     void sample();
-    void loadHealth().catch(() => { healthChecked = true; });
-    const timer = setInterval(sample, 5000);
+    void loadHealth().catch(() => { healthChecked = false; });
+    const timer = setInterval(sample, 2000);
     return () => { stopped = true; clearInterval(timer); };
   });
 </script>
@@ -80,13 +80,16 @@
       <span>Available updates</span><strong>{updatesAvailable.length}</strong>
     </button>
     <div class="metric-card"><span>Memory in use</span><strong>{dashboard ? megabytes(dashboard.totalMemoryBytes) : '—'}</strong></div>
+    <div class="metric-card"><span>Arcade CPU</span><strong>{dashboard?.totalCpuPercent.toFixed(1) ?? '—'}%</strong></div>
   </section>
+
+  {#if updatesAvailable.length}<section class="feature-section" role="status"><strong>{updatesAvailable.length} updates available</strong><button type="button" onclick={() => onSelectTab('updates')}>Review updates</button></section>{/if}
 
   {#if issues.length}
     <section class="feature-section" aria-labelledby="home-health-heading">
       <div class="section-heading"><div><h2 id="home-health-heading">Needs attention</h2><p class="setting-description">Tools found {issues.length} {issues.length === 1 ? 'problem' : 'problems'} it can help with.</p></div><button type="button" disabled={busy} onclick={() => run(loadHealth)}>Check again</button></div>
       <div class="home-app-list">
-        {#each issues as issue (`${issue.app}:${issue.kind}:${issue.path ?? ''}`)}
+        {#each issues as issue (`${issue.app}:${issue.kind}:${issue.path ?? ''}:${issue.reason}`)}
           <div class="home-app-row">
             <div class="home-app-info"><strong>{appName(issue.app)}</strong><span>{issue.reason}</span></div>
             {#if issue.canFix}<button type="button" class="primary-action" disabled={busy} onclick={() => run(() => fix(issue), appName(issue.app))}>{fixLabels[issue.fixAction]}</button>{/if}
@@ -116,8 +119,10 @@
           {@const usage = dashboard?.apps.find((entry) => entry.id === app.id)}
           <div class="home-app-row">
             <img class="app-glyph" src="/glyphs/{app.id}.svg" alt="" width="30" height="30" />
-            <div class="home-app-info"><strong>{app.name}</strong><span>{app.running ? 'Running' : 'Installed'}{app.version ? ` · v${app.version}` : ''}{usage?.pid ? ` · ${megabytes(usage.memoryBytes)} · ${usage.cpuPercent?.toFixed(1) ?? '—'}% CPU` : ''}</span></div>
+            <div class="home-app-info"><strong>{app.name}</strong><span>{app.running ? 'Running' : 'Installed'}{app.version ? ` · v${app.version}` : ''} · {app.channel}{usage?.pid ? ` · ${megabytes(usage.memoryBytes)} · ${usage.cpuPercent?.toFixed(1) ?? '—'}% CPU · ${Math.floor((usage.uptimeSeconds ?? 0) / 60)} min` : ''}{usage?.tray ? ` · ${usage.tray} tray` : ''} · {usage ? (usage.linkEnabled ? 'Link enabled' : 'Link disabled') : 'Link status unknown'}</span></div>
             <button type="button" class="primary-action" disabled={busy} onclick={() => run(() => onOpen(app), app.name)}>{app.running ? 'Open' : 'Start'}</button>
+            <button type="button" disabled={busy} onclick={() => run(() => api.openAppSettings(app.id), app.name)}>Settings</button>
+            {#if app.running}<button type="button" disabled={busy} onclick={() => run(() => api.restartApp(app.id), app.name)}>Restart</button>{/if}
           </div>
         {/each}
       </div>

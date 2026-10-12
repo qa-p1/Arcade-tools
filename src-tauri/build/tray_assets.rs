@@ -2,7 +2,7 @@
 use resvg::{tiny_skia, usvg};
 use std::path::Path;
 
-pub fn build() {
+pub fn build_from(root: &Path) {
     let output = std::path::PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
     for id in [
         "box",
@@ -14,8 +14,8 @@ pub fn build() {
         "find",
         "tools",
     ] {
-        let path = format!("../public/glyphs/arcade.{id}.svg");
-        println!("cargo:rerun-if-changed={path}");
+        let path = root.join(format!("public/glyphs/arcade.{id}.svg"));
+        println!("cargo:rerun-if-changed={}", path.display());
         let svg = std::fs::read_to_string(path)
             .unwrap()
             .replace("currentColor", "#8b7cf8");
@@ -32,8 +32,9 @@ pub fn build() {
         pixmap.save_png(output.join(format!("{id}.png"))).unwrap();
         write_rgba(&output.join(format!("{id}.rgba")), &pixmap);
     }
-    println!("cargo:rerun-if-changed=icons/32x32.png");
-    let mark = tiny_skia::Pixmap::load_png("icons/32x32.png").unwrap();
+    let mark = root.join("src-tauri/icons/32x32.png");
+    println!("cargo:rerun-if-changed={}", mark.display());
+    let mark = tiny_skia::Pixmap::load_png(mark).unwrap();
     write_rgba(&output.join("mark.rgba"), &mark);
 }
 

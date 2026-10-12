@@ -36,14 +36,19 @@ pub struct Options {
 impl Options {
     pub fn discover(paths: &Paths, resources: Option<&Path>) -> std::io::Result<Self> {
         let output = arcade_shortcuts::default_index_path()?;
-        let cache = output.parent().unwrap();
+        #[cfg(debug_assertions)]
+        let local_resources = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources");
+        #[cfg(debug_assertions)]
+        let resources = resources
+            .filter(|p| p.join("catalog/shortcuts").is_dir())
+            .or(Some(local_resources.as_path()));
         Ok(Self {
             registry: paths.link.registry.clone(),
-            catalog: cache.join("catalog/shortcuts"),
-            docs: cache.join("docs"),
+            catalog: paths.catalog().join("shortcuts"),
+            docs: paths.docs(),
             bundled_catalog: resources.map(|p| p.join("catalog/shortcuts")),
             bundled_docs: resources.map(|p| p.join("docs")),
-            labels: labels::default_path()?,
+            labels: paths.config.join("arcade/tools/shortcut-labels.json"),
             hyprland_dir: None,
             query_runtime: cfg!(target_os = "linux"),
             lua_duration_limit: None,
@@ -413,7 +418,7 @@ fn build(options: &Options) -> (Index, Vec<PathBuf>) {
             options
                 .bundled_docs
                 .as_ref()
-                .map(|d| d.join(&app.id).join("shortcuts.json"))
+                .and_then(|d| bundled_sheet(d, &app.id, version))
                 .filter(|p| p.is_file())
         })
         .collect();
@@ -433,6 +438,27 @@ fn build(options: &Options) -> (Index, Vec<PathBuf>) {
         }),
         files,
     )
+}
+
+fn bundled_sheet(root: &Path, id: &str, version: &str) -> Option<PathBuf> {
+    let exact = root.join(id).join(version).join("shortcuts.json");
+    if exact.is_file() {
+        return Some(exact);
+    }
+    let direct = root.join(id).join("shortcuts.json");
+    if direct.is_file() {
+        return Some(direct);
+    }
+    let manifest: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(root.join("manifest.json")).ok()?).ok()?;
+    manifest["entries"]
+        .as_array()?
+        .iter()
+        .find(|entry| entry["id"] == id)
+        .and_then(|entry| entry["version"].as_str())
+        .filter(|version| !version.contains(['/', '\\']) && *version != "." && *version != "..")
+        .map(|version| root.join(id).join(version).join("shortcuts.json"))
+        .filter(|path| path.is_file())
 }
 
 fn has_sheets(path: &Path) -> bool {

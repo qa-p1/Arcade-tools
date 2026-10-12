@@ -124,10 +124,11 @@ impl TrayModel {
             ));
         }
         items.push(Item::Separator);
-        for id in ids::APPS {
-            let Some(document) = documents.iter().find(|d| d.manifest.id == id) else {
-                continue;
-            };
+        for document in documents
+            .iter()
+            .filter(|document| ids::APPS.contains(&document.manifest.id.as_str()))
+        {
+            let id = document.manifest.id.as_str();
             let state = states.get(id).cloned().unwrap_or_default();
             let name = manifest::app_name(id);
             let mut children = vec![peer(
@@ -241,7 +242,7 @@ mod tests {
                 },
             ),
         ]);
-        let model = TrayModel::build(&[find, box_doc], &states, &prefs, 2, true);
+        let model = TrayModel::build(&[box_doc, find], &states, &prefs, 2, true);
         assert!(model.badge);
         let submenus: Vec<_> = model
             .items

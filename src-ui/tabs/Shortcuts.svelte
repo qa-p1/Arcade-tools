@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { api } from '../lib/api';
+  import ShortcutRebind from '../components/ShortcutRebind.svelte';
+  import TraySettings from '../components/TraySettings.svelte';
   import AppShortcutRow from '../components/AppShortcutRow.svelte';
   import KeyChips from '../components/KeyChips.svelte';
   import type {
@@ -12,7 +15,7 @@
     WindowManagerShortcut,
   } from '../lib/shortcuts';
 
-  type View = 'arcade' | 'wm' | 'apps' | 'conflicts';
+  type View = 'this-app' | 'arcade' | 'wm' | 'apps' | 'conflicts';
   type Props = {
     active: boolean;
     index: ShortcutsIndex | null;
@@ -23,6 +26,7 @@
   let { active, index, labels, onLabel, onChange }: Props = $props();
 
   const views: { id: View; label: string }[] = [
+    { id: 'this-app', label: 'This app' },
     { id: 'arcade', label: 'Arcade' },
     { id: 'wm', label: 'Window manager' },
     { id: 'apps', label: 'Apps' },
@@ -31,12 +35,21 @@
   let view = $state<View>('arcade');
   let query = $state('');
   let selectedAppId = $state('');
+  let currentAppId = $state('');
+  let focusChecked = $state(false);
   let labelDrafts = $state<Record<string, string>>({});
   let savedLabelKey = $state('');
+  let sheetMessage = $state('');
+  async function refreshSheets(): Promise<void> { try { sheetMessage = `${await api.refreshShortcutSheets()} catalog sheets refreshed.`; } catch (error) { sheetMessage = (error as { message?: string }).message ?? String(error); } }
   let labelError = $state('');
 
   const search = $derived(query.trim().toLocaleLowerCase());
   const selectedApp = $derived(index?.apps.find((app) => app.id === selectedAppId) ?? null);
+  const currentApp = $derived(index?.apps.find((app) => app.id === currentAppId) ?? null);
+  $effect(() => {
+    if (!active) { focusChecked = false; return; }
+    if (!focusChecked) { focusChecked = true; void api.currentShortcutApp().then((id) => currentAppId = id ?? '').catch(() => {}); }
+  });
 
   $effect(() => {
     const apps = index?.apps ?? [];
@@ -212,7 +225,7 @@
                 {#each globalArcade as shortcut (`${shortcut.app}-${shortcut.id}`)}
                   <li class="shortcut-row">
                     <div class="shortcut-copy"><h3>{shortcut.title}</h3><p>{shortcut.name}</p></div>
-                    <div class="shortcut-key-area"><KeyChips keys={shortcut.display} os={index.os} />{#if shortcut.rebindable}<span class="shortcut-badge">Rebindable</span>{/if}</div>
+                    <div class="shortcut-key-area"><KeyChips keys={shortcut.display} os={index.os} /><ShortcutRebind {shortcut} {index} /></div>
                   </li>
                 {/each}
               </ul>
@@ -258,7 +271,13 @@
       </div>
     {:else}
       <div id="shortcut-view-panel" class="shortcut-view-panel" role="tabpanel" aria-labelledby="shortcut-view-{view}">
-        {#if view === 'arcade'}
+        {#if view === 'this-app'}
+          <section class="shortcut-section" aria-labelledby="current-app-heading">
+            <h2 id="current-app-heading">{currentApp?.name ?? 'Choose the app you are using'}</h2>
+            <label class="app-picker">App <select bind:value={currentAppId}><option value="">Choose an app</option>{#each index.apps as app (app.id)}<option value={app.id}>{app.name}</option>{/each}</select></label>
+            {#if currentApp}{#each appGroups(currentApp) as group (group.title)}<section class="shortcut-group"><h3>{group.title}</h3><ul class="shortcut-list">{#each group.shortcuts as shortcut (shortcut.id)}<AppShortcutRow {shortcut} os={index.os} />{/each}</ul></section>{/each}{:else}<p class="setting-description">Automatic focus detection is available on supported desktops. Choose an app here, or open the overlay while that app is focused.</p>{/if}
+          </section>
+        {:else if view === 'arcade'}
           <section class="shortcut-section" aria-labelledby="arcade-shortcuts-heading">
             <div class="section-heading"><div><h2 id="arcade-shortcuts-heading">Arcade shortcuts</h2><p>Global shortcuts provided by Arcade apps.</p></div><span>{visibleArcade.length}</span></div>
             {#if visibleArcade.length}
@@ -266,7 +285,7 @@
                 {#each visibleArcade as shortcut (`${shortcut.app}-${shortcut.id}`)}
                   <li class="shortcut-row">
                     <div class="shortcut-copy"><h3>{shortcut.title}</h3><p>{shortcut.name}</p></div>
-                    <div class="shortcut-key-area"><KeyChips keys={shortcut.display} os={index.os} /><span class:shortcut-badge={shortcut.rebindable} class:shortcut-badge-muted={!shortcut.rebindable}>{shortcut.rebindable ? 'Rebindable' : 'Change in app settings'}</span></div>
+                    <div class="shortcut-key-area"><KeyChips keys={shortcut.display} os={index.os} /><ShortcutRebind {shortcut} {index} /></div>
                   </li>
                 {/each}
               </ul>
@@ -334,6 +353,7 @@
               {#each visibleConflicts as conflict, itemIndex (`${conflict.chord}-${itemIndex}`)}
                 <div class="conflict-card"><KeyChips keys={[conflict.chord]} os={index.os} />
                   <div class="conflict-owners"><p><strong>{conflict.a.label}</strong><span>{ownerName(conflict.a)} · {conflict.a.kind}</span></p><span class="conflict-vs" aria-hidden="true">↔</span><p><strong>{conflict.b.label}</strong><span>{ownerName(conflict.b)} · {conflict.b.kind}</span></p></div>
+                  {#each index.arcade.filter((shortcut) => shortcut.rebindable && shortcut.keys.includes(conflict.chord)) as shortcut (`${shortcut.app}-${shortcut.id}`)}<ShortcutRebind {shortcut} {index} />{/each}
                   <p class="conflict-explanation">Both shortcuts claim {conflict.chord}. Review each owner’s settings to decide which binding should change.</p>
                 </div>
               {/each}
@@ -343,4 +363,7 @@
       </div>
     {/if}
   {/if}
+<button type="button" onclick={() => void refreshSheets()}>Refresh catalog shortcut sheets</button>
+  {#if sheetMessage}<p role="status">{sheetMessage}</p>{/if}
+  <TraySettings {active} busy={false} />
 </div>

@@ -41,6 +41,7 @@
   }: Props = $props();
 
   let detailId = $state<string | null>(null);
+  let category = $state('all');
   let selectedBundle = $state<CatalogBundle | null>(null);
   let selectedBundleApps = $state<string[]>([]);
   let bundleDialog: HTMLDialogElement;
@@ -63,8 +64,10 @@
     resident: false,
     homepage: app.releasesUrl.replace(/\/releases$/, ''),
   })));
-  const installedApps = $derived(catalogApps.filter((app) => isInstalled(app.id)));
-  const availableApps = $derived(catalogApps.filter((app) => !isInstalled(app.id)));
+  const categories = $derived([...new Set(catalogApps.map((app) => app.category))].sort());
+  const filteredApps = $derived(catalogApps.filter((app) => category === 'all' || app.category === category));
+  const installedApps = $derived(filteredApps.filter((app) => isInstalled(app.id)));
+  const availableApps = $derived(filteredApps.filter((app) => !isInstalled(app.id)));
   const detailApp = $derived(catalogApps.find((app) => app.id === detailId) ?? null);
   const detailView = $derived(apps.find((app) => app.id === detailId));
   const bundles = $derived(catalogData?.catalog.bundles ?? []);
@@ -185,6 +188,10 @@
         </div>
       </section>
     {/if}
+
+    <label class="setting-control">Category
+      <select bind:value={category}><option value="all">All categories</option>{#each categories as item (item)}<option value={item}>{item}</option>{/each}</select>
+    </label>
 
     <section class="catalog-section" aria-labelledby="installed-apps-title">
       <div class="catalog-section-heading"><div><p class="eyebrow">YOUR ARCADE</p><h2 id="installed-apps-title">Installed</h2></div><span>{installedApps.length}</span></div>

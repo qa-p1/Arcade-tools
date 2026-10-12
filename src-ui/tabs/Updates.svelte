@@ -38,6 +38,7 @@
   }
 
   const rollbacks = $derived(apps.filter((app) => app.managed && app.rollbackVersion));
+  const managedApps = $derived(apps.filter((app) => app.managed));
   const appName = (id: string) => apps.find((app) => app.id === id)?.name ?? id;
 
   async function loadHistory(): Promise<void> {
@@ -82,12 +83,18 @@
               {/if}
             </div>
           {:else}<p class="setting-description">No release notes were provided for this version.</p>{/if}
-          <label class="auto-update-toggle"><input type="checkbox" checked={autoUpdate[row.app.id] ?? false} disabled={busy} onchange={(event) => run(() => onAutoUpdate(row.app, event.currentTarget.checked), row.app.name)} /> Automatically update this app when it is idle</label>
         </section>
       {/each}
     </div>
   {:else}
     <div class="empty-state"><h2>{updates?.lastFailure ? 'Could not finish the last check' : 'You are up to date'}</h2><p>{updates?.lastFailure ? 'Check your connection and try again.' : 'Updates for managed, installed apps will appear here. You can check again at any time.'}</p><button type="button" disabled={busy || checking} class="primary-action" onclick={() => run(onCheckNow)}>{checking ? 'Checking…' : 'Check now'}</button><button type="button" onclick={onSelectApps}>Browse apps</button></div>
+  {/if}
+  {#if managedApps.length}
+    <section class="feature-section" aria-labelledby="auto-update-heading">
+      <h2 id="auto-update-heading">Automatic updates</h2>
+      <p class="setting-description">Opt in for each app. Tools waits until it is idle and has not been used for ten minutes.</p>
+      {#each managedApps as app (app.id)}<label class="auto-update-toggle"><input type="checkbox" checked={autoUpdate[app.id] ?? false} disabled={busy} onchange={(event) => run(() => onAutoUpdate(app, event.currentTarget.checked), app.name)} /> {app.name}</label>{/each}
+    </section>
   {/if}
   {#if rollbacks.length}
     <section class="feature-section" aria-labelledby="rollback-heading">

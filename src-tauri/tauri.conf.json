@@ -34,7 +34,7 @@
       "dmg"
     ],
     "category": "Utility",
-    "publisher": "Arcade contributors",
+    "publisher": "qa-p1",
     "license": "MIT",
     "shortDescription": "Install and update the Arcade apps",
     "icon": [
@@ -46,14 +46,16 @@
     ],
     "windows": {
       "nsis": {
-        "installMode": "currentUser"
+        "installMode": "currentUser",
+        "installerHooks": "../packaging/windows/tools-hooks.nsh"
       }
     },
     "macOS": {
       "minimumSystemVersion": "12.0"
     },
     "resources": {
-      "resources/docs/": "docs/"
+      "resources/docs/": "docs/",
+      "resources/catalog/": "catalog/"
     }
   }
 }
