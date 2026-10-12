@@ -93,6 +93,26 @@ impl Renderer {
             panel.right() as i32,
             panel.bottom() as i32,
         );
+        let app = model
+            .index
+            .as_ref()
+            .and_then(|index| model.app.and_then(|app| index.apps.get(app)));
+        let mut icon = Pixmap::new(32, 32).ok_or("cannot allocate app glyph")?;
+        icon.data_mut()
+            .copy_from_slice(glyph(app.map_or("arcade.tools", |app| app.id.as_str())));
+        for pixel in icon.data_mut().chunks_exact_mut(4) {
+            for channel in 0..3 {
+                pixel[channel] = (pixel[channel] as u32 * pixel[3] as u32 / 255) as u8;
+            }
+        }
+        pixmap.draw_pixmap(
+            ((36.0 + ox) * scale) as i32,
+            ((25.0 + oy) * scale) as i32,
+            icon.as_ref(),
+            &tiny_skia::PixmapPaint::default(),
+            Transform::from_scale(scale, scale),
+            None,
+        );
         let mut label = |text: &str,
                          size: f32,
                          bold: bool,
@@ -120,9 +140,9 @@ impl Renderer {
             22.0,
             true,
             palette.text,
-            36.0,
+            78.0,
             27.0,
-            layout.panel.w - 280.0,
+            layout.panel.w - 322.0,
             full_clip,
         );
         label(
@@ -457,6 +477,19 @@ impl Renderer {
             rect.y,
             clip,
         );
+    }
+}
+
+fn glyph(id: &str) -> &'static [u8] {
+    match id {
+        "arcade.box" => include_bytes!(concat!(env!("OUT_DIR"), "/box.rgba")),
+        "arcade.lens" => include_bytes!(concat!(env!("OUT_DIR"), "/lens.rgba")),
+        "arcade.look" => include_bytes!(concat!(env!("OUT_DIR"), "/look.rgba")),
+        "arcade.wheel" => include_bytes!(concat!(env!("OUT_DIR"), "/wheel.rgba")),
+        "arcade.clipboard" => include_bytes!(concat!(env!("OUT_DIR"), "/clipboard.rgba")),
+        "arcade.find" => include_bytes!(concat!(env!("OUT_DIR"), "/find.rgba")),
+        "arcade.shelf" => include_bytes!(concat!(env!("OUT_DIR"), "/shelf.rgba")),
+        _ => include_bytes!(concat!(env!("OUT_DIR"), "/tools.rgba")),
     }
 }
 

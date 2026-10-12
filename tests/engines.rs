@@ -1,5 +1,6 @@
 use arcade_tools_core::{catalog::ENGINE_SNAPSHOT, engines::*, release::Os};
 use serde_json::json;
+#[cfg(unix)]
 use std::time::{Duration, Instant};
 fn engine() -> Engine {
     let mut engine = EngineCatalog::parse(ENGINE_SNAPSHOT.as_bytes())

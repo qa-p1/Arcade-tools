@@ -147,6 +147,7 @@ def metrics(pid):
 
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument("--screenshot", type=Path, help="Save the isolated Tools window as a user-guide screenshot")
     parser.add_argument("--tools", type=Path, default=Path("target/release/arcade-tools"))
     parser.add_argument("--link", type=Path, default=Path("target/link-cli/debug/arcade-link"))
     parser.add_argument("--seconds", type=int, default=30)
@@ -155,7 +156,7 @@ def main():
     parser.add_argument("--check-ui", action="store_true", help="Verify debug GUI reports and live tray/hotkey settings through native clicks")
     args = parser.parse_args()
     tools, link = args.tools.resolve(), args.link.resolve()
-    state = Path(os.environ["ARCADE_HOME"]) / "data/arcade-tools"
+    state = Path(os.environ["ARCADE_HOME"]) / ".local/share/arcade-tools"
     state.mkdir(parents=True, exist_ok=True)
     smoke = Path(os.environ["ARCADE_HOME"]) / "tray-ui.jsonl"
     if args.check_ui:
@@ -295,6 +296,9 @@ def main():
             wait(lambda: subprocess.run(["xdotool", "search", "--onlyvisible", "--name", "^Arcade Tools Shortcuts$"], capture_output=True, text=True).stdout.strip())
             subprocess.run([str(overlay), "--hide"], check=True, timeout=3)
             print("PASS: seven-app GUI renders; live hosting/exclusion and hotkey rebind work through Settings", flush=True)
+        if args.screenshot:
+            args.screenshot.parent.mkdir(parents=True, exist_ok=True)
+            subprocess.run(["import", "-window", identifier, str(args.screenshot.resolve())], check=True, timeout=15)
         time.sleep(1)
         close_window(identifier)
         wait(lambda: window() is None)

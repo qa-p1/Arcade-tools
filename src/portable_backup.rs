@@ -1,9 +1,8 @@
 //! Portable Tools backup and confirmed restore through the existing manager
 //! and Arcade Link settings handoff APIs.
-use crate::manager::{
-    AppView, Channel, LaunchMode, Manager, Operation, Preferences, Request,
-};
+use crate::manager::{AppView, LaunchMode, Manager, Operation, Preferences, Request};
 use crate::paths::Paths;
+use crate::release::Channel;
 use crate::{Error, Result};
 use arcade_link::client::Client;
 use arcade_link::content::Content;
@@ -406,7 +405,8 @@ fn export_app_settings(
         let mut invalid = false;
         for (index, output) in outputs.iter().enumerate() {
             let content_type = output.kind.clone();
-            let Some(source) = handoff_source(manager.paths.link.handoff.as_path(), output, &app.id)
+            let Some(source) =
+                handoff_source(manager.paths.link.handoff.as_path(), output, &app.id)
             else {
                 invalid = true;
                 break;
@@ -452,7 +452,8 @@ fn export_app_settings(
         if invalid || app_exports.is_empty() {
             not_included.push(NotIncluded {
                 app_id: app.id.clone(),
-                reason: "The app settings contained excluded data or exceeded backup limits.".into(),
+                reason: "The app settings contained excluded data or exceeded backup limits."
+                    .into(),
             });
             continue;
         }
@@ -466,7 +467,7 @@ fn export_app_settings(
 }
 
 fn connect_or_launch(manager: &Manager, id: &str, running: bool) -> Option<Client> {
-    if let Ok(mut client) = Client::connect(&manager.paths.link, id, &manager_peer()) {
+    if let Ok(client) = Client::connect(&manager.paths.link, id, &manager_peer()) {
         let _ = client.set_timeout(Duration::from_secs(5));
         return Some(client);
     }
@@ -478,7 +479,7 @@ fn connect_or_launch(manager: &Manager, id: &str, running: bool) -> Option<Clien
     }
     let deadline = Instant::now() + arcade_link::client::LAUNCH_TIMEOUT;
     while Instant::now() < deadline {
-        if let Ok(mut client) = Client::connect(&manager.paths.link, id, &manager_peer()) {
+        if let Ok(client) = Client::connect(&manager.paths.link, id, &manager_peer()) {
             let _ = client.set_timeout(Duration::from_secs(5));
             return Some(client);
         }
@@ -540,7 +541,10 @@ fn import_app_settings(
     } else {
         manager.launch(id, LaunchMode::Background)?;
         wait_for_client(manager, id).ok_or_else(|| {
-            Error::new("not_running", "The app did not become ready for settings import.")
+            Error::new(
+                "not_running",
+                "The app did not become ready for settings import.",
+            )
         })?
     };
     client
@@ -584,7 +588,7 @@ fn read_shortcut_labels(paths: &Paths) -> Result<BTreeMap<String, String>> {
     match read_bounded_regular(&path, 1024 * 1024) {
         Ok(bytes) => {
             let labels: BTreeMap<String, String> = serde_json::from_slice(&bytes)?;
-            validate_labels(&labels)?;
+            validate_saved_labels(&labels)?;
             Ok(labels)
         }
         Err(error) if error.code == "io" && !path.exists() => Ok(BTreeMap::new()),
@@ -592,13 +596,16 @@ fn read_shortcut_labels(paths: &Paths) -> Result<BTreeMap<String, String>> {
     }
 }
 
-fn validate_labels(labels: &BTreeMap<String, String>) -> Result<()> {
+fn validate_saved_labels(labels: &BTreeMap<String, String>) -> Result<()> {
     if labels.len() > 4096 {
         return Err(Error::new("shortcut_labels", "Too many shortcut labels."));
     }
     for (key, value) in labels {
         if !valid_label_key(key) || value.trim().is_empty() || value.chars().count() > 120 {
-            return Err(Error::new("shortcut_labels", "Shortcut labels are invalid."));
+            return Err(Error::new(
+                "shortcut_labels",
+                "Shortcut labels are invalid.",
+            ));
         }
         if crate::diagnostics_archive::has_secret_markers(value) {
             return Err(Error::new(
@@ -622,7 +629,7 @@ fn handoff_source(root: &Path, content: &Content, app_id: &str) -> Option<PathBu
     if content.owner.as_deref() != Some(app_id)
         || !content.kind.starts_with("file/")
         || content.kind.ends_with("[]")
-        || content.paths.len() != 0
+        || !content.paths.is_empty()
         || content.text.is_some()
         || content.html.is_some()
         || content.data.is_some()
@@ -651,7 +658,10 @@ fn read_bounded_regular(path: &Path, max: usize) -> Result<Vec<u8>> {
     }
     let metadata = fs::symlink_metadata(path)?;
     if !metadata.is_file() || metadata.file_type().is_symlink() || metadata.len() > max as u64 {
-        return Err(Error::new("size", "File is not regular or exceeds its size limit."));
+        return Err(Error::new(
+            "size",
+            "File is not regular or exceeds its size limit.",
+        ));
     }
     let mut bytes = Vec::with_capacity(metadata.len() as usize);
     File::open(path)?
@@ -665,14 +675,23 @@ fn read_bounded_regular(path: &Path, max: usize) -> Result<Vec<u8>> {
 
 fn read_archive_file(path: &Path) -> Result<Vec<u8>> {
     if !path.is_absolute() || contains_symlink_component(path)? {
-        return Err(Error::new("path", "Choose a regular, non-symlink backup file."));
+        return Err(Error::new(
+            "path",
+            "Choose a regular, non-symlink backup file.",
+        ));
     }
     let metadata = fs::symlink_metadata(path)?;
     if !metadata.is_file() || metadata.file_type().is_symlink() {
-        return Err(Error::new("path", "The selected backup is not a regular file."));
+        return Err(Error::new(
+            "path",
+            "The selected backup is not a regular file.",
+        ));
     }
     if metadata.len() as usize > MAX_ARCHIVE_BYTES {
-        return Err(Error::new("archive_size", "The selected backup is too large."));
+        return Err(Error::new(
+            "archive_size",
+            "The selected backup is too large.",
+        ));
     }
     read_bounded_regular(path, MAX_ARCHIVE_BYTES)
 }
@@ -691,7 +710,11 @@ fn contains_symlink_component(path: &Path) -> Result<bool> {
             Component::ParentDir => return Ok(true),
         }
         match fs::symlink_metadata(&current) {
-            Ok(metadata) if metadata.file_type().is_symlink() => return Ok(true),
+            Ok(metadata)
+                if metadata.file_type().is_symlink() && !crate::paths::system_alias(&current) =>
+            {
+                return Ok(true)
+            }
             Ok(_) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
             Err(error) => return Err(error.into()),
@@ -725,13 +748,10 @@ fn contains_excluded_data(value: &Value, app_id: &str) -> bool {
             .iter()
             .any(|needle| normalized.contains(needle));
             let app_exclusion = app_id == ids::CLIPBOARD
-                && ["key", "keys", "history", "device"]
-                    .contains(&normalized.as_str())
+                && ["key", "keys", "history", "device"].contains(&normalized.as_str())
                 || app_id == ids::FIND
                     && ["index", "cache", "caches"].contains(&normalized.as_str());
-            generic_exclusion
-                || app_exclusion
-                || contains_excluded_data(child, app_id)
+            generic_exclusion || app_exclusion || contains_excluded_data(child, app_id)
         }),
         Value::Array(items) => items
             .iter()
@@ -778,7 +798,9 @@ fn group_settings_files(files: &[SettingsFile]) -> BTreeMap<String, Vec<Settings
 
 fn store_plan(plan_id: &str, backup: ValidatedBackup) {
     let plans = PENDING_PLANS.get_or_init(|| Mutex::new(HashMap::new()));
-    let mut plans = plans.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let mut plans = plans
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     plans.retain(|_, plan| plan.created.elapsed() < MAX_PLAN_AGE);
     if plans.len() >= MAX_PENDING_PLANS {
         if let Some(oldest) = plans
@@ -800,15 +822,26 @@ fn store_plan(plan_id: &str, backup: ValidatedBackup) {
 
 fn take_plan(plan_id: &str) -> Result<ValidatedBackup> {
     if plan_id.len() != 64 || !plan_id.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-        return Err(Error::new("restore_plan", "The restore confirmation expired."));
+        return Err(Error::new(
+            "restore_plan",
+            "The restore confirmation expired.",
+        ));
     }
     let plans = PENDING_PLANS.get_or_init(|| Mutex::new(HashMap::new()));
-    let mut plans = plans.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let mut plans = plans
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let Some(plan) = plans.remove(plan_id) else {
-        return Err(Error::new("restore_plan", "The restore confirmation expired."));
+        return Err(Error::new(
+            "restore_plan",
+            "The restore confirmation expired.",
+        ));
     };
     if plan.created.elapsed() >= MAX_PLAN_AGE {
-        return Err(Error::new("restore_plan", "The restore confirmation expired."));
+        return Err(Error::new(
+            "restore_plan",
+            "The restore confirmation expired.",
+        ));
     }
     Ok(plan.backup)
 }
@@ -821,10 +854,10 @@ fn check_cancel(cancel: &AtomicBool) -> Result<()> {
     }
 }
 
+#[cfg(test)]
 fn expansion_is_allowed(uncompressed: u64, compressed: u64) -> Result<()> {
     if uncompressed > 0
-        && (compressed == 0
-            || uncompressed > compressed.saturating_mul(MAX_EXPANSION_RATIO))
+        && (compressed == 0 || uncompressed > compressed.saturating_mul(MAX_EXPANSION_RATIO))
     {
         return Err(Error::new(
             "archive_size",
@@ -838,8 +871,11 @@ fn validate_archive(bytes: &[u8]) -> Result<ValidatedBackup> {
     preflight_zip(bytes)?;
     let mut archive = ZipArchive::new(Cursor::new(bytes))
         .map_err(|error| Error::new("archive", error.to_string()))?;
-    if archive.len() == 0 || archive.len() > MAX_ARCHIVE_ENTRIES {
-        return Err(Error::new("archive_entries", "The backup has an invalid entry count."));
+    if archive.is_empty() || archive.len() > MAX_ARCHIVE_ENTRIES {
+        return Err(Error::new(
+            "archive_entries",
+            "The backup has an invalid entry count.",
+        ));
     }
     let mut entries = BTreeMap::new();
     let mut total_size = 0usize;
@@ -856,7 +892,10 @@ fn validate_archive(bytes: &[u8]) -> Result<ValidatedBackup> {
                 .unix_mode()
                 .is_some_and(|mode| mode & 0o170000 != 0 && mode & 0o170000 != 0o100000)
         {
-            return Err(Error::new("archive_path", "The backup contains an unsafe entry."));
+            return Err(Error::new(
+                "archive_path",
+                "The backup contains an unsafe entry.",
+            ));
         }
         if file.compression() != CompressionMethod::Stored {
             return Err(Error::new(
@@ -871,13 +910,18 @@ fn validate_archive(bytes: &[u8]) -> Result<ValidatedBackup> {
             || total_size.saturating_add(declared_size) > MAX_TOTAL_UNCOMPRESSED
             || (declared_size > 0
                 && (compressed_size == 0
-                    || declared_size as u64
-                        > compressed_size.saturating_mul(MAX_EXPANSION_RATIO)))
+                    || declared_size as u64 > compressed_size.saturating_mul(MAX_EXPANSION_RATIO)))
         {
-            return Err(Error::new("archive_size", "The backup exceeds size limits."));
+            return Err(Error::new(
+                "archive_size",
+                "The backup exceeds size limits.",
+            ));
         }
         if entries.contains_key(&name) {
-            return Err(Error::new("archive_duplicate", "The backup has duplicate paths."));
+            return Err(Error::new(
+                "archive_duplicate",
+                "The backup has duplicate paths.",
+            ));
         }
         let mut payload = Vec::with_capacity(declared_size);
         file.by_ref()
@@ -885,7 +929,10 @@ fn validate_archive(bytes: &[u8]) -> Result<ValidatedBackup> {
             .read_to_end(&mut payload)
             .map_err(|error| Error::new("archive", error.to_string()))?;
         if payload.len() != declared_size {
-            return Err(Error::new("archive_size", "A backup entry size did not match."));
+            return Err(Error::new(
+                "archive_size",
+                "A backup entry size did not match.",
+            ));
         }
         total_size += declared_size;
         entries.insert(name, payload);
@@ -894,17 +941,26 @@ fn validate_archive(bytes: &[u8]) -> Result<ValidatedBackup> {
         .remove(BACKUP_DOCUMENT)
         .ok_or_else(|| Error::new("archive_manifest", "The backup manifest is missing."))?;
     if manifest.len() > 256 * 1024 {
-        return Err(Error::new("archive_manifest", "The backup manifest is too large."));
+        return Err(Error::new(
+            "archive_manifest",
+            "The backup manifest is too large.",
+        ));
     }
     let document: BackupDocument = serde_json::from_slice(&manifest)
         .map_err(|error| Error::new("archive_manifest", error.to_string()))?;
     validate_document(&document, &entries)?;
-    Ok(ValidatedBackup { document, files: entries })
+    Ok(ValidatedBackup {
+        document,
+        files: entries,
+    })
 }
 
 fn preflight_zip(bytes: &[u8]) -> Result<()> {
     if bytes.is_empty() || bytes.len() > MAX_ARCHIVE_BYTES {
-        return Err(Error::new("archive_size", "The selected backup is too large."));
+        return Err(Error::new(
+            "archive_size",
+            "The selected backup is too large.",
+        ));
     }
     const EOCD: [u8; 4] = [0x50, 0x4b, 0x05, 0x06];
     let search_start = bytes.len().saturating_sub(65_557);
@@ -937,7 +993,10 @@ fn preflight_zip(bytes: &[u8]) -> Result<()> {
         || directory_size as usize > MAX_ARCHIVE_BYTES / 2
         || directory_offset as usize + directory_size as usize > eocd
     {
-        return Err(Error::new("archive_entries", "The ZIP directory exceeds limits."));
+        return Err(Error::new(
+            "archive_entries",
+            "The ZIP directory exceeds limits.",
+        ));
     }
     Ok(())
 }
@@ -981,13 +1040,19 @@ fn validate_document(document: &BackupDocument, files: &BTreeMap<String, Vec<u8>
         || document.tools_version.trim().is_empty()
         || document.created_at.len() > 64
     {
-        return Err(Error::new("archive_manifest", "Unsupported backup manifest."));
+        return Err(Error::new(
+            "archive_manifest",
+            "Unsupported backup manifest.",
+        ));
     }
     if document.installed_apps.len() > INSTALLABLE_APPS.len()
         || document.settings_files.len() > MAX_SETTINGS_FILES
         || document.not_included.len() > INSTALLABLE_APPS.len()
     {
-        return Err(Error::new("archive_manifest", "The backup lists too many apps or files."));
+        return Err(Error::new(
+            "archive_manifest",
+            "The backup lists too many apps or files.",
+        ));
     }
     let mut app_ids = BTreeSet::new();
     for app in &document.installed_apps {
@@ -1011,7 +1076,9 @@ fn validate_document(document: &BackupDocument, files: &BTreeMap<String, Vec<u8>
     for settings in &document.settings_files {
         validate_known_app(&settings.app_id)?;
         if !app_ids.contains(settings.app_id.as_str())
-            || !settings.archive_path.starts_with(&format!("apps/{}/settings-", settings.app_id))
+            || !settings
+                .archive_path
+                .starts_with(&format!("apps/{}/settings-", settings.app_id))
             || !settings.archive_path.ends_with(".json")
             || !valid_archive_name(&settings.archive_path)
             || !valid_filename(&settings.filename)
@@ -1020,11 +1087,17 @@ fn validate_document(document: &BackupDocument, files: &BTreeMap<String, Vec<u8>
             || settings.content_type.len() > 64
             || !settings_paths.insert(settings.archive_path.as_str())
         {
-            return Err(Error::new("archive_manifest", "The app settings index is invalid."));
+            return Err(Error::new(
+                "archive_manifest",
+                "The app settings index is invalid.",
+            ));
         }
         *per_app.entry(settings.app_id.as_str()).or_default() += 1;
         if per_app[settings.app_id.as_str()] > MAX_SETTINGS_PER_APP {
-            return Err(Error::new("archive_manifest", "An app has too many settings files."));
+            return Err(Error::new(
+                "archive_manifest",
+                "An app has too many settings files.",
+            ));
         }
         let bytes = files
             .get(&settings.archive_path)
@@ -1038,10 +1111,14 @@ fn validate_document(document: &BackupDocument, files: &BTreeMap<String, Vec<u8>
             ));
         }
     }
-    if files.keys().any(|name| {
-        name != "tools/shortcut-labels.json" && !settings_paths.contains(name.as_str())
-    }) {
-        return Err(Error::new("archive_path", "The backup contains an unlisted file."));
+    if files
+        .keys()
+        .any(|name| name != "tools/shortcut-labels.json" && !settings_paths.contains(name.as_str()))
+    {
+        return Err(Error::new(
+            "archive_path",
+            "The backup contains an unlisted file.",
+        ));
     }
     let labels_file = files
         .get("tools/shortcut-labels.json")
@@ -1050,12 +1127,18 @@ fn validate_document(document: &BackupDocument, files: &BTreeMap<String, Vec<u8>
         .map_err(|_| Error::new("archive_manifest", "Shortcut labels are malformed."))?;
     validate_labels(&zipped_labels)?;
     if zipped_labels != document.shortcut_labels {
-        return Err(Error::new("archive_manifest", "Shortcut labels do not match."));
+        return Err(Error::new(
+            "archive_manifest",
+            "Shortcut labels do not match.",
+        ));
     }
     for item in &document.not_included {
         validate_known_app(&item.app_id)?;
         if item.reason.trim().is_empty() || item.reason.len() > 256 {
-            return Err(Error::new("archive_manifest", "A not-included reason is invalid."));
+            return Err(Error::new(
+                "archive_manifest",
+                "A not-included reason is invalid.",
+            ));
         }
     }
     Ok(())
@@ -1063,7 +1146,10 @@ fn validate_document(document: &BackupDocument, files: &BTreeMap<String, Vec<u8>
 
 fn validate_known_app(id: &str) -> Result<()> {
     if !INSTALLABLE_APPS.contains(&id) {
-        return Err(Error::new("archive_app", "The backup names an unknown Arcade app."));
+        return Err(Error::new(
+            "archive_app",
+            "The backup names an unknown Arcade app.",
+        ));
     }
     Ok(())
 }
@@ -1086,7 +1172,10 @@ fn validate_labels(labels: &BTreeMap<String, String>) -> Result<()> {
 
 fn write_zip(entries: Vec<ArchiveEntry>) -> Result<Vec<u8>> {
     if entries.len() > MAX_ARCHIVE_ENTRIES {
-        return Err(Error::new("archive_entries", "The backup has too many files."));
+        return Err(Error::new(
+            "archive_entries",
+            "The backup has too many files.",
+        ));
     }
     let mut writer = ZipWriter::new(Cursor::new(Vec::new()));
     let options = SimpleFileOptions::default()
@@ -1105,11 +1194,15 @@ fn write_zip(entries: Vec<ArchiveEntry>) -> Result<Vec<u8>> {
         .map_err(|error| Error::new("archive", error.to_string()))?
         .into_inner();
     if bytes.len() > MAX_ARCHIVE_BYTES {
-        return Err(Error::new("archive_size", "The backup exceeds the size limit."));
+        return Err(Error::new(
+            "archive_size",
+            "The backup exceeds the size limit.",
+        ));
     }
     Ok(bytes)
 }
 
+#[cfg(test)]
 fn preflight_test_archive(entries: Vec<ArchiveEntry>) -> Result<Vec<u8>> {
     write_zip(entries)
 }
@@ -1164,7 +1257,9 @@ mod tests {
         let bytes = roundtrip_archive();
         let validated = validate_archive(&bytes).unwrap();
         assert_eq!(validated.document.installed_apps[0].id, ids::FIND);
-        assert!(validated.files.contains_key("apps/arcade.find/settings-00.json"));
+        assert!(validated
+            .files
+            .contains_key("apps/arcade.find/settings-00.json"));
     }
 
     #[test]
@@ -1180,14 +1275,22 @@ mod tests {
         let symlink_options = SimpleFileOptions::default()
             .compression_method(CompressionMethod::Stored)
             .unix_permissions(0o120777);
-        writer.start_file("tools/shortcut-labels.json", symlink_options).unwrap();
+        writer
+            .start_file("tools/shortcut-labels.json", symlink_options)
+            .unwrap();
         writer.write_all(b"{}").unwrap();
         let symlink = writer.finish().unwrap().into_inner();
         assert!(validate_archive(&symlink).is_err());
 
         let duplicate = write_zip(vec![
-            ArchiveEntry { name: "one.json".into(), bytes: vec![] },
-            ArchiveEntry { name: "one.json".into(), bytes: vec![] },
+            ArchiveEntry {
+                name: "one.json".into(),
+                bytes: vec![],
+            },
+            ArchiveEntry {
+                name: "one.json".into(),
+                bytes: vec![],
+            },
         ]);
         assert!(duplicate.is_err() || validate_archive(&duplicate.unwrap()).is_err());
 
@@ -1216,8 +1319,14 @@ mod tests {
             &json!({ "device": "phone", "keys": ["key"] }),
             ids::CLIPBOARD
         ));
-        assert!(contains_excluded_data(&json!({ "history": [] }), ids::CLIPBOARD));
+        assert!(contains_excluded_data(
+            &json!({ "history": [] }),
+            ids::CLIPBOARD
+        ));
         assert!(contains_excluded_data(&json!({ "index": {} }), ids::FIND));
-        assert!(contains_excluded_data(&json!({ "credential": "x" }), ids::FIND));
+        assert!(contains_excluded_data(
+            &json!({ "credential": "x" }),
+            ids::FIND
+        ));
     }
 }

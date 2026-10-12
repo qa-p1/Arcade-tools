@@ -12,7 +12,7 @@ default-members = [".", "src-tauri"]
 resolver = "2"
 
 [dependencies]
-# Arcade Link v0.3 development branch; integration pins v0.3.0 at merge. To build
+# Released Link installer, engines and tray contracts. To build
 # against a local checkout instead, add to .cargo/config.toml (not committed):
 #   [patch."https://github.com/qa-p1/Arcade-Link"]
 #   arcade-link = { path = "<path to>/Arcade-link/crates/arcade-link" }

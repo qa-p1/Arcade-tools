@@ -31,6 +31,8 @@ pub struct BackupApp {
 struct Manifest {
     schema: u32,
     tools: Preferences,
+    #[serde(default)]
+    tray: Option<Value>,
     labels: BTreeMap<String, String>,
     apps: Vec<BackupApp>,
 }
@@ -146,6 +148,7 @@ pub fn export(manager: &Manager, cancel: &AtomicBool) -> Result<BackupReport> {
     let manifest = Manifest {
         schema: 1,
         tools: manager.preferences()?,
+        tray: read_tray(manager)?,
         labels,
         apps: apps.clone(),
     };
@@ -192,6 +195,11 @@ pub fn restore(
     let (files, manifest) = read(manager, path)?;
     cancelled(cancel)?;
     manager.restore_preferences(&manifest.tools)?;
+    if let Some(tray) = &manifest.tray {
+        let path = manager.paths.state().join("tray-preferences.json");
+        manager.paths.guard(&path)?;
+        arcade_link::paths::write_atomic(&path, &serde_json::to_vec_pretty(tray)?, true)?;
+    }
     let label_path = manager.paths.config.join(LABELS);
     manager.paths.guard(&label_path)?;
     arcade_link::paths::write_atomic(
@@ -292,6 +300,9 @@ fn read(manager: &Manager, path: &Path) -> Result<(BTreeMap<String, Vec<u8>>, Ma
         ));
     }
     manager.validate_preferences(&manifest.tools)?;
+    if let Some(tray) = &manifest.tray {
+        validate_tray(tray)?;
+    }
     if manifest
         .labels
         .iter()
@@ -387,6 +398,7 @@ fn validate_settings(bytes: &[u8]) -> Result<()> {
                     || forbidden(value)
             }),
             Value::Array(values) => values.iter().any(forbidden),
+            Value::String(value) => crate::diagnostics_archive::has_secret_markers(value),
             _ => false,
         }
     }
@@ -404,4 +416,44 @@ fn cancelled(cancel: &AtomicBool) -> Result<()> {
     } else {
         Ok(())
     }
+}
+
+fn read_tray(manager: &Manager) -> Result<Option<Value>> {
+    let path = manager.paths.state().join("tray-preferences.json");
+    match crate::catalog::read_bounded(&path, 64 * 1024) {
+        Ok(bytes) => {
+            let value = serde_json::from_slice(&bytes)?;
+            validate_tray(&value)?;
+            Ok(Some(value))
+        }
+        Err(_) if !path.exists() => Ok(None),
+        Err(error) => Err(error),
+    }
+}
+fn validate_tray(value: &Value) -> Result<()> {
+    let object = value
+        .as_object()
+        .ok_or_else(|| Error::new("backup", "Invalid tray preferences."))?;
+    for (key, value) in object {
+        let valid = match key.as_str() {
+            "hostIcons" | "showUpdateBadge" | "startAtLogin" | "shortcutsEnabled" => {
+                value.is_boolean()
+            }
+            "excluded" => value.as_array().is_some_and(|ids| {
+                ids.len() <= 7
+                    && ids.iter().all(|id| {
+                        id.as_str()
+                            .is_some_and(|id| crate::apps::APPS.contains(&id))
+                    })
+            }),
+            "shortcut" => value
+                .as_str()
+                .is_some_and(|key| arcade_link::accelerator::normalize(key).is_ok()),
+            _ => false,
+        };
+        if !valid {
+            return Err(Error::new("backup", "Invalid tray preference in backup."));
+        }
+    }
+    Ok(())
 }

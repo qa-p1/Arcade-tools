@@ -102,6 +102,17 @@ class SnapshotTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "symlink"):
                 snapshot.local({"id":"arcade.look", "version":"local", "files":[]}, root / "repo", "docs/user")
 
+    def test_explicit_worktree_override_includes_its_images(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            docs = root / 'Arcade-tools-wt-hub/docs/user'
+            (docs / 'images').mkdir(parents=True)
+            (docs / 'index.md').write_text('![Home](images/home.png)', encoding='utf-8')
+            (docs / 'images/home.png').write_bytes(b'home')
+            out = root / 'snapshot'
+            self.run_snapshot(['--from-local', str(root), '--app-checkout', f'arcade.tools={docs.parents[1]}', '--out', str(out)])
+            self.assertEqual((out / 'arcade.tools/local/images/home.png').read_bytes(), b'home')
+
 
 if __name__ == "__main__":
     unittest.main()

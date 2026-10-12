@@ -379,7 +379,7 @@ pub fn build_index(inputs: &BuildInputs) -> Index {
         groups,
         warnings,
     };
-    let conflicts = conflicts(&arcade, &wm);
+    let conflicts = conflicts(&arcade, &wm, &apps);
     Index {
         schema: 1,
         built_at: inputs
@@ -686,7 +686,7 @@ fn wm_groups(
 }
 
 #[cfg(feature = "builder")]
-fn conflicts(arcade: &[ArcadeShortcut], wm: &WmIndex) -> Vec<Conflict> {
+fn conflicts(arcade: &[ArcadeShortcut], wm: &WmIndex, apps: &[AppSheet]) -> Vec<Conflict> {
     let party = |a: &ArcadeShortcut| ConflictParty {
         kind: "arcade".into(),
         owner: a.app.clone(),
@@ -747,8 +747,156 @@ fn conflicts(arcade: &[ArcadeShortcut], wm: &WmIndex) -> Vec<Conflict> {
                 }
             }
         }
+        for sheet in apps
+            .iter()
+            .filter(|sheet| matches!(sheet.id.as_str(), "windows-system" | "macos-system"))
+        {
+            for shortcut in sheet.groups.iter().flat_map(|group| &group.shortcuts) {
+                for ka in &a.keys {
+                    for kb in &shortcut.keys {
+                        if keys::conflicts(ka, kb) {
+                            add(
+                                if ka.len() <= kb.len() { ka } else { kb },
+                                party(a),
+                                ConflictParty {
+                                    kind: "os".into(),
+                                    owner: sheet.name.clone(),
+                                    label: shortcut.title.clone(),
+                                },
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+    let binds = wm
+        .groups
+        .iter()
+        .flat_map(|group| &group.shortcuts)
+        .collect::<Vec<_>>();
+    for (i, a) in binds.iter().enumerate() {
+        for b in &binds[i + 1..] {
+            if a.submap == b.submap && keys::conflicts(&a.chord, &b.chord) {
+                add(
+                    &a.chord,
+                    ConflictParty {
+                        kind: "wm".into(),
+                        owner: wm.name.clone(),
+                        label: a.label.clone(),
+                    },
+                    ConflictParty {
+                        kind: "wm".into(),
+                        owner: wm.name.clone(),
+                        label: b.label.clone(),
+                    },
+                );
+            }
+        }
+    }
+    for sheet in apps {
+        let shortcuts = sheet
+            .groups
+            .iter()
+            .filter(|group| group.context != "global")
+            .flat_map(|group| {
+                group
+                    .shortcuts
+                    .iter()
+                    .map(move |shortcut| (&group.context, shortcut))
+            })
+            .collect::<Vec<_>>();
+        for (i, (context, a)) in shortcuts.iter().enumerate() {
+            for (other_context, b) in &shortcuts[i + 1..] {
+                if context != other_context || a.id == b.id {
+                    continue;
+                }
+                for ka in &a.keys {
+                    for kb in &b.keys {
+                        if keys::conflicts(ka, kb) {
+                            add(
+                                if ka.len() <= kb.len() { ka } else { kb },
+                                ConflictParty {
+                                    kind: "in_app".into(),
+                                    owner: sheet.id.clone(),
+                                    label: a.title.clone(),
+                                },
+                                ConflictParty {
+                                    kind: "in_app".into(),
+                                    owner: sheet.id.clone(),
+                                    label: b.title.clone(),
+                                },
+                            );
+                        }
+                    }
+                }
+            }
+        }
     }
     result
+}
+
+#[cfg(all(test, feature = "builder"))]
+mod conflict_tests {
+    use super::*;
+    #[test]
+    fn system_keys_and_in_app_contexts_have_separate_conflicts() {
+        let shortcuts = |id: &str, title: &str, key: &str| AppShortcut {
+            id: id.into(),
+            title: title.into(),
+            keys: vec![key.into()],
+            display: vec![key.into()],
+            description: None,
+        };
+        let mut apps = vec![AppSheet {
+            id: "windows-system".into(),
+            name: "Windows".into(),
+            source: "catalog".into(),
+            matches: BTreeMap::new(),
+            groups: vec![AppGroup {
+                title: "System".into(),
+                context: "desktop".into(),
+                shortcuts: vec![shortcuts("lock", "Lock", "Super+L")],
+            }],
+        }];
+        let global = ArcadeShortcut {
+            app: "arcade.find".into(),
+            name: "Find".into(),
+            id: "toggle".into(),
+            title: "Find".into(),
+            keys: vec!["Super+L".into()],
+            display: vec![],
+            rebindable: true,
+        };
+        let found = conflicts(&[global], &WmIndex::default(), &apps);
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].b.kind, "os");
+        apps.push(AppSheet {
+            id: "editor".into(),
+            name: "Editor".into(),
+            source: "catalog".into(),
+            matches: BTreeMap::new(),
+            groups: vec![
+                AppGroup {
+                    title: "Edit".into(),
+                    context: "editor".into(),
+                    shortcuts: vec![
+                        shortcuts("a", "Action A", "Ctrl+K"),
+                        shortcuts("b", "Action B", "Ctrl+K Ctrl+O"),
+                    ],
+                },
+                AppGroup {
+                    title: "Terminal".into(),
+                    context: "terminal".into(),
+                    shortcuts: vec![shortcuts("c", "Action C", "Ctrl+K")],
+                },
+            ],
+        });
+        let found = conflicts(&[], &WmIndex::default(), &apps);
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].a.label, "Action A");
+        assert_eq!(found[0].b.label, "Action B");
+    }
 }
 
 #[cfg(feature = "builder")]

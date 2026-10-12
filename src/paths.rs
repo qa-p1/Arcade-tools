@@ -262,7 +262,7 @@ impl Paths {
         }
         for p in path.ancestors() {
             match std::fs::symlink_metadata(p) {
-                Ok(m) if m.file_type().is_symlink() => {
+                Ok(m) if m.file_type().is_symlink() && !system_alias(p) => {
                     return Err(Error::new(
                         "paths",
                         format!("Refusing symlinked install or data path {}", p.display()),
@@ -280,7 +280,9 @@ impl Paths {
     pub fn guard_receipt(&self, id: &str) -> Result<PathBuf> {
         let path = arcade_link::receipt::Store::new(&self.link).path(id)?;
         for parent in path.ancestors() {
-            if std::fs::symlink_metadata(parent).is_ok_and(|m| m.file_type().is_symlink()) {
+            if std::fs::symlink_metadata(parent).is_ok_and(|m| m.file_type().is_symlink())
+                && !system_alias(parent)
+            {
                 return Err(Error::new("paths", "Receipt paths must not be symlinked."));
             }
         }
@@ -293,4 +295,21 @@ pub fn app_id(id: &str) -> Result<()> {
         return Err(Error::new("unsupported_input", "Unknown Arcade app."));
     }
     Ok(())
+}
+
+pub(crate) fn system_alias(path: &Path) -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        [("/var", "/private/var"), ("/tmp", "/private/tmp")]
+            .iter()
+            .any(|(alias, target)| {
+                path == Path::new(alias)
+                    && std::fs::read_link(path).is_ok_and(|link| link == Path::new(target))
+            })
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = path;
+        false
+    }
 }

@@ -239,6 +239,61 @@ impl DocsResolver {
     pub fn new(paths: Paths, bundled: PathBuf) -> Self {
         Self { paths, bundled }
     }
+    /// Prefer the newest stable docs already cached, including offline use.
+    pub fn resolve_latest(&self, id: &str) -> Result<Option<DocLocation>> {
+        validate_location(id, "local")?;
+        let mut latest = self.resolve(id, None, None)?;
+        let parent = self.paths.docs().join(id);
+        let entries = match fs::read_dir(&parent) {
+            Ok(entries) => entries,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(latest),
+            Err(error) => return Err(error.into()),
+        };
+        for entry in entries {
+            let entry = entry?;
+            if !entry.file_type()?.is_dir() {
+                continue;
+            }
+            let name = entry.file_name().to_string_lossy().into_owned();
+            let Ok(version) = semver::Version::parse(&name) else {
+                continue;
+            };
+            if !version.pre.is_empty() || !has_markdown(&entry.path())? {
+                continue;
+            }
+            let newer = latest
+                .as_ref()
+                .and_then(|item| semver::Version::parse(&item.version).ok())
+                .is_none_or(|current| version > current);
+            if newer {
+                latest = Some(location(id, &name, &entry.path(), DocSource::Cached, false));
+            }
+        }
+        Ok(latest)
+    }
+
+    /// Explicit latest-stable download, independent of package/platform support.
+    pub fn fetch_latest(&self, app: &CatalogApp, source: &impl HttpSource) -> Result<DocLocation> {
+        allowed_repo(&app.repo)?;
+        let url = format!("https://api.github.com/repos/{}/releases/latest", app.repo);
+        let bytes = modified(source.fetch(&url, None, 1024 * 1024)?)?;
+        let release: serde_json::Value = serde_json::from_slice(&bytes)?;
+        let version = release["tag_name"]
+            .as_str()
+            .and_then(|tag| tag.strip_prefix('v'))
+            .ok_or_else(|| Error::new("docs", "The stable release has no version tag."))?;
+        let parsed = crate::catalog::parse_version(version)?;
+        if !parsed.pre.is_empty()
+            || release["draft"].as_bool().unwrap_or(false)
+            || release["prerelease"].as_bool().unwrap_or(false)
+        {
+            return Err(Error::new(
+                "docs",
+                "Choose a stable release for latest docs.",
+            ));
+        }
+        self.fetch_version(app, version, source)
+    }
     /// Resolve installed docs first, then exact-version cache, then a bundled
     /// snapshot on a worker thread. Never fetches. The optional installed root
     /// is the app's actual `docs/user` directory, supplied by its install contract.

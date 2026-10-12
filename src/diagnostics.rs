@@ -97,7 +97,7 @@ pub fn create(manager: &Manager, app: &str) -> Result<Report> {
         .append_pair("title", &format!("[{}] ", entry.name))
         .append_pair(
             "diagnostics",
-            &format!("Attach {} manually. Tools does not upload this file.", name),
+            &format!("Attach {name} manually. Tools does not upload this file."),
         );
     Ok(Report {
         file,
@@ -204,6 +204,10 @@ pub fn sensitive_key(key: &str) -> bool {
         "credential",
         "authorization",
         "privatekey",
+        "apikey",
+        "accesskey",
+        "passwd",
+        "keyring",
         "device",
         "identity",
         "pairing",
@@ -235,7 +239,8 @@ pub fn redact_value(value: &mut Value, home: &Path) {
 }
 
 pub fn redact_text(text: &str, home: &Path) -> String {
-    text.lines()
+    crate::diagnostics_archive::redact_text(text, home)
+        .lines()
         .map(|line| {
             if sensitive_key(line) || line.contains("ghp_") || line.contains("github_pat_") {
                 "[redacted sensitive line]".into()

@@ -7,7 +7,7 @@ use arcade_link::manifest::{self, ids};
 use arcade_link::receipt::Store;
 use regex::Regex;
 use serde::Serialize;
-use serde_json::{json, Value};
+use serde_json::Value;
 use std::collections::BTreeMap;
 use std::fs::{self, File};
 use std::io::{Read, Seek, SeekFrom, Write};
@@ -108,12 +108,8 @@ pub fn create_archive(
 
     for id in IDS {
         let manifest_path = paths.link.manifest(id);
-        let raw_manifest = read_regular_bounded(
-            &paths.link.registry,
-            &manifest_path,
-            MAX_MANIFEST,
-        )
-        .ok();
+        let raw_manifest =
+            read_regular_bounded(&paths.link.registry, &manifest_path, MAX_MANIFEST).ok();
         let mut version = None;
         let mut declared_logs = None;
         if let Some(bytes) = raw_manifest.as_ref() {
@@ -138,7 +134,7 @@ pub fn create_archive(
         let receipt_path = receipts.path(id).ok();
         let mut receipt_included = false;
         if let Some(path) = receipt_path {
-            if let Some(bytes) = read_regular_bounded(receipts.dir(), &path, MAX_RECEIPT).ok() {
+            if let Ok(bytes) = read_regular_bounded(receipts.dir(), &path, MAX_RECEIPT) {
                 if let Ok(value) = serde_json::from_slice::<Value>(&bytes) {
                     if value.get("id").and_then(Value::as_str) == Some(*id) {
                         if version.is_none() {
@@ -165,11 +161,13 @@ pub fn create_archive(
             .unwrap_or_default();
         included_logs += log_entries.len();
         entries.extend(log_entries);
-        let endpoint = endpoint_state(paths, id, running.get(id).copied().unwrap_or(*id == ids::TOOLS));
-        let installed = *id == ids::TOOLS
-            || app_views
-                .iter()
-                .any(|app| app.id == *id && app.installed);
+        let endpoint = endpoint_state(
+            paths,
+            id,
+            running.get(id).copied().unwrap_or(*id == ids::TOOLS),
+        );
+        let installed =
+            *id == ids::TOOLS || app_views.iter().any(|app| app.id == *id && app.installed);
         apps.push(AppDiagnostic {
             id: (*id).into(),
             version,
@@ -250,7 +248,8 @@ pub fn issue_url(app_id: &str) -> Result<String> {
             .clone()
     };
     crate::catalog::allowed_repo(&repo)?;
-    let mut url = reqwest::Url::parse(&format!("https://github.com/{repo}/issues/new"))?;
+    let mut url = reqwest::Url::parse(&format!("https://github.com/{repo}/issues/new"))
+        .map_err(|e| Error::new("url", e.to_string()))?;
     url.query_pairs_mut()
         .append_pair("title", "Arcade diagnostics report")
         .append_pair(
@@ -355,7 +354,10 @@ fn read_tail(root: &Path, path: &Path, max_bytes: usize) -> Result<Vec<u8>> {
     let canonical_root = safe_directory(root)?;
     let canonical_file = safe_regular_file(path)?;
     if !canonical_file.starts_with(&canonical_root) {
-        return Err(Error::new("paths", "Log file escaped its declared directory."));
+        return Err(Error::new(
+            "paths",
+            "Log file escaped its declared directory.",
+        ));
     }
     let mut file = File::open(&canonical_file)?;
     let len = file.metadata()?.len();
@@ -416,8 +418,7 @@ fn sensitive_key(key: &str, clipboard: bool) -> bool {
     .iter()
     .any(|needle| normalized.contains(needle))
         || clipboard
-            && ["key", "keys", "history", "device", "identity"]
-                .contains(&normalized.as_str())
+            && ["key", "keys", "history", "device", "identity"].contains(&normalized.as_str())
 }
 
 fn redaction_patterns() -> &'static [Regex] {
@@ -426,7 +427,7 @@ fn redaction_patterns() -> &'static [Regex] {
         [
             r"(?i)(bearer\s+)[a-z0-9._~+/-]+=*",
             r"(?i)\b(?:gh[pousr]_[a-z0-9_]{20,}|github_pat_[a-z0-9_]{20,})\b",
-            r"(?i)(\b(?:token|secret|password|passwd|credential|authorization|api[-_]?key|access[-_]?key|device[-_]?(?:id|identity)|machine[-_]?id)\b\s*[\"']?\s*[:=]\s*[\"']?)[^\s,\"';&}]+",
+            r#"(?i)(\b(?:[a-z0-9]+[-_])*(?:token|secret|password|passwd|credential|authorization|api[-_]?key|access[-_]?key|device[-_]?(?:id|identity)|machine[-_]?id)\b\s*[\"']?\s*[:=]\s*[\"']?)[^\s,\"';&}]+"#,
         ]
         .iter()
         .map(|pattern| Regex::new(pattern).expect("static redaction expression"))
@@ -434,7 +435,7 @@ fn redaction_patterns() -> &'static [Regex] {
     })
 }
 
-fn redact_text(input: &str, home: &Path) -> String {
+pub(crate) fn redact_text(input: &str, home: &Path) -> String {
     let mut text = input.to_owned();
     if home.is_absolute() {
         let home = home.to_string_lossy();
@@ -444,9 +445,7 @@ fn redact_text(input: &str, home: &Path) -> String {
     }
     for pattern in redaction_patterns() {
         if pattern.captures_len() > 1 {
-            text = pattern
-                .replace_all(&text, "$1[REDACTED]")
-                .into_owned();
+            text = pattern.replace_all(&text, "$1[REDACTED]").into_owned();
         } else {
             text = pattern.replace_all(&text, "[REDACTED]").into_owned();
         }
@@ -470,7 +469,10 @@ fn expand_home(value: &str, home: &Path) -> PathBuf {
 
 fn safe_directory(path: &Path) -> Result<PathBuf> {
     if !path.is_absolute() || has_symlink_component(path)? {
-        return Err(Error::new("paths", "Refusing a symlinked or relative directory."));
+        return Err(Error::new(
+            "paths",
+            "Refusing a symlinked or relative directory.",
+        ));
     }
     let metadata = fs::symlink_metadata(path)?;
     if !metadata.is_dir() || metadata.file_type().is_symlink() {
@@ -481,7 +483,10 @@ fn safe_directory(path: &Path) -> Result<PathBuf> {
 
 fn safe_regular_file(path: &Path) -> Result<PathBuf> {
     if !path.is_absolute() || has_symlink_component(path)? {
-        return Err(Error::new("paths", "Refusing a symlinked or relative file."));
+        return Err(Error::new(
+            "paths",
+            "Refusing a symlinked or relative file.",
+        ));
     }
     let metadata = fs::symlink_metadata(path)?;
     if !metadata.is_file() || metadata.file_type().is_symlink() {
@@ -499,11 +504,18 @@ fn has_symlink_component(path: &Path) -> Result<bool> {
             Component::Normal(part) => current.push(part),
             Component::CurDir => continue,
             Component::ParentDir => {
-                return Err(Error::new("paths", "Parent path components are not allowed."));
+                return Err(Error::new(
+                    "paths",
+                    "Parent path components are not allowed.",
+                ));
             }
         }
         match fs::symlink_metadata(&current) {
-            Ok(metadata) if metadata.file_type().is_symlink() => return Ok(true),
+            Ok(metadata)
+                if metadata.file_type().is_symlink() && !crate::paths::system_alias(&current) =>
+            {
+                return Ok(true)
+            }
             Ok(_) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
             Err(error) => return Err(error.into()),
@@ -520,14 +532,20 @@ fn read_regular_bounded(root: &Path, path: &Path, max: u64) -> Result<Vec<u8>> {
     }
     let metadata = fs::metadata(&canonical_path)?;
     if metadata.len() > max {
-        return Err(Error::new("size", "File exceeds the diagnostics size limit."));
+        return Err(Error::new(
+            "size",
+            "File exceeds the diagnostics size limit.",
+        ));
     }
     let mut bytes = Vec::with_capacity(metadata.len() as usize);
     File::open(canonical_path)?
         .take(max.saturating_add(1))
         .read_to_end(&mut bytes)?;
     if bytes.len() as u64 > max {
-        return Err(Error::new("size", "File exceeds the diagnostics size limit."));
+        return Err(Error::new(
+            "size",
+            "File exceeds the diagnostics size limit.",
+        ));
     }
     Ok(bytes)
 }
@@ -648,10 +666,14 @@ mod tests {
         let paths = Paths::under(root.path());
         fs::create_dir_all(&paths.link.registry).unwrap();
         fs::create_dir_all(&paths.link.runtime).unwrap();
-        fs::create_dir_all(&paths.state()).unwrap();
+        fs::create_dir_all(paths.state()).unwrap();
         let log_dir = root.path().join("app-logs");
         fs::create_dir(&log_dir).unwrap();
-        fs::write(log_dir.join("main.log"), format!("{}\n", "z".repeat(MAX_LOG_FILE_BYTES + 100))).unwrap();
+        fs::write(
+            log_dir.join("main.log"),
+            format!("{}\n", "z".repeat(MAX_LOG_FILE_BYTES + 100)),
+        )
+        .unwrap();
         fs::write(
             paths.link.manifest(ids::FIND),
             serde_json::to_vec(&json!({
@@ -662,7 +684,8 @@ mod tests {
                 "executable": "/tmp/find",
                 "logs": log_dir,
                 "apiToken": "do-not-include"
-            })).unwrap(),
+            }))
+            .unwrap(),
         )
         .unwrap();
         fs::write(

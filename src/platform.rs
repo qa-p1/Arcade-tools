@@ -37,7 +37,19 @@ impl CommandSpec {
         #[cfg(not(windows))]
         command.args(&self.args);
         child_environment(&mut command, paths);
-        let out = command.stdin(std::process::Stdio::null()).output()?;
+        command.stdin(std::process::Stdio::null());
+        // A freshly staged installer can be briefly held open for writing by a
+        // child another thread forked before it exec'd (ETXTBSY); retry it.
+        let mut attempts = 0;
+        let out = loop {
+            match command.output() {
+                Err(e) if e.kind() == std::io::ErrorKind::ExecutableFileBusy && attempts < 40 => {
+                    attempts += 1;
+                    std::thread::sleep(std::time::Duration::from_millis(25));
+                }
+                result => break result?,
+            }
+        };
         if !out.status.success() {
             return Err(Error::new(
                 "installer",

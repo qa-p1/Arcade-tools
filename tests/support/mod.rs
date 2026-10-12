@@ -196,6 +196,17 @@ impl FakeRelease {
             "tag_name": if channel == "stable" { format!("v{version}") } else { "nightly".into() },
             "draft": false, "prerelease": channel == "nightly", "assets": assets,
         })).unwrap());
+        drop(routes);
+        // Link v0.3.0's generator adds installArgs for AppImages and DMGs. These
+        // fakes are plain scripts, so they publish as pre-0.3.0 releases; the hub
+        // lifecycle tests opt back in with a receipt-writing installer.
+        self.amend_manifest(id, version, channel, |manifest| {
+            for asset in manifest["assets"].as_array_mut().into_iter().flatten() {
+                if let Some(asset) = asset.as_object_mut() {
+                    asset.remove("installArgs");
+                }
+            }
+        });
         dir
     }
     /// Modify the test release's manifest and API validator together.

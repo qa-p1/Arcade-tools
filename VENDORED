@@ -1,12 +1,14 @@
-scripts/arcade-release.py is vendored unchanged from Arcade-link/tools/arcade-release.py
-Source: https://github.com/qa-p1/Arcade-link
-Commit: 539fa91 (539fa9174f88c3f95a9d84f41253ec2630f72021).
-License: MIT. Keep the canonical generator in sync deliberately; do not fork its schema.
+Shared release, shortcut validation and Windows integration sources
+Source: https://github.com/qa-p1/Arcade-Link
+Tag: v0.3.0
+Commit: 33650a87b6999fbd553ac678cc7bde7a308cb852
+License: MIT. These files are vendored unchanged.
 
-packaging/windows/arcade.iss, arcade.nsh and arcade-integration.ps1 are vendored
-unchanged from Arcade Link commit 01d50d8 (01d50d8611830cfcb63660635ff4958e3b05fc6d).
-SHA-256: arcade.iss 8a3419c09b0f0a4ca16cac91420512d4ed450ed968e65011421dfc5a46ee2ae8;
-arcade.nsh 89e8561134fbde1a15fd0fbc7aba675d2f0092a0d84bee4048bef4732bed6287;
-arcade-integration.ps1 42941e61b3da59bdf58c7df30098bb7bf75b827d6f81e4d5fb62e0f75fdfae5b.
-The Link accelerator and shortcut APIs are consumed from that pinned git revision,
-not copied into this repository.
+scripts/arcade-release.py  sha256:8f360855419930730c486d0978acaecf7a8179cc063465c9f8324878dcf6c2fd  source:tools/arcade-release.py
+scripts/validate_shortcuts.py  sha256:3b5d2981ab87fdf07437daa294dce825d59b63580430e9ffa2b58e87d5d72cf0  source:tools/validate_shortcuts.py
+packaging/windows/arcade.iss  sha256:fe152028ff674fdacdef4aed8970bb0a7afeb2dd67d2a3af075d7d95683bf96b  source:packaging/windows/arcade.iss
+packaging/windows/arcade.nsh  sha256:1f548b420bc08b479d6c65801a208aa67dc80fef851b5e2a49696d307562831e  source:packaging/windows/arcade.nsh
+packaging/windows/arcade-integration.ps1  sha256:2b2a8b699dc1e6c81c02bb9ad9be1ddf2f8a5447541eb1dfe886056aa5dc4fd6  source:packaging/windows/arcade-integration.ps1
+
+The overlay adapts Arcade Find (MIT OR Apache-2.0) and Lens hotkey code.
+Catalog snapshots and shortcut sheets: qa-p1/Arcade-catalog, CC BY 4.0.

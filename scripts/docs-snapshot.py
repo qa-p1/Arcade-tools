@@ -44,7 +44,7 @@ OPENER = build_opener(TrustedRedirect())
 
 def fetch(url, limit):
     trusted_url(url)
-    request = Request(url, headers={"User-Agent": "Arcade-Tools-docs-snapshot/0.1.0",
+    request = Request(url, headers={"User-Agent": "Arcade-Tools-docs-snapshot/0.2.0",
                                     "Accept": "application/vnd.github+json"})
     with OPENER.open(request, timeout=20) as response:
         content = response.read(limit + 1)
@@ -71,13 +71,24 @@ def normalize(name):
     return re.sub(r"[^a-z0-9]", "", name.lower())
 
 
+def unsafe_symlink(path):
+    if not path.is_symlink():
+        return False
+    aliases = {Path('/var'): Path('/private/var'), Path('/tmp'): Path('/private/tmp')}
+    return not (sys.platform == 'darwin' and path in aliases and path.resolve() == aliases[path])
+
+
 def checkout(root, repo):
     wanted = normalize(repo.split("/")[1])
     candidates = [root]
     candidates.extend(sorted(p for p in root.iterdir() if p.is_dir() and not p.is_symlink()))
     for parent in list(candidates[1:]):
         candidates.extend(sorted(p for p in parent.iterdir() if p.is_dir() and not p.is_symlink()))
-    return next((p for p in candidates if normalize(p.name) == wanted), None)
+    exact = next((p for p in candidates if normalize(p.name) == wanted), None)
+    if exact and (exact / ("docs" if wanted == "arcadecatalog" else "docs/user")).is_dir():
+        return exact
+    lanes = sorted((p for p in candidates if normalize(p.name.split("-wt-", 1)[0]) == wanted and (p / "docs/user").is_dir()), key=lambda p: ("-wt-docs" not in p.name, p.name))
+    return lanes[0] if lanes else exact
 
 
 class Snapshot:
@@ -175,7 +186,9 @@ class Snapshot:
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--keep-bundled", action="store_true", help="Keep a labeled bundled snapshot if a released tag has no docs")
     parser.add_argument("--from-local", type=Path, help="Root containing sibling app checkouts (no network)")
+    parser.add_argument("--app-checkout", action="append", default=[], metavar="ID=PATH", help="Override one local app checkout, for integration worktrees")
     parser.add_argument("--catalog", type=Path, help="Explicit schema-1 catalog file")
     parser.add_argument("--out", type=Path, default=Path(__file__).resolve().parents[1] / "src-tauri/resources/docs")
     parser.add_argument("--budget-bytes", type=int, default=BUDGET, help="Lower test budget; cannot exceed 8 MB")
@@ -185,6 +198,14 @@ def main(argv=None):
     local = args.from_local.resolve() if args.from_local else None
     if local and not local.is_dir():
         parser.error("--from-local must be a directory")
+    overrides = {}
+    for override in args.app_checkout:
+        app_id, separator, path = override.partition('=')
+        if not local or not separator or not path or app_id in overrides:
+            parser.error("--app-checkout needs --from-local and distinct ID=PATH values")
+        overrides[app_id] = Path(path).resolve()
+        if not overrides[app_id].is_dir():
+            parser.error("App checkout must be a directory")
     catalog_checkout = checkout(local, CATALOG_REPO) if local else None
     catalog_path = args.catalog or (catalog_checkout / "catalog.json" if catalog_checkout else None)
     if local and catalog_path is None:
@@ -193,7 +214,7 @@ def main(argv=None):
     if type(catalog.get("schema")) is not int or catalog["schema"] != 1:
         raise ValueError("Only catalog schema 1 is supported")
     out = args.out.absolute()
-    if out.is_symlink() or any(p.is_symlink() for p in out.parents):
+    if out.is_symlink() or any(unsafe_symlink(p) for p in out.parents):
         raise ValueError("Snapshot output cannot have symlinked parents")
     if out.exists() and any(out.iterdir()) and not (out / "manifest.json").is_file():
         raise ValueError("Existing output is not a docs snapshot; refusing to replace it")
@@ -205,6 +226,8 @@ def main(argv=None):
         snapshot = Snapshot(stage, args.budget_bytes)
         entries = [(app["id"], app["repo"], "docs/user") for app in catalog["apps"]]
         entries.append(("arcade.ecosystem", CATALOG_REPO, "docs"))
+        if catalog.get("tools", {}).get("repo"):
+            entries.append(("arcade.tools", catalog["tools"]["repo"], "docs/user"))
         for app_id, repo, docs_path in entries:
             if not repo_allowed(repo):
                 print(f"Dropped {app_id}: repository owner is not allowed", file=sys.stderr)
@@ -216,7 +239,7 @@ def main(argv=None):
                      "ref": "working-tree" if local else "main", "status": "no_docs", "files": []}
             snapshot.entries.append(entry)
             if local:
-                snapshot.local(entry, checkout(local, repo), docs_path)
+                snapshot.local(entry, overrides.get(app_id) or checkout(local, repo), docs_path)
             else:
                 if app_id != "arcade.ecosystem":
                     try:
@@ -231,6 +254,24 @@ def main(argv=None):
                         raise ValueError("Latest stable release is not a stable version tag")
                     entry["version"], entry["ref"] = tag[1:], tag
                 snapshot.remote(entry, docs_path)
+        if args.keep_bundled and (out / "manifest.json").is_file():
+            previous = json.loads((out / "manifest.json").read_bytes())
+            for entry in snapshot.entries:
+                if entry["files"]:
+                    continue
+                old = next((item for item in previous.get("entries", []) if item["id"] == entry["id"] and item.get("files")), None)
+                if old:
+                    safe_relative(old["version"])
+                    entry.update({key: old[key] for key in ("version", "ref", "status")})
+                    for item in old["files"]:
+                        relative = safe_relative(item["path"])
+                        source = out / entry["id"] / entry["version"] / str(relative)
+                        if source.is_symlink() or any(unsafe_symlink(parent) for parent in source.parents):
+                            raise ValueError("Bundled fallback cannot contain symlinks")
+                        content = source.read_bytes()
+                        if len(content) != item["size"] or hashlib.sha256(content).hexdigest() != item["sha256"]:
+                            raise ValueError("Bundled fallback checksum mismatch")
+                        snapshot.add_file(entry, str(relative), content)
         total = snapshot.finish()
         previous = Path(temporary) / "previous"
         if out.exists():

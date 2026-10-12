@@ -97,6 +97,60 @@ fn resolves_installed_exact_cache_and_versioned_bundled_fallback_without_network
     assert!(resolver.resolve("arcade.look", None, None).is_err());
 }
 #[test]
+fn latest_offline_docs_do_not_change_installed_version_selection() {
+    let root = tempfile::tempdir().unwrap();
+    let paths = Paths::under(root.path());
+    let bundled = root.path().join("bundled");
+    bundle(&bundled);
+    write(
+        &paths.docs(),
+        "arcade.look/3.0.0/index.md",
+        "# Latest stable guide",
+    );
+    write(
+        &paths.docs(),
+        "arcade.look/4.0.0-beta.1/index.md",
+        "# Preview guide",
+    );
+    let resolver = DocsResolver::new(paths, bundled);
+    let latest = resolver.resolve_latest("arcade.look").unwrap().unwrap();
+    assert_eq!(latest.version, "3.0.0");
+    assert_eq!(latest.source, DocSource::Cached);
+    assert_eq!(
+        resolver
+            .resolve("arcade.look", Some("1.0.0"), None)
+            .unwrap()
+            .unwrap()
+            .version,
+        "1.0.0"
+    );
+}
+
+#[test]
+fn offline_reader_embeds_local_images_and_blocks_outside_images() {
+    let root = tempfile::tempdir().unwrap();
+    write(root.path(), "index.md", "![Home](images/home.png)\n![Outside](../private.png)\n![Remote](https://example.com/track.png)\n![Vector](images/active.svg)");
+    write(root.path(), "images/home.png", "png");
+    write(
+        root.path(),
+        "images/active.svg",
+        "<svg onload=\"alert(1)\"/>",
+    );
+    let location = DocLocation {
+        id: "arcade.tools".into(),
+        version: "0.2.0".into(),
+        root: root.path().into(),
+        source: DocSource::Bundled,
+        needs_fetch: false,
+    };
+    let page = read_page(&location, "index.md").unwrap();
+    assert!(page.html.contains("data:image/png;base64,cG5n"));
+    assert!(!page.html.contains("https://example.com"));
+    assert!(!page.html.contains("alert(1)"));
+    assert!(!page.html.contains("private.png"));
+}
+
+#[test]
 fn search_is_prefix_based_and_intersects_terms_and_ignores_front_matter() {
     let root = tempfile::tempdir().unwrap();
     bundle(root.path());
@@ -175,7 +229,11 @@ fn explicit_docs_fetch_is_bounded_and_preserves_cache_after_invalid_response() {
         "/raw/qa-p1/arcade-look/v2.0.0/docs/user/images/test.png".into(),
         b"png".to_vec(),
     );
-    let location = resolver.fetch_version(app, "2.0.0", &source).unwrap();
+    server.routes.lock().unwrap().insert(
+        "/api/repos/qa-p1/arcade-look/releases/latest".into(),
+        serde_json::to_vec(&json!({"tag_name":"v2.0.0","draft":false,"prerelease":false})).unwrap(),
+    );
+    let location = resolver.fetch_latest(app, &source).unwrap();
     assert_eq!(location.source, DocSource::Cached);
     assert_eq!(
         std::fs::read(location.root.join("images/test.png")).unwrap(),

@@ -55,7 +55,25 @@ pub fn write(paths: &Paths, name: &str, files: &BTreeMap<String, Vec<u8>>) -> Re
 }
 
 pub fn read(paths: &Paths, file: &Path) -> Result<BTreeMap<String, Vec<u8>>> {
-    paths.guard(file)?;
+    let _ = paths;
+    if !file.is_absolute() || !std::fs::symlink_metadata(file)?.is_file() {
+        return Err(Error::new(
+            "paths",
+            "Choose a regular absolute backup file.",
+        ));
+    }
+    for ancestor in file.ancestors() {
+        if std::fs::symlink_metadata(ancestor)?
+            .file_type()
+            .is_symlink()
+            && !crate::paths::system_alias(ancestor)
+        {
+            return Err(Error::new(
+                "paths",
+                "Backup paths must not contain symlinks.",
+            ));
+        }
+    }
     if fs::metadata(file)?.len() > MAX_ARCHIVE {
         return Err(Error::new("too_large", "Archive exceeds 32 MiB."));
     }
@@ -69,7 +87,9 @@ pub fn read(paths: &Paths, file: &Path) -> Result<BTreeMap<String, Vec<u8>>> {
         let mut entry = zip.by_index(i).map_err(zip_error)?;
         relative_path(entry.name())?;
         if entry.is_dir()
-            || entry.unix_mode().is_some_and(|m| m & 0o170000 == 0o120000)
+            || entry
+                .unix_mode()
+                .is_some_and(|m| m & 0o170000 != 0 && m & 0o170000 != 0o100000)
             || entry.size() > remaining
             || files.contains_key(entry.name())
         {

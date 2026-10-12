@@ -1,6 +1,7 @@
 //! Global shortcut helpers adapted from Arcade Find's `hotkey.rs`
 //! (MIT OR Apache-2.0), whose Hyprland implementation credits Arcade Lens.
-//! Native registration lives in Tools. Wayland returns a user-owned bind hint.
+//! Native registration lives in Tools. Hyprland uses a runtime bind; other
+//! Wayland desktops return a user-owned bind hint.
 
 use std::cell::RefCell;
 use std::str::FromStr;
@@ -17,6 +18,7 @@ pub const MANUAL_HINT: &str =
 #[serde(rename_all = "kebab-case")]
 pub enum Via {
     Native,
+    HyprlandRuntime,
     Manual,
 }
 
@@ -27,11 +29,29 @@ pub struct Registration {
 }
 
 #[cfg(target_os = "linux")]
+mod hypr_runtime;
+#[cfg(target_os = "linux")]
 mod x11;
 #[cfg(target_os = "linux")]
-use x11::Active;
+enum Active {
+    X11(x11::Active),
+    Hyprland(hypr_runtime::Active),
+}
 #[cfg(not(target_os = "linux"))]
 struct Active(GlobalHotKeyManager, HotKey);
+#[cfg(target_os = "linux")]
+impl Drop for Active {
+    fn drop(&mut self) {
+        match self {
+            Self::X11(active) => {
+                let _ = active;
+            }
+            Self::Hyprland(active) => {
+                let _ = active;
+            }
+        }
+    }
+}
 thread_local! { static ACTIVE: RefCell<Option<Active>> = const { RefCell::new(None) }; }
 
 pub fn default_accelerator() -> &'static str {
@@ -63,7 +83,9 @@ pub fn parse(accelerator: &str) -> Result<HotKey, String> {
 }
 
 pub fn backend_for(hyprland: bool, wayland: bool) -> Via {
-    if hyprland || wayland {
+    if hyprland {
+        Via::HyprlandRuntime
+    } else if wayland {
         Via::Manual
     } else {
         Via::Native
@@ -120,7 +142,11 @@ pub fn register_with_handler(
         });
     }
     #[cfg(target_os = "linux")]
-    let registration = x11::register(hotkey, pressed)?;
+    let registration = if hyprland {
+        Active::Hyprland(hypr_runtime::register(hotkey, &overlay_executable())?)
+    } else {
+        Active::X11(x11::register(hotkey, pressed)?)
+    };
     #[cfg(not(target_os = "linux"))]
     let registration = {
         let manager = GlobalHotKeyManager::new().map_err(|error| error.to_string())?;
@@ -174,7 +200,7 @@ pub mod hyprland {
     pub fn shell_quote(value: &str) -> String {
         format!("'{}'", value.replace('\'', "'\\''"))
     }
-    fn lua_string(value: &str) -> String {
+    pub(super) fn lua_string(value: &str) -> String {
         format!(
             "\"{}\"",
             value
@@ -185,7 +211,7 @@ pub mod hyprland {
         )
     }
 
-    fn keys(key: HotKey) -> Result<(String, String), String> {
+    pub(super) fn keys(key: HotKey) -> Result<(String, String), String> {
         let modifiers: Vec<_> = [
             (Modifiers::SUPER, "SUPER"),
             (Modifiers::CONTROL, "CTRL"),
@@ -254,7 +280,7 @@ mod tests {
 
     #[test]
     fn platform_selection_and_manual_hint_without_registering() {
-        assert_eq!(backend_for(true, true), Via::Manual);
+        assert_eq!(backend_for(true, true), Via::HyprlandRuntime);
         assert_eq!(backend_for(false, true), Via::Manual);
         assert_eq!(backend_for(false, false), Via::Native);
         assert_eq!(

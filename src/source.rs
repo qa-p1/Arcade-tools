@@ -153,6 +153,20 @@ impl Source {
         }
         Ok(bytes)
     }
+
+    /// Bounded release history, fetched explicitly on a worker.
+    pub fn release_history(&self, repo: &str) -> Result<serde_json::Value> {
+        crate::catalog::allowed_repo(repo)?;
+        let url = self
+            .api
+            .join(&format!("repos/{repo}/releases?per_page=20"))
+            .map_err(|e| Error::new("url", e.to_string()))?;
+        let value: serde_json::Value = serde_json::from_slice(&self.json(url.as_str())?)?;
+        if !value.is_array() {
+            return Err(Error::new("release", "Release history must be an array."));
+        }
+        Ok(value)
+    }
     /// Explicit GitHub/manifest requests on a worker thread. Kept for existing
     /// callers; catalog-aware callers use `check_repo_conditional`.
     pub fn check(

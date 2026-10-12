@@ -884,11 +884,19 @@ impl Manager {
     pub fn fetch_docs(&self, id: &str, version: &str) -> Result<()> {
         let catalog = self.catalog()?;
         let app = catalog
-            .app(id)
+            .install_entry(id)
             .ok_or_else(|| Error::new("unavailable", "This app is absent from the catalog."))?;
         let resolver = DocsResolver::new(self.paths.clone(), PathBuf::new());
-        resolver.fetch_version(app, version, &self.source)?;
+        resolver.fetch_version(&app, version, &self.source)?;
         Ok(())
+    }
+    pub fn fetch_latest_docs(&self, id: &str) -> Result<String> {
+        let app = self
+            .catalog()?
+            .install_entry(id)
+            .ok_or_else(|| Error::new("unavailable", "This app is absent from the catalog."))?;
+        let resolver = DocsResolver::new(self.paths.clone(), PathBuf::new());
+        Ok(resolver.fetch_latest(&app, &self.source)?.version)
     }
     fn class(
         &self,
@@ -1075,6 +1083,18 @@ impl Manager {
         let bytes = crate::catalog::read_bounded(&path, 6 * 1024 * 1024).ok()?;
         let cache: crate::release::ReleaseCache = serde_json::from_slice(&bytes).ok()?;
         Some(cache.body)
+    }
+
+    pub fn release_history(&self, id: &str) -> Result<serde_json::Value> {
+        let entry = self
+            .catalog()?
+            .install_entry(id)
+            .ok_or_else(|| Error::new("unsupported_input", "Unknown catalog app."))?;
+        let raw = self.source.release_history(&entry.repo)?;
+        let items=raw.as_array().unwrap().iter().filter(|release|release["draft"]!=true).take(20).map(|release| {
+            serde_json::json!({"version":release["tag_name"],"publishedAt":release["published_at"],"prerelease":release["prerelease"],"html":crate::markdown::render(release["body"].as_str().unwrap_or_default(),&[])})
+        }).collect::<Vec<_>>();
+        Ok(serde_json::json!(items))
     }
     pub fn history(&self) -> Result<Vec<HistoryEntry>> {
         let path = self.paths.state().join("update-history.jsonl");
@@ -2552,4 +2572,19 @@ fn windows_kind(uninstaller: Option<&Path>) -> Kind {
     } else {
         Kind::Nsis
     }
+}
+
+/// Bounded transient successor wait; never used by idle services.
+pub fn wait_for_exit(pid: u32) -> Result<()> {
+    if pid == 0 || pid == std::process::id() {
+        return Err(Error::new("usage", "Invalid predecessor process."));
+    }
+    let deadline = Instant::now() + Duration::from_secs(30);
+    while process_alive(pid) {
+        if Instant::now() >= deadline {
+            return Err(Error::new("timeout", "The predecessor did not exit."));
+        }
+        std::thread::sleep(Duration::from_millis(30));
+    }
+    Ok(())
 }
