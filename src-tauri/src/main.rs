@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod desktop;
+mod hotkey;
 mod index_service;
 mod resident;
 mod shortcuts;
@@ -13,6 +14,13 @@ fn main() {
     }
     if args.iter().any(|a| a == "--arcade-manifest") {
         println!("{}", tray::hosting::manifest_from_disk().to_json());
+        return;
+    }
+    if args.iter().any(|a| a == "--show-shortcuts") {
+        if let Err(error) = hotkey::launch_overlay() {
+            eprintln!("{}", error.message);
+            std::process::exit(1);
+        }
         return;
     }
     if args.iter().any(|a| a == "--quit") {

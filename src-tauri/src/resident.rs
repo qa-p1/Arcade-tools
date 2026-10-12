@@ -1,5 +1,6 @@
 //! Window lifetime decisions, independent of Tauri and the tray backend.
 
+pub mod login;
 mod memory;
 pub use memory::release_unused_runtime_pages;
 

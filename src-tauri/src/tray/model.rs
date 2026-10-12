@@ -106,16 +106,13 @@ impl TrayModel {
     ) -> Self {
         let mut items = vec![item("tools/open", "Open Arcade Tools", Action::OpenTools)];
         if overlay {
-            let chord = if cfg!(target_os = "windows") {
-                "Ctrl+Alt+/"
-            } else if cfg!(target_os = "macos") {
-                "Ctrl+Option+/"
-            } else {
-                "Super+/"
-            };
             items.push(item(
                 "tools/shortcuts",
-                format!("Show shortcuts    {chord}"),
+                if prefs.shortcuts_enabled {
+                    format!("Show shortcuts    {}", prefs.shortcut)
+                } else {
+                    "Show shortcuts".into()
+                },
                 Action::Shortcuts,
             ));
         }

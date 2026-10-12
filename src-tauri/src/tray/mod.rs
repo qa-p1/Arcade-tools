@@ -160,6 +160,10 @@ impl Service {
         self.prefs.lock().unwrap().clone()
     }
 
+    pub fn request_shortcuts(&self) {
+        let _ = self.tx.send(Event::Click(Action::Shortcuts));
+    }
+
     pub fn apply_preferences(
         &self,
         mut prefs: settings::Preferences,
@@ -300,7 +304,7 @@ impl Service {
             &self.states.lock().unwrap(),
             &self.preferences(),
             self.updates.load(Ordering::Relaxed),
-            overlay_path().is_some(),
+            crate::hotkey::overlay_path().is_some(),
         );
         if let Some(renderer) = self.renderer.lock().unwrap().as_ref() {
             renderer.update(model);
@@ -343,13 +347,7 @@ impl Service {
             }
             Action::QuitAll => self.quit_all()?,
             Action::Shortcuts => {
-                let overlay = overlay_path().ok_or_else(|| {
-                    Error::new("overlay", "The shortcut overlay is not installed.")
-                })?;
-                arcade_link::client::spawn_detached(
-                    &overlay.to_string_lossy(),
-                    &["--toggle".into()],
-                )?;
+                crate::hotkey::launch_overlay()?;
             }
             action => (self.on_tools)(action),
         }
@@ -367,25 +365,6 @@ impl Service {
     }
 }
 
-fn overlay_path() -> Option<PathBuf> {
-    let name = if cfg!(windows) {
-        "arcade-tools-overlay.exe"
-    } else {
-        "arcade-tools-overlay"
-    };
-    std::env::current_exe()
-        .ok()
-        .and_then(|p| p.parent().map(|p| p.join(name)))
-        .filter(|p| p.is_file())
-        .or_else(|| {
-            std::env::var_os("PATH").and_then(|paths| {
-                std::env::split_paths(&paths)
-                    .map(|p| p.join(name))
-                    .find(|p| p.is_file())
-            })
-        })
-}
-
 pub fn service(app: &AppHandle) -> Result<Arc<Service>> {
     app.try_state::<Arc<Service>>()
         .map(|s| s.inner().clone())
@@ -398,6 +377,7 @@ pub struct View {
     pub preferences: settings::Preferences,
     pub apps: Vec<AppPreference>,
     pub login_available: bool,
+    pub shortcut_status: crate::hotkey::Status,
 }
 #[derive(Serialize)]
 pub struct AppPreference {
@@ -425,6 +405,7 @@ pub async fn tray_get_settings(app: AppHandle) -> Result<View> {
             preferences,
             apps,
             login_available: settings::login_available(&service.manager.paths),
+            shortcut_status: crate::hotkey::status(&service.app),
         })
     })
     .await

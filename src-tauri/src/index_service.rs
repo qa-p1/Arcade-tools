@@ -1,5 +1,7 @@
 //! One blocking worker, OS file notifications, and deadlines only after changes.
-use arcade_shortcuts::{build_index, conf, hyprland, labels, lua, BuildInputs, Index, ReadPolicy};
+use arcade_shortcuts::{
+    build_index, conf, hyprland, labels, lua, wm, BuildInputs, Index, ReadPolicy,
+};
 use arcade_tools_core::paths::Paths;
 use notify::{
     event::{MetadataKind, ModifyKind},
@@ -69,7 +71,13 @@ impl Options {
             }
             if self.hyprland_dir.is_none() {
                 if let Some(config) = config {
-                    roots.extend([config.join("caelestia"), config.join("hypremoji")]);
+                    roots.extend([
+                        config.join("caelestia"),
+                        config.join("hypremoji"),
+                        config.join("sway"),
+                        config.join("kglobalshortcutsrc"),
+                        config.join("dconf"),
+                    ]);
                 }
             }
         }
@@ -354,14 +362,14 @@ fn build(options: &Options) -> (Index, Vec<PathBuf>) {
                 ),
                 _ => Default::default(),
             };
-            Some(hyprland::merge(
+            Some(wm::WmReport::from(hyprland::merge(
                 kind,
                 config,
                 None,
                 &labels::UserLabels::new(),
-            ))
+            )))
         } else if options.query_runtime {
-            Some(hyprland::read_machine(&labels::UserLabels::new()))
+            Some(wm::read_machine(&labels::UserLabels::new()))
         } else {
             None
         }
@@ -419,7 +427,7 @@ fn build(options: &Options) -> (Index, Vec<PathBuf>) {
             catalog_dir: catalog,
             arcade_docs: docs,
             registry_dir: Some(options.registry.clone()),
-            hyprland: report,
+            wm: report,
             user_labels: options.labels.is_file().then(|| options.labels.clone()),
             ..Default::default()
         }),

@@ -1,22 +1,22 @@
 //! Global shortcut helpers adapted from Arcade Find's `hotkey.rs`
 //! (MIT OR Apache-2.0), whose Hyprland implementation credits Arcade Lens.
-//! Only explicit register/unregister calls change compositor runtime state.
+//! Native registration lives in Tools. Wayland returns a user-owned bind hint.
 
 use std::cell::RefCell;
 use std::str::FromStr;
 
 use global_hotkey::hotkey::{Code, HotKey, Modifiers};
+#[cfg(not(target_os = "linux"))]
 use global_hotkey::{GlobalHotKeyEvent, GlobalHotKeyManager, HotKeyState};
 use serde::Serialize;
 
 pub const MANUAL_HINT: &str =
-    "Bind `arcade-tools-overlay --toggle` in Settings → Keyboard → Custom Shortcuts";
+    "Bind `arcade-tools --show-shortcuts` in Settings → Keyboard → Custom Shortcuts";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum Via {
     Native,
-    HyprlandRuntime,
     Manual,
 }
 
@@ -26,10 +26,12 @@ pub struct Registration {
     pub hint: Option<String>,
 }
 
-enum Active {
-    Native(GlobalHotKeyManager, HotKey),
-    Hyprland(hyprland::Binding),
-}
+#[cfg(target_os = "linux")]
+mod x11;
+#[cfg(target_os = "linux")]
+use x11::Active;
+#[cfg(not(target_os = "linux"))]
+struct Active(GlobalHotKeyManager, HotKey);
 thread_local! { static ACTIVE: RefCell<Option<Active>> = const { RefCell::new(None) }; }
 
 pub fn default_accelerator() -> &'static str {
@@ -61,9 +63,7 @@ pub fn parse(accelerator: &str) -> Result<HotKey, String> {
 }
 
 pub fn backend_for(hyprland: bool, wayland: bool) -> Via {
-    if hyprland {
-        Via::HyprlandRuntime
-    } else if wayland {
+    if hyprland || wayland {
         Via::Manual
     } else {
         Via::Native
@@ -86,82 +86,90 @@ fn overlay_executable() -> std::path::PathBuf {
 /// Call on the Tools main thread (required by global-hotkey on macOS/Windows).
 /// Tools must keep its native event loop running and call unregister on quit.
 pub fn register(accelerator: &str) -> Result<Registration, String> {
+    let executable = overlay_executable();
+    register_with_handler(accelerator, move || {
+        if let Ok(mut child) = std::process::Command::new(&executable)
+            .arg("--toggle")
+            .spawn()
+        {
+            let _ = std::thread::spawn(move || {
+                let _ = child.wait();
+            });
+        }
+    })
+}
+
+/// Native registration must run on the Tools main thread. The event callback
+/// queues work; it must not block the platform's event handler.
+pub fn register_with_handler(
+    accelerator: &str,
+    pressed: impl Fn() + Send + Sync + 'static,
+) -> Result<Registration, String> {
     let hotkey = parse(accelerator)?;
     unregister()?;
-    let via = backend_for(
-        cfg!(target_os = "linux") && std::env::var_os("HYPRLAND_INSTANCE_SIGNATURE").is_some(),
-        crate::focus::is_wayland(),
-    );
-    match via {
-        Via::Manual => Ok(Registration {
+    let hyprland =
+        cfg!(target_os = "linux") && std::env::var_os("HYPRLAND_INSTANCE_SIGNATURE").is_some();
+    let wayland = cfg!(target_os = "linux")
+        && (std::env::var_os("WAYLAND_DISPLAY").is_some()
+            || std::env::var("XDG_SESSION_TYPE").is_ok_and(|session| session == "wayland"));
+    let via = backend_for(hyprland, wayland);
+    if via == Via::Manual {
+        return Ok(Registration {
             via,
-            hint: Some(MANUAL_HINT.into()),
-        }),
-        Via::HyprlandRuntime => {
-            let command = format!(
-                "{} --toggle",
-                hyprland::shell_quote(&overlay_executable().to_string_lossy())
-            );
-            let binding = hyprland::Binding::register(hotkey, &command)?;
-            ACTIVE.with(|active| *active.borrow_mut() = Some(Active::Hyprland(binding)));
-            Ok(Registration { via, hint: None })
-        }
-        Via::Native => {
-            let manager = GlobalHotKeyManager::new().map_err(|e| e.to_string())?;
-            manager.register(hotkey).map_err(|e| e.to_string())?;
-            let id = hotkey.id();
-            let executable = overlay_executable();
-            GlobalHotKeyEvent::set_event_handler(Some(move |event: GlobalHotKeyEvent| {
-                if event.id == id && event.state == HotKeyState::Pressed {
-                    // Reap the short-lived launcher without blocking the host UI.
-                    if let Ok(mut child) = std::process::Command::new(&executable)
-                        .arg("--toggle")
-                        .spawn()
-                    {
-                        let _ = std::thread::spawn(move || {
-                            let _ = child.wait();
-                        });
-                    }
-                }
-            }));
-            ACTIVE.with(|active| *active.borrow_mut() = Some(Active::Native(manager, hotkey)));
-            Ok(Registration { via, hint: None })
-        }
+            hint: Some(manual_hint(hotkey, hyprland)?),
+        });
     }
+    #[cfg(target_os = "linux")]
+    let registration = x11::register(hotkey, pressed)?;
+    #[cfg(not(target_os = "linux"))]
+    let registration = {
+        let manager = GlobalHotKeyManager::new().map_err(|error| error.to_string())?;
+        manager
+            .register(hotkey)
+            .map_err(|error| error.to_string())?;
+        let id = hotkey.id();
+        GlobalHotKeyEvent::set_event_handler(Some(move |event: GlobalHotKeyEvent| {
+            if event.id == id && event.state == HotKeyState::Pressed {
+                pressed();
+            }
+        }));
+        Active(manager, hotkey)
+    };
+    ACTIVE.with(|active| *active.borrow_mut() = Some(registration));
+    Ok(Registration { via, hint: None })
+}
+
+fn manual_hint(key: HotKey, hyprland: bool) -> Result<String, String> {
+    if !hyprland {
+        return Ok(MANUAL_HINT.into());
+    }
+    let command = "arcade-tools --show-shortcuts";
+    let lua = hyprland::bind_arguments(key, command, true)?;
+    let conf = hyprland::bind_arguments(key, command, false)?;
+    Ok(format!(
+        "Add a bind to your Hyprland configuration.\nLua: {}\nhyprlang: bind = {}",
+        lua[1], conf[2]
+    ))
 }
 
 pub fn unregister() -> Result<(), String> {
+    #[cfg(target_os = "linux")]
+    {
+        ACTIVE.with(|active| active.borrow_mut().take());
+        Ok(())
+    }
+    #[cfg(not(target_os = "linux"))]
     ACTIVE.with(|active| match active.borrow_mut().take() {
-        Some(Active::Native(manager, key)) => {
+        Some(Active(manager, key)) => {
             GlobalHotKeyEvent::set_event_handler(None::<fn(GlobalHotKeyEvent)>);
-            manager.unregister(key).map_err(|e| e.to_string())
+            manager.unregister(key).map_err(|error| error.to_string())
         }
-        Some(Active::Hyprland(binding)) => binding.unregister(),
         None => Ok(()),
     })
 }
 
 pub mod hyprland {
     use super::*;
-    use std::process::Command;
-    use std::sync::{Arc, Mutex};
-
-    fn run(args: &[&str]) -> Result<(), String> {
-        let output = Command::new("hyprctl")
-            .args(args)
-            .output()
-            .map_err(|e| format!("hyprctl: {e}"))?;
-        let reply = String::from_utf8_lossy(&output.stdout);
-        if output.status.success() && reply.trim() == "ok" {
-            Ok(())
-        } else {
-            Err(format!(
-                "hyprctl: {} {}",
-                reply.trim(),
-                String::from_utf8_lossy(&output.stderr).trim()
-            ))
-        }
-    }
 
     pub fn shell_quote(value: &str) -> String {
         format!("'{}'", value.replace('\'', "'\\''"))
@@ -238,99 +246,6 @@ pub mod hyprland {
             ])
         }
     }
-
-    fn unbind_arguments(key: HotKey, lua: bool) -> Result<Vec<String>, String> {
-        let (modifiers, symbol) = keys(key)?;
-        if lua {
-            Ok(vec![
-                "eval".into(),
-                format!(
-                    "hl.unbind({})",
-                    lua_string(&format!("{} + {symbol}", modifiers.replace(' ', " + ")))
-                ),
-            ])
-        } else {
-            Ok(vec![
-                "keyword".into(),
-                "unbind".into(),
-                format!("{modifiers}, {symbol}"),
-            ])
-        }
-    }
-
-    fn execute(args: &[String]) -> Result<(), String> {
-        run(&args.iter().map(String::as_str).collect::<Vec<_>>())
-    }
-
-    pub struct Binding {
-        key: HotKey,
-        lua: bool,
-        alive: Arc<Mutex<bool>>,
-        #[cfg(unix)]
-        events: Option<std::os::unix::net::UnixStream>,
-    }
-
-    impl Binding {
-        pub(super) fn register(key: HotKey, command: &str) -> Result<Self, String> {
-            // The exact Lua probe used by Find; never falls back to editing files.
-            let lua = run(&["eval", "return hl ~= nil"]).is_ok();
-            let args = bind_arguments(key, command, lua)?;
-            execute(&args)?;
-            #[allow(unused_mut)]
-            let mut binding = Self {
-                key,
-                lua,
-                alive: Arc::new(Mutex::new(true)),
-                #[cfg(unix)]
-                events: None,
-            };
-            #[cfg(unix)]
-            {
-                use std::io::{BufRead, BufReader};
-                use std::os::unix::net::UnixStream;
-                if let (Some(runtime), Some(signature)) = (
-                    std::env::var_os("XDG_RUNTIME_DIR"),
-                    std::env::var_os("HYPRLAND_INSTANCE_SIGNATURE"),
-                ) {
-                    let socket = std::path::PathBuf::from(runtime)
-                        .join("hypr")
-                        .join(signature)
-                        .join(".socket2.sock");
-                    if let Ok(stream) = UnixStream::connect(socket) {
-                        binding.events = stream.try_clone().ok();
-                        let alive = binding.alive.clone();
-                        let _ = std::thread::Builder::new()
-                            .name("overlay-hypr-reload".into())
-                            .spawn(move || {
-                                for line in BufReader::new(stream).lines().map_while(Result::ok) {
-                                    if line.starts_with("configreloaded>>") {
-                                        let Ok(guard) = alive.lock() else { break };
-                                        if !*guard {
-                                            break;
-                                        }
-                                        let _ = execute(&args);
-                                    }
-                                }
-                            });
-                    }
-                }
-            }
-            Ok(binding)
-        }
-
-        pub(super) fn unregister(self) -> Result<(), String> {
-            let mut guard = self
-                .alive
-                .lock()
-                .map_err(|_| "Hyprland registration lock poisoned")?;
-            *guard = false;
-            #[cfg(unix)]
-            if let Some(stream) = self.events {
-                let _ = stream.shutdown(std::net::Shutdown::Both);
-            }
-            execute(&unbind_arguments(self.key, self.lua)?)
-        }
-    }
 }
 
 #[cfg(test)]
@@ -339,12 +254,12 @@ mod tests {
 
     #[test]
     fn platform_selection_and_manual_hint_without_registering() {
-        assert_eq!(backend_for(true, true), Via::HyprlandRuntime);
+        assert_eq!(backend_for(true, true), Via::Manual);
         assert_eq!(backend_for(false, true), Via::Manual);
         assert_eq!(backend_for(false, false), Via::Native);
         assert_eq!(
             MANUAL_HINT,
-            "Bind `arcade-tools-overlay --toggle` in Settings → Keyboard → Custom Shortcuts"
+            "Bind `arcade-tools --show-shortcuts` in Settings → Keyboard → Custom Shortcuts"
         );
     }
 
@@ -354,6 +269,10 @@ mod tests {
             assert!(parse(shortcut).is_ok());
         }
         let key = parse("Super+/").unwrap();
+        let hint = manual_hint(key, true).unwrap();
+        assert!(hint.contains("hl.bind"));
+        assert!(hint.contains("bind = SUPER, slash, exec, arcade-tools --show-shortcuts"));
+        assert!(!hint.contains("/tmp/"));
         assert_eq!(
             hyprland::bind_arguments(key, "'arcade-tools-overlay' --toggle", true).unwrap(),
             [

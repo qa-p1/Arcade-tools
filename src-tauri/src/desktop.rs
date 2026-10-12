@@ -1,5 +1,5 @@
 use crate::tray::hosting::Presence;
-use crate::{index_service, resident, tray};
+use crate::{hotkey, index_service, resident, tray};
 use arcade_link::client::Client;
 use arcade_link::manifest::ids;
 use arcade_link::registry::{Registry, SharedRegistry};
@@ -446,6 +446,7 @@ fn initialize_desktop(app: &AppHandle) -> Result<Arc<Manager>> {
                 if let Some(presence) = state.presence.lock().unwrap().as_mut() {
                     presence.update(state.link_enabled.load(Ordering::SeqCst), &prefs);
                 };
+                hotkey::configure(&settings_handle, &prefs);
             },
             move || {
                 index.changed();
@@ -470,6 +471,7 @@ fn initialize_desktop(app: &AppHandle) -> Result<Arc<Manager>> {
         );
         app.manage(tray);
         *state.presence.lock().unwrap() = Some(presence);
+        hotkey::configure(app, &tray_prefs);
         let registry = SharedRegistry::load(&manager.paths.link);
         let handle = app.clone();
         let locations = manager.paths.link.clone();
@@ -1017,6 +1019,7 @@ pub fn set_update_count(app: &AppHandle, count: usize) {
 pub fn run(background: bool, quit: bool) {
     tauri::Builder::default()
         .manage(Arc::new(Desktop::new(background)))
+        .manage(Arc::new(hotkey::Service::default()))
         .plugin(tauri_plugin_single_instance::init(|app, args, _| {
             if args.iter().any(|a| a == "--quit") {
                 request_quit(app);
@@ -1110,6 +1113,7 @@ pub fn run(background: bool, quit: bool) {
         .build(tauri::generate_context!())
         .expect("could not build Arcade Tools")
         .run(|app, event| {
+            if let tauri::RunEvent::Exit = event { hotkey::stop(); }
             if let tauri::RunEvent::ExitRequested { code: None, api, .. } = event {
                 if desktop(app).resident.lock().unwrap().keeps_running() { api.prevent_exit(); }
             }

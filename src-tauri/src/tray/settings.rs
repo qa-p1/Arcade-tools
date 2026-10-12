@@ -1,5 +1,5 @@
 use arcade_link::manifest::ids;
-use arcade_tools_core::{paths::Paths, platform, Error, Result};
+use arcade_tools_core::{paths::Paths, Error, Result};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
@@ -11,6 +11,7 @@ pub struct Preferences {
     pub show_update_badge: bool,
     pub start_at_login: bool,
     pub shortcuts_enabled: bool,
+    pub shortcut: String,
 }
 
 impl Default for Preferences {
@@ -21,6 +22,7 @@ impl Default for Preferences {
             show_update_badge: true,
             start_at_login: true,
             shortcuts_enabled: true,
+            shortcut: arcade_tools_overlay::registration::default_accelerator().into(),
         }
     }
 }
@@ -35,6 +37,9 @@ impl Preferences {
     }
 
     pub fn normalize(&mut self, previous: &Self) -> Result<()> {
+        self.shortcut = self.shortcut.trim().to_owned();
+        arcade_tools_overlay::registration::parse(&self.shortcut)
+            .map_err(|error| Error::new("shortcut", error))?;
         if self
             .excluded
             .iter()
@@ -58,7 +63,7 @@ impl Preferences {
     }
 
     pub fn apply_login(&self, paths: &Paths, executable: &Path) -> Result<()> {
-        platform::set_autostart(paths, ids::TOOLS, executable, self.start_at_login)
+        crate::resident::login::set(paths, executable, self.start_at_login)
     }
 }
 
@@ -104,5 +109,29 @@ mod tests {
         assert!(!prefs.start_at_login);
         prefs.excluded.push("arcade.unknown".into());
         assert!(prefs.normalize(&old).is_err());
+    }
+
+    #[test]
+    fn missing_shortcut_migrates_and_invalid_input_is_rejected() {
+        let root = tempfile::tempdir().unwrap();
+        let paths = Paths::under(root.path());
+        std::fs::create_dir_all(paths.state()).unwrap();
+        std::fs::write(
+            paths.state().join("tray-preferences.json"),
+            br#"{"hostIcons":false,"shortcutsEnabled":true}"#,
+        )
+        .unwrap();
+        let mut prefs = Preferences::load(&paths).unwrap();
+        assert_eq!(
+            prefs.shortcut,
+            arcade_tools_overlay::registration::default_accelerator()
+        );
+        let old = prefs.clone();
+        prefs.shortcut = " Ctrl+Alt+/ ".into();
+        prefs.normalize(&old).unwrap();
+        assert_eq!(prefs.shortcut, "Ctrl+Alt+/");
+        prefs.shortcut = "/".into();
+        assert!(prefs.normalize(&old).is_err());
+        assert_eq!(Preferences::load(&paths).unwrap(), old);
     }
 }

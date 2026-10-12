@@ -64,6 +64,8 @@ impl Presence {
     }
 
     pub fn update(&mut self, link_enabled: bool, prefs: &Preferences) {
+        self.host.set_excluded(&prefs.excluded);
+        self.host.set_hosted(link_enabled && prefs.host_icons);
         if link_enabled && self.server.is_none() {
             let config = ServerConfig {
                 locations: self.locations.clone(),
@@ -72,21 +74,20 @@ impl Presence {
                     version: env!("CARGO_PKG_VERSION").into(),
                 },
             };
-            match Server::start(config, self.handler.clone()) {
+            match Server::start_with_tray_host(config, self.handler.clone(), self.host.clone()) {
                 Ok(server) => {
-                    server.attach_tray_host(self.host.clone());
                     self.server = Some(server);
                     self.last_error = None;
                 }
-                Err(e) => self.last_error = Some(e.to_string()),
+                Err(e) => {
+                    self.host.set_hosted(false);
+                    self.last_error = Some(e.to_string());
+                }
             }
         } else if !link_enabled {
             self.host.shutdown();
             self.server.take();
         }
-        self.host.set_excluded(&prefs.excluded);
-        self.host
-            .set_hosted(link_enabled && prefs.host_icons && self.server.is_some());
         let mut doc = document(link_enabled, prefs);
         if link_enabled && self.server.is_none() {
             doc.additions.tray_host.as_mut().unwrap().enabled = false;
@@ -272,5 +273,73 @@ mod tests {
         );
         eprintln!("Tools server stop → own: {:?}", start.elapsed());
         assert!(start.elapsed() < Duration::from_secs(1));
+    }
+
+    #[test]
+    fn restart_reconnects_without_an_own_transition_and_link_off_hands_back() {
+        let root = tempfile::tempdir().unwrap();
+        let loc = Locations::under(root.path());
+        let prefs = Preferences::default();
+        let mut presence = Presence::start(
+            loc.clone(),
+            TrayHostServer::new(false),
+            Arc::new(HandlerMock),
+            true,
+            &prefs,
+        );
+        let (tx, rx) = mpsc::channel();
+        let watcher = TrayHostWatcher::start(
+            WatcherConfig {
+                locations: loc.clone(),
+                app: PeerInfo {
+                    id: "arcade.find".into(),
+                    version: "1".into(),
+                },
+                link_enabled: true,
+                has_tray: true,
+            },
+            move |state| {
+                let _ = tx.send(state);
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            rx.recv_timeout(Duration::from_secs(1)).unwrap(),
+            TrayState::Hosted
+        );
+        presence.announce_restarting();
+        drop(presence);
+        assert!(rx.recv_timeout(Duration::from_millis(100)).is_err());
+        let mut replacement = Presence::start(
+            loc.clone(),
+            TrayHostServer::new(false),
+            Arc::new(HandlerMock),
+            true,
+            &prefs,
+        );
+        let mut client = Client::connect(
+            &loc,
+            "arcade.tools",
+            &PeerInfo {
+                id: "arcade.find".into(),
+                version: "1".into(),
+            },
+        )
+        .unwrap();
+        client.subscribe(&["tray.host"]).unwrap();
+        assert_eq!(
+            client
+                .next_notification(Some(Duration::from_secs(1)))
+                .unwrap()
+                .params()["hosted"],
+            true
+        );
+        assert!(rx.recv_timeout(Duration::from_millis(300)).is_err());
+        assert_eq!(watcher.state(), TrayState::Hosted);
+        replacement.update(false, &prefs);
+        assert_eq!(
+            rx.recv_timeout(Duration::from_secs(1)).unwrap(),
+            TrayState::Own
+        );
     }
 }

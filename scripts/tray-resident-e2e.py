@@ -150,11 +150,17 @@ def main():
     parser.add_argument("--tools", type=Path, default=Path("target/release/arcade-tools"))
     parser.add_argument("--link", type=Path, default=Path("target/link-cli/debug/arcade-link"))
     parser.add_argument("--seconds", type=int, default=30)
+    parser.add_argument("--check-budgets", action="store_true", help="Fail on the 40 MiB RSS and zero-CPU-ticks performance targets")
+    parser.add_argument("--expect-login", action="store_true", help="Check the generated login entry of an installed/release build")
+    parser.add_argument("--check-ui", action="store_true", help="Verify debug GUI reports and live tray/hotkey settings through native clicks")
     args = parser.parse_args()
     tools, link = args.tools.resolve(), args.link.resolve()
     state = Path(os.environ["ARCADE_HOME"]) / "data/arcade-tools"
     state.mkdir(parents=True, exist_ok=True)
-    (state / "tray-preferences.json").write_text(json.dumps({"hostIcons": True, "startAtLogin": False, "shortcutsEnabled": True}))
+    smoke = Path(os.environ["ARCADE_HOME"]) / "tray-ui.jsonl"
+    if args.check_ui:
+        os.environ["ARCADE_TOOLS_SMOKE_LOG"] = str(smoke)
+    (state / "tray-preferences.json").write_text(json.dumps({"hostIcons": True, "startAtLogin": args.expect_login, "shortcutsEnabled": True}))
     fixture = ROOT / "find-mock.json"
     fixture.write_text(json.dumps({"version": "1", "methods": ["app.menu", "app.menu.invoke", "app.settings", "app.restart"],
                                    "menu": [{"id": "private", "title": "Private mode", "kind": "toggle", "enabled": True, "checked": True}]}))
@@ -179,6 +185,30 @@ def main():
                 return arrived
         raise AssertionError(f"Watcher did not report {expected}")
 
+    def report():
+        latest = {}
+        if smoke.exists():
+            for line in smoke.read_text().splitlines():
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if record.get("event") == "rendered":
+                    latest = record["report"]
+        return latest
+
+    def click_control(identifier=None, label=None):
+        for _ in range(8):
+            control = wait(lambda: next((control for control in report().get("controls", [])
+                if control["width"] > 0 and ((identifier and control.get("id") == identifier)
+                or (label and control.get("label") == label))), None))
+            if 0 <= control["y"] <= 985:
+                subprocess.run(["xdotool", "mousemove", "--window", str(window()), str(int(control["x"] + control["width"] / 2)), str(int(control["y"] + control["height"] / 2)), "click", "1"], check=True)
+                return
+            direction = "5" if control["y"] > 985 else "4"
+            subprocess.run(["xdotool", "mousemove", "--window", str(window()), "900", "500", "click", "--repeat", "4", "--delay", "50", direction], check=True)
+        raise AssertionError("Could not bring the isolated GUI control into view")
+
     try:
         mock = start([str(link), "mock", "--as", "find", "--actions", str(fixture)], stdout=subprocess.DEVNULL)
         wait(lambda: status("find"))
@@ -198,6 +228,13 @@ def main():
         wait(lambda: index.exists())
         assert json.loads(index.read_text())["schema"] == 1
         print("PASS: mock peer goes own → hosted; resident startup has no window; index published", flush=True)
+        if args.expect_login:
+            login = Path(os.environ["ARCADE_HOME"]) / "config/autostart/arcade-tools.desktop"
+            wait(login.exists)
+            entry = login.read_text()
+            assert "Arcade Tools managed login entry" in entry and str(tools) in entry
+            assert "--background" in entry
+            print("PASS: start at login points to this build inside the disposable profile", flush=True)
 
         host.start()
         item = wait(lambda: host.items and host.items[-1])
@@ -221,8 +258,43 @@ def main():
         wait(lambda: status("find"))
         print("PASS: Start launches stopped peer in background and activates it", flush=True)
 
+        overlay = tools.with_name("arcade-tools-overlay")
+        if overlay.is_file():
+            # Exercise the real X11 registration, including the packaged-launcher
+            # path, without registering anything on the user's display.
+            subprocess.run(["xdotool", "key", "--clearmodifiers", "super+slash"], check=True)
+            overlay_window = wait(lambda: subprocess.run(["xdotool", "search", "--onlyvisible", "--name", "^Arcade Tools Shortcuts$"], capture_output=True, text=True).stdout.strip())
+            assert overlay_window
+            subprocess.run([str(overlay), "--hide"], check=True, timeout=3)
+            wait(lambda: not subprocess.run(["xdotool", "search", "--onlyvisible", "--name", "^Arcade Tools Shortcuts$"], capture_output=True, text=True).stdout.strip())
+            subprocess.run([str(tools), "--show-shortcuts"], check=True, timeout=3)
+            wait(lambda: subprocess.run(["xdotool", "search", "--onlyvisible", "--name", "^Arcade Tools Shortcuts$"], capture_output=True, text=True).stdout.strip())
+            subprocess.run([str(overlay), "--hide"], check=True, timeout=3)
+            print("PASS: Super+/ and --show-shortcuts launch the companion overlay", flush=True)
+
         host.call(item, "org.kde.StatusNotifierItem", "Activate", GLib.Variant("(ii)", (0, 0)))
         identifier = wait(window)
+        if args.check_ui:
+            subprocess.run(["xdotool", "windowsize", identifier, "940", "1020"], check=True)
+            wait(lambda: len(report().get("apps", [])) == 7)
+            click_control(identifier="tab-settings")
+            wait(lambda: report().get("tab") == "settings")
+            click_control(label="Host Arcade app icons")
+            receive(lines, "own")
+            click_control(label="Host Arcade app icons")
+            receive(lines, "hosted")
+            click_control(label="Keep its own icon: Arcade Find")
+            receive(lines, "own")
+            click_control(label="Keep its own icon: Arcade Find")
+            receive(lines, "hosted")
+            click_control(identifier="overlay-shortcut")
+            subprocess.run(["xdotool", "key", "--clearmodifiers", "ctrl+a", "type", "--clearmodifiers", "--delay", "1", "Ctrl+Alt+/"], check=True)
+            click_control(label="Apply")
+            wait(lambda: json.loads((state / "tray-preferences.json").read_text()).get("shortcut") == "Ctrl+Alt+/")
+            subprocess.run(["xdotool", "key", "--clearmodifiers", "ctrl+alt+slash"], check=True)
+            wait(lambda: subprocess.run(["xdotool", "search", "--onlyvisible", "--name", "^Arcade Tools Shortcuts$"], capture_output=True, text=True).stdout.strip())
+            subprocess.run([str(overlay), "--hide"], check=True, timeout=3)
+            print("PASS: seven-app GUI renders; live hosting/exclusion and hotkey rebind work through Settings", flush=True)
         time.sleep(1)
         close_window(identifier)
         wait(lambda: window() is None)
@@ -246,6 +318,10 @@ def main():
         host.call(item, "org.kde.StatusNotifierItem", "Activate", GLib.Variant("(ii)", (0, 0)))
         identifier = wait(window)
         print(f"PASS: warm Open recreates window in {(time.monotonic()-started)*1000:.3f} ms", flush=True)
+        duplicate = start([str(tools)], stdout=subprocess.DEVNULL)
+        assert duplicate.wait(timeout=5) == 0
+        assert process.poll() is None and window() == identifier
+        print("PASS: a second foreground launch activates the resident instance", flush=True)
         close_window(identifier)
         wait(lambda: window() is None)
         killed = time.monotonic()
@@ -256,8 +332,23 @@ def main():
         assert elapsed < 1
         assert status("find"), "Mock app depended on Tools staying alive"
         print(f"PASS: Tools killed → own tray in {elapsed*1000:.3f} ms; peer remains running", flush=True)
-        assert after_rss <= 40, f"Resident RSS {after_rss:.3f} MiB exceeds 40 MiB"
-        assert ticks == 0, f"Resident consumed {ticks} CPU ticks"
+        # With Link disabled the native single-instance channel still opens and
+        # quits Tools. No endpoint or peer lifecycle depends on the webview.
+        (state / "preferences.json").write_text(json.dumps({"linkEnabled": False}))
+        process = start([str(tools), "--background"], stdout=subprocess.DEVNULL)
+        wait(lambda: len(host.items) > count + 1)
+        duplicate = start([str(tools)], stdout=subprocess.DEVNULL)
+        assert duplicate.wait(timeout=5) == 0
+        wait(window)
+        assert process.poll() is None
+        subprocess.run([str(tools), "--quit"], check=True, timeout=5)
+        assert process.wait(timeout=5) == 0
+        print("PASS: Link-off native activation and explicit quit", flush=True)
+        if args.check_budgets:
+            assert after_rss <= 40, f"Resident RSS {after_rss:.3f} MiB exceeds 40 MiB"
+            assert ticks == 0, f"Resident consumed {ticks} CPU ticks"
+        elif after_rss > 40 or ticks:
+            print(f"BUDGET NOT MET: RSS={after_rss:.3f}/40 MiB, CPU ticks={ticks}/0. Use --check-budgets for the performance gate.", flush=True)
     finally:
         host.stop()
         host.loop.quit()

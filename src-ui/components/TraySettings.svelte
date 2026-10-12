@@ -10,20 +10,25 @@
     showUpdateBadge: boolean;
     startAtLogin: boolean;
     shortcutsEnabled: boolean;
+    shortcut: string;
   };
   type View = {
     preferences: Preferences;
     apps: { id: string; name: string; excluded: boolean }[];
     loginAvailable: boolean;
+    shortcutStatus: { accelerator: string; available: boolean; via: string | null; hint: string | null; error: string | null };
   };
   let { active, busy }: { active: boolean; busy: boolean } = $props();
   let view = $state<View | null>(null);
   let saving = $state(false);
   let error = $state('');
+  let shortcut = $state('');
 
   async function load(): Promise<void> {
     try {
       view = await invoke<View>('tray_get_settings');
+      shortcut = view.preferences.shortcut;
+      if (ui.testing) ui.shortcutsRevision += 1;
       error = '';
     } catch (failure) {
       error = (failure as { message?: string }).message ?? String(failure);
@@ -39,6 +44,7 @@
         preferences: { ...view.preferences, ...change },
       });
       view = { ...view, preferences };
+      if (ui.testing) ui.shortcutsRevision += 1;
     } catch (failure) {
       error = (failure as { message?: string }).message ?? String(failure);
     } finally {
@@ -68,6 +74,7 @@
       const listeners = await Promise.all([
         listen<string>('tray-navigation', ({ payload }) => navigate(payload)),
         listen('tray-settings-changed', () => { if (active) void load(); }),
+        listen('overlay-shortcut-changed', () => { if (active) void load(); }),
         listen('registry-changed', () => { if (active) void load(); }),
       ]);
       if (disposed) listeners.forEach((stop) => stop());
@@ -86,11 +93,24 @@
   </div>
   {#if view}
     <div class="tray-options">
-      <label><input type="checkbox" checked={view.preferences.hostIcons} disabled={busy || saving} onchange={(event) => void save({ hostIcons: event.currentTarget.checked })} /> Host Arcade app icons</label>
-      <label><input type="checkbox" checked={view.preferences.showUpdateBadge} disabled={busy || saving} onchange={(event) => void save({ showUpdateBadge: event.currentTarget.checked })} /> Show update badge</label>
-      <label><input type="checkbox" checked={view.preferences.shortcutsEnabled} disabled={busy || saving} onchange={(event) => void save({ shortcutsEnabled: event.currentTarget.checked })} /> Keep Tools running for shortcuts</label>
+      <label><input type="checkbox" aria-label="Host Arcade app icons" checked={view.preferences.hostIcons} disabled={busy || saving} onchange={(event) => void save({ hostIcons: event.currentTarget.checked })} /> Host Arcade app icons</label>
+      <label><input type="checkbox" aria-label="Show update badge" checked={view.preferences.showUpdateBadge} disabled={busy || saving} onchange={(event) => void save({ showUpdateBadge: event.currentTarget.checked })} /> Show update badge</label>
+      {#if view.shortcutStatus.available}
+        <label><input type="checkbox" aria-label="Enable shortcut overlay" checked={view.preferences.shortcutsEnabled} disabled={busy || saving} onchange={(event) => void save({ shortcutsEnabled: event.currentTarget.checked })} /> Enable shortcut overlay</label>
+        {#if view.preferences.shortcutsEnabled}
+          <form class="shortcut-form" onsubmit={(event) => { event.preventDefault(); void save({ shortcut }); }}>
+            <label for="overlay-shortcut">Overlay shortcut</label>
+            <input id="overlay-shortcut" bind:value={shortcut} disabled={busy || saving} autocomplete="off" spellcheck={false} />
+            <button type="submit" disabled={busy || saving || shortcut === view.preferences.shortcut}>Apply</button>
+          </form>
+          {#if view.shortcutStatus.hint}<p class="setting-description shortcut-hint">{view.shortcutStatus.hint}</p>{/if}
+          {#if view.shortcutStatus.error}<p role="alert" class="tray-error">Could not register shortcut: {view.shortcutStatus.error}</p>{/if}
+        {/if}
+      {:else}
+        <p class="setting-description">The shortcut overlay is available when the companion executable is installed.</p>
+      {/if}
       {#if view.loginAvailable}
-        <label><input type="checkbox" checked={view.preferences.startAtLogin} disabled={busy || saving} onchange={(event) => void save({ startAtLogin: event.currentTarget.checked })} /> Start Arcade Tools at login</label>
+        <label><input type="checkbox" aria-label="Start Arcade Tools at login" checked={view.preferences.startAtLogin} disabled={busy || saving} onchange={(event) => void save({ startAtLogin: event.currentTarget.checked })} /> Start Arcade Tools at login</label>
       {:else}
         <p class="setting-description">Start at login is available in installed builds.</p>
       {/if}
@@ -99,7 +119,7 @@
       <fieldset class="tray-apps" disabled={busy || saving}>
         <legend>Keep its own icon</legend>
         {#each view.apps as app (app.id)}
-          <label><input type="checkbox" checked={view.preferences.excluded.includes(app.id)} onchange={(event) => exclude(app.id, event.currentTarget.checked)} /> {app.name}</label>
+          <label><input type="checkbox" aria-label="Keep its own icon: {app.name}" checked={view.preferences.excluded.includes(app.id)} onchange={(event) => exclude(app.id, event.currentTarget.checked)} /> {app.name}</label>
         {/each}
       </fieldset>
     {/if}
@@ -115,4 +135,6 @@
   .tray-apps { margin: 0; padding: 1rem; border: 1px solid var(--border); border-radius: .5rem; }
   legend { padding: 0 .4rem; }
   .tray-error { color: var(--text); }
+  .shortcut-form { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
+  .shortcut-hint { white-space: pre-wrap; overflow-wrap: anywhere; }
 </style>
