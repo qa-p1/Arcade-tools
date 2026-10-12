@@ -1,0 +1,153 @@
+{
+  "schema": 1,
+  "app": "arcade.wheel",
+  "version": "0.2.0",
+  "groups": [
+    {
+      "title": "Show the wheel",
+      "context": "global",
+      "shortcuts": [
+        {
+          "id": "trigger",
+          "title": "Open the wheel while held; release to run the selection",
+          "keys": {
+            "default": "F8"
+          },
+          "rebindable": true
+        }
+      ]
+    },
+    {
+      "title": "Wheel overlay",
+      "context": "wheel",
+      "shortcuts": [
+        {
+          "id": "cancel-escape",
+          "title": "Cancel the wheel",
+          "keys": {
+            "default": "Escape"
+          }
+        },
+        {
+          "id": "cancel-right-click",
+          "title": "Cancel the wheel with right-click",
+          "keys": {
+            "default": "MouseRight"
+          }
+        },
+        {
+          "id": "previous-deck-scroll",
+          "title": "Switch to the previous deck",
+          "keys": {
+            "default": "WheelUp"
+          }
+        },
+        {
+          "id": "next-deck-scroll",
+          "title": "Switch to the next deck",
+          "keys": {
+            "default": "WheelDown"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Click mode",
+      "context": "click-mode",
+      "shortcuts": [
+        {
+          "id": "activate-click",
+          "title": "Run the selected action in click mode",
+          "keys": {
+            "default": "MouseLeft"
+          }
+        },
+        {
+          "id": "cancel-click",
+          "title": "Cancel click mode",
+          "keys": {
+            "default": "MouseRight"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Center gestures",
+      "context": "center-gestures",
+      "shortcuts": [
+        {
+          "id": "center-click",
+          "title": "Use left-click gestures in the center hub",
+          "keys": {
+            "default": "MouseLeft"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Settings",
+      "context": "settings",
+      "shortcuts": [
+        {
+          "id": "close-settings",
+          "title": "Close Settings",
+          "keys": {
+            "default": "Ctrl+W",
+            "macos": "Super+W"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Action picker",
+      "context": "action-picker",
+      "shortcuts": [
+        {
+          "id": "close-action-picker",
+          "title": "Close the action picker and Settings",
+          "keys": {
+            "default": "Ctrl+W",
+            "macos": "Super+W"
+          }
+        },
+        {
+          "id": "dismiss-action-picker",
+          "title": "Dismiss the action picker",
+          "keys": {
+            "default": "Escape"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Trigger recorder",
+      "context": "trigger-recorder",
+      "shortcuts": [
+        {
+          "id": "start-trigger-recording-enter",
+          "title": "Start trigger recording",
+          "keys": {
+            "default": [
+              "Enter",
+              "NumpadEnter"
+            ]
+          }
+        },
+        {
+          "id": "start-trigger-recording-space",
+          "title": "Start trigger recording",
+          "keys": {
+            "default": "Space"
+          }
+        },
+        {
+          "id": "cancel-trigger-recording",
+          "title": "Cancel trigger recording",
+          "keys": {
+            "default": "Escape"
+          }
+        }
+      ]
+    }
+  ]
+}

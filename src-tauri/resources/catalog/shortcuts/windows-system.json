@@ -1,0 +1,303 @@
+{
+  "schema": 1,
+  "id": "windows-system",
+  "name": "Windows system shortcuts",
+  "checkedVersion": "Windows 11 26H2",
+  "sources": [
+    "https://support.microsoft.com/en-us/accessibility/windows/keyboard-shortcuts-in-windows",
+    "https://learn.microsoft.com/en-us/windows/release-health/windows11-release-information",
+    "https://learn.microsoft.com/en-us/windows/release-health/status-windows-11-26H2"
+  ],
+  "match": {
+    "windows": {
+      "exe": [
+        "*"
+      ]
+    }
+  },
+  "groups": [
+    {
+      "title": "Windows and desktops",
+      "context": "desktop",
+      "shortcuts": [
+        {
+          "id": "show-desktop",
+          "title": "Show or hide the desktop",
+          "keys": {
+            "windows": "Super+D"
+          }
+        },
+        {
+          "id": "lock",
+          "title": "Lock the PC",
+          "keys": {
+            "windows": "Super+L"
+          }
+        },
+        {
+          "id": "open-settings",
+          "title": "Open Settings",
+          "keys": {
+            "windows": "Super+I"
+          }
+        },
+        {
+          "id": "open-file-explorer",
+          "title": "Open File Explorer",
+          "keys": {
+            "windows": "Super+E"
+          }
+        },
+        {
+          "id": "run",
+          "title": "Open the Run dialog",
+          "keys": {
+            "windows": "Super+R"
+          }
+        },
+        {
+          "id": "search",
+          "title": "Open Windows Search",
+          "keys": {
+            "windows": "Super+S"
+          }
+        },
+        {
+          "id": "quick-link-menu",
+          "title": "Open the Quick Link menu",
+          "keys": {
+            "windows": "Super+X"
+          }
+        },
+        {
+          "id": "quick-settings",
+          "title": "Open Quick Settings",
+          "keys": {
+            "windows": "Super+A"
+          }
+        },
+        {
+          "id": "notifications",
+          "title": "Open notifications and calendar",
+          "keys": {
+            "windows": "Super+N"
+          }
+        },
+        {
+          "id": "clipboard-history",
+          "title": "Open clipboard history",
+          "keys": {
+            "windows": "Super+V"
+          }
+        },
+        {
+          "id": "emoji-panel",
+          "title": "Open the emoji panel",
+          "keys": {
+            "windows": "Super+Period"
+          }
+        },
+        {
+          "id": "dictation",
+          "title": "Start voice typing",
+          "keys": {
+            "windows": "Super+H"
+          }
+        },
+        {
+          "id": "project",
+          "title": "Open the Project pane",
+          "keys": {
+            "windows": "Super+P"
+          }
+        },
+        {
+          "id": "cast",
+          "title": "Open Cast",
+          "keys": {
+            "windows": "Super+K"
+          }
+        },
+        {
+          "id": "accessibility",
+          "title": "Open Accessibility settings",
+          "keys": {
+            "windows": "Super+U"
+          }
+        },
+        {
+          "id": "snap-layouts",
+          "title": "Open Snap Layouts",
+          "keys": {
+            "windows": "Super+Z"
+          }
+        },
+        {
+          "id": "switch-desktops-forward",
+          "title": "Switch to the next virtual desktop",
+          "keys": {
+            "windows": "Ctrl+Super+Right"
+          }
+        },
+        {
+          "id": "switch-desktops-back",
+          "title": "Switch to the previous virtual desktop",
+          "keys": {
+            "windows": "Ctrl+Super+Left"
+          }
+        },
+        {
+          "id": "new-desktop",
+          "title": "Create a virtual desktop",
+          "keys": {
+            "windows": "Ctrl+Super+D"
+          }
+        },
+        {
+          "id": "close-desktop",
+          "title": "Close the current virtual desktop",
+          "keys": {
+            "windows": "Ctrl+Super+F4"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Window management",
+      "context": "windows",
+      "shortcuts": [
+        {
+          "id": "snap-left",
+          "title": "Snap the window to the left",
+          "keys": {
+            "windows": "Super+Left"
+          }
+        },
+        {
+          "id": "snap-right",
+          "title": "Snap the window to the right",
+          "keys": {
+            "windows": "Super+Right"
+          }
+        },
+        {
+          "id": "maximize-window",
+          "title": "Maximize the window",
+          "keys": {
+            "windows": "Super+Up"
+          }
+        },
+        {
+          "id": "minimize-window",
+          "title": "Minimize the window",
+          "keys": {
+            "windows": "Super+Down"
+          }
+        },
+        {
+          "id": "minimize-all",
+          "title": "Minimize all windows",
+          "keys": {
+            "windows": "Super+M"
+          }
+        },
+        {
+          "id": "restore-windows",
+          "title": "Restore minimized windows",
+          "keys": {
+            "windows": "Shift+Super+M"
+          }
+        },
+        {
+          "id": "task-view",
+          "title": "Open Task View",
+          "keys": {
+            "windows": "Super+Tab"
+          }
+        },
+        {
+          "id": "close-window",
+          "title": "Close the active window",
+          "keys": {
+            "windows": "Alt+F4"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Switching and security",
+      "context": "switching",
+      "shortcuts": [
+        {
+          "id": "switch-apps",
+          "title": "Switch between open apps",
+          "keys": {
+            "windows": "Alt+Tab"
+          }
+        },
+        {
+          "id": "switch-apps-reverse",
+          "title": "Switch apps in reverse order",
+          "keys": {
+            "windows": "Alt+Shift+Tab"
+          }
+        },
+        {
+          "id": "task-manager",
+          "title": "Open Task Manager",
+          "keys": {
+            "windows": "Ctrl+Shift+Escape"
+          }
+        },
+        {
+          "id": "security-screen",
+          "title": "Open the security options screen",
+          "keys": {
+            "windows": "Ctrl+Alt+Delete"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Screenshots and magnifier",
+      "context": "accessibility",
+      "shortcuts": [
+        {
+          "id": "screen-snipping",
+          "title": "Capture part of the screen",
+          "keys": {
+            "windows": "Shift+Super+S"
+          }
+        },
+        {
+          "id": "save-screenshot",
+          "title": "Save a screenshot to Pictures",
+          "keys": {
+            "windows": "Super+Print"
+          }
+        },
+        {
+          "id": "magnifier-in",
+          "title": "Zoom in with Magnifier",
+          "keys": {
+            "windows": "Shift+Super+Equal"
+          }
+        },
+        {
+          "id": "magnifier-out",
+          "title": "Zoom out with Magnifier",
+          "keys": {
+            "windows": "Super+Minus"
+          }
+        },
+        {
+          "id": "magnifier-close",
+          "title": "Exit Magnifier",
+          "keys": {
+            "windows": "Super+Escape"
+          }
+        }
+      ]
+    }
+  ]
+}

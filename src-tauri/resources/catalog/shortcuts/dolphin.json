@@ -1,0 +1,342 @@
+{
+  "schema": 1,
+  "id": "dolphin",
+  "name": "Dolphin",
+  "checkedVersion": "26.08.2",
+  "sources": [
+    "https://docs.kde.org/stable_kf6/en/dolphin/dolphin/command-reference.html",
+    "https://docs.kde.org/stable_kf6/en/dolphin/dolphin/using-dolphin.html",
+    "https://docs.kde.org/trunk_kf6/en/dolphin/dolphin/dolphin.pdf",
+    "https://docs.kde.org/stable_kf6/en/khelpcenter/fundamentals/fundamentals.html",
+    "https://kde.org/announcements/gear/26.08.2/"
+  ],
+  "match": {
+    "linux": {
+      "class": [
+        "dolphin",
+        "org.kde.dolphin"
+      ]
+    }
+  },
+  "groups": [
+    {
+      "title": "Window and tabs",
+      "context": "window",
+      "shortcuts": [
+        {
+          "id": "new-window",
+          "title": "Open a new window",
+          "keys": {
+            "default": "Ctrl+N"
+          }
+        },
+        {
+          "id": "new-tab",
+          "title": "Open a new tab",
+          "keys": {
+            "default": "Ctrl+T"
+          }
+        },
+        {
+          "id": "close-tab",
+          "title": "Close the current tab",
+          "keys": {
+            "default": "Ctrl+W"
+          }
+        },
+        {
+          "id": "undo-close-tab",
+          "title": "Reopen the last closed tab",
+          "keys": {
+            "default": "Ctrl+Shift+T"
+          }
+        },
+        {
+          "id": "quit",
+          "title": "Quit Dolphin",
+          "keys": {
+            "default": "Ctrl+Q"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Navigate folders",
+      "context": "navigation",
+      "shortcuts": [
+        {
+          "id": "go-up",
+          "title": "Open the parent folder",
+          "keys": {
+            "default": "Alt+Up"
+          }
+        },
+        {
+          "id": "go-back",
+          "title": "Go back",
+          "keys": {
+            "default": "Alt+Left"
+          }
+        },
+        {
+          "id": "go-forward",
+          "title": "Go forward",
+          "keys": {
+            "default": "Alt+Right"
+          }
+        },
+        {
+          "id": "go-home",
+          "title": "Open the home folder",
+          "keys": {
+            "default": "Alt+Home"
+          }
+        },
+        {
+          "id": "replace-location",
+          "title": "Edit the current location",
+          "keys": {
+            "default": "Ctrl+L"
+          }
+        },
+        {
+          "id": "toggle-location-mode",
+          "title": "Switch location bar mode",
+          "keys": {
+            "default": "F6"
+          }
+        }
+      ]
+    },
+    {
+      "title": "File operations",
+      "context": "files",
+      "shortcuts": [
+        {
+          "id": "rename",
+          "title": "Rename selected items",
+          "keys": {
+            "default": "F2"
+          }
+        },
+        {
+          "id": "move-to-trash",
+          "title": "Move selected items to Trash",
+          "keys": {
+            "default": "Delete"
+          }
+        },
+        {
+          "id": "delete-permanently",
+          "title": "Delete selected items permanently",
+          "keys": {
+            "default": "Shift+Delete"
+          }
+        },
+        {
+          "id": "duplicate",
+          "title": "Duplicate selected items here",
+          "keys": {
+            "default": "Ctrl+D"
+          }
+        },
+        {
+          "id": "properties",
+          "title": "Show item properties",
+          "keys": {
+            "default": "Alt+Enter"
+          }
+        },
+        {
+          "id": "undo",
+          "title": "Undo the last file operation",
+          "keys": {
+            "default": "Ctrl+Z"
+          }
+        },
+        {
+          "id": "redo",
+          "title": "Redo the last file operation",
+          "keys": {
+            "default": "Ctrl+Shift+Z"
+          }
+        },
+        {
+          "id": "copy",
+          "title": "Copy selected items",
+          "keys": {
+            "default": "Ctrl+C"
+          }
+        },
+        {
+          "id": "cut",
+          "title": "Cut selected items",
+          "keys": {
+            "default": "Ctrl+X"
+          }
+        },
+        {
+          "id": "paste",
+          "title": "Paste items",
+          "keys": {
+            "default": "Ctrl+V"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Selection",
+      "context": "selection",
+      "shortcuts": [
+        {
+          "id": "select-all",
+          "title": "Select all items",
+          "keys": {
+            "default": "Ctrl+A"
+          }
+        },
+        {
+          "id": "invert-selection",
+          "title": "Invert the selection",
+          "keys": {
+            "default": "Ctrl+Shift+A"
+          }
+        },
+        {
+          "id": "toggle-current-selection",
+          "title": "Toggle the current item's selection",
+          "keys": {
+            "default": "Ctrl+Space"
+          }
+        }
+      ]
+    },
+    {
+      "title": "View and panels",
+      "context": "view",
+      "shortcuts": [
+        {
+          "id": "toggle-hidden-files",
+          "title": "Show or hide hidden files",
+          "keys": {
+            "default": [
+              "Ctrl+H",
+              "Alt+Period"
+            ]
+          }
+        },
+        {
+          "id": "zoom-in",
+          "title": "Zoom in",
+          "keys": {
+            "default": "Ctrl+Shift+Equal"
+          }
+        },
+        {
+          "id": "zoom-out",
+          "title": "Zoom out",
+          "keys": {
+            "default": "Ctrl+Minus"
+          }
+        },
+        {
+          "id": "zoom-reset",
+          "title": "Reset zoom",
+          "keys": {
+            "default": "Ctrl+0"
+          }
+        },
+        {
+          "id": "icon-view",
+          "title": "Use icon view",
+          "keys": {
+            "default": "Ctrl+1"
+          }
+        },
+        {
+          "id": "compact-view",
+          "title": "Use compact view",
+          "keys": {
+            "default": "Ctrl+2"
+          }
+        },
+        {
+          "id": "details-view",
+          "title": "Use details view",
+          "keys": {
+            "default": "Ctrl+3"
+          }
+        },
+        {
+          "id": "split-view",
+          "title": "Toggle split view",
+          "keys": {
+            "default": "F3"
+          }
+        },
+        {
+          "id": "reload",
+          "title": "Reload the current folder",
+          "keys": {
+            "default": "F5"
+          }
+        },
+        {
+          "id": "toggle-places-panel",
+          "title": "Show or hide the Places panel",
+          "keys": {
+            "default": "F9"
+          }
+        },
+        {
+          "id": "toggle-information-panel",
+          "title": "Show or hide the Information panel",
+          "keys": {
+            "default": "F11"
+          }
+        },
+        {
+          "id": "toggle-folders-panel",
+          "title": "Show or hide the Folders panel",
+          "keys": {
+            "default": "F7"
+          }
+        },
+        {
+          "id": "toggle-terminal-panel",
+          "title": "Show or hide the Terminal panel",
+          "keys": {
+            "default": "F4"
+          }
+        },
+        {
+          "id": "toggle-menubar",
+          "title": "Show or hide the menu bar",
+          "keys": {
+            "default": "Ctrl+M"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Search and filter",
+      "context": "search",
+      "shortcuts": [
+        {
+          "id": "filter-files",
+          "title": "Filter the current folder",
+          "keys": {
+            "default": "Ctrl+I"
+          }
+        },
+        {
+          "id": "search-files",
+          "title": "Search in the current folder",
+          "keys": {
+            "default": "Ctrl+Shift+F"
+          }
+        }
+      ]
+    }
+  ]
+}

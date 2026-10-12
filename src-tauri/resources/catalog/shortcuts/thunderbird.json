@@ -1,0 +1,527 @@
+{
+  "schema": 1,
+  "id": "thunderbird",
+  "name": "Thunderbird",
+  "checkedVersion": "152 shortcut reference; latest release checked: 157.0.1",
+  "sources": [
+    "https://support.mozilla.org/en-US/kb/keyboard-shortcuts-thunderbird",
+    "https://www.thunderbird.net/en-US/thunderbird/157.0/releasenotes/"
+  ],
+  "match": {
+    "linux": {
+      "class": [
+        "thunderbird",
+        "org.mozilla.Thunderbird"
+      ]
+    },
+    "windows": {
+      "exe": [
+        "thunderbird.exe"
+      ]
+    },
+    "macos": {
+      "bundle": [
+        "org.mozilla.thunderbird"
+      ]
+    }
+  },
+  "groups": [
+    {
+      "title": "Messages",
+      "context": "messages",
+      "shortcuts": [
+        {
+          "id": "new-message",
+          "title": "Write a new message",
+          "keys": {
+            "default": "Ctrl+N",
+            "macos": "Super+N"
+          }
+        },
+        {
+          "id": "reply",
+          "title": "Reply to the sender",
+          "keys": {
+            "default": "Ctrl+R",
+            "macos": "Super+R"
+          }
+        },
+        {
+          "id": "reply-all",
+          "title": "Reply to all recipients",
+          "keys": {
+            "default": "Ctrl+Shift+R",
+            "macos": "Shift+Super+R"
+          }
+        },
+        {
+          "id": "reply-list",
+          "title": "Reply to the mailing list",
+          "keys": {
+            "default": "Ctrl+Shift+L",
+            "macos": "Shift+Super+L"
+          }
+        },
+        {
+          "id": "forward",
+          "title": "Forward the message",
+          "keys": {
+            "default": "Ctrl+L",
+            "macos": "Super+L"
+          }
+        },
+        {
+          "id": "edit-as-new",
+          "title": "Edit the message as a new one",
+          "keys": {
+            "default": "Ctrl+E",
+            "macos": "Super+E"
+          }
+        },
+        {
+          "id": "open-message",
+          "title": "Open the selected message",
+          "keys": {
+            "default": "Ctrl+O",
+            "macos": "Super+O"
+          }
+        },
+        {
+          "id": "open-conversation",
+          "title": "Open the message conversation",
+          "keys": {
+            "default": "Ctrl+Shift+O",
+            "macos": "Shift+Super+O"
+          }
+        },
+        {
+          "id": "archive-message",
+          "title": "Archive the selected message",
+          "keys": {
+            "default": "A"
+          }
+        },
+        {
+          "id": "delete-message",
+          "title": "Delete the selected message",
+          "keys": {
+            "default": "Delete"
+          }
+        },
+        {
+          "id": "delete-permanently",
+          "title": "Delete without moving to Trash",
+          "keys": {
+            "default": "Shift+Delete"
+          }
+        },
+        {
+          "id": "mark-read",
+          "title": "Mark a message as read or unread",
+          "keys": {
+            "default": "M"
+          }
+        },
+        {
+          "id": "mark-thread-read",
+          "title": "Mark the thread as read",
+          "keys": {
+            "default": "R"
+          }
+        },
+        {
+          "id": "mark-all-read",
+          "title": "Mark all messages as read",
+          "keys": {
+            "default": "Shift+C"
+          }
+        },
+        {
+          "id": "mark-junk",
+          "title": "Mark the message as junk",
+          "keys": {
+            "default": "J"
+          }
+        },
+        {
+          "id": "mark-not-junk",
+          "title": "Mark the message as not junk",
+          "keys": {
+            "default": "Shift+J"
+          }
+        },
+        {
+          "id": "toggle-star",
+          "title": "Add or remove a star",
+          "keys": {
+            "default": "S"
+          }
+        },
+        {
+          "id": "undo",
+          "title": "Undo the last action",
+          "keys": {
+            "default": "Ctrl+Z",
+            "macos": "Super+Z"
+          }
+        },
+        {
+          "id": "redo",
+          "title": "Redo the last action",
+          "keys": {
+            "default": "Ctrl+Y",
+            "macos": "Super+Y"
+          }
+        },
+        {
+          "id": "get-current-account-mail",
+          "title": "Get new messages for the current account",
+          "keys": {
+            "default": "F5"
+          }
+        },
+        {
+          "id": "get-all-account-mail",
+          "title": "Get new messages for all accounts",
+          "keys": {
+            "default": "Shift+F5"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Search and filters",
+      "context": "search",
+      "shortcuts": [
+        {
+          "id": "global-search",
+          "title": "Search all messages",
+          "keys": {
+            "default": "Ctrl+K",
+            "macos": "Super+K"
+          }
+        },
+        {
+          "id": "quick-filter",
+          "title": "Open the Quick Filter bar",
+          "keys": {
+            "default": "Ctrl+Shift+K",
+            "macos": "Shift+Super+K"
+          }
+        },
+        {
+          "id": "advanced-search",
+          "title": "Search messages in the current folder",
+          "keys": {
+            "default": "Ctrl+Shift+F",
+            "macos": "Shift+Super+F"
+          }
+        },
+        {
+          "id": "find-message-text",
+          "title": "Find text in the current message",
+          "keys": {
+            "default": "Ctrl+F",
+            "macos": "Super+F"
+          }
+        },
+        {
+          "id": "find-next",
+          "title": "Find the next match in the message",
+          "keys": {
+            "default": [
+              "Ctrl+G",
+              "F3"
+            ],
+            "macos": [
+              "Super+G",
+              "F3"
+            ]
+          }
+        },
+        {
+          "id": "find-previous",
+          "title": "Find the previous match in the message",
+          "keys": {
+            "default": [
+              "Ctrl+Shift+G",
+              "Shift+F3"
+            ],
+            "macos": [
+              "Shift+Super+G",
+              "Shift+F3"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "title": "Navigate Thunderbird",
+      "context": "navigation",
+      "shortcuts": [
+        {
+          "id": "next-message",
+          "title": "Go to the next message",
+          "keys": {
+            "default": "F"
+          }
+        },
+        {
+          "id": "previous-message",
+          "title": "Go to the previous message",
+          "keys": {
+            "default": "B"
+          }
+        },
+        {
+          "id": "next-unread",
+          "title": "Go to the next unread message",
+          "keys": {
+            "default": "N"
+          }
+        },
+        {
+          "id": "previous-unread",
+          "title": "Go to the previous unread message",
+          "keys": {
+            "default": "P"
+          }
+        },
+        {
+          "id": "next-unread-thread",
+          "title": "Go to the next unread thread",
+          "keys": {
+            "default": "T"
+          }
+        },
+        {
+          "id": "toggle-message-pane",
+          "title": "Show or hide the message pane",
+          "keys": {
+            "default": "F8"
+          }
+        },
+        {
+          "id": "next-tab",
+          "title": "Switch to the next tab",
+          "keys": {
+            "default": [
+              "Ctrl+Tab",
+              "Ctrl+PageDown"
+            ],
+            "macos": [
+              "Ctrl+Tab",
+              "Alt+Super+Right"
+            ]
+          }
+        },
+        {
+          "id": "previous-tab",
+          "title": "Switch to the previous tab",
+          "keys": {
+            "default": [
+              "Ctrl+Shift+Tab",
+              "Ctrl+PageUp"
+            ],
+            "macos": [
+              "Ctrl+Shift+Tab",
+              "Alt+Super+Left"
+            ]
+          }
+        },
+        {
+          "id": "mail-tab",
+          "title": "Open the Mail tab",
+          "keys": {
+            "default": [
+              "Ctrl+1",
+              "Alt+1"
+            ],
+            "macos": "Super+1"
+          }
+        },
+        {
+          "id": "last-tab",
+          "title": "Open the last tab",
+          "keys": {
+            "default": [
+              "Ctrl+9",
+              "Alt+9"
+            ],
+            "macos": "Super+9"
+          }
+        },
+        {
+          "id": "address-book",
+          "title": "Open the Address Book",
+          "keys": {
+            "default": "Ctrl+Shift+B",
+            "macos": "Shift+Super+B"
+          }
+        },
+        {
+          "id": "saved-files",
+          "title": "Open Saved Files",
+          "keys": {
+            "default": "Ctrl+J",
+            "macos": "Super+J"
+          }
+        },
+        {
+          "id": "focus-next-ui-area",
+          "title": "Move focus to the next main interface area",
+          "keys": {
+            "default": [
+              "F6",
+              "Ctrl+F6"
+            ],
+            "macos": "F6"
+          }
+        },
+        {
+          "id": "focus-previous-ui-area",
+          "title": "Move focus to the previous main interface area",
+          "keys": {
+            "default": [
+              "Shift+F6",
+              "Ctrl+Shift+F6"
+            ],
+            "macos": "Shift+F6"
+          }
+        },
+        {
+          "id": "show-help",
+          "title": "Open Thunderbird help",
+          "keys": {
+            "default": "F1",
+            "macos": "Shift+Super+Slash"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Compose messages",
+      "context": "composer",
+      "shortcuts": [
+        {
+          "id": "send-now",
+          "title": "Send the message now",
+          "keys": {
+            "default": "Ctrl+Enter",
+            "macos": "Super+Enter"
+          }
+        },
+        {
+          "id": "send-later",
+          "title": "Send the message later",
+          "keys": {
+            "default": "Ctrl+Shift+Enter",
+            "macos": "Shift+Super+Enter"
+          }
+        },
+        {
+          "id": "save-draft",
+          "title": "Save the draft",
+          "keys": {
+            "default": "Ctrl+S",
+            "macos": "Super+S"
+          }
+        },
+        {
+          "id": "attach-file",
+          "title": "Attach a file",
+          "keys": {
+            "default": "Ctrl+Shift+A",
+            "macos": "Shift+Super+A"
+          }
+        },
+        {
+          "id": "insert-link",
+          "title": "Insert a link",
+          "keys": {
+            "default": "Ctrl+K",
+            "macos": "Super+K"
+          }
+        },
+        {
+          "id": "paste-plain",
+          "title": "Paste without formatting",
+          "keys": {
+            "default": "Ctrl+Shift+V",
+            "macos": "Shift+Super+V"
+          }
+        },
+        {
+          "id": "spell-check",
+          "title": "Check spelling",
+          "keys": {
+            "default": "Ctrl+Shift+P",
+            "macos": "Shift+Super+P"
+          }
+        },
+        {
+          "id": "bold",
+          "title": "Bold text",
+          "keys": {
+            "default": "Ctrl+B",
+            "macos": "Super+B"
+          }
+        },
+        {
+          "id": "italic",
+          "title": "Italicize text",
+          "keys": {
+            "default": "Ctrl+I",
+            "macos": "Super+I"
+          }
+        },
+        {
+          "id": "underline",
+          "title": "Underline text",
+          "keys": {
+            "default": "Ctrl+U",
+            "macos": "Super+U"
+          }
+        },
+        {
+          "id": "fixed-width",
+          "title": "Format text in a fixed-width font",
+          "keys": {
+            "default": "Ctrl+T",
+            "macos": "Super+T"
+          }
+        },
+        {
+          "id": "zoom-in",
+          "title": "Increase the message text size",
+          "keys": {
+            "default": [
+              "Ctrl+Shift+Equal",
+              "Ctrl+Equal"
+            ],
+            "macos": [
+              "Shift+Super+Equal",
+              "Super+Equal"
+            ]
+          }
+        },
+        {
+          "id": "zoom-out",
+          "title": "Decrease the message text size",
+          "keys": {
+            "default": "Ctrl+Minus",
+            "macos": "Super+Minus"
+          }
+        },
+        {
+          "id": "reset-zoom",
+          "title": "Reset the message text size",
+          "keys": {
+            "default": "Ctrl+0",
+            "macos": "Super+0"
+          }
+        }
+      ]
+    }
+  ]
+}

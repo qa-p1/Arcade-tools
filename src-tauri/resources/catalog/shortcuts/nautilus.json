@@ -1,0 +1,359 @@
+{
+  "schema": 1,
+  "id": "nautilus",
+  "name": "GNOME Files",
+  "checkedVersion": "50.3.1",
+  "sources": [
+    "https://help.gnome.org/gnome-help/files-browse.html",
+    "https://help.gnome.org/gnome-help/files-show-directory-path.html",
+    "https://help.gnome.org/gnome-help/files-search.html",
+    "https://gitlab.gnome.org/GNOME/nautilus/-/blob/50.3.1/src/nautilus-files-view.c",
+    "https://gitlab.gnome.org/GNOME/nautilus/-/blob/50.3.1/src/nautilus-window.c"
+  ],
+  "match": {
+    "linux": {
+      "class": [
+        "nautilus",
+        "org.gnome.Nautilus"
+      ]
+    }
+  },
+  "groups": [
+    {
+      "title": "Find and open locations",
+      "context": "navigation",
+      "shortcuts": [
+        {
+          "id": "search-files",
+          "title": "Search the current location",
+          "keys": {
+            "default": "Ctrl+F"
+          }
+        },
+        {
+          "id": "enter-location",
+          "title": "Enter a location or path",
+          "keys": {
+            "default": "Ctrl+L"
+          }
+        },
+        {
+          "id": "open-item-location",
+          "title": "Open the selected item's location",
+          "keys": {
+            "default": "Ctrl+Alt+O"
+          }
+        }
+      ]
+    },
+    {
+      "title": "File actions",
+      "context": "files",
+      "shortcuts": [
+        {
+          "id": "open-with-default",
+          "title": "Open the selected item",
+          "keys": {
+            "default": "Enter"
+          }
+        },
+        {
+          "id": "open-new-tab",
+          "title": "Open the selected item in a new tab",
+          "keys": {
+            "default": "Ctrl+Enter"
+          }
+        },
+        {
+          "id": "open-new-window",
+          "title": "Open the selected item in a new window",
+          "keys": {
+            "default": "Shift+Enter"
+          }
+        },
+        {
+          "id": "properties",
+          "title": "Show item properties",
+          "keys": {
+            "default": [
+              "Ctrl+I",
+              "Alt+Enter"
+            ]
+          }
+        },
+        {
+          "id": "copy",
+          "title": "Copy selected items",
+          "keys": {
+            "default": [
+              "Ctrl+C",
+              "Ctrl+Insert"
+            ]
+          }
+        },
+        {
+          "id": "cut",
+          "title": "Cut selected items",
+          "keys": {
+            "default": "Ctrl+X"
+          }
+        },
+        {
+          "id": "paste",
+          "title": "Paste items",
+          "keys": {
+            "default": [
+              "Ctrl+V",
+              "Shift+Insert"
+            ]
+          }
+        },
+        {
+          "id": "move-to-trash",
+          "title": "Move selected items to Trash",
+          "keys": {
+            "default": "Delete"
+          }
+        },
+        {
+          "id": "delete-permanently",
+          "title": "Delete selected items permanently",
+          "keys": {
+            "default": "Shift+Delete"
+          }
+        },
+        {
+          "id": "rename",
+          "title": "Rename the selected item",
+          "keys": {
+            "default": "F2"
+          }
+        },
+        {
+          "id": "create-link",
+          "title": "Create a link to selected items",
+          "keys": {
+            "default": "Ctrl+M"
+          }
+        },
+        {
+          "id": "create-link-in-place",
+          "title": "Create links in the current location",
+          "keys": {
+            "default": "Ctrl+Shift+M"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Selection",
+      "context": "selection",
+      "shortcuts": [
+        {
+          "id": "select-all",
+          "title": "Select all items",
+          "keys": {
+            "default": "Ctrl+A"
+          }
+        },
+        {
+          "id": "invert-selection",
+          "title": "Invert the selection",
+          "keys": {
+            "default": "Ctrl+Shift+I"
+          }
+        },
+        {
+          "id": "select-pattern",
+          "title": "Select items by pattern",
+          "keys": {
+            "default": "Ctrl+S"
+          }
+        },
+        {
+          "id": "new-folder",
+          "title": "Create a folder",
+          "keys": {
+            "default": "Ctrl+Shift+N"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Window and tabs",
+      "context": "window",
+      "shortcuts": [
+        {
+          "id": "new-tab",
+          "title": "Open a new tab",
+          "keys": {
+            "default": "Ctrl+T"
+          }
+        },
+        {
+          "id": "close-tab",
+          "title": "Close the current tab",
+          "keys": {
+            "default": "Ctrl+W"
+          }
+        },
+        {
+          "id": "restore-tab",
+          "title": "Reopen the last closed tab",
+          "keys": {
+            "default": "Ctrl+Shift+T"
+          }
+        },
+        {
+          "id": "undo-file-operation",
+          "title": "Undo the last file operation",
+          "keys": {
+            "default": "Ctrl+Z"
+          }
+        },
+        {
+          "id": "redo-file-operation",
+          "title": "Redo the last undone file operation",
+          "keys": {
+            "default": "Ctrl+Shift+Z"
+          }
+        },
+        {
+          "id": "move-tab-left",
+          "title": "Move the current tab left",
+          "keys": {
+            "default": "Ctrl+Shift+PageUp"
+          }
+        },
+        {
+          "id": "move-tab-right",
+          "title": "Move the current tab right",
+          "keys": {
+            "default": "Ctrl+Shift+PageDown"
+          }
+        },
+        {
+          "id": "switch-tab-1",
+          "title": "Switch to tab 1",
+          "keys": {
+            "default": "Alt+1"
+          }
+        },
+        {
+          "id": "switch-tab-2",
+          "title": "Switch to tab 2",
+          "keys": {
+            "default": "Alt+2"
+          }
+        },
+        {
+          "id": "switch-tab-3",
+          "title": "Switch to tab 3",
+          "keys": {
+            "default": "Alt+3"
+          }
+        },
+        {
+          "id": "switch-tab-4",
+          "title": "Switch to tab 4",
+          "keys": {
+            "default": "Alt+4"
+          }
+        },
+        {
+          "id": "switch-tab-5",
+          "title": "Switch to tab 5",
+          "keys": {
+            "default": "Alt+5"
+          }
+        },
+        {
+          "id": "switch-tab-6",
+          "title": "Switch to tab 6",
+          "keys": {
+            "default": "Alt+6"
+          }
+        },
+        {
+          "id": "switch-tab-7",
+          "title": "Switch to tab 7",
+          "keys": {
+            "default": "Alt+7"
+          }
+        },
+        {
+          "id": "switch-tab-8",
+          "title": "Switch to tab 8",
+          "keys": {
+            "default": "Alt+8"
+          }
+        },
+        {
+          "id": "switch-tab-9",
+          "title": "Switch to tab 9",
+          "keys": {
+            "default": "Alt+9"
+          }
+        }
+      ]
+    },
+    {
+      "title": "View",
+      "context": "view",
+      "shortcuts": [
+        {
+          "id": "toggle-sidebar",
+          "title": "Show or hide the sidebar",
+          "keys": {
+            "default": "F9"
+          }
+        },
+        {
+          "id": "open-location-menu",
+          "title": "Open the location menu",
+          "keys": {
+            "default": "F10"
+          }
+        },
+        {
+          "id": "toggle-hidden-files",
+          "title": "Show or hide hidden files",
+          "keys": {
+            "default": "Ctrl+H"
+          }
+        },
+        {
+          "id": "zoom-in",
+          "title": "Zoom in",
+          "keys": {
+            "default": [
+              "Ctrl+Equal",
+              "Ctrl+Shift+Equal"
+            ]
+          }
+        },
+        {
+          "id": "zoom-out",
+          "title": "Zoom out",
+          "keys": {
+            "default": "Ctrl+Minus"
+          }
+        },
+        {
+          "id": "zoom-reset",
+          "title": "Reset zoom",
+          "keys": {
+            "default": "Ctrl+0"
+          }
+        },
+        {
+          "id": "preview-selection",
+          "title": "Preview the selected item",
+          "keys": {
+            "default": "Space"
+          }
+        }
+      ]
+    }
+  ]
+}

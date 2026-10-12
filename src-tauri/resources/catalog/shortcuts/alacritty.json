@@ -1,0 +1,414 @@
+{
+  "schema": 1,
+  "id": "alacritty",
+  "name": "Alacritty",
+  "checkedVersion": "0.17.0",
+  "sources": [
+    "https://alacritty.org/config-alacritty-bindings.html",
+    "https://alacritty.org/config-alacritty.html",
+    "https://github.com/alacritty/alacritty/releases"
+  ],
+  "match": {
+    "linux": {
+      "class": [
+        "Alacritty"
+      ]
+    },
+    "windows": {
+      "exe": [
+        "alacritty.exe"
+      ]
+    },
+    "macos": {
+      "bundle": [
+        "org.alacritty"
+      ]
+    }
+  },
+  "groups": [
+    {
+      "title": "Clipboard",
+      "context": "clipboard",
+      "shortcuts": [
+        {
+          "id": "copy",
+          "title": "Copy the selected text",
+          "keys": {
+            "default": "Ctrl+Shift+C",
+            "macos": "Super+C"
+          }
+        },
+        {
+          "id": "paste",
+          "title": "Paste from the clipboard",
+          "keys": {
+            "default": "Ctrl+Shift+V",
+            "macos": "Super+V"
+          }
+        },
+        {
+          "id": "paste-selection",
+          "title": "Paste from the primary selection",
+          "keys": {
+            "default": "Shift+Insert"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Scrollback",
+      "context": "scrollback",
+      "shortcuts": [
+        {
+          "id": "page-up",
+          "title": "Scroll up one page",
+          "keys": {
+            "default": "Shift+PageUp"
+          }
+        },
+        {
+          "id": "page-down",
+          "title": "Scroll down one page",
+          "keys": {
+            "default": "Shift+PageDown"
+          }
+        },
+        {
+          "id": "scroll-to-top",
+          "title": "Scroll to the top of history",
+          "keys": {
+            "default": "Shift+Home"
+          }
+        },
+        {
+          "id": "scroll-to-bottom",
+          "title": "Scroll to the bottom of history",
+          "keys": {
+            "default": "Shift+End"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Font size",
+      "context": "font",
+      "shortcuts": [
+        {
+          "id": "font-increase",
+          "title": "Increase font size",
+          "keys": {
+            "default": [
+              "Ctrl+Equal",
+              "Ctrl+Shift+Equal",
+              "Ctrl+NumpadAdd"
+            ],
+            "macos": [
+              "Super+Equal",
+              "Shift+Super+Equal",
+              "Super+NumpadAdd"
+            ]
+          }
+        },
+        {
+          "id": "font-decrease",
+          "title": "Decrease font size",
+          "keys": {
+            "default": [
+              "Ctrl+Minus",
+              "Ctrl+NumpadSubtract"
+            ],
+            "macos": [
+              "Super+Minus",
+              "Super+NumpadSubtract"
+            ]
+          }
+        },
+        {
+          "id": "font-reset",
+          "title": "Reset font size",
+          "keys": {
+            "default": [
+              "Ctrl+0",
+              "Ctrl+Numpad0"
+            ],
+            "macos": [
+              "Super+0"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "title": "Search",
+      "context": "search",
+      "shortcuts": [
+        {
+          "id": "search-forward",
+          "title": "Search forward through the terminal",
+          "keys": {
+            "default": "Ctrl+Shift+F",
+            "macos": "Super+F"
+          }
+        },
+        {
+          "id": "search-backward",
+          "title": "Search backward through the terminal",
+          "keys": {
+            "default": "Ctrl+Shift+B",
+            "macos": "Super+B"
+          }
+        },
+        {
+          "id": "search-cancel",
+          "title": "Exit search mode",
+          "keys": {
+            "default": [
+              "Escape",
+              "Ctrl+C"
+            ]
+          }
+        },
+        {
+          "id": "search-clear",
+          "title": "Clear the search text",
+          "keys": {
+            "default": "Ctrl+U"
+          }
+        },
+        {
+          "id": "search-delete-word",
+          "title": "Delete the previous search word",
+          "keys": {
+            "default": "Ctrl+W"
+          }
+        },
+        {
+          "id": "search-history-previous",
+          "title": "Recall the previous search",
+          "keys": {
+            "default": [
+              "Ctrl+P",
+              "Up"
+            ]
+          }
+        },
+        {
+          "id": "search-history-next",
+          "title": "Recall the next search",
+          "keys": {
+            "default": [
+              "Ctrl+N",
+              "Down"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "title": "Vi mode",
+      "context": "vi-mode",
+      "shortcuts": [
+        {
+          "id": "toggle-vi-mode",
+          "title": "Enter Vi mode or return to the scrollback bottom",
+          "keys": {
+            "default": "Ctrl+Shift+Space"
+          }
+        },
+        {
+          "id": "exit-vi-mode",
+          "title": "Exit Vi mode",
+          "keys": {
+            "default": "I",
+            "macos": "I"
+          }
+        },
+        {
+          "id": "vi-up",
+          "title": "Move the Vi cursor up",
+          "keys": {
+            "default": [
+              "K",
+              "Up"
+            ]
+          }
+        },
+        {
+          "id": "vi-down",
+          "title": "Move the Vi cursor down",
+          "keys": {
+            "default": [
+              "J",
+              "Down"
+            ]
+          }
+        },
+        {
+          "id": "vi-left",
+          "title": "Move the Vi cursor left",
+          "keys": {
+            "default": [
+              "H",
+              "Left"
+            ]
+          }
+        },
+        {
+          "id": "vi-right",
+          "title": "Move the Vi cursor right",
+          "keys": {
+            "default": [
+              "L",
+              "Right"
+            ]
+          }
+        },
+        {
+          "id": "vi-first-line",
+          "title": "Move to the first line",
+          "keys": {
+            "default": [
+              "Home",
+              "0"
+            ]
+          }
+        },
+        {
+          "id": "vi-last-line",
+          "title": "Move to the last line",
+          "keys": {
+            "default": [
+              "End",
+              "Shift+G"
+            ]
+          }
+        },
+        {
+          "id": "vi-top",
+          "title": "Jump to the top of scrollback",
+          "keys": {
+            "default": "G"
+          }
+        },
+        {
+          "id": "vi-page-up",
+          "title": "Scroll up one page",
+          "keys": {
+            "default": "Ctrl+B"
+          }
+        },
+        {
+          "id": "vi-page-down",
+          "title": "Scroll down one page",
+          "keys": {
+            "default": "Ctrl+F"
+          }
+        },
+        {
+          "id": "vi-half-page-up",
+          "title": "Scroll up half a page",
+          "keys": {
+            "default": "Ctrl+U"
+          }
+        },
+        {
+          "id": "vi-half-page-down",
+          "title": "Scroll down half a page",
+          "keys": {
+            "default": "Ctrl+D"
+          }
+        },
+        {
+          "id": "vi-word-left",
+          "title": "Move to the previous word",
+          "keys": {
+            "default": "Shift+B"
+          }
+        },
+        {
+          "id": "vi-word-right",
+          "title": "Move to the next word",
+          "keys": {
+            "default": "Shift+W"
+          }
+        },
+        {
+          "id": "vi-select",
+          "title": "Start or extend a text selection",
+          "keys": {
+            "default": "V"
+          }
+        },
+        {
+          "id": "vi-select-line",
+          "title": "Select whole lines",
+          "keys": {
+            "default": "Shift+V"
+          }
+        },
+        {
+          "id": "vi-copy",
+          "title": "Copy the selection",
+          "keys": {
+            "default": "Y"
+          }
+        },
+        {
+          "id": "vi-open-link",
+          "title": "Open the URL under the cursor",
+          "keys": {
+            "default": "Enter"
+          }
+        },
+        {
+          "id": "vi-center",
+          "title": "Center the view around the cursor",
+          "keys": {
+            "default": "Z"
+          }
+        },
+        {
+          "id": "vi-search-forward",
+          "title": "Search forward in Vi mode",
+          "keys": {
+            "default": "Slash"
+          }
+        },
+        {
+          "id": "vi-search-backward",
+          "title": "Search backward in Vi mode",
+          "keys": {
+            "default": "Shift+Slash"
+          }
+        },
+        {
+          "id": "vi-next-match",
+          "title": "Go to the next search match",
+          "keys": {
+            "default": "N"
+          }
+        },
+        {
+          "id": "vi-previous-match",
+          "title": "Go to the previous search match",
+          "keys": {
+            "default": "Shift+N"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Window management",
+      "context": "window-management",
+      "shortcuts": [
+        {
+          "id": "fullscreen",
+          "title": "Toggle full-screen mode",
+          "keys": {
+            "windows": "Alt+Enter"
+          }
+        }
+      ]
+    }
+  ]
+}

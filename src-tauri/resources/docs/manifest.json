@@ -1,62 +1,314 @@
 {
   "schema": 1,
-  "contentBytes": 21690,
+  "contentBytes": 163544,
   "entries": [
     {
       "id": "arcade.box",
       "repo": "qa-p1/Arcade-box",
       "version": "local",
       "ref": "working-tree",
-      "status": "no_docs",
-      "files": []
+      "status": "snapshotted",
+      "files": [
+        {
+          "path": "faq.md",
+          "size": 1793,
+          "sha256": "a207ff1b5e311b849f540c028b3502942e902b44121a6321b9ed37afaa18e654"
+        },
+        {
+          "path": "features.md",
+          "size": 5314,
+          "sha256": "a86712786a234a21a0a71b54c447ac3f39087c4fd3200e768db1d0b73efcf7ea"
+        },
+        {
+          "path": "getting-started.md",
+          "size": 2310,
+          "sha256": "324f0bd735ca7b897f40ae0bd4dbbb55a24617fb537571df3693578bd41ee15a"
+        },
+        {
+          "path": "index.md",
+          "size": 891,
+          "sha256": "19c72a01ceb3e81819fe97ea2c5802caae3fd48c4d3c7026c36976a88c5a7e52"
+        },
+        {
+          "path": "shortcuts.json",
+          "size": 3409,
+          "sha256": "ac2c4df4eba91991fd41c7042e4794c28fa882b990a04235241c7eee2cf6679d"
+        },
+        {
+          "path": "troubleshooting.md",
+          "size": 2156,
+          "sha256": "10e68062af92fe83b765261430fd5302e63011b63606cf18ba304a30e8f12d63"
+        },
+        {
+          "path": "with-other-apps.md",
+          "size": 1478,
+          "sha256": "32633bc57e4406364bf96751a3eaf0a18b1a91ae5fd16925178d3c34624553a8"
+        }
+      ]
     },
     {
       "id": "arcade.clipboard",
       "repo": "qa-p1/Arcade-clipboard",
       "version": "local",
       "ref": "working-tree",
-      "status": "no_docs",
-      "files": []
+      "status": "snapshotted",
+      "files": [
+        {
+          "path": "faq.md",
+          "size": 1423,
+          "sha256": "06e44d3120be32b59d39b5c35af1249577f669739fb4f4787807a19156fb44a0"
+        },
+        {
+          "path": "features.md",
+          "size": 2866,
+          "sha256": "5b01fc19421742b3bd69ec580d7188288b290ee7e698b5a95213e7476841123e"
+        },
+        {
+          "path": "getting-started.md",
+          "size": 3505,
+          "sha256": "56777290d886cd83252f384ce96696cfb212f79ff23cb146371626d89cb608a7"
+        },
+        {
+          "path": "index.md",
+          "size": 676,
+          "sha256": "8cc9c34bdf78dc240a2425a9042d7f36f1ad6a7c1afde7360bb16bc41b9ab4cd"
+        },
+        {
+          "path": "shortcuts.json",
+          "size": 2421,
+          "sha256": "d1f1227369303bdbc798d723979a2011169c20dba3f42a6c06313e944ef7aad1"
+        },
+        {
+          "path": "troubleshooting.md",
+          "size": 2606,
+          "sha256": "8efe7d482fbad86d4c8d28f5e5e7330418864779b5218fdaad4a33a7eb0c779a"
+        },
+        {
+          "path": "with-other-apps.md",
+          "size": 1876,
+          "sha256": "429a74eeb67edab44d58a6a2e0a999279167ee0b63f6cee702001fea42c75a81"
+        }
+      ]
     },
     {
       "id": "arcade.find",
       "repo": "qa-p1/Arcade-Find",
       "version": "local",
       "ref": "working-tree",
-      "status": "no_docs",
-      "files": []
+      "status": "snapshotted",
+      "files": [
+        {
+          "path": "faq.md",
+          "size": 1158,
+          "sha256": "ba0cb1577ddb72b6d85cb6c171cd24cb0dc4cf594c11e3f48d395959c991d2c7"
+        },
+        {
+          "path": "features.md",
+          "size": 3267,
+          "sha256": "01da0a27852c69f43d392a0a422c0f3c5098bd6bbb68126e7d7838d68a536c5c"
+        },
+        {
+          "path": "getting-started.md",
+          "size": 2459,
+          "sha256": "c49cced80ea0b505df6c0f3e638a5465886aef1da6985383bb453ba39254e075"
+        },
+        {
+          "path": "index.md",
+          "size": 722,
+          "sha256": "f0bc92c85fc4e9d98d711fc9346b68dc82bff8e580d3fcb0b04576071feefcd1"
+        },
+        {
+          "path": "shortcuts.json",
+          "size": 6572,
+          "sha256": "a4c8309c8f7d8206f707ce6c54ec771429b196ebc22ce678b9ae8ddd2c285856"
+        },
+        {
+          "path": "troubleshooting.md",
+          "size": 1851,
+          "sha256": "8c4f787ac6b9e6eccd2f03e77c4d5cf45ad0768c607db45fef8a95e3c2841df0"
+        },
+        {
+          "path": "with-other-apps.md",
+          "size": 1559,
+          "sha256": "f8679fe9703ee8245a3cdc00664d3edf8b1b65e9f41017e8f013eb2ec43686d4"
+        }
+      ]
     },
     {
       "id": "arcade.lens",
       "repo": "qa-p1/Arcade-lens",
       "version": "local",
       "ref": "working-tree",
-      "status": "no_docs",
-      "files": []
+      "status": "snapshotted",
+      "files": [
+        {
+          "path": "faq.md",
+          "size": 1697,
+          "sha256": "27a69618fa6183503a5d96af1bccc7e861cfa4e49f1b06b4586f1075efc95800"
+        },
+        {
+          "path": "features.md",
+          "size": 4898,
+          "sha256": "51a980eb0ec9f32feb5e4424374cd6b7d69df2cf90087914c3be7890f83f3a67"
+        },
+        {
+          "path": "getting-started.md",
+          "size": 2638,
+          "sha256": "c3c448b44b7e25d64e53625b9c26e4a34f0e172448c5bcaceb1050081ea4d4b1"
+        },
+        {
+          "path": "index.md",
+          "size": 674,
+          "sha256": "39198cb84bee0fb9473454a9ba320d47ac13050a0920224e6465b0f847e7f67f"
+        },
+        {
+          "path": "shortcuts.json",
+          "size": 9266,
+          "sha256": "5a118bc79c7e6032c4aaa78938fc36f17d5ce3d72a312d03a738be19abf5fe01"
+        },
+        {
+          "path": "troubleshooting.md",
+          "size": 2231,
+          "sha256": "e06c5660d38b9a708abc8a92574bff1341b3e5ff4d04f909bc7e7790911a70c5"
+        },
+        {
+          "path": "with-other-apps.md",
+          "size": 1616,
+          "sha256": "970410bf33d4e23e68d0c70dad166cfca240920634286d65642253520eb12dc2"
+        }
+      ]
     },
     {
       "id": "arcade.look",
       "repo": "qa-p1/arcade-look",
       "version": "local",
       "ref": "working-tree",
-      "status": "no_docs",
-      "files": []
+      "status": "snapshotted",
+      "files": [
+        {
+          "path": "faq.md",
+          "size": 1739,
+          "sha256": "e9778dd2b2c2408442d2f4d0ee5085f064b91ae7337860c5007a56dfdf8d7054"
+        },
+        {
+          "path": "features.md",
+          "size": 5410,
+          "sha256": "4338b64127b71bd473bd18c5a0a5cf7f834c14a2d5167cc65f5e1e23d0def4e1"
+        },
+        {
+          "path": "getting-started.md",
+          "size": 2995,
+          "sha256": "0fe09a40374e3890278b2b548b96a7caa03a2cefb7679752148d5c6e45fc6fb6"
+        },
+        {
+          "path": "index.md",
+          "size": 1089,
+          "sha256": "e821841492f3c80706f8e332cacf8fca56d870ca30070d4bbf9f6daefbaf759b"
+        },
+        {
+          "path": "shortcuts.json",
+          "size": 12476,
+          "sha256": "deedc27a0f80eaabb3cd5ccbe50e5535a5e9ef4e141b9f254a80bde49e8bada3"
+        },
+        {
+          "path": "troubleshooting.md",
+          "size": 2326,
+          "sha256": "9d118478489918ec1a496118c670e0d039061c922a3223da68c4c17ab91b12dd"
+        },
+        {
+          "path": "with-other-apps.md",
+          "size": 1811,
+          "sha256": "f4436be073500395dada3ae9a3d93dc02fb15dae5f98102573854d792a097fe6"
+        }
+      ]
     },
     {
       "id": "arcade.shelf",
       "repo": "qa-p1/Arcade-Shelf",
       "version": "local",
       "ref": "working-tree",
-      "status": "no_docs",
-      "files": []
+      "status": "snapshotted",
+      "files": [
+        {
+          "path": "faq.md",
+          "size": 1385,
+          "sha256": "25d9d6e22668bd28e966ffd65def9ec26f41d9dc631fc5bac1b438edf11d827b"
+        },
+        {
+          "path": "features.md",
+          "size": 3771,
+          "sha256": "f2ded2a6fe94d784ed0137ef38818448b699bbe886720c71f54a72a6f7093371"
+        },
+        {
+          "path": "getting-started.md",
+          "size": 2471,
+          "sha256": "53db04e9bfa1834bf06b718962e1180ee3ae346299e1ae821187a80be1e3d920"
+        },
+        {
+          "path": "index.md",
+          "size": 1034,
+          "sha256": "800a64339d922ec8c6aa22f0f473f5b441f8d31ca0d7c23b8792870d362e72ce"
+        },
+        {
+          "path": "shortcuts.json",
+          "size": 3907,
+          "sha256": "a4b5bac03a71112ea1909f3d59fc82325bb360b57707be34eaf9436382795b2c"
+        },
+        {
+          "path": "troubleshooting.md",
+          "size": 2079,
+          "sha256": "c3403b68d9fa058a73a985a48e583829468edb00ce645712d2dc47d73b3bb680"
+        },
+        {
+          "path": "with-other-apps.md",
+          "size": 1864,
+          "sha256": "70c21c7a8ef70d12bbe1a79ffaf1b9f2e0c33160dc101d620a4d029928baf5dc"
+        }
+      ]
     },
     {
       "id": "arcade.wheel",
       "repo": "qa-p1/Arcade-wheel",
       "version": "local",
       "ref": "working-tree",
-      "status": "no_docs",
-      "files": []
+      "status": "snapshotted",
+      "files": [
+        {
+          "path": "faq.md",
+          "size": 1395,
+          "sha256": "0288eaf24fb7d8b7c1f260c706b70321b0ed4e866c555277b1caff3255beef45"
+        },
+        {
+          "path": "features.md",
+          "size": 4628,
+          "sha256": "424fc3c3a87768b82c6cd89e7ee3c226ff3be593c0e34d16e11402e2cabbd7e3"
+        },
+        {
+          "path": "getting-started.md",
+          "size": 2570,
+          "sha256": "212336f5dd68e8ae72b045b6c0b08df01d91abd314443396513ab3d6de8ca57a"
+        },
+        {
+          "path": "index.md",
+          "size": 883,
+          "sha256": "7da8b1b7f5cb1da4bd22e0ea4a1d1363f88cee8aaa5c49a2eb5be6c438d9d9ec"
+        },
+        {
+          "path": "shortcuts.json",
+          "size": 3411,
+          "sha256": "85ac9b77edf1c1cf8e6c7e3522cbb2f43fc028009083326a6cf7384d5dc7bb97"
+        },
+        {
+          "path": "troubleshooting.md",
+          "size": 2907,
+          "sha256": "edc2fdf5d88578da68f45f7acb9252e2d39b2e15d05e684b816b206c2fdfaff5"
+        },
+        {
+          "path": "with-other-apps.md",
+          "size": 2166,
+          "sha256": "ca4f396b665d2a01be9a7543bfa744aca4ec70273f0b745a79d7bc92a8677973"
+        }
+      ]
     },
     {
       "id": "arcade.ecosystem",
@@ -109,6 +361,55 @@
           "path": "uninstalling.md",
           "size": 3016,
           "sha256": "2b7f0450ce5c8df06719d9e6d83ec253dac1c38dac1005a3c0d830957e6f1e9b"
+        }
+      ]
+    },
+    {
+      "id": "arcade.tools",
+      "repo": "qa-p1/Arcade-tools",
+      "version": "local",
+      "ref": "working-tree",
+      "status": "snapshotted",
+      "files": [
+        {
+          "path": "faq.md",
+          "size": 935,
+          "sha256": "87b4f09e3ef63fbbfec3d4ff7635396a704cf0d361ec8b11f3f64817227ad4f8"
+        },
+        {
+          "path": "features.md",
+          "size": 1348,
+          "sha256": "3f55584754c68451201981d1b7a5075952975411b42014966986d5c20f2d841b"
+        },
+        {
+          "path": "getting-started.md",
+          "size": 692,
+          "sha256": "ddffb26011666105e80df09ec4fd03863bcfd9f09b57464b0ce08494eed14950"
+        },
+        {
+          "path": "index.md",
+          "size": 354,
+          "sha256": "9809242e880d6d076a2b9cf008c22b863d34912a1c1a5b6d04b2d7fce6cdb355"
+        },
+        {
+          "path": "shortcuts.json",
+          "size": 856,
+          "sha256": "1660fbe48b9dda5f680e5fd5390437819681c8c5edad8c80d66544a38d8a8681"
+        },
+        {
+          "path": "shortcuts.md",
+          "size": 308,
+          "sha256": "d9c85cd57885973c1d6262abf270778629e44d9bf801db2363388ae29045ecfd"
+        },
+        {
+          "path": "troubleshooting.md",
+          "size": 965,
+          "sha256": "e31c5428e8d134848c9f6227eded7c40c5df3934cec626cf80c067d5bb34e02b"
+        },
+        {
+          "path": "with-other-apps.md",
+          "size": 747,
+          "sha256": "8b47ec8030766838c01136051aeb5eb38ec49c151664dd54786c656d4a284683"
         }
       ]
     }

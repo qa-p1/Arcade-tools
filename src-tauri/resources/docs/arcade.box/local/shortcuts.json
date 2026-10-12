@@ -1,0 +1,70 @@
+{
+  "schema": 1,
+  "app": "arcade.box",
+  "version": "0.1.2",
+  "groups": [
+    {
+      "title": "Global",
+      "context": "global",
+      "shortcuts": [
+        {
+          "id": "island",
+          "title": "Show or hide the Arcade Island",
+          "keys": { "default": "Ctrl+Alt+Space", "macos": "Shift+Super+Space" },
+          "rebindable": true
+        }
+      ]
+    },
+    {
+      "title": "Island window",
+      "context": "window",
+      "shortcuts": [
+        { "id": "focus-search", "title": "Focus search", "keys": { "default": "Ctrl+K", "macos": "Super+K" } },
+        { "id": "show-search", "title": "Open the Island search", "keys": { "default": "Slash" } },
+        { "id": "dismiss-window", "title": "Dismiss the Island", "keys": { "default": "Escape" } },
+        { "id": "back-to-dashboard", "title": "Return to the dashboard", "keys": { "default": "Alt+Left" } },
+        { "id": "submit-tool", "title": "Run the selected tool", "keys": { "default": "Ctrl+Enter", "macos": "Super+Enter" } },
+        { "id": "copy-result", "title": "Copy the current result", "keys": { "default": "Ctrl+Shift+C", "macos": "Shift+Super+C" } },
+        { "id": "choose-input-file", "title": "Choose an input file", "keys": { "default": "Ctrl+O", "macos": "Super+O" } }
+      ]
+    },
+    {
+      "title": "Search results",
+      "context": "search-results",
+      "shortcuts": [
+        { "id": "move-up", "title": "Move to the previous result", "keys": { "default": "Up" } },
+        { "id": "move-down", "title": "Move to the next result", "keys": { "default": "Down" } },
+        { "id": "open-result", "title": "Open or run the selected result", "keys": { "default": "Enter" } },
+        { "id": "clear-search", "title": "Clear the search or close the Island", "keys": { "default": "Escape" } }
+      ]
+    },
+    {
+      "title": "Screen ruler",
+      "context": "screen-ruler",
+      "shortcuts": [
+        { "id": "move-ruler-cursor", "title": "Move the screen measurement cursor", "keys": { "default": ["Left", "Right", "Up", "Down"] } },
+        { "id": "reset-ruler-cursor", "title": "Return the cursor to the center", "keys": { "default": "Home" } },
+        { "id": "set-ruler-point", "title": "Set a measurement point", "keys": { "default": ["Enter", "Space"] } }
+      ]
+    },
+    {
+      "title": "Screen color sampler",
+      "context": "screen-color-sampler",
+      "shortcuts": [
+        { "id": "move-sampler-cursor", "title": "Move the sampling cursor", "keys": { "default": ["Left", "Right", "Up", "Down"] } },
+        { "id": "reset-sampler-cursor", "title": "Return the cursor to the center", "keys": { "default": "Home" } },
+        { "id": "sample-color", "title": "Sample the selected pixel", "keys": { "default": ["Enter", "Space"] } }
+      ]
+    },
+    {
+      "title": "Media timeline",
+      "context": "media-timeline",
+      "shortcuts": [
+        { "id": "seek-coarse", "title": "Move the selected timeline handle", "keys": { "default": ["Left", "Down", "Right", "Up"] } },
+        { "id": "seek-fine", "title": "Move a timeline handle by one second", "keys": { "default": ["Shift+Left", "Shift+Down", "Shift+Right", "Shift+Up"] } },
+        { "id": "seek-start", "title": "Move a timeline handle to the start", "keys": { "default": "Home" } },
+        { "id": "seek-end", "title": "Move a timeline handle to the end", "keys": { "default": "End" } }
+      ]
+    }
+  ]
+}

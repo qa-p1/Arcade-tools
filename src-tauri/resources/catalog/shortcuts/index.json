@@ -1,0 +1,651 @@
+{
+  "schema": 1,
+  "sheets": [
+    {
+      "id": "alacritty",
+      "name": "Alacritty",
+      "file": "shortcuts/alacritty.json",
+      "match": {
+        "linux": {
+          "class": [
+            "Alacritty"
+          ]
+        },
+        "windows": {
+          "exe": [
+            "alacritty.exe"
+          ]
+        },
+        "macos": {
+          "bundle": [
+            "org.alacritty"
+          ]
+        }
+      }
+    },
+    {
+      "id": "blender",
+      "name": "Blender",
+      "file": "shortcuts/blender.json",
+      "match": {
+        "linux": {
+          "class": [
+            "blender"
+          ]
+        },
+        "windows": {
+          "exe": [
+            "blender.exe"
+          ]
+        },
+        "macos": {
+          "bundle": [
+            "org.blenderfoundation.blender"
+          ]
+        }
+      }
+    },
+    {
+      "id": "chromium",
+      "name": "Chromium-family browsers",
+      "file": "shortcuts/chromium.json",
+      "match": {
+        "linux": {
+          "class": [
+            "chromium",
+            "Google-chrome",
+            "google-chrome",
+            "brave-browser",
+            "Brave-browser",
+            "microsoft-edge",
+            "Microsoft-edge",
+            "vivaldi-stable",
+            "Vivaldi-stable"
+          ]
+        },
+        "windows": {
+          "exe": [
+            "chromium.exe",
+            "chrome.exe",
+            "brave.exe",
+            "msedge.exe",
+            "vivaldi.exe"
+          ]
+        },
+        "macos": {
+          "bundle": [
+            "org.chromium.Chromium",
+            "com.google.Chrome",
+            "com.brave.Browser",
+            "com.microsoft.edgemac",
+            "com.vivaldi.Vivaldi"
+          ]
+        }
+      }
+    },
+    {
+      "id": "discord",
+      "name": "Discord",
+      "file": "shortcuts/discord.json",
+      "match": {
+        "linux": {
+          "class": [
+            "discord",
+            "Discord"
+          ]
+        },
+        "windows": {
+          "exe": [
+            "Discord.exe"
+          ]
+        },
+        "macos": {
+          "bundle": [
+            "com.hnc.Discord"
+          ]
+        }
+      }
+    },
+    {
+      "id": "dolphin",
+      "name": "Dolphin",
+      "file": "shortcuts/dolphin.json",
+      "match": {
+        "linux": {
+          "class": [
+            "dolphin",
+            "org.kde.dolphin"
+          ]
+        }
+      }
+    },
+    {
+      "id": "firefox",
+      "name": "Firefox",
+      "file": "shortcuts/firefox.json",
+      "match": {
+        "linux": {
+          "class": [
+            "firefox",
+            "org.mozilla.firefox"
+          ]
+        },
+        "windows": {
+          "exe": [
+            "firefox.exe"
+          ]
+        },
+        "macos": {
+          "bundle": [
+            "org.mozilla.firefox"
+          ]
+        }
+      }
+    },
+    {
+      "id": "foot",
+      "name": "foot",
+      "file": "shortcuts/foot.json",
+      "match": {
+        "linux": {
+          "class": [
+            "foot",
+            "footclient"
+          ]
+        }
+      }
+    },
+    {
+      "id": "gimp",
+      "name": "GIMP",
+      "file": "shortcuts/gimp.json",
+      "match": {
+        "linux": {
+          "class": [
+            "gimp",
+            "org.gimp.GIMP"
+          ]
+        },
+        "windows": {
+          "exe": [
+            "gimp-3.0.exe"
+          ]
+        },
+        "macos": {
+          "bundle": [
+            "org.gimp.GIMP"
+          ]
+        }
+      }
+    },
+    {
+      "id": "gnome-terminal",
+      "name": "GNOME Terminal",
+      "file": "shortcuts/gnome-terminal.json",
+      "match": {
+        "linux": {
+          "class": [
+            "org.gnome.Terminal"
+          ]
+        }
+      }
+    },
+    {
+      "id": "inkscape",
+      "name": "Inkscape",
+      "file": "shortcuts/inkscape.json",
+      "match": {
+        "linux": {
+          "class": [
+            "inkscape",
+            "org.inkscape.Inkscape"
+          ]
+        },
+        "windows": {
+          "exe": [
+            "inkscape.exe"
+          ]
+        },
+        "macos": {
+          "bundle": [
+            "org.inkscape.Inkscape"
+          ]
+        }
+      }
+    },
+    {
+      "id": "jetbrains",
+      "name": "JetBrains IDEs",
+      "file": "shortcuts/jetbrains.json",
+      "match": {
+        "linux": {
+          "class": [
+            "jetbrains-idea",
+            "jetbrains-pycharm",
+            "jetbrains-webstorm",
+            "jetbrains-clion",
+            "jetbrains-goland",
+            "jetbrains-rustrover",
+            "jetbrains-rider",
+            "jetbrains-datagrip",
+            "jetbrains-phpstorm",
+            "jetbrains-rubymine"
+          ]
+        },
+        "windows": {
+          "exe": [
+            "idea64.exe",
+            "pycharm64.exe",
+            "webstorm64.exe",
+            "clion64.exe",
+            "goland64.exe",
+            "rustrover64.exe",
+            "rider64.exe",
+            "datagrip64.exe",
+            "phpstorm64.exe",
+            "rubymine64.exe"
+          ]
+        },
+        "macos": {
+          "bundle": [
+            "com.jetbrains.IntelliJIdea",
+            "com.jetbrains.PyCharm",
+            "com.jetbrains.WebStorm",
+            "com.jetbrains.CLion",
+            "com.jetbrains.GoLand",
+            "com.jetbrains.RustRover",
+            "com.jetbrains.Rider",
+            "com.jetbrains.DataGrip",
+            "com.jetbrains.PhpStorm",
+            "com.jetbrains.RubyMine"
+          ]
+        }
+      }
+    },
+    {
+      "id": "kitty",
+      "name": "kitty",
+      "file": "shortcuts/kitty.json",
+      "match": {
+        "linux": {
+          "class": [
+            "kitty"
+          ]
+        },
+        "windows": {
+          "exe": [
+            "kitty.exe"
+          ]
+        },
+        "macos": {
+          "bundle": [
+            "net.kovidgoyal.kitty"
+          ]
+        }
+      }
+    },
+    {
+      "id": "konsole",
+      "name": "Konsole",
+      "file": "shortcuts/konsole.json",
+      "match": {
+        "linux": {
+          "class": [
+            "org.kde.konsole",
+            "konsole"
+          ]
+        }
+      }
+    },
+    {
+      "id": "libreoffice-calc",
+      "name": "LibreOffice Calc",
+      "file": "shortcuts/libreoffice-calc.json",
+      "match": {
+        "linux": {
+          "class": [
+            "libreoffice-calc"
+          ]
+        },
+        "windows": {
+          "exe": [
+            "scalc.exe"
+          ]
+        }
+      }
+    },
+    {
+      "id": "libreoffice-writer",
+      "name": "LibreOffice Writer",
+      "file": "shortcuts/libreoffice-writer.json",
+      "match": {
+        "linux": {
+          "class": [
+            "libreoffice-writer"
+          ]
+        },
+        "windows": {
+          "exe": [
+            "swriter.exe"
+          ]
+        }
+      }
+    },
+    {
+      "id": "macos-system",
+      "name": "macOS system shortcuts",
+      "file": "shortcuts/macos-system.json",
+      "match": {
+        "macos": {
+          "bundle": [
+            "*"
+          ]
+        }
+      }
+    },
+    {
+      "id": "mpv",
+      "name": "mpv",
+      "file": "shortcuts/mpv.json",
+      "match": {
+        "linux": {
+          "class": [
+            "mpv"
+          ]
+        },
+        "windows": {
+          "exe": [
+            "mpv.exe"
+          ]
+        },
+        "macos": {
+          "bundle": [
+            "io.mpv"
+          ]
+        }
+      }
+    },
+    {
+      "id": "nautilus",
+      "name": "GNOME Files",
+      "file": "shortcuts/nautilus.json",
+      "match": {
+        "linux": {
+          "class": [
+            "nautilus",
+            "org.gnome.Nautilus"
+          ]
+        }
+      }
+    },
+    {
+      "id": "obsidian",
+      "name": "Obsidian",
+      "file": "shortcuts/obsidian.json",
+      "match": {
+        "linux": {
+          "class": [
+            "obsidian"
+          ]
+        },
+        "windows": {
+          "exe": [
+            "Obsidian.exe"
+          ]
+        },
+        "macos": {
+          "bundle": [
+            "md.obsidian"
+          ]
+        }
+      }
+    },
+    {
+      "id": "ptyxis",
+      "name": "Ptyxis",
+      "file": "shortcuts/ptyxis.json",
+      "match": {
+        "linux": {
+          "class": [
+            "org.gnome.Ptyxis"
+          ]
+        }
+      }
+    },
+    {
+      "id": "slack",
+      "name": "Slack",
+      "file": "shortcuts/slack.json",
+      "match": {
+        "linux": {
+          "class": [
+            "slack",
+            "Slack"
+          ]
+        },
+        "windows": {
+          "exe": [
+            "slack.exe"
+          ]
+        },
+        "macos": {
+          "bundle": [
+            "com.tinyspeck.slackmacgap"
+          ]
+        }
+      }
+    },
+    {
+      "id": "spotify",
+      "name": "Spotify",
+      "file": "shortcuts/spotify.json",
+      "match": {
+        "linux": {
+          "class": [
+            "spotify",
+            "Spotify"
+          ]
+        },
+        "windows": {
+          "exe": [
+            "Spotify.exe"
+          ]
+        },
+        "macos": {
+          "bundle": [
+            "com.spotify.client"
+          ]
+        }
+      }
+    },
+    {
+      "id": "t3-code",
+      "name": "T3 Code",
+      "file": "shortcuts/t3-code.json",
+      "match": {
+        "linux": {
+          "class": [
+            "com.t3tools.T3Code"
+          ]
+        },
+        "windows": {
+          "exe": [
+            "T3 Code (Alpha).exe"
+          ]
+        },
+        "macos": {
+          "bundle": [
+            "com.t3tools.t3code"
+          ]
+        }
+      }
+    },
+    {
+      "id": "telegram",
+      "name": "Telegram Desktop",
+      "file": "shortcuts/telegram.json",
+      "match": {
+        "linux": {
+          "class": [
+            "org.telegram.desktop",
+            "TelegramDesktop"
+          ]
+        },
+        "windows": {
+          "exe": [
+            "Telegram.exe",
+            "TelegramDesktop.exe"
+          ]
+        },
+        "macos": {
+          "bundle": [
+            "org.telegram.desktop"
+          ]
+        }
+      }
+    },
+    {
+      "id": "thunar",
+      "name": "Thunar",
+      "file": "shortcuts/thunar.json",
+      "match": {
+        "linux": {
+          "class": [
+            "thunar",
+            "Thunar"
+          ]
+        }
+      }
+    },
+    {
+      "id": "thunderbird",
+      "name": "Thunderbird",
+      "file": "shortcuts/thunderbird.json",
+      "match": {
+        "linux": {
+          "class": [
+            "thunderbird",
+            "org.mozilla.Thunderbird"
+          ]
+        },
+        "windows": {
+          "exe": [
+            "thunderbird.exe"
+          ]
+        },
+        "macos": {
+          "bundle": [
+            "org.mozilla.thunderbird"
+          ]
+        }
+      }
+    },
+    {
+      "id": "vlc",
+      "name": "VLC",
+      "file": "shortcuts/vlc.json",
+      "match": {
+        "linux": {
+          "class": [
+            "vlc",
+            "org.videolan.VLC"
+          ]
+        },
+        "windows": {
+          "exe": [
+            "vlc.exe"
+          ]
+        },
+        "macos": {
+          "bundle": [
+            "org.videolan.vlc"
+          ]
+        }
+      }
+    },
+    {
+      "id": "vscode",
+      "name": "Visual Studio Code",
+      "file": "shortcuts/vscode.json",
+      "match": {
+        "linux": {
+          "class": [
+            "code",
+            "code-oss",
+            "codium"
+          ]
+        },
+        "windows": {
+          "exe": [
+            "Code.exe",
+            "Code - OSS.exe",
+            "VSCodium.exe"
+          ]
+        },
+        "macos": {
+          "bundle": [
+            "com.microsoft.VSCode",
+            "com.vscodium",
+            "com.visualstudio.code.oss"
+          ]
+        }
+      }
+    },
+    {
+      "id": "wezterm",
+      "name": "WezTerm",
+      "file": "shortcuts/wezterm.json",
+      "match": {
+        "linux": {
+          "class": [
+            "org.wezfurlong.wezterm"
+          ]
+        },
+        "windows": {
+          "exe": [
+            "wezterm-gui.exe"
+          ]
+        },
+        "macos": {
+          "bundle": [
+            "org.wezfurlong.wezterm"
+          ]
+        }
+      }
+    },
+    {
+      "id": "windows-system",
+      "name": "Windows system shortcuts",
+      "file": "shortcuts/windows-system.json",
+      "match": {
+        "windows": {
+          "exe": [
+            "*"
+          ]
+        }
+      }
+    },
+    {
+      "id": "zed",
+      "name": "Zed",
+      "file": "shortcuts/zed.json",
+      "match": {
+        "linux": {
+          "class": [
+            "dev.zed.Zed"
+          ]
+        },
+        "windows": {
+          "exe": [
+            "zed.exe"
+          ]
+        },
+        "macos": {
+          "bundle": [
+            "dev.zed.Zed"
+          ]
+        }
+      }
+    }
+  ]
+}
