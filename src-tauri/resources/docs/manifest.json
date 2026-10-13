@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "contentBytes": 163544,
+  "contentBytes": 165299,
   "entries": [
     {
       "id": "arcade.box",
@@ -383,8 +383,8 @@
         },
         {
           "path": "getting-started.md",
-          "size": 692,
-          "sha256": "ddffb26011666105e80df09ec4fd03863bcfd9f09b57464b0ce08494eed14950"
+          "size": 2447,
+          "sha256": "161d066e38e2295e9eb0e59a7319ce052a7591afa9ccfed9741126632d051e86"
         },
         {
           "path": "index.md",

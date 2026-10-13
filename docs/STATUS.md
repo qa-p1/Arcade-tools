@@ -43,7 +43,8 @@ Python 3.14.7; Cargo builds used three jobs:
 - `npm run typecheck`: **0 errors, 0 warnings**; `npm run build`: **149 modules**.
   UI size: **203,196 / 204,800 bytes** raw, **58,757 bytes** gzip;
   deferred guides/map: **16,135 bytes**.
-- Vendored verification: **5 Link v0.3.0 sources** match their hashes.
+- Vendored verification: **5 Link v0.3.0 sources** match their hashes (now 8
+  pinned files with the adapted Tauri NSIS template and its two licenses).
   Tools shortcut validation: **3 shortcuts in 2 groups**, valid.
 - Docs snapshot script: **4 tests passed**. Python 3.14 emitted two non-failing
   ResourceWarnings for mocked HTTP 404 fixtures.
@@ -59,6 +60,42 @@ the `main` directory/manifest reference. App guides retain the labeled `local`
 fallback because published stable tags predate `docs/user/`. Release builds refresh
 stable-tag docs and keep the existing labeled guides when released docs are absent.
 Runtime exact-version downloads remain separate.
+
+## Installer standard on Windows and macOS
+
+- Windows uses an adapted Tauri 2.11.5 NSIS template (see `VENDORED`) with
+  Link's shared `arcade.nsh`. A plain `/S` now installs to
+  `%LOCALAPPDATA%\Programs\Arcade Tools`, the same folder as the wizard; the
+  stock template used to copy files to `%LOCALAPPDATA%\Arcade Tools` first, so
+  the integration step failed. The shared task page replaces the custom login
+  page: start at login (on by default) and an unchecked desktop shortcut, with
+  `/STARTATLOGIN` and `/DESKTOPSHORTCUT` for silent installs. Silent installs no
+  longer create an unrecorded desktop shortcut. Apps & features uses the
+  `arcade.tools` key with the catalog homepage and a quiet uninstall string.
+- Start at login on Windows now reads the receipt-recorded Startup shortcut
+  for every installed app and for Tools itself, falling back to the Run value
+  only without a receipt. Updates therefore keep the user's choice. Toggling it
+  in Tools edits that shortcut and the receipt, after removing the Run value or
+  Tools' older VBScript entry. Windows updates install into the folder the
+  receipt records instead of always the default folder.
+- macOS `--install [--silent] [--no-launch] [--channel]` moves or copies the
+  bundle to Applications, adds the CLI link and writes a `macos-bundle` receipt;
+  `--repair` and `--uninstall` use that receipt. Self-updates, which run
+  `--install --silent` from the new bundle, no longer fail at that step. A copy
+  run from the dmg, Downloads or a translocated folder offers Link's shared
+  "Move Arcade Tools to Applications?" dialog; a copy in Applications without a
+  receipt records one on first run.
+- `scripts/verify-package.py` now runs a plain `/S` install and a custom-folder
+  install with explicit tasks, checks the receipt, shortcuts and Apps &
+  features entry, and uninstalls with `_?=` so the removal checks wait for it.
+  On macOS it mounts the dmg read-only and runs `--install --silent
+  --no-launch`, `--integration-status`, `--repair` and `--uninstall` in an
+  isolated home, checking that no shell profile is written. The universal
+  build now prepares the overlay for each architecture as Tauri requires.
+- Local checks on Linux for this round: workspace Clippy clean, formatting
+  clean, the new receipt-login and folder tests passed (see the commit), and
+  vendored and docs checks passed. Windows NSIS and macOS code paths compile
+  only in CI; none of this ran on a real Windows or macOS desktop.
 
 CI: pending (orchestrator fills in the run)
 
