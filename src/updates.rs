@@ -381,7 +381,7 @@ fn sync_selected(state: &mut AppUpdate) {
         state.reason = selected.reason.clone();
     }
 }
-fn is_newer(installed: &InstalledApp, release: &Release, sha256: &str) -> bool {
+pub(crate) fn is_newer(installed: &InstalledApp, release: &Release, sha256: &str) -> bool {
     if installed.channel != release.channel {
         return true;
     }
@@ -390,10 +390,17 @@ fn is_newer(installed: &InstalledApp, release: &Release, sha256: &str) -> bool {
             semver::Version::parse(&installed.version),
             semver::Version::parse(&release.version),
         ) {
-            match new.cmp(&old) {
+            match new.cmp_precedence(&old) {
                 std::cmp::Ordering::Greater => return true,
                 std::cmp::Ordering::Less => return false,
-                std::cmp::Ordering::Equal => {}
+                // App receipts may omit release build metadata. Only a known
+                // different package hash proves an update at equal precedence.
+                std::cmp::Ordering::Equal => {
+                    return installed
+                        .sha256
+                        .as_deref()
+                        .is_some_and(|hash| hash != sha256);
+                }
             }
         }
     }
@@ -512,4 +519,96 @@ pub fn append_history(paths: &Paths, entry: &HistoryEntry) -> Result<()> {
     file.write_all(&bytes)?;
     file.sync_data()?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn newer(old: &str, new: &str, hash: Option<&str>, channel: Channel) -> bool {
+        is_newer(
+            &InstalledApp {
+                id: "arcade.wheel".into(),
+                version: old.into(),
+                channel,
+                selected_channel: channel,
+                sha256: hash.map(String::from),
+            },
+            &Release {
+                schema: 1,
+                id: "arcade.wheel".into(),
+                version: new.into(),
+                channel,
+                link_protocol: vec![1],
+                notes: String::new(),
+                assets: vec![],
+            },
+            "same",
+        )
+    }
+
+    #[test]
+    fn stable_build_metadata_with_same_hash_is_not_an_update() {
+        for (old, new) in [
+            ("0.3.0", "0.3.0+build.40"),
+            ("0.3.0+build.40", "0.3.0"),
+            ("0.3.0+build.40", "0.3.0+build.41"),
+        ] {
+            assert!(!newer(old, new, Some("same"), Channel::Stable));
+        }
+    }
+
+    #[test]
+    fn stable_build_metadata_with_changed_hash_is_an_update() {
+        for (old, new) in [
+            ("0.3.0", "0.3.0+build.40"),
+            ("0.3.0+build.40", "0.3.0"),
+            ("0.3.0+build.40", "0.3.0+build.39"),
+        ] {
+            assert!(newer(old, new, Some("different"), Channel::Stable));
+        }
+    }
+
+    #[test]
+    fn stable_build_metadata_without_recorded_hash_is_not_an_update() {
+        for (old, new) in [
+            ("0.3.0", "0.3.0+build.40"),
+            ("0.3.0+build.40", "0.3.0"),
+            ("0.3.0+build.40", "0.3.0+build.41"),
+        ] {
+            assert!(!newer(old, new, None, Channel::Stable));
+        }
+    }
+
+    #[test]
+    fn stable_higher_version_after_build_metadata_is_an_update() {
+        assert!(newer(
+            "0.3.0+build.40",
+            "0.4.0",
+            Some("same"),
+            Channel::Stable
+        ));
+    }
+
+    #[test]
+    fn stable_lower_version_with_build_metadata_is_not_an_update() {
+        assert!(!newer(
+            "0.3.0",
+            "0.2.9+build.99",
+            Some("different"),
+            Channel::Stable
+        ));
+    }
+
+    #[test]
+    fn nightly_keeps_literal_version_and_hash_comparisons() {
+        assert!(newer(
+            "0.3.0",
+            "0.3.0+build.40",
+            Some("same"),
+            Channel::Nightly
+        ));
+        assert!(newer("0.3.0", "0.3.0", Some("different"), Channel::Nightly));
+        assert!(!newer("0.3.0", "0.3.0", None, Channel::Nightly));
+    }
 }

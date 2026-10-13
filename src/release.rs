@@ -115,6 +115,17 @@ pub struct ReleaseCache {
     pub body: String,
 }
 
+/// Stable app/receipt versions may omit release build metadata. Nightly
+/// versions and non-SemVer identities must still match literally.
+pub(crate) fn versions_match(left: &str, right: &str, channel: Channel) -> bool {
+    left == right
+        || channel == Channel::Stable
+            && match (semver::Version::parse(left), semver::Version::parse(right)) {
+                (Ok(left), Ok(right)) => left.cmp_precedence(&right).is_eq(),
+                _ => false,
+            }
+}
+
 impl Release {
     pub fn parse(bytes: &[u8]) -> Result<Self> {
         // serde's Option accepts explicit null; the schema does not.

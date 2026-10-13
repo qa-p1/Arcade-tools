@@ -171,7 +171,7 @@ pub fn validate_receipt(
 ) -> Result<()> {
     receipt.validate()?;
     if receipt.id != id
-        || receipt.version != version
+        || !release::versions_match(&receipt.version, version, channel)
         || receipt.channel != channel.as_str()
         || receipt.method == InstallMethod::Dev
     {

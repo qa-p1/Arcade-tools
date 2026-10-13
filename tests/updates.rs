@@ -67,6 +67,69 @@ fn publish(server: &support::FakeRelease, version: &str, channel: &str) {
     );
 }
 #[test]
+fn stable_build_metadata_reconciles_hashes_and_preserves_display_versions() {
+    let server = support::FakeRelease::new();
+    publish(&server, "0.3.0+build.40", "stable");
+    publish(&server, "0.3.0-nightly", "nightly");
+    let mut scheduler = Scheduler::new(
+        Paths::under(&server.root.path().join("scheduler")),
+        FakeClock::default(),
+        Source::test_server(&server.url).unwrap(),
+    )
+    .unwrap();
+    let settings = UpdateSettings::default();
+    let catalog = catalog();
+    let mut installed = installed();
+    installed[0].version = "0.3.0".into();
+    let outcome = scheduler
+        .run(
+            Trigger::Manual,
+            context(&settings, &catalog, &installed, &[]),
+        )
+        .unwrap();
+    assert!(outcome.failure.is_none() && outcome.notifications.is_empty());
+    let state = &scheduler.state().apps["arcade.look"];
+    assert!(!state.update_available);
+    assert_eq!(state.installed_version.as_deref(), Some("0.3.0"));
+    assert_eq!(
+        state.latest["stable"].latest_version.as_deref(),
+        Some("0.3.0+build.40")
+    );
+    installed[0].sha256 = Some(
+        state.latest["stable"]
+            .cache
+            .as_ref()
+            .unwrap()
+            .asset
+            .sha256
+            .clone(),
+    );
+    scheduler.reconcile(&catalog, &installed, &[]);
+    assert!(!scheduler.state().apps["arcade.look"].update_available);
+    installed[0].sha256 = Some("a".repeat(64));
+    let incompatible = [PeerProtocols {
+        id: "arcade.box".into(),
+        protocols: vec![2],
+    }];
+    scheduler.reconcile(&catalog, &installed, &incompatible);
+    assert!(scheduler.state().apps["arcade.look"].update_available);
+    assert!(scheduler.state().apps["arcade.look"].held_back);
+    scheduler.reconcile(&catalog, &installed, &[]);
+    assert!(!scheduler.state().apps["arcade.look"].held_back);
+    assert_eq!(
+        scheduler
+            .run(
+                Trigger::Manual,
+                context(&settings, &catalog, &installed, &[]),
+            )
+            .unwrap()
+            .notifications
+            .len(),
+        1
+    );
+}
+
+#[test]
 fn timer_window_offline_disabled_and_restart_notifications_are_deterministic() {
     let server = support::FakeRelease::new();
     publish(&server, "2.0.0", "stable");

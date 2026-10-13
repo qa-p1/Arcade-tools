@@ -171,6 +171,126 @@ fn history(manager: &Manager) -> Vec<HistoryEntry> {
 }
 
 #[test]
+fn hub_lifecycle_wheel_build_metadata_receipts_updates_and_rollback() {
+    let (server, manager) = fixture();
+    let id = "arcade.wheel";
+    let publish_build = |version: &str| {
+        let mut bytes = fake_app(&manager.paths, id, "0.3.0", false);
+        bytes.extend_from_slice(format!("\n# {version}\n").as_bytes());
+        server.publish(
+            id,
+            version,
+            "stable",
+            &[("Wheel_x64.AppImage", &bytes)],
+            "inno",
+        );
+        server.amend_manifest(id, version, "stable", |manifest| {
+            manifest["assets"][0]["installArgs"] = json!(["--install", "--silent"]);
+        });
+    };
+    publish_build("0.3.0+build.40");
+    operate(&manager, id, Operation::Install).unwrap();
+    wait_for(
+        &manager.paths.link.registry.join(format!("{id}.json")),
+        |text| text.contains("0.3.0"),
+    );
+    let record = manager.record(id).unwrap().unwrap();
+    assert_eq!(record.version, "0.3.0+build.40");
+    assert!(record.package.is_some() && !record.sha256.is_empty());
+    let mut receipt = manager.receipt(id).unwrap().unwrap();
+    assert_eq!(receipt.version, "0.3.0");
+    assert!(!manager.check(id).unwrap().update_available);
+    assert_eq!(
+        operate(&manager, id, Operation::Update).unwrap(),
+        "Already up to date."
+    );
+
+    // A Tools-written build version and the app's plain version are both valid.
+    receipt.version = "0.3.0+build.40".into();
+    Store::new(&manager.paths.link).write(&receipt).unwrap();
+    assert_eq!(manager.record(id).unwrap().unwrap().sha256, record.sha256);
+    receipt.version = "0.3.0".into();
+    Store::new(&manager.paths.link).write(&receipt).unwrap();
+    assert_eq!(manager.record(id).unwrap().unwrap().sha256, record.sha256);
+    let mut wrong = receipt.clone();
+    wrong.version = "0.2.9".into();
+    assert!(arcade_tools_core::installation::validate_receipt(
+        &manager.paths,
+        &wrong,
+        id,
+        "0.3.0+build.40",
+        arcade_tools_core::release::Channel::Stable,
+    )
+    .is_err());
+    wrong.version = "0.3.0".into();
+    wrong.channel = "nightly".into();
+    assert!(arcade_tools_core::installation::validate_receipt(
+        &manager.paths,
+        &wrong,
+        id,
+        "0.3.0+build.40",
+        arcade_tools_core::release::Channel::Nightly,
+    )
+    .is_err());
+
+    publish_build("0.3.0+build.41");
+    assert!(manager.check(id).unwrap().update_available);
+    operate(&manager, id, Operation::Update).unwrap();
+    assert_eq!(
+        manager.record(id).unwrap().unwrap().version,
+        "0.3.0+build.41"
+    );
+    assert!(!manager.check(id).unwrap().update_available);
+    assert_eq!(
+        manager.rollback_version(id).unwrap().as_deref(),
+        Some("0.3.0+build.40")
+    );
+    operate(&manager, id, Operation::Rollback).unwrap();
+    assert_eq!(
+        manager.record(id).unwrap().unwrap().version,
+        "0.3.0+build.40"
+    );
+    assert_eq!(manager.receipt(id).unwrap().unwrap().version, "0.3.0");
+    record
+        .package
+        .as_ref()
+        .unwrap()
+        .verify(&manager.paths, id)
+        .unwrap();
+
+    publish_build("0.2.9+build.99");
+    assert!(!manager.check(id).unwrap().update_available);
+    assert_eq!(
+        operate(&manager, id, Operation::Update).unwrap(),
+        "Already up to date."
+    );
+    publish_build("0.3.0+build.40");
+    let mut plain_record = manager.record(id).unwrap().unwrap();
+    plain_record.version = "0.3.0".into();
+    fs::write(
+        manager.paths.state().join(format!("{id}.json")),
+        serde_json::to_vec(&plain_record).unwrap(),
+    )
+    .unwrap();
+    receipt.version = "0.3.0+build.40".into();
+    Store::new(&manager.paths.link).write(&receipt).unwrap();
+    let reconciled = manager.record(id).unwrap().unwrap();
+    assert_eq!(reconciled.sha256, plain_record.sha256);
+    assert!(reconciled.package.is_some());
+    assert!(!manager.check(id).unwrap().update_available);
+
+    // A metadata-only receipt rewrite must not preserve a hash for other bytes.
+    let executable = plain_record.executable.as_ref().unwrap();
+    fs::write(executable, b"replaced outside Tools").unwrap();
+    let changed = manager.record(id).unwrap().unwrap();
+    assert!(changed.sha256.is_empty() && changed.package.is_none());
+    assert!(
+        !manager.check(id).unwrap().update_available,
+        "An equal stable version without a recorded package hash is not an update"
+    );
+}
+
+#[test]
 fn hub_lifecycle_install_update_rollback_repeated_updates_and_uninstall() {
     let (server, manager) = fixture();
     installed(&server, &manager, "arcade.look");
@@ -512,7 +632,19 @@ fn hub_lifecycle_tools_self_update_handoff_verification_and_helper_flow() {
     let mut receipt = manager.receipt("arcade.tools").unwrap().unwrap();
     receipt.managed_by = ManagedBy::Tools;
     Store::new(&manager.paths.link).write(&receipt).unwrap();
-    publish(&server, &manager, "arcade.tools", "2.0.0", false);
+    server.publish(
+        "arcade.tools",
+        "2.0.0+build.40",
+        "stable",
+        &[(
+            "Tools_x64.AppImage",
+            &fake_app(&manager.paths, "arcade.tools", "2.0.0", false),
+        )],
+        "nsis",
+    );
+    server.amend_manifest("arcade.tools", "2.0.0+build.40", "stable", |manifest| {
+        manifest["assets"][0]["installArgs"] = json!(["--install", "--silent"]);
+    });
     let mut called = false;
     let staged = manager
         .prepare_self_update(
@@ -548,6 +680,11 @@ fn hub_lifecycle_tools_self_update_handoff_verification_and_helper_flow() {
         manager.receipt("arcade.tools").unwrap().unwrap().version,
         "2.0.0"
     );
+    assert_eq!(
+        manager.record("arcade.tools").unwrap().unwrap().version,
+        "2.0.0+build.40"
+    );
+    assert!(!manager.check("arcade.tools").unwrap().update_available);
     wait_for(
         &manager.paths.link.registry.join("arcade.tools.json"),
         |text| text.contains("2.0.0"),

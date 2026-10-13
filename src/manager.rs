@@ -74,6 +74,21 @@ pub struct Record {
     #[serde(default)]
     pub installed_by_app: bool,
 }
+impl Record {
+    fn update_available(&self, checked: &CheckedRelease) -> bool {
+        updates::is_newer(
+            &InstalledApp {
+                id: self.id.clone(),
+                version: self.version.clone(),
+                channel: self.channel,
+                selected_channel: checked.release.channel,
+                sha256: (!self.sha256.is_empty()).then(|| self.sha256.clone()),
+            },
+            &checked.release,
+            &checked.asset.sha256,
+        )
+    }
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Preferences {
@@ -724,7 +739,15 @@ impl Manager {
             }
             let executable = installation::executable(&self.paths, &receipt);
             if let Some(mut record) = supplemental {
-                if record.version != receipt.version
+                // Keep release hashes/rollback metadata when the app rewrites
+                // only its build suffix, but never trust changed executable bytes.
+                let same_bytes = record.version == receipt.version
+                    || checksum(&executable).is_ok_and(|hash| hash == record.executable_sha256);
+                if !crate::release::versions_match(
+                    &record.version,
+                    &receipt.version,
+                    record.channel,
+                ) || !same_bytes
                     || record.channel.as_str() != receipt.channel
                     || record
                         .executable
@@ -1066,11 +1089,7 @@ impl Manager {
             notes: self
                 .release_body(id, checked.release.channel)
                 .unwrap_or_else(|| checked.release.notes.clone()),
-            update_available: record.is_none_or(|r| {
-                r.sha256 != checked.asset.sha256
-                    || r.version != checked.release.version
-                    || r.channel != checked.release.channel
-            }),
+            update_available: record.is_none_or(|r| r.update_available(&checked)),
         })
     }
     fn release_body(&self, id: &str, channel: Channel) -> Option<String> {
@@ -1714,11 +1733,7 @@ impl Manager {
             return Err(Error::new("installer_changed", "This release changes installer format. Uninstall while keeping data, then install the new channel."));
         }
         if request.operation == Operation::Update
-            && old.as_ref().is_some_and(|r| {
-                r.sha256 == checked.asset.sha256
-                    && r.version == checked.release.version
-                    && r.channel == checked.release.channel
-            })
+            && old.as_ref().is_some_and(|r| !r.update_available(&checked))
         {
             return Ok("Already up to date.".into());
         }
@@ -1882,7 +1897,11 @@ impl Manager {
         };
         let app_receipt = self.receipt(id)?;
         let app_written = app_receipt.as_ref().is_some_and(|r| {
-            r.version == package.release.version && r.channel == package.release.channel.as_str()
+            crate::release::versions_match(
+                &r.version,
+                &package.release.version,
+                package.release.channel,
+            ) && r.channel == package.release.channel.as_str()
         });
         if install_args.is_some() && !app_written {
             return Err(Error::new(
