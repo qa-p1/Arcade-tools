@@ -3,6 +3,7 @@
 !include "FileFunc.nsh"
 !include "nsDialogs.nsh"
 !define ARCADE_ID "arcade.tools"
+!define ARCADE_TOOLS_HELPER "${__FILEDIR__}\arcade-integration.ps1"
 Var ArcadeToolsChannel
 Var ArcadeToolsManagedBy
 Var ArcadeToolsStartup
@@ -35,7 +36,7 @@ FunctionEnd
 !macro NSIS_HOOK_POSTINSTALL
   SetShellVarContext current
   SetOutPath "$INSTDIR"
-  File "${__FILEDIR__}\arcade-integration.ps1"
+  File "${ARCADE_TOOLS_HELPER}"
   StrCpy $ArcadeToolsChannel "stable"
   StrCpy $ArcadeToolsManagedBy "self"
   StrCpy $ArcadeToolsStartup "none"

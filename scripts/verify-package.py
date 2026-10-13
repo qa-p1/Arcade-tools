@@ -68,8 +68,16 @@ with tempfile.TemporaryDirectory(prefix='arcade-tools-package-') as temporary:
             subprocess.run(['ditto',str(apps[0]),str(destination)],check=True)
             binaries = destination / 'Contents' / 'MacOS'
             assert (binaries / 'arcade-tools-overlay').is_file()
-            subprocess.run([str(binaries / 'arcade-tools'),'--version'], env=environment,check=True,timeout=10)
-            lifecycle(binaries / 'arcade-tools', environment, root)
+            for name in ['arcade-tools', 'arcade-tools-overlay']:
+                executable = binaries / name
+                subprocess.run([str(executable),'--version'], env=environment,check=True,timeout=10)
+                if args.target == 'universal-apple-darwin':
+                    architectures = subprocess.run(['lipo','-archs',str(executable)],capture_output=True,text=True,check=True).stdout.split()
+                    assert set(architectures) == {'arm64','x86_64'}, (name, architectures)
+            # macOS installs by copying the bundle; --install/--repair are
+            # Linux AppImage commands, so smoke the supported read-only status.
+            status = subprocess.run([str(binaries / 'arcade-tools'),'--integration-status'],env=environment,capture_output=True,text=True,encoding='utf-8',check=True,timeout=10)
+            assert json.loads(status.stdout)
         finally:
             subprocess.run(['hdiutil','detach',str(mount)],check=True)
     else:
