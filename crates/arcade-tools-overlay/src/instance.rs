@@ -11,6 +11,8 @@ use fs2::FileExt;
 use interprocess::local_socket::{prelude::*, ListenerOptions, Stream};
 use serde::{Deserialize, Serialize};
 
+const IO_TIMEOUT: Duration = Duration::from_millis(500);
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum Command {
@@ -82,17 +84,19 @@ fn private_directory(path: &Path) -> io::Result<()> {
 #[cfg(unix)]
 fn socket_path(directory: &Path) -> io::Result<PathBuf> {
     use std::os::unix::ffi::OsStrExt;
+    let directory = directory.canonicalize()?;
     let path = directory.join("instance.sock");
     if path.as_os_str().as_bytes().len() < 100 {
         return Ok(path);
     }
-    // Long test/profile paths use a short private runtime socket, as in Find.
+    // macOS TMPDIR can itself exceed sun_path's 104-byte limit. Use a
+    // fixed short base for long profiles, still protected by ownership + 0700.
     // SAFETY: getuid has no side effects.
-    let short = std::env::temp_dir().join(format!("arcade-tools-overlay-{}", unsafe {
+    let short = Path::new("/tmp").join(format!("arcade-tools-overlay-{}", unsafe {
         libc::getuid()
     }));
     private_directory(&short)?;
-    Ok(short.join(format!("{:016x}.sock", path_hash(directory))))
+    Ok(short.join(format!("{:016x}.sock", path_hash(&directory))))
 }
 
 #[cfg(any(unix, windows))]
@@ -177,7 +181,7 @@ impl Instance {
             .name("overlay-instance".into())
             .spawn(move || {
                 for stream in listener.incoming().flatten() {
-                    let Ok(line) = read_line(&stream, 4096, Duration::from_millis(100)) else {
+                    let Ok(line) = read_line(&stream, 4096, IO_TIMEOUT) else {
                         continue;
                     };
                     let command = if let Ok(request) = serde_json::from_str::<Envelope>(&line) {
@@ -195,7 +199,7 @@ impl Instance {
                         // before waking the UI, including on Windows where pipe
                         // buffers can disappear with the last server handle.
                         if (&stream).write_all(b"ok\n").is_ok()
-                            && read_line(&stream, 16, Duration::from_millis(100))
+                            && read_line(&stream, 16, IO_TIMEOUT)
                                 .is_ok_and(|receipt| receipt == "received")
                         {
                             handler(command);
@@ -237,12 +241,12 @@ pub fn send(directory: &Path, command: Command) -> io::Result<()> {
     std::thread::spawn(move || {
         let _ = tx.send(send_retry(&directory, command));
     });
-    rx.recv_timeout(Duration::from_millis(300))
+    rx.recv_timeout(Duration::from_secs(1))
         .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, "overlay instance did not answer"))?
 }
 
 fn send_retry(directory: &Path, command: Command) -> io::Result<()> {
-    let deadline = Instant::now() + Duration::from_millis(250);
+    let deadline = Instant::now() + Duration::from_millis(750);
     loop {
         match send_once(directory, command) {
             Ok(()) => return Ok(()),
@@ -255,13 +259,15 @@ fn send_retry(directory: &Path, command: Command) -> io::Result<()> {
 fn send_once(directory: &Path, command: Command) -> io::Result<()> {
     let info: Info = serde_json::from_slice(&std::fs::read(directory.join("instance.json"))?)?;
     let stream = Stream::connect(socket_name(directory)?)?;
-    stream.set_nonblocking(cfg!(unix))?;
+    stream.set_nonblocking(false)?;
+    #[cfg(unix)]
+    stream.set_send_timeout(Some(IO_TIMEOUT))?;
     let request = serde_json::to_string(&Envelope {
         token: info.token,
         command,
     })?;
     writeln!(&stream, "{request}")?;
-    let reply = read_line(&stream, 64, Duration::from_millis(50))?;
+    let reply = read_line(&stream, 64, IO_TIMEOUT)?;
     if reply.trim() == "ok" {
         writeln!(&stream, "received")?;
         Ok(())
@@ -273,16 +279,25 @@ fn send_once(directory: &Path, command: Command) -> io::Result<()> {
     }
 }
 
-/// Bounded reads on Unix sockets and Windows named pipes. Sleeps occur only
-/// during a live request; the listener blocks in accept while idle.
+/// Bounded reads on Unix sockets and Windows named pipes. The listener blocks
+/// in accept while idle; Windows peeks only during a live request.
 fn read_line(stream: &Stream, limit: usize, timeout: Duration) -> io::Result<String> {
-    stream.set_nonblocking(cfg!(unix))?;
+    // Accepted sockets can inherit O_NONBLOCK on macOS/BSD. Normalize it
+    // explicitly and use a receive timeout for each remaining read budget.
+    stream.set_nonblocking(false)?;
     let deadline = Instant::now() + timeout;
     let mut bytes = Vec::new();
     let mut buffer = [0u8; 256];
     while bytes.len() < limit {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            return Err(io::Error::new(
+                io::ErrorKind::TimedOut,
+                "overlay socket read timed out",
+            ));
+        }
         let length = buffer.len().min(limit - bytes.len());
-        match read_available(stream, &mut buffer[..length]) {
+        match read_available(stream, &mut buffer[..length], remaining) {
             Ok(0) => {
                 return Err(io::Error::new(
                     io::ErrorKind::UnexpectedEof,
@@ -304,6 +319,7 @@ fn read_line(stream: &Stream, limit: usize, timeout: Duration) -> io::Result<Str
                 }
                 std::thread::sleep(Duration::from_millis(1));
             }
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
             Err(error) => return Err(error),
         }
     }
@@ -314,12 +330,13 @@ fn read_line(stream: &Stream, limit: usize, timeout: Duration) -> io::Result<Str
 }
 
 #[cfg(unix)]
-fn read_available(stream: &Stream, buffer: &mut [u8]) -> io::Result<usize> {
+fn read_available(stream: &Stream, buffer: &mut [u8], timeout: Duration) -> io::Result<usize> {
+    stream.set_recv_timeout(Some(timeout))?;
     (&*stream).read(buffer)
 }
 
 #[cfg(windows)]
-fn read_available(stream: &Stream, buffer: &mut [u8]) -> io::Result<usize> {
+fn read_available(stream: &Stream, buffer: &mut [u8], _timeout: Duration) -> io::Result<usize> {
     use std::os::windows::io::{AsHandle, AsRawHandle};
     use windows_sys::Win32::System::Pipes::PeekNamedPipe;
 
@@ -354,6 +371,70 @@ fn read_available(stream: &Stream, buffer: &mut [u8]) -> io::Result<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn long_aliased_profiles_use_a_short_private_socket() {
+        use std::os::unix::ffi::OsStrExt;
+        use std::os::unix::fs::PermissionsExt;
+        let root = tempfile::tempdir().unwrap();
+        let directory = root.path().join("long-profile-".repeat(12));
+        let instance = Instance::acquire(directory.clone()).unwrap().unwrap();
+        let alias = root.path().join("alias");
+        std::os::unix::fs::symlink(&directory, &alias).unwrap();
+        let path = socket_path(&directory).unwrap();
+        assert!(path.as_os_str().as_bytes().len() < 100);
+        assert_eq!(socket_path(&alias).unwrap(), path);
+        assert_eq!(
+            std::fs::metadata(path.parent().unwrap())
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
+            0o700
+        );
+        let (tx, rx) = std::sync::mpsc::channel();
+        instance
+            .serve(Arc::new(move |command| {
+                let _ = tx.send(command);
+            }))
+            .unwrap();
+        send(&alias, Command::Show).unwrap();
+        assert_eq!(
+            rx.recv_timeout(Duration::from_secs(1)).unwrap(),
+            Command::Show
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn unix_reads_wait_for_data_and_distinguish_timeout_from_eof() {
+        let (reader, writer) = std::os::unix::net::UnixStream::pair().unwrap();
+        reader.set_nonblocking(true).unwrap();
+        let stream = Stream::from(interprocess::os::unix::uds_local_socket::Stream::from(
+            reader,
+        ));
+        let delayed = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(25));
+            (&writer).write_all(b"first").unwrap();
+            std::thread::sleep(Duration::from_millis(25));
+            (&writer).write_all(b" line\n").unwrap();
+            writer
+        });
+        assert_eq!(read_line(&stream, 64, IO_TIMEOUT).unwrap(), "first line");
+        let writer = delayed.join().unwrap();
+        assert_eq!(
+            read_line(&stream, 64, Duration::from_millis(20))
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::TimedOut
+        );
+        drop(writer);
+        assert_eq!(
+            read_line(&stream, 64, IO_TIMEOUT).unwrap_err().kind(),
+            io::ErrorKind::UnexpectedEof
+        );
+    }
 
     #[test]
     fn single_instance_authenticated_commands_and_stale_restart() {
