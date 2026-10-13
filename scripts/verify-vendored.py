@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the recorded hashes of Link's unchanged shared sources."""
+"""Check the recorded hashes of vendored Link sources and the adapted Tauri template."""
 from pathlib import Path
 import hashlib
 
@@ -13,6 +13,6 @@ for line in (root / "VENDORED").read_text().splitlines():
         if actual != expected:
             raise SystemExit(f"Vendored source changed: {path}")
         checked += 1
-if checked != 5:
-    raise SystemExit("Expected five checksum-pinned Link sources")
-print(f"Verified {checked} Link v0.3.0 sources")
+if checked != 8:
+    raise SystemExit("Expected five Link sources and the adapted Tauri NSIS template with its licenses")
+print(f"Verified {checked} pinned sources: Link v0.3.0 and the adapted Tauri NSIS template")
