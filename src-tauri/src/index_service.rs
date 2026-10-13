@@ -86,7 +86,7 @@ impl Options {
                 }
             }
         }
-        roots
+        roots.into_iter().map(|path| watch_path(&path)).collect()
     }
 }
 
@@ -177,7 +177,29 @@ fn changed(kind: &EventKind) -> bool {
 }
 
 fn existing_parent(path: &Path) -> Option<PathBuf> {
-    path.ancestors().find(|p| p.is_dir()).map(Path::to_path_buf)
+    path.ancestors()
+        .find(|p| p.is_dir())
+        .and_then(|p| p.canonicalize().ok())
+}
+
+fn watch_path(path: &Path) -> PathBuf {
+    // FSEvents reports canonical paths, including /private/var for /var.
+    // Keep the missing suffix so creation and removal events still match.
+    for parent in path.ancestors() {
+        if let Ok(canonical) = parent.canonicalize() {
+            if let Ok(suffix) = path.strip_prefix(parent) {
+                return canonical.join(suffix);
+            }
+        }
+    }
+    path.to_owned()
+}
+
+fn interested(path: &Path, roots: &[PathBuf]) -> bool {
+    let path = watch_path(path);
+    roots
+        .iter()
+        .any(|root| path.starts_with(root) || root.starts_with(&path))
 }
 
 fn update_watches(
@@ -188,8 +210,9 @@ fn update_watches(
     let mut desired = BTreeMap::new();
     let mut warnings = Vec::new();
     for root in roots {
-        if let Some(parent) = existing_parent(root) {
-            let recursive = parent == *root && root.is_dir();
+        let root = watch_path(root);
+        if let Some(parent) = existing_parent(&root) {
+            let recursive = parent == root && root.is_dir();
             desired
                 .entry(parent)
                 .and_modify(|r| *r |= recursive)
@@ -236,11 +259,7 @@ fn run(
             return;
         }
         let roots = event_interests.lock().unwrap();
-        if event
-            .paths
-            .iter()
-            .any(|p| roots.iter().any(|r| p.starts_with(r) || r.starts_with(p)))
-        {
+        if event.paths.iter().any(|p| interested(p, &roots)) {
             let _ = tx.send(Event::Changed);
         }
     });
@@ -293,7 +312,7 @@ fn run(
                 let start = Instant::now();
                 let (mut index, files) = build(&options);
                 let mut roots = options.roots();
-                roots.extend(files);
+                roots.extend(files.iter().map(|path| watch_path(path)));
                 *interests.lock().unwrap() = roots.clone();
                 if let Some(w) = &mut watcher {
                     index
@@ -474,6 +493,9 @@ fn has_sheets(path: &Path) -> bool {
 mod tests {
     use super::*;
 
+    const WATCH_TIMEOUT: Duration =
+        Duration::from_secs(if cfg!(target_os = "macos") { 10 } else { 3 });
+
     fn options(root: &Path) -> Options {
         Options {
             output: root.join("index.json"),
@@ -550,12 +572,43 @@ mod tests {
         assert!(
             update_watches(&mut watcher, &mut watched, std::slice::from_ref(&target)).is_empty()
         );
-        assert_eq!(watched, BTreeMap::from([(root.path().to_owned(), false)]));
+        assert_eq!(watched, BTreeMap::from([(watch_path(root.path()), false)]));
         std::fs::create_dir_all(&target).unwrap();
         assert!(
             update_watches(&mut watcher, &mut watched, std::slice::from_ref(&target)).is_empty()
         );
-        assert_eq!(watched, BTreeMap::from([(target, true)]));
+        assert_eq!(watched, BTreeMap::from([(watch_path(&target), true)]));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn aliased_roots_match_canonical_create_and_remove_events() {
+        let root = tempfile::tempdir().unwrap();
+        let real = root.path().join("real");
+        let alias = root.path().join("alias");
+        std::fs::create_dir(&real).unwrap();
+        std::os::unix::fs::symlink("real", &alias).unwrap();
+        let mut opts = options(&alias);
+        opts.hyprland_dir = None;
+        opts.labels = root.path().join("labels.json");
+        let roots = opts.roots();
+        let sheet = real.join("catalog/firefox.json");
+        assert!(interested(&sheet, &roots));
+        assert!(interested(&alias.join("catalog/firefox.json"), &roots));
+        assert!(!interested(&real.join("index.json"), &roots));
+        std::fs::create_dir(real.join("catalog")).unwrap();
+        std::fs::write(&sheet, "{}").unwrap();
+        assert!(interested(&sheet, &roots));
+        std::fs::remove_file(&sheet).unwrap();
+        assert!(interested(&sheet, &roots));
+        let mut watcher =
+            notify::recommended_watcher(|_: notify::Result<notify::Event>| {}).unwrap();
+        let mut watched = BTreeMap::new();
+        assert!(update_watches(&mut watcher, &mut watched, &[alias.join("catalog")]).is_empty());
+        assert_eq!(
+            watched,
+            BTreeMap::from([(watch_path(&real.join("catalog")), true)])
+        );
     }
 
     #[test]
@@ -603,23 +656,31 @@ mod tests {
             let _ = tx.send(status);
         })
         .unwrap();
-        rx.recv_timeout(Duration::from_secs(3)).unwrap();
+        rx.recv_timeout(WATCH_TIMEOUT).unwrap();
         let catalog = root.path().join("new/catalog");
         let docs = root.path().join("new/docs");
         std::fs::create_dir_all(&catalog).unwrap();
         std::fs::create_dir_all(&docs).unwrap();
         service.set_sources(catalog.clone(), docs.clone());
-        rx.recv_timeout(Duration::from_secs(3)).unwrap();
+        rx.recv_timeout(WATCH_TIMEOUT).unwrap();
         std::fs::copy(
             Path::new(env!("CARGO_MANIFEST_DIR"))
                 .join("../crates/arcade-shortcuts/tests/fixtures/catalog/firefox.json"),
             catalog.join("firefox.json"),
         )
         .unwrap();
-        let built = rx.recv_timeout(Duration::from_secs(3)).unwrap();
+        let deadline = Instant::now() + WATCH_TIMEOUT;
+        let built = loop {
+            let status = rx
+                .recv_timeout(deadline.saturating_duration_since(Instant::now()))
+                .unwrap();
+            if status.apps == 1 {
+                break status;
+            }
+        };
         assert_eq!(built.apps, 1);
         std::fs::write(docs.join("trigger.json"), "{}").unwrap();
-        rx.recv_timeout(Duration::from_secs(3)).unwrap();
+        rx.recv_timeout(WATCH_TIMEOUT).unwrap();
         service.stop();
     }
 
@@ -650,31 +711,24 @@ mod tests {
             },
         )
         .unwrap();
-        assert_eq!(
-            rx.recv_timeout(Duration::from_secs(3)).unwrap().generation,
-            1
-        );
+        assert_eq!(rx.recv_timeout(WATCH_TIMEOUT).unwrap().generation, 1);
         for _ in 0..5 {
             service.changed();
         }
         assert!(rx.recv_timeout(Duration::from_millis(150)).is_err());
-        assert_eq!(
-            rx.recv_timeout(Duration::from_secs(3)).unwrap().generation,
-            2
-        );
+        assert_eq!(rx.recv_timeout(WATCH_TIMEOUT).unwrap().generation, 2);
         assert!(rx.recv_timeout(Duration::from_millis(400)).is_err());
-        for file in [
-            "hypr/hyprland.conf",
-            "registry/test.json",
-            "catalog/test.json",
-            "docs/test.json",
-        ] {
+        let mut files = vec!["registry/test.json", "catalog/test.json", "docs/test.json"];
+        if cfg!(target_os = "linux") {
+            files.insert(0, "hypr/hyprland.conf");
+        }
+        for file in &files {
             std::fs::write(at(file), "{}\n").unwrap();
-            let next = rx.recv_timeout(Duration::from_secs(3)).unwrap();
+            let next = rx.recv_timeout(WATCH_TIMEOUT).unwrap();
             assert!(next.error.is_none());
         }
         let current = service.rebuild_index().unwrap();
-        assert!(current.generation >= 7);
+        assert!(current.generation >= 3 + files.len() as u64);
         let index: Index =
             serde_json::from_slice(&std::fs::read(at("index.json")).unwrap()).unwrap();
         assert_eq!(index.schema, 1);
