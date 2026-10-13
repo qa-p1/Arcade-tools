@@ -300,16 +300,73 @@ pub fn app_id(id: &str) -> Result<()> {
 pub(crate) fn system_alias(path: &Path) -> bool {
     #[cfg(target_os = "macos")]
     {
-        [("/var", "/private/var"), ("/tmp", "/private/tmp")]
-            .iter()
-            .any(|(alias, target)| {
-                path == Path::new(alias)
-                    && std::fs::read_link(path).is_ok_and(|link| link == Path::new(target))
-            })
+        std::fs::read_link(path).is_ok_and(|link| macos_alias_target(path, &link))
     }
     #[cfg(not(target_os = "macos"))]
     {
         let _ = path;
         false
+    }
+}
+
+#[cfg(any(target_os = "macos", test))]
+fn macos_alias_target(path: &Path, link: &Path) -> bool {
+    let Some(parent) = path.parent() else {
+        return false;
+    };
+    let target = parent.join(link);
+    [
+        ("/var", "/private/var"),
+        ("/tmp", "/private/tmp"),
+        ("/etc", "/private/etc"),
+    ]
+    .iter()
+    .any(|(alias, expected)| path == Path::new(alias) && target == Path::new(expected))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn macos_system_aliases_accept_relative_and_absolute_targets_only() {
+        for name in ["var", "tmp", "etc"] {
+            let alias = PathBuf::from(format!("/{name}"));
+            let relative = PathBuf::from(format!("private/{name}"));
+            let absolute = PathBuf::from(format!("/private/{name}"));
+            assert!(macos_alias_target(&alias, &relative));
+            assert!(macos_alias_target(&alias, &absolute));
+            assert!(!macos_alias_target(&alias, Path::new("/home/user/data")));
+            assert!(!macos_alias_target(&alias, Path::new("private/other")));
+            assert!(!macos_alias_target(
+                &Path::new("/home/user").join(name),
+                &absolute
+            ));
+            assert!(!macos_alias_target(
+                &Path::new("/home/user").join(name),
+                &relative
+            ));
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn user_symlinked_install_data_and_receipt_directories_are_refused() {
+        let root = tempfile::tempdir().unwrap();
+        let paths = Paths::under(root.path());
+        std::fs::create_dir(root.path().join("owned")).unwrap();
+        let receipt = arcade_link::receipt::Store::new(&paths.link)
+            .path(ids::TOOLS)
+            .unwrap();
+        for directory in [
+            paths.home.join("Applications"),
+            paths.data.clone(),
+            receipt.parent().unwrap().to_owned(),
+        ] {
+            std::fs::create_dir_all(directory.parent().unwrap()).unwrap();
+            std::os::unix::fs::symlink(root.path().join("owned"), &directory).unwrap();
+            assert!(paths.guard(&directory.join("child")).is_err());
+        }
+        assert!(paths.guard_receipt(ids::TOOLS).is_err());
     }
 }
