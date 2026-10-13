@@ -13,10 +13,10 @@ use arcade_link::{
 };
 use arcade_tools_core::{
     manager::{me, Manager},
-    platform,
-    release::Os,
     Error, Result,
 };
+#[cfg(not(windows))]
+use arcade_tools_core::{platform, release::Os};
 use model::{Action, PeerState, TrayModel};
 use serde::Serialize;
 use std::{
