@@ -29,7 +29,7 @@
     if (ui.tab === 'learn' && !LearnView) void import('./tabs/Learn.svelte').then((module) => LearnView = module.default);
     if (ui.tab === 'connections' && !ConnectionsView) void import('./tabs/Connections.svelte').then((module) => ConnectionsView = module.default);
   });
-  let installProposal = $state<{ title: string; copy: string; installed: boolean } | null>(null);
+  let installProposal = $state<{ title: string; copy: string; installed: boolean; primary: string; secondary: string; options: boolean } | null>(null);
   let installLogin = $state(true);
   let removeDownload = $state(true);
   let installDialog: HTMLDialogElement;
@@ -361,8 +361,8 @@
 
 <dialog bind:this={installDialog} aria-labelledby="self-install-title">
   {#if installProposal}<h2 id="self-install-title">{installProposal.title}</h2><p>{installProposal.copy}</p>
-    <label><input type="checkbox" bind:checked={installLogin} /> Start at login</label>
-    <label><input type="checkbox" bind:checked={removeDownload} /> Remove the downloaded file</label>
-    <div class="dialog-actions"><button type="button" onclick={() => run(confirmSelfInstall)}>Install</button><button type="button" onclick={() => { installProposal=null; installDialog.close(); }}>Just run it once</button><button type="button" onclick={() => run(async () => { await invoke('dismiss_self_install'); installProposal=null; installDialog.close(); })}>Don't ask again for this file</button></div>
+    {#if installProposal.options}<label><input type="checkbox" bind:checked={installLogin} /> Start at login</label>
+    <label><input type="checkbox" bind:checked={removeDownload} /> Remove the downloaded file</label>{/if}
+    <div class="dialog-actions"><button type="button" onclick={() => run(confirmSelfInstall)}>{installProposal.primary}</button><button type="button" onclick={() => { installProposal=null; installDialog.close(); }}>{installProposal.secondary}</button><button type="button" onclick={() => run(async () => { await invoke('dismiss_self_install'); installProposal=null; installDialog.close(); })}>Don't ask again for this file</button></div>
   {/if}
 </dialog>

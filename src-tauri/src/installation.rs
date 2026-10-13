@@ -19,9 +19,9 @@ fn info() -> arcade_link::install::AppInfo {
 pub fn install(channel: &str, start_at_login: bool) -> Result<arcade_link::receipt::Receipt> {
     install_options(channel, start_at_login, false)
 }
-// Self-install is the Linux AppImage path; Windows and macOS use the
-// platform installer, which writes the receipt itself.
-#[cfg(not(target_os = "linux"))]
+// Linux installs the AppImage and macOS moves the app bundle to Applications.
+// Windows uses the per-user setup program, which writes the receipt itself.
+#[cfg(windows)]
 fn install_options(
     _channel: &str,
     _start_at_login: bool,
@@ -29,12 +29,119 @@ fn install_options(
 ) -> Result<arcade_link::receipt::Receipt> {
     Err(unsupported())
 }
-#[cfg(not(target_os = "linux"))]
+#[cfg(windows)]
 fn unsupported() -> Error {
     Error::new(
         "unsupported",
-        "Install Arcade Tools with its Windows installer or macOS app bundle.",
+        "On Windows, install, repair and update Arcade Tools with its setup program; it writes the installation receipt.",
     )
+}
+#[cfg(not(windows))]
+fn write_manifest(
+    environment: &Environment,
+    receipt: &arcade_link::receipt::Receipt,
+) -> Result<()> {
+    arcade_link::manifest::write_manifest(
+        &environment.locations,
+        &arcade_link::Manifest::new(
+            "arcade.tools",
+            env!("CARGO_PKG_VERSION"),
+            &arcade_tools_core::installation::executable(&Paths::discover()?, receipt)
+                .to_string_lossy(),
+        ),
+    )?;
+    Ok(())
+}
+#[cfg(target_os = "macos")]
+const BUNDLE: &str = "Arcade Tools.app";
+#[cfg(target_os = "macos")]
+const BUNDLE_EXECUTABLE: &str = "Contents/MacOS/arcade-tools";
+#[cfg(target_os = "macos")]
+fn macos_receipt(
+    environment: &Environment,
+    bundle: &std::path::Path,
+    cli: Option<std::path::PathBuf>,
+    channel: &str,
+) -> Result<arcade_link::receipt::Receipt> {
+    use arcade_link::receipt::{InstallMethod, Integration, ManagedBy, Receipt};
+    let old = environment.receipts().read("arcade.tools")?;
+    let now = arcade_link::manifest::now_rfc3339();
+    Ok(Receipt {
+        schema: 1,
+        id: "arcade.tools".into(),
+        version: env!("CARGO_PKG_VERSION").into(),
+        channel: channel.into(),
+        method: InstallMethod::MacosBundle,
+        managed_by: old
+            .as_ref()
+            .map_or(ManagedBy::SelfManaged, |r| r.managed_by),
+        path: bundle.into(),
+        integration: Integration {
+            cli,
+            autostart: old.as_ref().and_then(|r| r.integration.autostart.clone()),
+            ..Default::default()
+        },
+        previous: None,
+        installed_at: old
+            .as_ref()
+            .map_or_else(|| now.clone(), |r| r.installed_at.clone()),
+        updated_at: now,
+    })
+}
+/// Moves (or, from a read-only disk image, copies) the running bundle to
+/// Applications, installs the CLI link and writes the receipt. Start at login
+/// on macOS is Tools' own LaunchAgent, set from its tray settings.
+#[cfg(target_os = "macos")]
+fn install_options(
+    channel: &str,
+    _start_at_login: bool,
+    _remove_download: bool,
+) -> Result<arcade_link::receipt::Receipt> {
+    use arcade_link::install::{platform::macos, State};
+    let environment = Environment::discover()?;
+    let runtime = Runtime::discover()?;
+    let detection = arcade_link::install::detect(&environment, "arcade.tools", &runtime)?;
+    if detection.state == State::DevBuild {
+        return Err(Error::new(
+            "dev_build",
+            "Development builds are never installed.",
+        ));
+    }
+    let source = macos::bundle_for(&runtime.executable).ok_or_else(|| {
+        Error::new(
+            "unsupported",
+            "--install needs the Arcade Tools app bundle.",
+        )
+    })?;
+    let root = environment.home.join("Applications");
+    std::fs::create_dir_all(&root)?;
+    let target = root.join(BUNDLE);
+    if std::fs::canonicalize(&source).ok() != std::fs::canonicalize(&target).ok() {
+        if target.exists() && detection.receipt.as_ref().is_none_or(|r| r.path != target) {
+            return Err(Error::new(
+                "conflict",
+                "Applications already contains Arcade Tools without its receipt; it was left unchanged.",
+            ));
+        }
+        let stage = root.join(format!(
+            ".arcade-tools-{}",
+            arcade_link::endpoint::new_token()?
+        ));
+        let staged = macos::move_to_applications(&environment, &source, Some(&stage))?;
+        if target.exists() {
+            std::fs::remove_dir_all(&target)?;
+        }
+        std::fs::rename(staged, &target)?;
+    }
+    let cli = macos::install_cli(
+        &environment,
+        "arcade-tools",
+        &target.join(BUNDLE_EXECUTABLE),
+    )?;
+    let receipt = macos_receipt(&environment, &target, Some(cli), channel)?;
+    environment.receipts().write(&receipt)?;
+    write_manifest(&environment, &receipt)?;
+    Ok(receipt)
 }
 #[cfg(target_os = "linux")]
 fn install_options(
@@ -68,22 +175,38 @@ fn install_options(
             refresh_caches: true,
         },
     )?;
-    arcade_link::manifest::write_manifest(
-        &environment.locations,
-        &arcade_link::Manifest::new(
-            "arcade.tools",
-            env!("CARGO_PKG_VERSION"),
-            &arcade_tools_core::installation::executable(&Paths::discover()?, &receipt)
-                .to_string_lossy(),
-        ),
-    )?;
+    write_manifest(&environment, &receipt)?;
     Ok(receipt)
 }
 #[cfg(target_os = "linux")]
 fn repair(environment: &Environment) -> Result<arcade_link::receipt::Receipt> {
     Ok(arcade_link::install::repair(environment, &info(), None)?)
 }
-#[cfg(not(target_os = "linux"))]
+/// Re-creates the CLI link and refreshes the receipt for the recorded bundle.
+#[cfg(target_os = "macos")]
+fn repair(environment: &Environment) -> Result<arcade_link::receipt::Receipt> {
+    let mut receipt = environment
+        .receipts()
+        .read("arcade.tools")?
+        .ok_or_else(|| Error::new("not_installed", "Arcade Tools has no installation receipt."))?;
+    let executable = receipt.path.join(BUNDLE_EXECUTABLE);
+    if !executable.is_file() {
+        return Err(Error::new(
+            "not_installed",
+            "The installed Arcade Tools executable is missing.",
+        ));
+    }
+    receipt.integration.cli = Some(arcade_link::install::platform::macos::install_cli(
+        environment,
+        "arcade-tools",
+        &executable,
+    )?);
+    receipt.updated_at = arcade_link::manifest::now_rfc3339();
+    environment.receipts().write(&receipt)?;
+    write_manifest(environment, &receipt)?;
+    Ok(receipt)
+}
+#[cfg(windows)]
 fn repair(_environment: &Environment) -> Result<arcade_link::receipt::Receipt> {
     Err(unsupported())
 }
@@ -151,6 +274,11 @@ pub struct Proposal {
     title: String,
     copy: String,
     installed: bool,
+    /// Button labels: install (or move), and run this copy once.
+    primary: String,
+    secondary: String,
+    /// Whether the start-at-login and remove-download options apply.
+    options: bool,
 }
 fn dismissal_key(runtime: &Runtime) -> String {
     use std::hash::{Hash, Hasher};
@@ -158,18 +286,94 @@ fn dismissal_key(runtime: &Runtime) -> String {
     runtime.running_from().hash(&mut hash);
     format!("{:016x}", hash.finish())
 }
+/// The macOS first run: a copy in Applications without a receipt records one,
+/// so Tools can manage and update itself; a copy run from the disk image,
+/// Downloads or a translocated folder offers "Move to Applications".
+#[cfg(target_os = "macos")]
+fn proposal(
+    environment: &Environment,
+    runtime: &Runtime,
+    dismissed: bool,
+) -> Result<Option<Proposal>> {
+    use arcade_link::install::{platform::macos, strings, State};
+    let Some(bundle) = macos::bundle_for(&runtime.executable) else {
+        return Ok(None);
+    };
+    let detection = arcade_link::install::detect(environment, "arcade.tools", runtime)?;
+    if detection.state == State::DevBuild {
+        return Ok(None);
+    }
+    if macos::in_applications(environment, &bundle) {
+        if detection.receipt.is_none() {
+            environment
+                .receipts()
+                .write(&macos_receipt(environment, &bundle, None, "stable")?)?;
+        }
+        return Ok(None);
+    }
+    let needs_move = macos::is_translocated(&bundle)
+        || bundle.starts_with(environment.home.join("Downloads"))
+        || bundle.starts_with("/Volumes")
+        || std::fs::metadata(&bundle)?.permissions().readonly();
+    let args = std::env::args().collect::<Vec<_>>();
+    if !needs_move || !arcade_link::install::should_prompt(&detection, &args, false, dismissed) {
+        return Ok(None);
+    }
+    let dialog = &strings::get().macos;
+    let text = |t: &str| strings::format(t, "Arcade Tools", env!("CARGO_PKG_VERSION"), "", "");
+    Ok(Some(Proposal {
+        title: text(&dialog.title),
+        copy: dialog.body.as_deref().map(text).unwrap_or_default(),
+        installed: detection.installed_path.is_some(),
+        primary: dialog.buttons[0].clone(),
+        secondary: dialog.buttons[1].clone(),
+        options: false,
+    }))
+}
+/// The Linux AppImage prompt. Windows copies come from the setup program.
+#[cfg(not(target_os = "macos"))]
+fn proposal(
+    environment: &Environment,
+    runtime: &Runtime,
+    dismissed: bool,
+) -> Result<Option<Proposal>> {
+    let detection = arcade_link::install::detect(environment, "arcade.tools", runtime)?;
+    let args = std::env::args().collect::<Vec<_>>();
+    if !arcade_link::install::should_prompt(&detection, &args, false, dismissed) {
+        return Ok(None);
+    }
+    let installed = detection.installed_path.is_some();
+    Ok(Some(Proposal {
+        title: if installed {
+            "Update or open installed Arcade Tools?"
+        } else {
+            "Install Arcade Tools?"
+        }
+        .into(),
+        copy: if installed {
+            format!("An installed copy is registered. This copy is {}. Install it to your apps folder or just run it once.",env!("CARGO_PKG_VERSION"))
+        } else {
+            "Add Tools to your app launcher and apps folder, with a command-line shortcut.".into()
+        },
+        installed,
+        primary: "Install".into(),
+        secondary: "Just run it once".into(),
+        options: true,
+    }))
+}
 #[tauri::command]
 pub async fn self_install_proposal() -> Result<Option<Proposal>> {
     tauri::async_runtime::spawn_blocking(|| {
-        let environment=Environment::discover()?;
-        let runtime=Runtime::discover()?;
-        let detection=arcade_link::install::detect(&environment,"arcade.tools",&runtime)?;
-        let dismiss=Paths::discover()?.state().join("install-dismissals").join(dismissal_key(&runtime));
-        let args=std::env::args().collect::<Vec<_>>();
-        if !arcade_link::install::should_prompt(&detection,&args,false,dismiss.exists()) { return Ok(None); }
-        let installed=detection.installed_path.is_some();
-        Ok(Some(Proposal { title: if installed { "Update or open installed Arcade Tools?" } else { "Install Arcade Tools?" }.into(), copy: if installed { format!("An installed copy is registered. This copy is {}. Install it to your apps folder or just run it once.",env!("CARGO_PKG_VERSION")) } else { "Add Tools to your app launcher and apps folder, with a command-line shortcut.".into() },installed }))
-    }).await.map_err(|e|Error::new("worker",e.to_string()))?
+        let environment = Environment::discover()?;
+        let runtime = Runtime::discover()?;
+        let dismiss = Paths::discover()?
+            .state()
+            .join("install-dismissals")
+            .join(dismissal_key(&runtime));
+        proposal(&environment, &runtime, dismiss.exists())
+    })
+    .await
+    .map_err(|e| Error::new("worker", e.to_string()))?
 }
 #[tauri::command]
 pub async fn confirm_self_install(
