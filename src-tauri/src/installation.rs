@@ -182,6 +182,17 @@ fn install_options(
 fn repair(environment: &Environment) -> Result<arcade_link::receipt::Receipt> {
     Ok(arcade_link::install::repair(environment, &info(), None)?)
 }
+/// Link removes the CLI link only when it targets the receipt path, which on
+/// macOS is the bundle; this link targets the executable inside it.
+#[cfg(target_os = "macos")]
+fn bundle_cli(environment: &Environment) -> Result<Option<std::path::PathBuf>> {
+    let Some(receipt) = environment.receipts().read("arcade.tools")? else {
+        return Ok(None);
+    };
+    Ok(receipt.integration.cli.filter(|cli| {
+        std::fs::read_link(cli).is_ok_and(|target| target.starts_with(&receipt.path))
+    }))
+}
 /// Re-creates the CLI link and refreshes the receipt for the recorded bundle.
 #[cfg(target_os = "macos")]
 fn repair(environment: &Environment) -> Result<arcade_link::receipt::Receipt> {
@@ -244,6 +255,8 @@ pub fn run(args: &[String]) -> Option<Result<()>> {
             "--uninstall" => {
                 let folders = Paths::discover()?
                     .data_folders("arcade.tools", arcade_tools_core::release::Os::current());
+                #[cfg(target_os = "macos")]
+                let cli = bundle_cli(&environment)?;
                 arcade_link::install::uninstall(
                     &environment,
                     "arcade.tools",
@@ -252,6 +265,13 @@ pub fn run(args: &[String]) -> Option<Result<()>> {
                         data_folders: &folders,
                     },
                 )?;
+                #[cfg(target_os = "macos")]
+                if let Some(cli) = cli {
+                    match std::fs::remove_file(cli) {
+                        Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(e.into()),
+                        _ => {}
+                    }
+                }
             }
             _ => {
                 println!(
