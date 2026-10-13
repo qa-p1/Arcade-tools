@@ -441,6 +441,10 @@ pub(crate) fn redact_text(input: &str, home: &Path) -> String {
         let home = home.to_string_lossy();
         if !home.is_empty() {
             text = text.replace(home.as_ref(), "~");
+            // Windows paths also appear with forward slashes (C:/Users/…).
+            if cfg!(windows) {
+                text = text.replace(&home.replace('\\', "/"), "~");
+            }
         }
     }
     for pattern in redaction_patterns() {
@@ -499,7 +503,12 @@ fn has_symlink_component(path: &Path) -> Result<bool> {
     let mut current = PathBuf::new();
     for component in path.components() {
         match component {
-            Component::Prefix(prefix) => current.push(prefix.as_os_str()),
+            // A bare drive prefix (`C:` or canonical `\\?\C:`) is not a path
+            // that can be stat'ed on its own; check from the root onward.
+            Component::Prefix(prefix) => {
+                current.push(prefix.as_os_str());
+                continue;
+            }
             Component::RootDir => current.push(component.as_os_str()),
             Component::Normal(part) => current.push(part),
             Component::CurDir => continue,
@@ -620,10 +629,17 @@ mod tests {
 
     #[test]
     fn redacts_home_tokens_secrets_and_clipboard_device_fields() {
-        let home = Path::new("/home/alice");
+        let (home, settings) = if cfg!(windows) {
+            (
+                Path::new(r"C:\Users\alice"),
+                r"C:\Users\alice\data\settings.json",
+            )
+        } else {
+            (Path::new("/home/alice"), "/home/alice/data/settings.json")
+        };
         let value = sanitize_value(
             json!({
-                "path": "/home/alice/data/settings.json",
+                "path": settings,
                 "apiToken": "visible-secret",
                 "nested": { "deviceId": "machine-42", "safe": "Bearer abc.def-123" },
                 "clipboard": { "device": "phone", "history": ["sensitive"] }
@@ -631,8 +647,15 @@ mod tests {
             home,
             true,
         );
+        assert_eq!(
+            value["path"],
+            if cfg!(windows) {
+                r"~\data\settings.json"
+            } else {
+                "~/data/settings.json"
+            }
+        );
         let text = value.to_string();
-        assert!(text.contains("~/data/settings.json"));
         assert!(!text.contains("visible-secret"));
         assert!(!text.contains("machine-42"));
         assert!(!text.contains("abc.def-123"));

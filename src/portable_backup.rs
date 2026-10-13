@@ -703,7 +703,12 @@ fn contains_symlink_component(path: &Path) -> Result<bool> {
     let mut current = PathBuf::new();
     for component in path.components() {
         match component {
-            Component::Prefix(prefix) => current.push(prefix.as_os_str()),
+            // A bare drive prefix (`C:` or canonical `\\?\C:`) is not a path
+            // that can be stat'ed on its own; check from the root onward.
+            Component::Prefix(prefix) => {
+                current.push(prefix.as_os_str());
+                continue;
+            }
             Component::RootDir => current.push(component.as_os_str()),
             Component::Normal(part) => current.push(part),
             Component::CurDir => continue,

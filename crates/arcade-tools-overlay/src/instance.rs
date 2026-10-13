@@ -331,7 +331,12 @@ fn read_line(stream: &Stream, limit: usize, timeout: Duration) -> io::Result<Str
 
 #[cfg(unix)]
 fn read_available(stream: &Stream, buffer: &mut [u8], timeout: Duration) -> io::Result<usize> {
-    stream.set_recv_timeout(Some(timeout))?;
+    // macOS rejects SO_RCVTIMEO with EINVAL once the peer has closed; the
+    // read then reports that EOF, still bounded by the previous timeout.
+    match stream.set_recv_timeout(Some(timeout)) {
+        Err(error) if error.kind() != io::ErrorKind::InvalidInput => return Err(error),
+        _ => {}
+    }
     (&*stream).read(buffer)
 }
 
