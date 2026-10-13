@@ -47,9 +47,11 @@ arcade-tools --quit
 
 The native desktop uses Tauri 2's system webview. The shell budget is 200 KB;
 Markdown is rendered and sanitized in Rust, and Learn/Connections load lazily.
-Docs snapshots are limited to 8 MB. Local development snapshots are labeled
-`local`; the release workflow refreshes stable-tag docs and retains the labeled
-bundle if those tags do not yet contain user guides.
+Docs snapshots are limited to 8 MB. The bundled catalog, shortcut sheets and
+ecosystem guide come from Arcade-catalog `main`; [snapshot provenance](resources/catalog-snapshot/README.md)
+records the source commit. App development guides are labeled `local`; the release
+workflow refreshes stable-tag docs and retains the labeled bundle if those tags
+do not yet contain user guides.
 
 For development, use Rust **1.88** or newer, Node 24, and the Linux Tauri/Wayland/X11
 libraries listed in `.github/workflows/ci.yml`. Keep a Link v0.3.0 checkout beside

@@ -1,26 +1,69 @@
 # Arcade Tools 0.2.0 status
 
-Integration branch: `arcade/tools-hub`. All eight implementation lanes are merged:
-core, diagnostics, metadata, overlay, shortcuts, Svelte, tabs and tray. Arcade Link
-is pinned to the released `v0.3.0` tag, commit
+Arcade Link is pinned to the released `v0.3.0` tag, commit
 `33650a87b6999fbd553ac678cc7bde7a308cb852`.
 
-The complete hub, resident tray, shortcut overlay, updates/receipts/adoption,
-offline Learn, engine detection, diagnostics and backup/restore are implemented.
-See [the user guide](user/index.md) for behavior and
-[README](../README.md) for the exact check commands.
+Implemented scope from plan §8 and §10–§14:
 
-Verification for this final integration is in progress. Previous lane checks are
-not presented as evidence for the merged branch. This page will record the final
-local results and Linux/Windows/macOS CI run after the full check pass.
+- Per-user installer integration, receipts/adoption, install/update/repair/removal,
+  channel selection, protocol holds, opt-in idle updates, retained rollback and
+  Tools self-update/helper handoff. Stable updates ignore build metadata in
+  version precedence and require a different recorded SHA-256 at equal precedence;
+  nightly comparisons retain their literal version/hash policy.
+- Nine-tab Svelte hub and onboarding; resident tray hosting, app opt-outs and icon
+  hand-back; closing the window destroys its webview while resident features stay.
+- Native shortcut overlay, global rebinding/conflict review, app/catalog shortcuts,
+  desktop readers and labels stored in Tools-owned files.
+- Offline Learn/Connections, sanitized Markdown, versioned guide caching and engine
+  detection/guidance.
+- Visible-only process metrics, health checks, local redacted diagnostics and
+  confirmed portable settings backup/restore with secrets and app data excluded.
 
-Published stable tags currently predate `docs/user/`; the bundled nine-source
-snapshot uses clearly labeled local user/ecosystem guides. Release builds refresh
-stable-tag docs and keep an existing labeled snapshot when released guides are
-missing. Runtime exact-version downloads remain separate.
+See [the user guide](user/index.md) for behavior and [README](../README.md) for
+development checks.
 
-No real application installs, login files, shell profiles or Hyprland configuration
-were changed on this machine. GUI/lifecycle checks use Link's disposable
-HOME/XDG/ARCADE session. Windows/macOS package behavior is CI only, not a real
-desktop run. Sway/KDE/GNOME readers have fixture coverage and are not run on a real
-desktop. Signing/notarization remain the owner's release decisions.
+Local verification on Linux, 2026-10-13, using Rust 1.99.0, Node 24.21.0 and
+Python 3.14.7; Cargo builds used three jobs:
+
+- Workspace tests through Link's disposable HOME/XDG/ARCADE, private D-Bus and
+  Xvfb runner: **160 passed, 0 failed, 2 ignored**. Core: 77; desktop: 23;
+  shortcuts: 40; overlay: 20. The ignored checks require the release benchmark
+  machine or the final Find AppImage. No real Find artifact check ran.
+- Six new update-policy unit tests and two new scheduler/Wheel lifecycle tests
+  passed, covering the five requested version/hash cases, reverse build metadata,
+  compatibility holds, displayed versions, receipt rewrites and rollback. The
+  existing Tools self-update test also passed with a build-tagged release and
+  plain-version app receipt.
+- Workspace Clippy, all targets, locked: **0 errors, 0 warnings**. The newer local
+  compiler used command-scoped allowances for `float_literal_f32_fallback`,
+  `clippy::collapsible_if`, `clippy::chunks_exact_to_as_chunks`,
+  `clippy::manual_is_multiple_of` and `clippy::byte_char_slices`. Rust 1.88 remains
+  the project's minimum and CI toolchain; no dependency pins changed.
+- `cargo fmt --all --check`: passed across all four workspace packages.
+- `npm run typecheck`: **0 errors, 0 warnings**; `npm run build`: **149 modules**.
+  UI size: **203,196 / 204,800 bytes** raw, **58,757 bytes** gzip;
+  deferred guides/map: **16,135 bytes**.
+- Vendored verification: **5 Link v0.3.0 sources** match their hashes.
+  Tools shortcut validation: **3 shortcuts in 2 groups**, valid.
+- Docs snapshot script: **4 tests passed**. Python 3.14 emitted two non-failing
+  ResourceWarnings for mocked HTTP 404 fixtures.
+- Bundled docs: **9 sources, 66 files, 176,294 / 8,000,000 bytes** including the
+  manifest; all sizes and SHA-256 hashes verified.
+
+The catalog snapshot was refreshed from `main` at
+`4d0b42b7b66d5ad9c131aed784b8aa0a6616fa15` on 2026-10-13: **7 apps, 3 bundles,
+11 engines, 31 shortcut sheets plus their index, 9 ecosystem guides**. All 44
+catalog payload files match that commit byte-for-byte; their contents already
+matched before this refresh. Provenance now names `main`, and ecosystem docs use
+the `main` directory/manifest reference. App guides retain the labeled `local`
+fallback because published stable tags predate `docs/user/`. Release builds refresh
+stable-tag docs and keep the existing labeled guides when released docs are absent.
+Runtime exact-version downloads remain separate.
+
+CI: pending (orchestrator fills in the run)
+
+Windows/macOS package behavior is **CI only**, with no real desktop run verified
+here. Sway/KDE/GNOME readers are **fixture-only** (six desktop reader tests), with
+no real desktop run. Signing/notarization remain the owner's release decisions.
+Verification used disposable profiles; real installations, login files, shell
+profiles and Hyprland configuration were untouched. No packaging build ran.
