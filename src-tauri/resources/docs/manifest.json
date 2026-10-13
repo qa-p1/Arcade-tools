@@ -313,8 +313,8 @@
     {
       "id": "arcade.ecosystem",
       "repo": "qa-p1/Arcade-catalog",
-      "version": "local",
-      "ref": "working-tree",
+      "version": "main",
+      "ref": "main",
       "status": "snapshotted",
       "files": [
         {
