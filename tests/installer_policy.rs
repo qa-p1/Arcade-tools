@@ -84,3 +84,28 @@ fn windows_silent_tasks_preserve_login_and_nsis_destination_tail() {
     assert_eq!(plan.nsis_tail(), Some("/D=C:/Users/a/Apps"));
     assert!(plan.args.contains(&"/STARTATLOGIN=1".into()));
 }
+
+#[test]
+fn windows_updates_stay_in_the_installer_recorded_folder() {
+    use arcade_link::receipt::{InstallMethod, Integration, ManagedBy, Receipt};
+    use arcade_tools_core::platform::windows_install_root;
+    use std::path::PathBuf;
+    let folder = std::env::temp_dir().join("Custom Apps/Arcade Lens");
+    let mut receipt = Receipt {
+        schema: 1,
+        id: "arcade.lens".into(),
+        version: "0.2.0".into(),
+        channel: "stable".into(),
+        method: InstallMethod::WindowsInstaller,
+        managed_by: ManagedBy::SelfManaged,
+        path: folder.join("arcade-lens.exe"),
+        integration: Integration::default(),
+        previous: None,
+        installed_at: "2026-01-01T00:00:00Z".into(),
+        updated_at: "2026-01-01T00:00:00Z".into(),
+    };
+    assert_eq!(windows_install_root(Some(&receipt)), Some(folder));
+    assert_eq!(windows_install_root(None), None::<PathBuf>);
+    receipt.method = InstallMethod::Appimage;
+    assert_eq!(windows_install_root(Some(&receipt)), None);
+}

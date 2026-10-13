@@ -21,6 +21,7 @@ pub mod self_update;
 pub mod shortcut_control;
 pub mod source;
 pub mod updates;
+pub mod windows_login;
 
 pub type Result<T> = std::result::Result<T, Error>;
 

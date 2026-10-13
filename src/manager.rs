@@ -1817,9 +1817,17 @@ impl Manager {
         let old = prior.record;
         let receipt = prior.receipt;
         let id = &request.id;
-        let expected =
+        let windows_root = if Os::current() == Os::Windows {
+            platform::windows_install_root(receipt)
+        } else {
+            None
+        };
+        let mut expected =
             self.paths
                 .executable(id, Os::current(), package.asset.kind == Kind::Tarball);
+        if let Some(root) = &windows_root {
+            expected = root.join(expected.file_name().unwrap());
+        }
         let prospective = Record {
             id: id.clone(),
             version: package.release.version.clone(),
@@ -1888,6 +1896,7 @@ impl Manager {
                 &package.path,
                 package.release.channel,
                 login,
+                windows_root.as_deref(),
             )?;
             replacement = Some(rollback);
             if let Some(args) = &install_args {

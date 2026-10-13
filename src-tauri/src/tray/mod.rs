@@ -70,12 +70,21 @@ impl Service {
     ) -> Result<Arc<Self>> {
         let mut prefs = settings::Preferences::load(&manager.paths)?;
         if settings::login_available(&manager.paths) {
-            if let Err(error) = prefs.apply_login(
-                &manager.paths,
-                std::path::Path::new(&arcade_link::manifest::current_executable()),
-            ) {
-                prefs.start_at_login = false;
-                let _ = app.emit("manager-message", error.message);
+            match crate::resident::login::installer_state(&manager.paths) {
+                // The installer's "Start at login" choice stands until changed here.
+                Ok(Some(enabled)) => prefs.start_at_login = enabled,
+                Ok(None) => {
+                    if let Err(error) = prefs.apply_login(
+                        &manager.paths,
+                        std::path::Path::new(&arcade_link::manifest::current_executable()),
+                    ) {
+                        prefs.start_at_login = false;
+                        let _ = app.emit("manager-message", error.message);
+                    }
+                }
+                Err(error) => {
+                    let _ = app.emit("manager-message", error.message);
+                }
             }
         }
         let registry = SharedRegistry::load(&manager.paths.link);

@@ -287,10 +287,20 @@ pub fn install(
         verified,
         crate::release::Channel::Stable,
         autostart_enabled(paths, id),
+        None,
     )
+}
+/// The folder a Windows update replaces: where the user installed the app, as
+/// its installer recorded in the receipt. `None` selects the default folder.
+pub fn windows_install_root(receipt: Option<&arcade_link::receipt::Receipt>) -> Option<PathBuf> {
+    receipt
+        .filter(|r| r.method == arcade_link::receipt::InstallMethod::WindowsInstaller)
+        .and_then(|r| r.path.parent())
+        .map(Path::to_path_buf)
 }
 /// Verified native/transition installer work on a worker. The app's own
 /// installer receives the selected channel and existing login preference.
+/// `windows_root` keeps a Windows update in the folder the user chose.
 pub fn install_with_options(
     paths: &Paths,
     id: &str,
@@ -298,10 +308,15 @@ pub fn install_with_options(
     verified: &Path,
     channel: crate::release::Channel,
     login: bool,
+    windows_root: Option<&Path>,
 ) -> Result<(PathBuf, Replacement)> {
     let tarball = asset.kind == Kind::Tarball;
-    let executable = paths.executable(id, Os::current(), tarball);
-    let root = paths.install_root(id, Os::current(), tarball);
+    let mut executable = paths.executable(id, Os::current(), tarball);
+    let mut root = paths.install_root(id, Os::current(), tarball);
+    if let Some(chosen) = windows_root.filter(|_| Os::current() == Os::Windows) {
+        executable = chosen.join(executable.file_name().unwrap());
+        root = chosen.to_path_buf();
+    }
     let destination = if asset.kind == Kind::Appimage {
         &executable
     } else {
@@ -669,6 +684,18 @@ pub fn update_desktop(existing: &str, proposed: &str) -> Result<String> {
 /// Generated login-entry disk/process work on a worker thread; reads and backs
 /// up existing entries and validates the saved result.
 pub fn set_autostart(paths: &Paths, id: &str, executable: &Path, enabled: bool) -> Result<()> {
+    // An app installed by its own Windows installer owns a receipt-recorded
+    // Startup shortcut. Remove the transition entries first so the app is
+    // never started twice, then toggle that shortcut.
+    #[cfg(windows)]
+    if crate::windows_login::state(paths, id).is_some() {
+        if id == crate::apps::SHELF {
+            remove_managed_shelf_entry(paths)?;
+        } else {
+            delete_run_value(paths, id)?;
+        }
+        return crate::windows_login::set(paths, id, enabled, crate::windows_login::write_shortcut);
+    }
     if id == crate::apps::SHELF {
         return set_shelf_autostart(paths, executable, enabled);
     }
@@ -837,6 +864,43 @@ fn set_shelf_autostart(paths: &Paths, executable: &Path, enabled: bool) -> Resul
     Ok(())
 }
 
+#[cfg(windows)]
+fn delete_run_value(paths: &Paths, id: &str) -> Result<()> {
+    let key = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
+    let name = windows_run_name(id);
+    if Command::new("reg.exe")
+        .args(["query", key, "/v", name])
+        .output()?
+        .status
+        .success()
+    {
+        CommandSpec {
+            program: "reg.exe".into(),
+            args: ["delete", key, "/v", name, "/f"]
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
+        }
+        .run(paths)?;
+    }
+    Ok(())
+}
+#[cfg(windows)]
+fn remove_managed_shelf_entry(paths: &Paths) -> Result<()> {
+    let path = paths.autostart(crate::apps::SHELF, Os::Windows);
+    paths.guard(&path)?;
+    match fs::read(&path) {
+        Ok(bytes)
+            if String::from_utf8_lossy(&bytes).contains("Arcade Shelf managed login entry") =>
+        {
+            remove(&path)
+        }
+        Ok(_) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(e.into()),
+    }
+}
+
 pub fn windows_run_name(id: &str) -> &'static str {
     match id {
         ids::BOX => "Arcade Box",
@@ -851,6 +915,10 @@ pub fn windows_run_name(id: &str) -> &'static str {
 }
 /// Filesystem/Windows registry-process read on a worker thread.
 pub fn autostart_enabled(paths: &Paths, id: &str) -> bool {
+    #[cfg(windows)]
+    if let Some(enabled) = crate::windows_login::state(paths, id) {
+        return enabled;
+    }
     if id == crate::apps::SHELF {
         return paths.autostart(id, Os::current()).is_file();
     }

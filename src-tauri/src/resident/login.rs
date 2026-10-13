@@ -71,7 +71,48 @@ fn validate(path: &Path, expected: &str, os: Os) -> Result<()> {
 }
 
 pub fn set(paths: &Paths, executable: &Path, enabled: bool) -> Result<()> {
+    // Installed on Windows: the installer's receipt-recorded Startup shortcut
+    // is the one login entry. Drop the older VBScript entry so Tools never
+    // starts twice.
+    #[cfg(windows)]
+    if arcade_tools_core::windows_login::state(paths, ids::TOOLS).is_some() {
+        remove_managed(paths)?;
+        return arcade_tools_core::windows_login::set(
+            paths,
+            ids::TOOLS,
+            enabled,
+            arcade_tools_core::windows_login::write_shortcut,
+        );
+    }
     set_for(paths, executable, enabled, Os::current())
+}
+
+/// On Windows, a Tools installer receipt owns start at login: remove Tools'
+/// older VBScript entry and report the receipt's state. `None` elsewhere, or
+/// without that receipt, where the Tools-managed entry applies.
+pub fn installer_state(paths: &Paths) -> Result<Option<bool>> {
+    #[cfg(windows)]
+    if let Some(enabled) = arcade_tools_core::windows_login::state(paths, ids::TOOLS) {
+        remove_managed(paths)?;
+        return Ok(Some(enabled));
+    }
+    let _ = paths;
+    Ok(None)
+}
+
+#[cfg(windows)]
+fn remove_managed(paths: &Paths) -> Result<()> {
+    let path = path(paths, Os::Windows);
+    paths.guard(&path)?;
+    match fs::read(&path) {
+        Ok(bytes) if String::from_utf8_lossy(&bytes).contains(MARKER) => {
+            fs::remove_file(path)?;
+            Ok(())
+        }
+        Ok(_) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error.into()),
+    }
 }
 
 fn set_for(paths: &Paths, executable: &Path, enabled: bool, os: Os) -> Result<()> {

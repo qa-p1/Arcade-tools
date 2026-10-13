@@ -199,6 +199,8 @@ impl Paths {
                     _ => id,
                 }
             )),
+            // The shared installers' Startup task creates `<Name>.lnk`. Tools'
+            // own and Shelf's transition entries are VBScript launchers.
             Os::Windows => self
                 .roaming
                 .join("Microsoft/Windows/Start Menu/Programs/Startup")
@@ -208,7 +210,7 @@ impl Paths {
                     if id == crate::apps::SHELF {
                         "vbs"
                     } else {
-                        "cmd"
+                        "lnk"
                     }
                 )),
         }
