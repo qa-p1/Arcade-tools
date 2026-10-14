@@ -2464,19 +2464,9 @@ impl Manager {
                     let mut record = previous.record.clone();
                     record.last_mode = resume.or(request.mode);
                     let exe = self.executable(&record);
-                    if record.installed_by_app && record.kind == Kind::Dmg {
-                        installation::run_app_installer(
-                            &self.paths,
-                            &exe,
-                            vec![
-                                "--install".into(),
-                                "--silent".into(),
-                                "--channel".into(),
-                                record.channel.as_str().into(),
-                                "--no-launch".into(),
-                            ],
-                        )?;
-                    }
+                    // The snapshot includes the receipt and integration. An
+                    // adopted older bundle may not support --install; invoking
+                    // it again can also move a restored /Applications bundle.
                     let restored = self
                         .receipt(&request.id)?
                         .unwrap_or_else(|| installation::legacy_receipt(&self.paths, &record));
@@ -2804,4 +2794,76 @@ pub fn wait_for_exit(pid: u32) -> Result<()> {
         std::thread::sleep(Duration::from_millis(30));
     }
     Ok(())
+}
+
+#[cfg(all(test, unix))]
+mod native_rollback_tests {
+    use super::*;
+    use arcade_link::receipt::Integration;
+    use std::os::unix::fs::{symlink, PermissionsExt};
+
+    #[test]
+    fn adopted_bundle_rollback_restores_integration_without_requiring_install_flags() {
+        let root = tempfile::tempdir().unwrap();
+        let paths = Paths::under(root.path());
+        let manager = Manager::new(paths.clone(), Source::github().unwrap());
+        let bundle = paths.home.join("Applications/Arcade Look.app");
+        let executable = bundle.join("Contents/MacOS/arcade-look");
+        fs::create_dir_all(executable.parent().unwrap()).unwrap();
+        // Older standalone versions did not implement --install. Executing
+        // this during rollback must fail the test even if it is later restored.
+        let marker = paths.home.join("unexpected-installer");
+        let old_bytes = format!("#!/bin/sh\ntouch '{}'\nexit 99\n", marker.display());
+        fs::write(&executable, &old_bytes).unwrap();
+        fs::set_permissions(&executable, fs::Permissions::from_mode(0o755)).unwrap();
+        let cli = paths.home.join(".local/bin/arcade-look");
+        fs::create_dir_all(cli.parent().unwrap()).unwrap();
+        symlink(&executable, &cli).unwrap();
+        let mut receipt = Receipt {
+            schema: 1,
+            id: ids::LOOK.into(),
+            version: "0.1.0".into(),
+            channel: "stable".into(),
+            method: InstallMethod::MacosBundle,
+            managed_by: ManagedBy::Tools,
+            path: bundle.clone(),
+            integration: Integration {
+                cli: Some(cli.clone()),
+                ..Default::default()
+            },
+            previous: None,
+            installed_at: "2026-01-01T00:00:00Z".into(),
+            updated_at: "2026-01-01T00:00:00Z".into(),
+        };
+        let store = Store::new(&paths.link);
+        store.write(&receipt).unwrap();
+        let record = manager.record_from_receipt(&receipt).unwrap();
+        let transaction = Transaction::begin(&paths, ids::LOOK, &bundle, Some(&receipt)).unwrap();
+        let previous = transaction.previous(record, Some(receipt.clone()));
+        fs::write(&executable, b"new bundle").unwrap();
+        receipt.version = "0.2.0".into();
+        store.write(&receipt).unwrap();
+        let current = manager.record_from_receipt(&receipt).unwrap();
+        manager
+            .write(&paths.state().join("arcade.look.json"), &current)
+            .unwrap();
+        transaction.commit(Some(previous)).unwrap();
+        let request = Request {
+            id: ids::LOOK.into(),
+            operation: Operation::Rollback,
+            mode: None,
+            remove_data: false,
+            app_closed: true,
+        };
+        manager
+            .operate(&request, &AtomicBool::new(false), &mut |_| {})
+            .unwrap();
+        assert_eq!(fs::read_to_string(executable).unwrap(), old_bytes);
+        assert_eq!(store.read(ids::LOOK).unwrap().unwrap().version, "0.1.0");
+        assert_eq!(
+            fs::read_link(cli).unwrap(),
+            bundle.join("Contents/MacOS/arcade-look")
+        );
+        assert!(!marker.exists(), "rollback executed the old installer");
+    }
 }
