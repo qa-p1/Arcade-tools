@@ -243,20 +243,21 @@ impl Paths {
     /// Filesystem/path validation on a worker thread; performs no mutation.
     pub fn guard(&self, path: &Path) -> Result<()> {
         // No symlinked parents, path traversal or deletion outside these per-user roots.
+        let allowed_root = [
+            &self.home,
+            &self.config,
+            &self.data,
+            &self.local,
+            &self.roaming,
+            &self.cache,
+            &self.link.registry,
+        ]
+        .iter()
+        .any(|r| path.starts_with(r) && path != **r)
+            || (!self.isolated && cfg!(target_os = "macos") && system_bundle_path(path));
         if !path.is_absolute()
             || path.components().any(|c| matches!(c, Component::ParentDir))
-            || ![
-                &self.home,
-                &self.config,
-                &self.data,
-                &self.local,
-                &self.roaming,
-                &self.cache,
-                &self.link.registry,
-            ]
-            .iter()
-            .any(|r| path.starts_with(r) && path != **r)
-                && !(!self.isolated && cfg!(target_os = "macos") && system_bundle_path(path))
+            || !allowed_root
         {
             return Err(Error::new(
                 "paths",

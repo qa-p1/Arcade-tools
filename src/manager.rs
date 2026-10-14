@@ -404,11 +404,11 @@ impl Manager {
         let registry = Registry::load(&self.paths.link);
         let receipt = self.receipt(id)?;
         let class = self.class(id, &registry, receipt.as_ref())?;
-        if !matches!(
+        let updatable = matches!(
             class,
             InstallationClass::Managed | InstallationClass::LegacyManaged
-        ) && !(id == ids::TOOLS && class == InstallationClass::SelfInstalled)
-        {
+        ) || (id == ids::TOOLS && class == InstallationClass::SelfInstalled);
+        if !updatable {
             return Ok(deny(
                 "Only managed, non-development installations can auto-update.",
             ));

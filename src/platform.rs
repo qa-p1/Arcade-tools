@@ -824,9 +824,9 @@ fn set_shelf_autostart(paths: &Paths, executable: &Path, enabled: bool) -> Resul
     let previous = match fs::read(&path) {
         Ok(bytes) => {
             let text = String::from_utf8_lossy(&bytes);
-            if !text.contains("Arcade Shelf managed login entry")
-                && !(Os::current() == Os::Linux && desktop_owned(&text, crate::apps::SHELF))
-            {
+            let owned = text.contains("Arcade Shelf managed login entry")
+                || (Os::current() == Os::Linux && desktop_owned(&text, crate::apps::SHELF));
+            if !owned {
                 return Err(Error::new(
                     "autostart",
                     "An unrelated login entry already uses Shelf's name.",

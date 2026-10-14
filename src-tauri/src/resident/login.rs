@@ -132,7 +132,7 @@ fn set_for(paths: &Paths, executable: &Path, enabled: bool, os: Os) -> Result<()
         .transpose()
         .map_err(|error| Error::new("autostart", error.to_string()))?;
     if previous_text.is_some_and(|text| {
-        !text.contains(MARKER) && !(os == Os::Linux && platform::desktop_owned(text, ids::TOOLS))
+        !(text.contains(MARKER) || (os == Os::Linux && platform::desktop_owned(text, ids::TOOLS)))
     }) {
         return Err(Error::new(
             "autostart",
