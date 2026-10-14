@@ -471,6 +471,10 @@ fn initialize_desktop(app: &AppHandle) -> Result<Arc<Manager>> {
         #[cfg(not(debug_assertions))]
         let source = Source::github()?;
         let manager = Arc::new(Manager::new(paths, source));
+        #[cfg(target_os = "macos")]
+        if let Err(error) = manager.cleanup_stale_bundles() {
+            eprintln!("Stale bundle cleanup: {error}");
+        }
         let prefs = manager.preferences()?;
         state
             .link_enabled

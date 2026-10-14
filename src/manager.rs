@@ -903,6 +903,38 @@ impl Manager {
         self.paths.guard_receipt(id)?;
         Ok(Store::new(&self.paths.link).read(id)?)
     }
+    /// A bundle moved to Trash no longer owns an installed app. Run once on
+    /// the startup worker; missing Linux files remain repairable installations.
+    pub fn cleanup_stale_bundles(&self) -> Result<Vec<String>> {
+        let _lock = self.lock()?;
+        let mut removed = Vec::new();
+        for id in crate::apps::APPS.iter().copied().chain([ids::TOOLS]) {
+            let Some(receipt) = self.receipt(id)? else {
+                continue;
+            };
+            if receipt.method != InstallMethod::MacosBundle || receipt.path.exists() {
+                continue;
+            }
+            installation::cleanup_missing_bundle(&self.paths, &receipt)?;
+            Store::new(&self.paths.link).remove(id)?;
+            for file in [
+                self.paths.state().join(format!("{id}.json")),
+                self.paths.state().join(format!("{id}.previous.json")),
+            ] {
+                self.paths.guard(&file)?;
+                platform::remove(&file)?;
+            }
+            let registry = Registry::load(&self.paths.link);
+            if registry
+                .get(id)
+                .is_some_and(|peer| !peer.executable_exists())
+            {
+                manifest::remove_manifest(&self.paths.link, id)?;
+            }
+            removed.push(id.into());
+        }
+        Ok(removed)
+    }
     fn record_from_receipt(&self, receipt: &Receipt) -> Result<Record> {
         let executable = installation::executable(&self.paths, receipt);
         let kind = match receipt.method {
@@ -1960,17 +1992,18 @@ impl Manager {
         let old = prior.record;
         let receipt = prior.receipt;
         let id = &request.id;
-        let windows_root = if Os::current() == Os::Windows {
-            platform::windows_install_root(receipt)
+        let native_root = if matches!(Os::current(), Os::Windows | Os::Macos) {
+            platform::native_install_root(receipt)
         } else {
             None
         };
-        let mut expected =
-            self.paths
-                .executable(id, Os::current(), package.asset.kind == Kind::Tarball);
-        if let Some(root) = &windows_root {
-            expected = root.join(expected.file_name().unwrap());
-        }
+        let (_, expected) = platform::native_install_paths(
+            &self.paths,
+            id,
+            Os::current(),
+            package.asset.kind == Kind::Tarball,
+            native_root.as_deref(),
+        );
         let prospective = Record {
             id: id.clone(),
             version: package.release.version.clone(),
@@ -2039,7 +2072,7 @@ impl Manager {
                 &package.path,
                 package.release.channel,
                 login,
-                windows_root.as_deref(),
+                native_root.as_deref(),
             )?;
             replacement = Some(rollback);
             if let Some(args) = &install_args {

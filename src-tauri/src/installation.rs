@@ -139,9 +139,14 @@ fn install_options(
             "--install needs the Arcade Tools app bundle.",
         )
     })?;
-    let root = environment.home.join("Applications");
-    std::fs::create_dir_all(&root)?;
-    let target = root.join(BUNDLE);
+    let target = detection
+        .receipt
+        .as_ref()
+        .filter(|r| r.method == arcade_link::receipt::InstallMethod::MacosBundle)
+        .map(|r| r.path.clone())
+        .unwrap_or_else(|| environment.home.join("Applications").join(BUNDLE));
+    Paths::discover()?.guard(&target)?;
+    std::fs::create_dir_all(target.parent().unwrap())?;
     if std::fs::canonicalize(&source).ok() != std::fs::canonicalize(&target).ok() {
         if target.exists() && detection.receipt.as_ref().is_none_or(|r| r.path != target) {
             return Err(Error::new(
@@ -175,10 +180,17 @@ fn stage_bundle(
         source,
         Some(stage.path()),
     )?;
-    if target.exists() {
-        std::fs::remove_dir_all(target)?;
+    let backup = stage.path().join("previous.app");
+    let had_old = target.exists();
+    if had_old {
+        std::fs::rename(target, &backup)?;
     }
-    std::fs::rename(staged, target)?;
+    if let Err(error) = std::fs::rename(staged, target) {
+        if had_old {
+            std::fs::rename(&backup, target)?;
+        }
+        return Err(error.into());
+    }
     Ok(())
 }
 #[cfg(target_os = "linux")]
@@ -240,7 +252,12 @@ fn bundle_cli(environment: &Environment) -> Result<Option<std::path::PathBuf>> {
         return Ok(None);
     };
     Ok(receipt.integration.cli.filter(|cli| {
-        std::fs::read_link(cli).is_ok_and(|target| target.starts_with(&receipt.path))
+        std::fs::read_link(cli).is_ok_and(|target| {
+            target.starts_with(&receipt.path)
+                && !target
+                    .components()
+                    .any(|c| c == std::path::Component::ParentDir)
+        })
     }))
 }
 /// Re-creates the CLI link and refreshes the receipt for the recorded bundle.

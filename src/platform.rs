@@ -298,9 +298,37 @@ pub fn windows_install_root(receipt: Option<&arcade_link::receipt::Receipt>) -> 
         .and_then(|r| r.path.parent())
         .map(Path::to_path_buf)
 }
+/// Native updates keep the destination selected by the standalone installer
+/// or by dragging a macOS bundle into Applications.
+pub fn native_install_root(receipt: Option<&arcade_link::receipt::Receipt>) -> Option<PathBuf> {
+    match receipt {
+        Some(receipt) if receipt.method == arcade_link::receipt::InstallMethod::MacosBundle => {
+            Some(receipt.path.clone())
+        }
+        receipt => windows_install_root(receipt),
+    }
+}
+
+pub fn native_install_paths(
+    paths: &Paths,
+    id: &str,
+    os: Os,
+    tarball: bool,
+    chosen: Option<&Path>,
+) -> (PathBuf, PathBuf) {
+    let root = paths.install_root(id, os, tarball);
+    let executable = paths.executable(id, os, tarball);
+    match chosen.filter(|_| matches!(os, Os::Windows | Os::Macos)) {
+        Some(chosen) => (
+            chosen.to_path_buf(),
+            chosen.join(executable.strip_prefix(root).unwrap()),
+        ),
+        None => (root, executable),
+    }
+}
 /// Verified native/transition installer work on a worker. The app's own
 /// installer receives the selected channel and existing login preference.
-/// `windows_root` keeps a Windows update in the folder the user chose.
+/// `native_root` keeps native updates in the folder the user chose.
 pub fn install_with_options(
     paths: &Paths,
     id: &str,
@@ -308,15 +336,10 @@ pub fn install_with_options(
     verified: &Path,
     channel: crate::release::Channel,
     login: bool,
-    windows_root: Option<&Path>,
+    native_root: Option<&Path>,
 ) -> Result<(PathBuf, Replacement)> {
     let tarball = asset.kind == Kind::Tarball;
-    let mut executable = paths.executable(id, Os::current(), tarball);
-    let mut root = paths.install_root(id, Os::current(), tarball);
-    if let Some(chosen) = windows_root.filter(|_| Os::current() == Os::Windows) {
-        executable = chosen.join(executable.file_name().unwrap());
-        root = chosen.to_path_buf();
-    }
+    let (root, executable) = native_install_paths(paths, id, Os::current(), tarball, native_root);
     let destination = if asset.kind == Kind::Appimage {
         &executable
     } else {

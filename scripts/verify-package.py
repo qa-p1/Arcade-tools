@@ -122,6 +122,8 @@ with tempfile.TemporaryDirectory(prefix='arcade-tools-package-') as temporary:
         try:
             apps = list(mount.glob('*.app'))
             assert len(apps) == 1
+            assert (mount / 'Applications').is_symlink()
+            assert os.readlink(mount / 'Applications') == '/Applications'
             binaries = apps[0] / 'Contents' / 'MacOS'
             assert (binaries / 'arcade-tools-overlay').is_file()
             for name in ['arcade-tools', 'arcade-tools-overlay']:

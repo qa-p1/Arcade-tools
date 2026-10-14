@@ -168,3 +168,43 @@ fn missing_bundles_clean_recorded_integration_and_keep_retargeted_links() {
         .file_type()
         .is_symlink());
 }
+
+#[test]
+fn startup_cleanup_for_trashed_bundles_forgets_tools_records_but_keeps_data() {
+    use arcade_tools_core::{manager::Manager, source::Source};
+    let root = tempfile::tempdir().unwrap();
+    let paths = Paths::under(root.path());
+    let missing = receipt(&paths, InstallMethod::MacosBundle);
+    let store = Store::new(&paths.link);
+    store.write(&missing).unwrap();
+    fs::create_dir_all(paths.state()).unwrap();
+    for suffix in [".json", ".previous.json"] {
+        fs::write(
+            paths.state().join(format!("{}{suffix}", missing.id)),
+            "old metadata",
+        )
+        .unwrap();
+    }
+    let data = paths.config.join("arcade-look/settings.json");
+    fs::create_dir_all(data.parent().unwrap()).unwrap();
+    fs::write(&data, "user data").unwrap();
+    let mut present = receipt(&paths, InstallMethod::MacosBundle);
+    present.id = "arcade.lens".into();
+    present.path = paths.home.join("Applications/Arcade Lens.app");
+    fs::create_dir_all(&present.path).unwrap();
+    store.write(&present).unwrap();
+    let manager = Manager::new(paths.clone(), Source::github().unwrap());
+    assert_eq!(
+        manager.cleanup_stale_bundles().unwrap().as_slice(),
+        std::slice::from_ref(&missing.id)
+    );
+    assert!(store.read(&missing.id).unwrap().is_none());
+    assert!(manager.record(&missing.id).unwrap().is_none());
+    assert!(!paths
+        .state()
+        .join(format!("{}.previous.json", missing.id))
+        .exists());
+    assert_eq!(store.read(&present.id).unwrap(), Some(present));
+    assert_eq!(fs::read_to_string(data).unwrap(), "user data");
+    assert!(manager.cleanup_stale_bundles().unwrap().is_empty());
+}

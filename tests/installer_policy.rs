@@ -109,3 +109,36 @@ fn windows_updates_stay_in_the_installer_recorded_folder() {
     receipt.method = InstallMethod::Appimage;
     assert_eq!(windows_install_root(Some(&receipt)), None);
 }
+
+#[test]
+fn macos_updates_stay_in_the_adopted_applications_bundle() {
+    use arcade_link::receipt::{InstallMethod, Integration, ManagedBy, Receipt};
+    use arcade_tools_core::paths::Paths;
+    use arcade_tools_core::platform::{native_install_paths, native_install_root};
+    let root = tempfile::tempdir().unwrap();
+    let paths = Paths::under(root.path());
+    for folder in [
+        Path::new("/Applications").to_path_buf(),
+        paths.home.join("Applications"),
+    ] {
+        let bundle = folder.join("Arcade Look.app");
+        let receipt = Receipt {
+            schema: 1,
+            id: "arcade.look".into(),
+            version: "0.2.0".into(),
+            channel: "stable".into(),
+            method: InstallMethod::MacosBundle,
+            managed_by: ManagedBy::Tools,
+            path: bundle.clone(),
+            integration: Integration::default(),
+            previous: None,
+            installed_at: "2026-01-01T00:00:00Z".into(),
+            updated_at: "2026-01-01T00:00:00Z".into(),
+        };
+        let chosen = native_install_root(Some(&receipt)).unwrap();
+        let (target, executable) =
+            native_install_paths(&paths, "arcade.look", Os::Macos, false, Some(&chosen));
+        assert_eq!(target, bundle);
+        assert_eq!(executable, bundle.join("Contents/MacOS/arcade-look"));
+    }
+}

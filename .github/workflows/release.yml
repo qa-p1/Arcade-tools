@@ -106,6 +106,8 @@ jobs:
         run: python scripts/prepare-overlay.py --target ${{ matrix.target }}
       - name: Bundle using the OS webview
         run: npm run tauri -- build --config src-tauri/tauri.bundle.conf.json --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+      - name: Verify the exact release install and uninstall
+        run: python3 scripts/verify-package.py --target ${{ matrix.target }}
       - uses: actions/upload-artifact@v4
         with:
           name: tools-installer-${{ matrix.os }}
