@@ -1,0 +1,562 @@
+{
+  "schema": 1,
+  "id": "slack",
+  "name": "Slack",
+  "checkedVersion": "4.52.178",
+  "sources": [
+    "https://slack.com/help/articles/201374536-Slack-keyboard-shortcuts",
+    "https://slack.com/downloads/windows"
+  ],
+  "match": {
+    "linux": {
+      "class": [
+        "slack",
+        "Slack"
+      ]
+    },
+    "windows": {
+      "exe": [
+        "slack.exe"
+      ]
+    },
+    "macos": {
+      "bundle": [
+        "com.tinyspeck.slackmacgap"
+      ]
+    }
+  },
+  "groups": [
+    {
+      "title": "Slack basics",
+      "context": "app",
+      "shortcuts": [
+        {
+          "id": "compose-message",
+          "title": "Compose a new message",
+          "keys": {
+            "default": [
+              "Ctrl+N",
+              "Ctrl+Shift+K"
+            ],
+            "macos": "Super+N"
+          }
+        },
+        {
+          "id": "undo-message",
+          "title": "Unsend the last message",
+          "keys": {
+            "default": "Ctrl+Z",
+            "macos": "Super+Z"
+          }
+        },
+        {
+          "id": "set-status",
+          "title": "Set your status",
+          "keys": {
+            "default": "Ctrl+Shift+Y",
+            "macos": "Shift+Super+Y"
+          }
+        },
+        {
+          "id": "preferences",
+          "title": "Open preferences",
+          "keys": {
+            "default": "Ctrl+Comma",
+            "macos": "Super+Comma"
+          }
+        },
+        {
+          "id": "hide-right-sidebar",
+          "title": "Hide the right sidebar",
+          "keys": {
+            "default": "Ctrl+Period",
+            "macos": "Super+Period"
+          }
+        },
+        {
+          "id": "new-canvas",
+          "title": "Create a canvas",
+          "keys": {
+            "default": "Ctrl+Shift+N",
+            "macos": "Shift+Super+N"
+          }
+        },
+        {
+          "id": "upload-file",
+          "title": "Upload a file",
+          "keys": {
+            "default": "Ctrl+O",
+            "macos": "Super+O"
+          }
+        },
+        {
+          "id": "downloaded-files",
+          "title": "View downloaded files",
+          "keys": {
+            "default": "Ctrl+Shift+J",
+            "macos": "Shift+Super+J"
+          }
+        },
+        {
+          "id": "new-snippet",
+          "title": "Create a snippet",
+          "keys": {
+            "default": "Ctrl+Shift+Enter",
+            "macos": "Shift+Super+Enter"
+          }
+        },
+        {
+          "id": "start-search",
+          "title": "Start a search",
+          "keys": {
+            "default": "Ctrl+G",
+            "macos": "Super+G"
+          }
+        },
+        {
+          "id": "search-conversation",
+          "title": "Search the current conversation",
+          "keys": {
+            "default": "Ctrl+F",
+            "macos": "Super+F"
+          }
+        },
+        {
+          "id": "start-huddle",
+          "title": "Start, join, leave, or end a huddle",
+          "keys": {
+            "default": "Ctrl+Shift+H",
+            "macos": "Shift+Super+H"
+          }
+        },
+        {
+          "id": "toggle-huddle-mute",
+          "title": "Toggle microphone mute in a huddle",
+          "keys": {
+            "default": "Ctrl+Shift+Space",
+            "macos": "Shift+Super+Space"
+          }
+        },
+        {
+          "id": "fullscreen",
+          "title": "Toggle full screen",
+          "keys": {
+            "default": "F11",
+            "macos": "Ctrl+Super+F"
+          }
+        },
+        {
+          "id": "close-window",
+          "title": "Close the window",
+          "keys": {
+            "default": "Ctrl+W",
+            "macos": "Super+W"
+          }
+        },
+        {
+          "id": "reopen-window",
+          "title": "Reopen the last closed window",
+          "keys": {
+            "default": "Ctrl+Shift+W",
+            "macos": "Shift+Super+W"
+          }
+        },
+        {
+          "id": "people-view",
+          "title": "Open the People view",
+          "keys": {
+            "default": "Ctrl+Shift+E",
+            "macos": "Shift+Super+E"
+          }
+        },
+        {
+          "id": "quit",
+          "title": "Quit Slack",
+          "keys": {
+            "default": "Ctrl+Q",
+            "macos": "Super+Q"
+          }
+        },
+        {
+          "id": "open-shortcuts",
+          "title": "Open keyboard shortcuts",
+          "keys": {
+            "default": "Ctrl+Slash",
+            "macos": "Super+Slash"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Navigate conversations",
+      "context": "navigation",
+      "shortcuts": [
+        {
+          "id": "jump-to-conversation",
+          "title": "Jump to a conversation",
+          "keys": {
+            "default": [
+              "Ctrl+K",
+              "Ctrl+T"
+            ],
+            "macos": null
+          }
+        },
+        {
+          "id": "latest-unread",
+          "title": "Jump to the newest unread message",
+          "keys": {
+            "default": "Ctrl+J",
+            "macos": "Super+J"
+          }
+        },
+        {
+          "id": "previous-unread",
+          "title": "Go to the previous unread conversation",
+          "keys": {
+            "default": "Alt+Shift+Up",
+            "macos": "Alt+Shift+Up"
+          }
+        },
+        {
+          "id": "next-unread",
+          "title": "Go to the next unread conversation",
+          "keys": {
+            "default": "Alt+Shift+Down",
+            "macos": "Alt+Shift+Down"
+          }
+        },
+        {
+          "id": "previous-conversation",
+          "title": "Go to the previous conversation",
+          "keys": {
+            "default": "Alt+Up",
+            "macos": "Alt+Up"
+          }
+        },
+        {
+          "id": "next-conversation",
+          "title": "Go to the next conversation",
+          "keys": {
+            "default": "Alt+Down",
+            "macos": "Alt+Down"
+          }
+        },
+        {
+          "id": "back-history",
+          "title": "Go back in history",
+          "keys": {
+            "default": "Alt+Left",
+            "macos": "Super+BracketLeft"
+          }
+        },
+        {
+          "id": "forward-history",
+          "title": "Go forward in history",
+          "keys": {
+            "default": "Alt+Right",
+            "macos": "Super+BracketRight"
+          }
+        },
+        {
+          "id": "browse-dms",
+          "title": "Browse direct messages",
+          "keys": {
+            "default": "Ctrl+Shift+2",
+            "macos": "Shift+Super+K"
+          }
+        },
+        {
+          "id": "activity-view",
+          "title": "Open Activity",
+          "keys": {
+            "default": "Ctrl+Shift+M",
+            "macos": "Shift+Super+M"
+          }
+        },
+        {
+          "id": "threads-view",
+          "title": "Open Threads",
+          "keys": {
+            "default": "Ctrl+Shift+T",
+            "macos": "Shift+Super+T"
+          }
+        },
+        {
+          "id": "browse-channels",
+          "title": "Browse channels",
+          "keys": {
+            "default": "Ctrl+Shift+L",
+            "macos": "Shift+Super+L"
+          }
+        },
+        {
+          "id": "conversation-details",
+          "title": "Open conversation details",
+          "keys": {
+            "default": "Ctrl+Shift+I",
+            "macos": "Shift+Super+I"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Mark messages read",
+      "context": "reading",
+      "shortcuts": [
+        {
+          "id": "mark-current-read",
+          "title": "Mark the current conversation as read",
+          "keys": {
+            "default": "Escape"
+          }
+        },
+        {
+          "id": "mark-all-read",
+          "title": "Mark all messages as read",
+          "keys": {
+            "default": "Shift+Escape"
+          }
+        },
+        {
+          "id": "all-unreads",
+          "title": "Open All unreads",
+          "keys": {
+            "default": "Ctrl+Shift+A",
+            "macos": "Shift+Super+A"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Switch workspaces",
+      "context": "workspaces",
+      "shortcuts": [
+        {
+          "id": "workspace-switcher",
+          "title": "Open or close the workspace switcher",
+          "keys": {
+            "default": "Ctrl+Shift+S",
+            "macos": "Shift+Super+S"
+          }
+        },
+        {
+          "id": "previous-workspace",
+          "title": "Switch to the previous workspace",
+          "keys": {
+            "default": "Ctrl+Shift+Tab"
+          }
+        },
+        {
+          "id": "next-workspace",
+          "title": "Switch to the next workspace",
+          "keys": {
+            "default": "Ctrl+Tab"
+          }
+        },
+        {
+          "id": "workspace-number",
+          "title": "Switch to a numbered workspace",
+          "keys": {
+            "default": [
+              "Ctrl+1",
+              "Ctrl+2",
+              "Ctrl+3",
+              "Ctrl+4",
+              "Ctrl+5",
+              "Ctrl+6",
+              "Ctrl+7",
+              "Ctrl+8",
+              "Ctrl+9"
+            ],
+            "macos": [
+              "Super+1",
+              "Super+2",
+              "Super+3",
+              "Super+4",
+              "Super+5",
+              "Super+6",
+              "Super+7",
+              "Super+8",
+              "Super+9"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "title": "Message actions",
+      "context": "message-actions",
+      "shortcuts": [
+        {
+          "id": "edit-message",
+          "title": "Edit your message",
+          "keys": {
+            "default": "E"
+          }
+        },
+        {
+          "id": "delete-message",
+          "title": "Delete your message",
+          "keys": {
+            "default": "Delete"
+          }
+        },
+        {
+          "id": "open-thread",
+          "title": "Open or reply to a thread",
+          "keys": {
+            "default": [
+              "T",
+              "Right"
+            ]
+          }
+        },
+        {
+          "id": "forward-message",
+          "title": "Forward a message",
+          "keys": {
+            "default": "F"
+          }
+        },
+        {
+          "id": "pin-message",
+          "title": "Pin or unpin a message",
+          "keys": {
+            "default": "P"
+          }
+        },
+        {
+          "id": "save-message",
+          "title": "Save or unsave a message",
+          "keys": {
+            "default": "A"
+          }
+        },
+        {
+          "id": "mark-above-unread",
+          "title": "Mark messages above as unread",
+          "keys": {
+            "default": "U"
+          }
+        },
+        {
+          "id": "remind-message",
+          "title": "Create a reminder for a message",
+          "keys": {
+            "default": "M"
+          }
+        },
+        {
+          "id": "react-message",
+          "title": "Add an emoji reaction",
+          "keys": {
+            "default": "R"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Format messages",
+      "context": "composer",
+      "shortcuts": [
+        {
+          "id": "new-line",
+          "title": "Start a new line",
+          "keys": {
+            "default": "Shift+Enter",
+            "macos": "Shift+Enter"
+          }
+        },
+        {
+          "id": "bold",
+          "title": "Bold selected text",
+          "keys": {
+            "default": "Ctrl+B",
+            "macos": "Super+B"
+          }
+        },
+        {
+          "id": "italic",
+          "title": "Italicize selected text",
+          "keys": {
+            "default": "Ctrl+I",
+            "macos": "Super+I"
+          }
+        },
+        {
+          "id": "underline",
+          "title": "Underline selected text",
+          "keys": {
+            "default": "Ctrl+U",
+            "macos": "Super+U"
+          }
+        },
+        {
+          "id": "strikethrough",
+          "title": "Strikethrough selected text",
+          "keys": {
+            "default": "Ctrl+Shift+X",
+            "macos": "Shift+Super+X"
+          }
+        },
+        {
+          "id": "insert-link",
+          "title": "Add a link to selected text",
+          "keys": {
+            "default": "Ctrl+Shift+U",
+            "macos": "Shift+Super+U"
+          }
+        },
+        {
+          "id": "quote-text",
+          "title": "Format selected text as a quote",
+          "keys": {
+            "default": "Ctrl+Shift+9",
+            "macos": "Shift+Super+9"
+          }
+        },
+        {
+          "id": "code-text",
+          "title": "Format selected text as code",
+          "keys": {
+            "default": "Ctrl+Shift+C",
+            "macos": "Shift+Super+C"
+          }
+        },
+        {
+          "id": "code-block",
+          "title": "Format selected text as a code block",
+          "keys": {
+            "default": "Ctrl+Alt+Shift+C",
+            "macos": "Alt+Shift+Super+C"
+          }
+        },
+        {
+          "id": "bulleted-list",
+          "title": "Format selected text as a bulleted list",
+          "keys": {
+            "default": "Ctrl+Shift+8",
+            "macos": "Shift+Super+8"
+          }
+        },
+        {
+          "id": "numbered-list",
+          "title": "Format selected text as a numbered list",
+          "keys": {
+            "default": "Ctrl+Shift+7",
+            "macos": "Shift+Super+7"
+          }
+        },
+        {
+          "id": "markdown-format",
+          "title": "Apply markdown formatting",
+          "keys": {
+            "default": "Ctrl+Shift+F",
+            "macos": "Shift+Super+F"
+          }
+        }
+      ]
+    }
+  ]
+}

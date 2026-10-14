@@ -1,0 +1,335 @@
+{
+  "schema": 1,
+  "id": "obsidian",
+  "name": "Obsidian",
+  "checkedVersion": "1.14.4",
+  "sources": [
+    "https://obsidian.md/help/editing-shortcuts",
+    "https://obsidian.md/help/hotkeys",
+    "https://obsidian.md/changelog/2026-10-01-desktop-v1.14.4/"
+  ],
+  "match": {
+    "linux": {
+      "class": [
+        "obsidian"
+      ]
+    },
+    "windows": {
+      "exe": [
+        "Obsidian.exe"
+      ]
+    },
+    "macos": {
+      "bundle": [
+        "md.obsidian"
+      ]
+    }
+  },
+  "groups": [
+    {
+      "title": "Common editing",
+      "context": "editor",
+      "shortcuts": [
+        {
+          "id": "copy",
+          "title": "Copy the selection",
+          "keys": {
+            "default": "Ctrl+C",
+            "macos": "Super+C"
+          }
+        },
+        {
+          "id": "cut",
+          "title": "Cut the selection",
+          "keys": {
+            "default": "Ctrl+X",
+            "macos": "Super+X"
+          }
+        },
+        {
+          "id": "paste",
+          "title": "Paste from the clipboard",
+          "keys": {
+            "default": "Ctrl+V",
+            "macos": "Super+V"
+          }
+        },
+        {
+          "id": "paste-plain",
+          "title": "Paste without formatting",
+          "keys": {
+            "default": "Ctrl+Shift+V",
+            "macos": "Shift+Super+V"
+          }
+        },
+        {
+          "id": "undo",
+          "title": "Undo the last edit",
+          "keys": {
+            "default": "Ctrl+Z",
+            "macos": "Super+Z"
+          }
+        },
+        {
+          "id": "redo",
+          "title": "Redo the last edit",
+          "keys": {
+            "default": [
+              "Ctrl+Shift+Z",
+              "Ctrl+Y"
+            ],
+            "macos": "Shift+Super+Z"
+          }
+        },
+        {
+          "id": "select-all",
+          "title": "Select all text",
+          "keys": {
+            "default": "Ctrl+A",
+            "macos": "Super+A"
+          }
+        },
+        {
+          "id": "bold",
+          "title": "Toggle bold formatting",
+          "keys": {
+            "macos": "Super+B"
+          }
+        },
+        {
+          "id": "italic",
+          "title": "Toggle italic formatting",
+          "keys": {
+            "macos": "Super+I"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Text editing",
+      "context": "text-editing",
+      "shortcuts": [
+        {
+          "id": "delete-previous-character",
+          "title": "Delete the previous character",
+          "keys": {
+            "default": "Backspace"
+          }
+        },
+        {
+          "id": "delete-next-character",
+          "title": "Delete the next character",
+          "keys": {
+            "default": "Delete"
+          }
+        },
+        {
+          "id": "delete-previous-word",
+          "title": "Delete the previous word",
+          "keys": {
+            "default": "Ctrl+Backspace",
+            "macos": "Alt+Backspace"
+          }
+        },
+        {
+          "id": "delete-next-word",
+          "title": "Delete the next word",
+          "keys": {
+            "default": "Ctrl+Delete",
+            "macos": "Alt+Delete"
+          }
+        },
+        {
+          "id": "delete-line",
+          "title": "Delete the current line",
+          "keys": {
+            "default": "Ctrl+Shift+K",
+            "macos": "Shift+Super+K"
+          }
+        },
+        {
+          "id": "delete-to-line-start",
+          "title": "Delete to the start of the line",
+          "keys": {
+            "macos": "Super+Backspace"
+          }
+        },
+        {
+          "id": "delete-to-line-end",
+          "title": "Delete to the end of the line",
+          "keys": {
+            "macos": "Super+Delete"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Text navigation",
+      "context": "navigation",
+      "shortcuts": [
+        {
+          "id": "previous-word",
+          "title": "Move to the previous word",
+          "keys": {
+            "default": "Ctrl+Left",
+            "macos": "Alt+Left"
+          }
+        },
+        {
+          "id": "next-word",
+          "title": "Move to the next word",
+          "keys": {
+            "default": "Ctrl+Right",
+            "macos": "Alt+Right"
+          }
+        },
+        {
+          "id": "line-start",
+          "title": "Move to the start of the line",
+          "keys": {
+            "default": "Home",
+            "macos": "Super+Left"
+          }
+        },
+        {
+          "id": "line-end",
+          "title": "Move to the end of the line",
+          "keys": {
+            "default": "End",
+            "macos": "Super+Right"
+          }
+        },
+        {
+          "id": "note-start",
+          "title": "Move to the start of the note",
+          "keys": {
+            "default": "Ctrl+Home",
+            "macos": "Super+Up"
+          }
+        },
+        {
+          "id": "note-end",
+          "title": "Move to the end of the note",
+          "keys": {
+            "default": "Ctrl+End",
+            "macos": "Super+Down"
+          }
+        },
+        {
+          "id": "previous-line",
+          "title": "Move up one line",
+          "keys": {
+            "default": "Up"
+          }
+        },
+        {
+          "id": "next-line",
+          "title": "Move down one line",
+          "keys": {
+            "default": "Down"
+          }
+        },
+        {
+          "id": "previous-page",
+          "title": "Move up one page",
+          "keys": {
+            "default": "PageUp",
+            "macos": null
+          }
+        },
+        {
+          "id": "next-page",
+          "title": "Move down one page",
+          "keys": {
+            "default": "PageDown",
+            "macos": null
+          }
+        }
+      ]
+    },
+    {
+      "title": "Text selection",
+      "context": "selection",
+      "shortcuts": [
+        {
+          "id": "extend-character-left",
+          "title": "Extend selection one character left",
+          "keys": {
+            "default": "Shift+Left"
+          }
+        },
+        {
+          "id": "extend-character-right",
+          "title": "Extend selection one character right",
+          "keys": {
+            "default": "Shift+Right"
+          }
+        },
+        {
+          "id": "extend-word-left",
+          "title": "Extend selection to the previous word",
+          "keys": {
+            "default": "Ctrl+Shift+Left",
+            "macos": "Alt+Shift+Left"
+          }
+        },
+        {
+          "id": "extend-word-right",
+          "title": "Extend selection to the next word",
+          "keys": {
+            "default": "Ctrl+Shift+Right",
+            "macos": "Alt+Shift+Right"
+          }
+        },
+        {
+          "id": "extend-line-start",
+          "title": "Extend selection to the line start",
+          "keys": {
+            "default": "Shift+Home",
+            "macos": "Shift+Super+Left"
+          }
+        },
+        {
+          "id": "extend-line-end",
+          "title": "Extend selection to the line end",
+          "keys": {
+            "default": "Shift+End",
+            "macos": "Shift+Super+Right"
+          }
+        },
+        {
+          "id": "extend-note-start",
+          "title": "Extend selection to the note start",
+          "keys": {
+            "default": "Ctrl+Shift+Home",
+            "macos": "Shift+Super+Up"
+          }
+        },
+        {
+          "id": "extend-note-end",
+          "title": "Extend selection to the note end",
+          "keys": {
+            "default": "Ctrl+Shift+End",
+            "macos": "Shift+Super+Down"
+          }
+        },
+        {
+          "id": "extend-page-up",
+          "title": "Extend selection one page up",
+          "keys": {
+            "default": "Shift+PageUp",
+            "macos": "Ctrl+Shift+Up"
+          }
+        },
+        {
+          "id": "extend-page-down",
+          "title": "Extend selection one page down",
+          "keys": {
+            "default": "Shift+PageDown",
+            "macos": "Ctrl+Shift+Down"
+          }
+        }
+      ]
+    }
+  ]
+}

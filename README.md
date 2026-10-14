@@ -1,98 +1,83 @@
 # Arcade Tools
 
-Install, update, repair, launch and remove the Arcade desktop apps (Box, Lens,
-Look, Wheel, Clipboard, Shelf and Find). Choose
-stable or nightly for each app and manage start at login. The manager is optional.
-Every Arcade app works independently and can still be installed and updated by hand.
+[Getting started](docs/user/getting-started.md) · [Features](docs/user/features.md) · [Shortcuts](docs/user/shortcuts.md) · [Status](docs/STATUS.md)
 
-Tools reads the Arcade Link registry and the repositories' GitHub Releases. Each
-row shows installation and running state, its version and selected channel. It
-doesn't list capabilities, run pipelines or manage devices. Apps installed outside
-Tools can be launched; Tools only updates, repairs or removes its own installations.
+Arcade Tools **0.2.0** is the optional home for Box, Lens, Look, Wheel, Clipboard,
+Find and Shelf. Browse the catalog, install bundles, adopt existing installations,
+update and roll back apps, host their tray menus, find shortcuts, and read guides
+without leaving Tools. Every app also works independently.
 
-Install locations are per user, without administrator access:
+The Svelte 5 interface has Home, Apps, Updates, Shortcuts, Learn, Connections,
+Engines, Settings and Onboarding. Tools asks before installs, adoption, updates,
+uninstall, restore and shortcut changes. Automatic updates are opt-in per app,
+respect busy state and ten minutes since use, and announce completed changes.
 
-- **Linux:** AppImages in `~/Applications/Arcade/`. Clipboard tarballs run their
-  verified `scripts/install-linux.sh`, installing to
-  `${XDG_DATA_HOME:-~/.local/share}/arcade-clipboard/`. Shelf's runtime bundle
-  is extracted (no scripts, no links) to `${XDG_DATA_HOME:-~/.local/share}/arcade-shelf/`.
-- **Windows:** the app's per-user NSIS or Inno installer, with the release's
-  validated silent arguments, under `%LOCALAPPDATA%\Programs\<app name>\`.
-- **macOS:** mount the disk image read-only with `hdiutil`, then copy its app
-  bundle to `~/Applications/` with `ditto`, preserving extended attributes.
+Closing the window destroys its webview. Tray hosting or the cheat-sheet shortcut
+keeps the native process resident; Quit Arcade Tools exits it and hands icons back
+to apps. App actions use peer-to-peer Arcade Link, pinned to **v0.3.0**.
 
-Updates download and verify first, ask the running app to quit, replace its
-installation and reopen it in the same mode. Busy apps keep running: finish the
-job and retry. If an app doesn't report its window mode, Tools asks how to reopen
-it before closing anything. A disconnected app must be closed explicitly first.
-Replacement failures restore the previous files. Cancellation is available during
-download, and stops being available once installation commits changes.
+The separate native `arcade-tools-overlay` ships in every package and starts on
+demand. Its default shortcut is Super+/ on Linux, Ctrl+Alt+/ on Windows, and
+Ctrl+Option+/ on macOS. Hyprland uses a runtime bind, X11/Windows/macOS use native
+registration, and other Wayland desktops offer a manual keyboard-settings hint.
+Tools reads desktop configurations and stores labels in its own files.
 
-Uninstall keeps settings and data by default. The **Remove settings and data**
-checkbox lists the exact folders that will be removed. Start-at-login changes read
-and back up existing entries, preserve unrelated Linux entry fields, validate the
-result, and reject temporary executable locations. Wheel and Clipboard own native
-macOS login items; their toggle is hidden here and changed in the app's settings.
+Downloads are restricted to trusted GitHub HTTPS hosts and verified against
+release SHA-256 and size metadata before execution. Diagnostics stays in a local
+redacted ZIP for you to attach to an issue. Backup uses app-owned portable settings
+handoffs and includes Tools preferences, tray settings, labels and app channels;
+restore reviews missing installations before importing settings. Secrets, device
+identity, Clipboard history, indexes and caches are excluded.
 
-Downloads come only from the app's GitHub Releases over HTTPS. Tools validates
-`arcade-release.json` (schema 1), app/channel/protocol/OS/architecture, then verifies
-the installer's SHA-256 and declared size before executing or closing an app.
-HTTPS and checksums protect transport and integrity; they are not publisher
-signatures. Minisign verification and release signing remain future hardening.
-Tools never removes macOS quarantine or disables/bypasses SmartScreen. Link uses
-same-user local IPC; incoming requests still require the Tools confirmation dialog.
-
-`arcade.tools` exposes one interactive action, `tools.install`, accepting a canonical
-app ID through `text/plain` or `options.app`. A "Get" button in another app can open
-the install confirmation. This request never silently installs anything. Turning
-off **Connect with other Arcade apps** removes the listener and exposed actions;
-installation management remains available.
+Packages are per user: Linux AppImage, Windows NSIS, universal macOS dmg. The
+Windows installer uses checksum-pinned Link integration for its receipt and PATH
+shim. Linux/macOS integration uses Link's installer. No shell profile is changed;
+SmartScreen and quarantine protections remain in place.
 
 ```sh
 arcade-tools --version
-arcade-tools --arcade-manifest   # JSON; no GUI or registry writes
-arcade-tools --background       # hidden until activated or handed an install request
-arcade-tools --quit             # refuses while an operation is running
+arcade-tools --arcade-manifest
+arcade-tools --background
+arcade-tools --show-shortcuts
+arcade-tools --install --silent --no-launch
+arcade-tools --integration-status
+arcade-tools --repair
+arcade-tools --quit
 ```
 
-Tauri 2 uses the operating system's webview with vanilla TypeScript. There is no
-framework runtime or bundled Chromium. `npm run build` produces a small HTML/JS/CSS
-shell; `python3 scripts/ui-size.py` checks it against a 17 KB uncompressed budget.
-No update polling runs while idle. Registry changes arrive through a directory
-watch, and all discovery, network, IPC and installer work runs on worker threads.
+The native desktop uses Tauri 2's system webview. The shell budget is 200 KB;
+Markdown is rendered and sanitized in Rust, and Learn/Connections load lazily.
+Docs snapshots are limited to 8 MB. The bundled catalog, shortcut sheets and
+ecosystem guide come from Arcade-catalog `main`; [snapshot provenance](resources/catalog-snapshot/README.md)
+records the source commit. App development guides are labeled `local`; the release
+workflow refreshes stable-tag docs and retains the labeled bundle if those tags
+do not yet contain user guides.
 
-Arcade Link comes from its `v0.2.0` git tag. The isolated test runner
-(`tools/e2e.py`) lives in the Link repository, so keep a checkout beside this
-one for the commands below:
+For development, use Rust **1.88** or newer, Node 24, and the Linux Tauri/Wayland/X11
+libraries listed in `.github/workflows/ci.yml`. Keep a Link v0.3.0 checkout beside
+Tools for the isolated test runner. Temporary environments stay scoped to tests.
 
 ```sh
 npm ci
 npm run typecheck
 npm run build
-export CARGO_BUILD_JOBS=3
+python3 scripts/ui-size.py
 cargo fmt --all --check
-cargo clippy --workspace --all-targets -- -D warnings
-# Lifecycle tests launch executables and must use the isolated runner.
-CARGO_HOME="$HOME/.cargo" python3 ../Arcade-link/tools/e2e.py run -- cargo test --workspace
-cargo build -p arcade-tools --features custom-protocol
-python3 ../Arcade-link/tools/e2e.py --only tools
+CARGO_BUILD_JOBS=3 cargo clippy --workspace --all-targets --locked -- -D warnings
+CARGO_HOME="$HOME/.cargo" python3 ../Arcade-link-wt-core/tools/e2e.py run -- cargo test --workspace --locked
+cargo build --locked -p arcade-tools --features custom-protocol
+cargo build --locked -p arcade-tools-overlay
+CARGO_HOME="$HOME/.cargo" python3 ../Arcade-link-wt-core/tools/e2e.py run -- python3 scripts/tray-resident-e2e.py --check-budgets
+python3 ../Arcade-link-wt-core/tools/e2e.py --only tools-hub
+python3 scripts/verify-vendored.py
+python3 scripts/test-docs-snapshot.py
 ```
 
-Use `npm run tauri -- dev` for the Vite development server, inside the same isolated
-runner. Direct test binaries use `custom-protocol` to embed the built assets instead
-of requiring that server. GUI checks use a debug-only loopback release server and
-observational DOM logs inside one disposable HOME/XDG/ARCADE root; release builds
-ignore those environment variables. The check driver clicks the actual native GUI
-and runs a real Lens instance for busy/update/quit behavior.
+CI checks the full workspace and frontend on Rust 1.88 for Linux, Windows and
+macOS, builds both binaries into actual installers, and runs disposable package
+smokes. Overlay render checks use private Xvfb. These are CI/isolated checks;
+Windows/macOS and non-Hyprland Wayland are not verified on a real desktop here.
+No live Arcade installation is changed by these tests.
 
-Linux X11 is tested under private D-Bus/Xvfb. Linux Wayland is **not run** here.
-Windows and macOS build and pass the test suite in CI (their installer, location
-and login logic is also unit-tested on Linux), but no real desktop run has been
-performed on them. Current status: [docs/STATUS.md](docs/STATUS.md).
-
-CI checks fmt, clippy, Rust tests and the frontend on Linux, Windows and macOS.
-The release workflow bundles NSIS, AppImage and universal macOS dmg installers,
-then uses the canonical generator in [VENDORED](VENDORED) to create
-`arcade-release.json` and `SHA256SUMS.txt`. Version tags publish stable releases;
-manual dispatch can publish the rolling nightly. Nothing has been published from
-this checkout.
+Shared sources and their hashes are recorded in [VENDORED](VENDORED). Version tags
+publish stable packages.

@@ -17,7 +17,16 @@ pub struct Paths {
     pub isolated: bool,
 }
 impl Paths {
+    /// Environment/platform discovery on a worker thread. ARCADE_HOME replaces
+    /// every root for isolation; no environment/startup files are changed.
     pub fn discover() -> Result<Self> {
+        if let Some(root) = std::env::var_os("ARCADE_HOME").filter(|v| !v.is_empty()) {
+            let root = PathBuf::from(root);
+            if !root.is_absolute() {
+                return Err(Error::new("paths", "ARCADE_HOME must be absolute."));
+            }
+            return Ok(Self::under(&root));
+        }
         let base = directories::BaseDirs::new()
             .ok_or_else(|| Error::new("paths", "A home directory is required."))?;
         let home = base.home_dir().to_path_buf();
@@ -36,15 +45,18 @@ impl Paths {
             isolated: false,
         })
     }
+    /// Pure isolated path calculation, safe on any thread.
     pub fn under(root: &Path) -> Self {
         Self {
-            home: root.join("home"),
-            config: root.join("config"),
-            data: root.join("data"),
-            cache: root.join("cache"),
-            local: root.join("local"),
-            roaming: root.join("roaming"),
-            link: Locations::under(&root.join("arcade")),
+            // Match Link's install::Environment::under exactly, including the
+            // receipt store. Child --install processes inherit this one root.
+            home: root.into(),
+            config: root.join(".config"),
+            data: root.join(".local/share"),
+            cache: root.join(".cache"),
+            local: root.join("AppData/Local"),
+            roaming: root.join("AppData/Roaming"),
+            link: Locations::under(root),
             isolated: true,
         }
     }
@@ -53,6 +65,14 @@ impl Paths {
     }
     pub fn downloads(&self) -> PathBuf {
         self.cache.join("arcade-tools/downloads")
+    }
+    /// Path calculation only; no I/O, safe on any thread.
+    pub fn catalog(&self) -> PathBuf {
+        self.cache.join("arcade/tools/catalog")
+    }
+    /// Path calculation only; no I/O, safe on any thread.
+    pub fn docs(&self) -> PathBuf {
+        self.cache.join("arcade/tools/docs")
     }
     pub fn install_root(&self, id: &str, os: Os, tarball: bool) -> PathBuf {
         match os {
@@ -117,6 +137,7 @@ impl Paths {
                     self.data.join("dev.arcade.clipboard"),
                     self.data.join("clipboard"),
                 ],
+                ids::TOOLS => vec![self.state()],
                 _ => vec![],
             },
             Os::Windows => match id {
@@ -136,6 +157,7 @@ impl Paths {
                     self.local.join("Arcade/Arcade Find"),
                 ],
                 ids::CLIPBOARD => vec![self.roaming.join("dev.arcade/clipboard")],
+                ids::TOOLS => vec![self.state()],
                 _ => vec![],
             },
             Os::Macos => {
@@ -153,6 +175,7 @@ impl Paths {
                     crate::apps::SHELF => vec![support.join("qa-p1/ArcadeShelf")],
                     crate::apps::FIND => vec![support.join("Arcade Find")],
                     ids::CLIPBOARD => vec![support.join("dev.arcade.clipboard")],
+                    ids::TOOLS => vec![self.state()],
                     _ => vec![],
                 }
             }
@@ -176,6 +199,8 @@ impl Paths {
                     _ => id,
                 }
             )),
+            // The shared installers' Startup task creates `<Name>.lnk`. Tools'
+            // own and Shelf's transition entries are VBScript launchers.
             Os::Windows => self
                 .roaming
                 .join("Microsoft/Windows/Start Menu/Programs/Startup")
@@ -185,11 +210,12 @@ impl Paths {
                     if id == crate::apps::SHELF {
                         "vbs"
                     } else {
-                        "cmd"
+                        "lnk"
                     }
                 )),
         }
     }
+    /// Filesystem validation on a worker thread, including symlink resolution.
     pub fn check_persistent_executable(&self, executable: &Path) -> Result<()> {
         if !executable.is_absolute() || !executable.is_file() {
             return Err(Error::new("paths", "The installed executable is missing."));
@@ -214,21 +240,24 @@ impl Paths {
         }
         Ok(())
     }
+    /// Filesystem/path validation on a worker thread; performs no mutation.
     pub fn guard(&self, path: &Path) -> Result<()> {
         // No symlinked parents, path traversal or deletion outside these per-user roots.
+        let allowed_root = [
+            &self.home,
+            &self.config,
+            &self.data,
+            &self.local,
+            &self.roaming,
+            &self.cache,
+            &self.link.registry,
+        ]
+        .iter()
+        .any(|r| path.starts_with(r) && path != **r)
+            || (!self.isolated && cfg!(target_os = "macos") && system_bundle_path(path));
         if !path.is_absolute()
             || path.components().any(|c| matches!(c, Component::ParentDir))
-            || ![
-                &self.home,
-                &self.config,
-                &self.data,
-                &self.local,
-                &self.roaming,
-                &self.cache,
-                &self.link.registry,
-            ]
-            .iter()
-            .any(|r| path.starts_with(r) && path != **r)
+            || !allowed_root
         {
             return Err(Error::new(
                 "paths",
@@ -237,7 +266,7 @@ impl Paths {
         }
         for p in path.ancestors() {
             match std::fs::symlink_metadata(p) {
-                Ok(m) if m.file_type().is_symlink() => {
+                Ok(m) if m.file_type().is_symlink() && !system_alias(p) => {
                     return Err(Error::new(
                         "paths",
                         format!("Refusing symlinked install or data path {}", p.display()),
@@ -249,6 +278,30 @@ impl Paths {
         }
         Ok(())
     }
+
+    /// Validate a receipt/registry path on a worker. These private stores are
+    /// siblings, not app data; only their own children may be modified.
+    pub fn guard_receipt(&self, id: &str) -> Result<PathBuf> {
+        let path = arcade_link::receipt::Store::new(&self.link).path(id)?;
+        for parent in path.ancestors() {
+            if std::fs::symlink_metadata(parent).is_ok_and(|m| m.file_type().is_symlink())
+                && !system_alias(parent)
+            {
+                return Err(Error::new("paths", "Receipt paths must not be symlinked."));
+            }
+        }
+        Ok(path)
+    }
+}
+
+fn system_bundle_path(path: &Path) -> bool {
+    crate::apps::APPS
+        .iter()
+        .copied()
+        .chain([ids::TOOLS])
+        .any(|id| {
+            path.starts_with(Path::new("/Applications").join(format!("{}.app", app_name(id))))
+        })
 }
 
 pub fn app_id(id: &str) -> Result<()> {
@@ -256,4 +309,115 @@ pub fn app_id(id: &str) -> Result<()> {
         return Err(Error::new("unsupported_input", "Unknown Arcade app."));
     }
     Ok(())
+}
+
+pub(crate) fn system_alias(path: &Path) -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        std::fs::read_link(path).is_ok_and(|link| macos_alias_target(path, &link))
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = path;
+        false
+    }
+}
+
+#[cfg(any(target_os = "macos", test))]
+fn macos_alias_target(path: &Path, link: &Path) -> bool {
+    let Some(parent) = path.parent() else {
+        return false;
+    };
+    let target = parent.join(link);
+    [
+        ("/var", "/private/var"),
+        ("/tmp", "/private/tmp"),
+        ("/etc", "/private/etc"),
+    ]
+    .iter()
+    .any(|(alias, expected)| path == Path::new(alias) && target == Path::new(expected))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn system_applications_exception_is_limited_to_known_arcade_bundles() {
+        assert!(system_bundle_path(Path::new(
+            "/Applications/Arcade Look.app"
+        )));
+        assert!(system_bundle_path(Path::new(
+            "/Applications/Arcade Tools.app/Contents/MacOS/arcade-tools"
+        )));
+        for path in [
+            "/Applications",
+            "/Applications/Other.app",
+            "/Applications/Arcade Look.app-old",
+            "/Applications/Other/Arcade Look.app",
+        ] {
+            assert!(!system_bundle_path(Path::new(path)), "{path}");
+        }
+        let root = tempfile::tempdir().unwrap();
+        let mut paths = Paths::under(root.path());
+        assert!(paths
+            .guard(Path::new("/Applications/Arcade Look.app"))
+            .is_err());
+        paths.isolated = false;
+        assert_eq!(
+            paths
+                .guard(Path::new("/Applications/Arcade Look.app"))
+                .is_ok(),
+            cfg!(target_os = "macos")
+        );
+        assert!(paths
+            .guard(Path::new("/Applications/Arcade Look.app/../Other.app"))
+            .is_err());
+        assert!(paths
+            .guard(&paths.home.join("Applications/Arcade Look.app"))
+            .is_ok());
+    }
+
+    #[test]
+    fn macos_system_aliases_accept_relative_and_absolute_targets_only() {
+        for name in ["var", "tmp", "etc"] {
+            let alias = PathBuf::from(format!("/{name}"));
+            let relative = PathBuf::from(format!("private/{name}"));
+            let absolute = PathBuf::from(format!("/private/{name}"));
+            assert!(macos_alias_target(&alias, &relative));
+            assert!(macos_alias_target(&alias, &absolute));
+            assert!(!macos_alias_target(&alias, Path::new("/home/user/data")));
+            assert!(!macos_alias_target(&alias, Path::new("private/other")));
+            assert!(!macos_alias_target(
+                &Path::new("/home/user").join(name),
+                &absolute
+            ));
+            assert!(!macos_alias_target(
+                &Path::new("/home/user").join(name),
+                &relative
+            ));
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn user_symlinked_install_data_and_receipt_directories_are_refused() {
+        let root = tempfile::tempdir().unwrap();
+        let paths = Paths::under(root.path());
+        std::fs::create_dir(root.path().join("owned")).unwrap();
+        let receipt = arcade_link::receipt::Store::new(&paths.link)
+            .path(ids::TOOLS)
+            .unwrap();
+        for directory in [
+            paths.home.join("Applications"),
+            paths.data.clone(),
+            receipt.parent().unwrap().to_owned(),
+        ] {
+            std::fs::create_dir_all(directory.parent().unwrap()).unwrap();
+            std::os::unix::fs::symlink(root.path().join("owned"), &directory).unwrap();
+            assert!(paths.guard(&directory.join("child")).is_err());
+        }
+        assert!(paths.guard_receipt(ids::TOOLS).is_err());
+    }
 }

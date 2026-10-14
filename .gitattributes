@@ -1,0 +1,10 @@
+# Checksum-pinned sources and bundled snapshots must retain their exact bytes.
+scripts/arcade-release.py -text
+scripts/validate_shortcuts.py -text
+packaging/windows/arcade.iss -text
+packaging/windows/arcade.nsh -text
+packaging/windows/arcade-integration.ps1 -text
+packaging/windows/installer.nsi -text
+packaging/windows/LICENSE-TAURI-* -text
+resources/catalog-snapshot/** -text
+src-tauri/resources/** -text

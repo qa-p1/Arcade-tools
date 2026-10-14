@@ -1,0 +1,409 @@
+{
+  "schema": 1,
+  "id": "kitty",
+  "name": "kitty",
+  "checkedVersion": "0.49.2",
+  "sources": [
+    "https://sw.kovidgoyal.net/kitty/overview/",
+    "https://sw.kovidgoyal.net/kitty/actions/",
+    "https://sw.kovidgoyal.net/kitty/mapping/",
+    "https://sw.kovidgoyal.net/kitty/conf/"
+  ],
+  "match": {
+    "linux": {
+      "class": [
+        "kitty"
+      ]
+    },
+    "windows": {
+      "exe": [
+        "kitty.exe"
+      ]
+    },
+    "macos": {
+      "bundle": [
+        "net.kovidgoyal.kitty"
+      ]
+    }
+  },
+  "groups": [
+    {
+      "title": "Clipboard",
+      "context": "clipboard",
+      "shortcuts": [
+        {
+          "id": "copy",
+          "title": "Copy the selection",
+          "keys": {
+            "default": "Ctrl+Shift+C",
+            "macos": "Super+C"
+          }
+        },
+        {
+          "id": "paste",
+          "title": "Paste from the clipboard",
+          "keys": {
+            "default": "Ctrl+Shift+V",
+            "macos": "Super+V"
+          }
+        },
+        {
+          "id": "paste-selection",
+          "title": "Paste from the primary selection",
+          "keys": {
+            "default": "Ctrl+Shift+S"
+          }
+        },
+        {
+          "id": "pass-selection",
+          "title": "Pass the selection to the running program",
+          "keys": {
+            "default": "Ctrl+Shift+O"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Tabs",
+      "context": "tabs",
+      "shortcuts": [
+        {
+          "id": "new-tab",
+          "title": "Open a new tab",
+          "keys": {
+            "default": "Ctrl+Shift+T",
+            "macos": "Super+T"
+          }
+        },
+        {
+          "id": "close-tab",
+          "title": "Close the active tab",
+          "keys": {
+            "default": "Ctrl+Shift+Q",
+            "macos": "Super+W"
+          }
+        },
+        {
+          "id": "next-tab",
+          "title": "Switch to the next tab",
+          "keys": {
+            "default": "Ctrl+Shift+Right",
+            "macos": [
+              "Ctrl+Tab",
+              "Shift+Super+BracketRight"
+            ]
+          }
+        },
+        {
+          "id": "previous-tab",
+          "title": "Switch to the previous tab",
+          "keys": {
+            "default": "Ctrl+Shift+Left",
+            "macos": [
+              "Ctrl+Shift+Tab",
+              "Shift+Super+BracketLeft"
+            ]
+          }
+        },
+        {
+          "id": "move-tab-forward",
+          "title": "Move the active tab forward",
+          "keys": {
+            "default": "Ctrl+Shift+Period"
+          }
+        },
+        {
+          "id": "move-tab-backward",
+          "title": "Move the active tab backward",
+          "keys": {
+            "default": "Ctrl+Shift+Comma"
+          }
+        },
+        {
+          "id": "set-tab-title",
+          "title": "Set the active tab title",
+          "keys": {
+            "default": "Ctrl+Alt+Shift+T",
+            "macos": "Shift+Super+I"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Windows and layouts",
+      "context": "windows",
+      "shortcuts": [
+        {
+          "id": "new-window",
+          "title": "Open a new terminal window",
+          "keys": {
+            "default": "Ctrl+Shift+Enter",
+            "macos": "Super+Enter"
+          }
+        },
+        {
+          "id": "new-os-window",
+          "title": "Open a new OS window",
+          "keys": {
+            "default": "Ctrl+Shift+N",
+            "macos": "Super+N"
+          }
+        },
+        {
+          "id": "close-window",
+          "title": "Close the current OS window",
+          "keys": {
+            "default": "Ctrl+Shift+W",
+            "macos": "Shift+Super+D"
+          }
+        },
+        {
+          "id": "next-layout",
+          "title": "Switch to the next layout",
+          "keys": {
+            "default": "Ctrl+Shift+L"
+          }
+        },
+        {
+          "id": "focus-window-1",
+          "title": "Focus window 1",
+          "keys": {
+            "default": "Ctrl+Shift+1",
+            "macos": "Super+1"
+          }
+        },
+        {
+          "id": "focus-window-2",
+          "title": "Focus window 2",
+          "keys": {
+            "default": "Ctrl+Shift+2",
+            "macos": "Super+2"
+          }
+        },
+        {
+          "id": "focus-window-3",
+          "title": "Focus window 3",
+          "keys": {
+            "default": "Ctrl+Shift+3",
+            "macos": "Super+3"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Scrollback",
+      "context": "scrollback",
+      "shortcuts": [
+        {
+          "id": "scroll-line-up",
+          "title": "Scroll up one line",
+          "keys": {
+            "default": "Ctrl+Shift+Up",
+            "macos": "Alt+Super+Up"
+          }
+        },
+        {
+          "id": "scroll-line-down",
+          "title": "Scroll down one line",
+          "keys": {
+            "default": "Ctrl+Shift+Down",
+            "macos": "Alt+Super+Down"
+          }
+        },
+        {
+          "id": "scroll-page-up",
+          "title": "Scroll up one page",
+          "keys": {
+            "default": "Ctrl+Shift+PageUp",
+            "macos": "Super+PageUp"
+          }
+        },
+        {
+          "id": "scroll-page-down",
+          "title": "Scroll down one page",
+          "keys": {
+            "default": "Ctrl+Shift+PageDown",
+            "macos": "Super+PageDown"
+          }
+        },
+        {
+          "id": "scroll-to-top",
+          "title": "Scroll to the top",
+          "keys": {
+            "default": "Ctrl+Shift+Home",
+            "macos": "Super+Home"
+          }
+        },
+        {
+          "id": "scroll-to-bottom",
+          "title": "Scroll to the bottom",
+          "keys": {
+            "default": "Ctrl+Shift+End",
+            "macos": "Super+End"
+          }
+        },
+        {
+          "id": "previous-prompt",
+          "title": "Jump to the previous shell prompt",
+          "keys": {
+            "default": "Ctrl+Shift+Z"
+          }
+        },
+        {
+          "id": "next-prompt",
+          "title": "Jump to the next shell prompt",
+          "keys": {
+            "default": "Ctrl+Shift+X"
+          }
+        },
+        {
+          "id": "browse-scrollback",
+          "title": "Browse scrollback in less",
+          "keys": {
+            "default": "Ctrl+Shift+H"
+          }
+        },
+        {
+          "id": "browse-last-command",
+          "title": "Browse the last command output",
+          "keys": {
+            "default": "Ctrl+Shift+G"
+          }
+        },
+        {
+          "id": "search-scrollback",
+          "title": "Search the scrollback",
+          "keys": {
+            "default": "Ctrl+Shift+Slash",
+            "macos": "Super+F"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Font and display",
+      "context": "display",
+      "shortcuts": [
+        {
+          "id": "font-increase",
+          "title": "Increase font size",
+          "keys": {
+            "default": "Ctrl+Shift+Equal",
+            "macos": "Shift+Super+Equal"
+          }
+        },
+        {
+          "id": "font-decrease",
+          "title": "Decrease font size",
+          "keys": {
+            "default": "Ctrl+Shift+Minus",
+            "macos": "Super+Minus"
+          }
+        },
+        {
+          "id": "font-reset",
+          "title": "Reset font size",
+          "keys": {
+            "default": "Ctrl+Shift+Backspace",
+            "macos": "Super+0"
+          }
+        },
+        {
+          "id": "fullscreen",
+          "title": "Toggle full-screen mode",
+          "keys": {
+            "default": "Ctrl+Shift+F11",
+            "macos": "Ctrl+Super+F"
+          }
+        },
+        {
+          "id": "maximize",
+          "title": "Toggle maximized mode",
+          "keys": {
+            "default": "Ctrl+Shift+F10"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Other actions",
+      "context": "actions",
+      "shortcuts": [
+        {
+          "id": "unicode-input",
+          "title": "Enter a Unicode character",
+          "keys": {
+            "default": "Ctrl+Shift+U",
+            "macos": "Ctrl+Super+Space"
+          }
+        },
+        {
+          "id": "open-url",
+          "title": "Open a URL",
+          "keys": {
+            "default": "Ctrl+Shift+E"
+          }
+        },
+        {
+          "id": "reset-terminal",
+          "title": "Reset the terminal",
+          "keys": {
+            "default": "Ctrl+Shift+Delete",
+            "macos": "Alt+Super+R"
+          }
+        },
+        {
+          "id": "kitty-shell",
+          "title": "Open the kitty shell",
+          "keys": {
+            "default": "Ctrl+Shift+Escape"
+          }
+        },
+        {
+          "id": "command-palette",
+          "title": "Open the command palette",
+          "keys": {
+            "default": "Ctrl+Shift+F3"
+          }
+        },
+        {
+          "id": "show-help",
+          "title": "Open kitty help",
+          "keys": {
+            "default": "Ctrl+Shift+F1"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Configuration",
+      "context": "configuration",
+      "shortcuts": [
+        {
+          "id": "edit-config",
+          "title": "Edit kitty configuration",
+          "keys": {
+            "default": "Ctrl+Shift+F2",
+            "macos": "Super+Comma"
+          }
+        },
+        {
+          "id": "reload-config",
+          "title": "Reload kitty configuration",
+          "keys": {
+            "default": "Ctrl+Shift+F5",
+            "macos": "Ctrl+Super+Comma"
+          }
+        },
+        {
+          "id": "debug-config",
+          "title": "Show configuration debug information",
+          "keys": {
+            "default": "Ctrl+Shift+F6",
+            "macos": "Alt+Super+Comma"
+          }
+        }
+      ]
+    }
+  ]
+}

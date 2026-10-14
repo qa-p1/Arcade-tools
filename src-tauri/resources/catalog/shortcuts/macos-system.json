@@ -1,0 +1,205 @@
+{
+  "schema": 1,
+  "id": "macos-system",
+  "name": "macOS system shortcuts",
+  "checkedVersion": "macOS 27",
+  "sources": [
+    "https://support.apple.com/en-us/102650",
+    "https://support.apple.com/guide/mac-help/keyboard-shortcuts-mchlgtd_kbd01/mac",
+    "https://support.apple.com/guide/mac-help/view-open-windows-spaces-mission-control-mh35798/mac",
+    "https://support.apple.com/en-mide/guide/mac-mini/apdbc4019fdf/mac"
+  ],
+  "match": {
+    "macos": {
+      "bundle": [
+        "*"
+      ]
+    }
+  },
+  "groups": [
+    {
+      "title": "App switching and windows",
+      "context": "windows",
+      "shortcuts": [
+        {
+          "id": "switch-apps",
+          "title": "Switch to the next app",
+          "keys": {
+            "macos": "Super+Tab"
+          }
+        },
+        {
+          "id": "switch-apps-reverse",
+          "title": "Switch to the previous app",
+          "keys": {
+            "macos": "Shift+Super+Tab"
+          }
+        },
+        {
+          "id": "switch-windows",
+          "title": "Switch windows in the current app",
+          "keys": {
+            "macos": "Super+Backquote"
+          }
+        },
+        {
+          "id": "hide-app",
+          "title": "Hide the current app",
+          "keys": {
+            "macos": "Super+H"
+          }
+        },
+        {
+          "id": "hide-other-apps",
+          "title": "Hide other apps",
+          "keys": {
+            "macos": "Alt+Super+H"
+          }
+        },
+        {
+          "id": "quit-app",
+          "title": "Quit the current app",
+          "keys": {
+            "macos": "Super+Q"
+          }
+        },
+        {
+          "id": "force-quit",
+          "title": "Open the Force Quit window",
+          "keys": {
+            "macos": "Alt+Super+Escape"
+          }
+        },
+        {
+          "id": "minimize-window",
+          "title": "Minimize the front window",
+          "keys": {
+            "macos": "Super+M"
+          }
+        },
+        {
+          "id": "minimize-all-windows",
+          "title": "Minimize all windows of the front app",
+          "keys": {
+            "macos": "Alt+Super+M"
+          }
+        },
+        {
+          "id": "lock-screen",
+          "title": "Lock the screen",
+          "keys": {
+            "macos": "Ctrl+Super+Q"
+          }
+        },
+        {
+          "id": "toggle-full-screen",
+          "title": "Toggle full-screen mode",
+          "keys": {
+            "macos": "Ctrl+Super+F"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Search and input",
+      "context": "system",
+      "shortcuts": [
+        {
+          "id": "spotlight",
+          "title": "Open Spotlight",
+          "keys": {
+            "macos": "Super+Space"
+          }
+        },
+        {
+          "id": "finder-search",
+          "title": "Search in a Finder window",
+          "keys": {
+            "macos": "Alt+Super+Space"
+          }
+        },
+        {
+          "id": "emoji-symbols",
+          "title": "Open the character viewer",
+          "keys": {
+            "macos": "Ctrl+Super+Space"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Mission Control and spaces",
+      "context": "spaces",
+      "shortcuts": [
+        {
+          "id": "mission-control",
+          "title": "Open Mission Control",
+          "keys": {
+            "macos": "Ctrl+Up"
+          }
+        },
+        {
+          "id": "app-expose",
+          "title": "Show windows for the current app",
+          "keys": {
+            "macos": "Ctrl+Down"
+          }
+        },
+        {
+          "id": "previous-space",
+          "title": "Switch to the previous space",
+          "keys": {
+            "macos": "Ctrl+Left"
+          }
+        },
+        {
+          "id": "next-space",
+          "title": "Switch to the next space",
+          "keys": {
+            "macos": "Ctrl+Right"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Screenshots",
+      "context": "screenshots",
+      "shortcuts": [
+        {
+          "id": "capture-screen",
+          "title": "Capture the entire screen",
+          "keys": {
+            "macos": "Shift+Super+3"
+          }
+        },
+        {
+          "id": "capture-selection",
+          "title": "Capture a selected area",
+          "keys": {
+            "macos": "Shift+Super+4"
+          }
+        },
+        {
+          "id": "screenshot-toolbar",
+          "title": "Open the screenshot toolbar",
+          "keys": {
+            "macos": "Shift+Super+5"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Window screenshot",
+      "context": "screenshot-window",
+      "shortcuts": [
+        {
+          "id": "capture-window",
+          "title": "Capture a window or menu",
+          "keys": {
+            "macos": "Shift+Super+4 Space"
+          }
+        }
+      ]
+    }
+  ]
+}

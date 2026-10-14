@@ -69,8 +69,9 @@ pub enum Kind {
     Inno,
     Msi,
     Dmg,
+    Portable,
 }
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Asset {
     pub os: Os,
     pub arch: Arch,
@@ -81,6 +82,12 @@ pub struct Asset {
     pub size: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub silent: Option<Vec<String>>,
+    #[serde(
+        rename = "installArgs",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub install_args: Option<Vec<String>>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -94,13 +101,47 @@ pub struct Release {
     pub assets: Vec<Asset>,
 }
 
+/// Last validated release metadata and its GitHub API validator. Schema 1 is
+/// checked before reuse; the installer itself is still verified on download.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReleaseCache {
+    pub schema: u32,
+    pub api_url: String,
+    pub etag: Option<String>,
+    pub release: Release,
+    pub asset: Asset,
+    pub download_url: String,
+    pub body: String,
+}
+
+/// Receipts may record the compiled base version for a nightly build. Its
+/// channel is checked separately; two explicit nightly identities must agree.
+pub(crate) fn versions_match(left: &str, right: &str, channel: Channel) -> bool {
+    left == right
+        || match (semver::Version::parse(left), semver::Version::parse(right)) {
+            (Ok(left), Ok(right)) if channel == Channel::Stable => {
+                left.cmp_precedence(&right).is_eq()
+            }
+            (Ok(left), Ok(right)) => {
+                let nightly = |v: &semver::Version| {
+                    v.pre.as_str() == "nightly" || v.pre.as_str().starts_with("nightly.")
+                };
+                (left.major, left.minor, left.patch) == (right.major, right.minor, right.patch)
+                    && (left.pre.is_empty() && nightly(&right)
+                        || right.pre.is_empty() && nightly(&left))
+            }
+            _ => false,
+        }
+}
+
 impl Release {
     pub fn parse(bytes: &[u8]) -> Result<Self> {
         // serde's Option accepts explicit null; the schema does not.
         let value: serde_json::Value = serde_json::from_slice(bytes)?;
         if let Some(assets) = value.get("assets").and_then(|a| a.as_array()) {
             for a in assets {
-                for key in ["size", "silent"] {
+                for key in ["size", "silent", "installArgs"] {
                     if a.get(key).is_some_and(|v| v.is_null()) {
                         return Err(Error::new("manifest", format!("{key} cannot be null")));
                     }
@@ -172,16 +213,22 @@ impl Release {
     }
 
     pub fn compatible(&self, id: &str, channel: Channel) -> Result<()> {
-        if self.id != id || self.channel != channel {
-            return Err(Error::new(
-                "manifest",
-                "Release app or channel does not match the requested app.",
-            ));
-        }
+        self.matches(id, channel)?;
         if !self.link_protocol.contains(&1) {
             return Err(Error::new(
                 "version_mismatch",
                 "This release does not support Arcade Link protocol 1.",
+            ));
+        }
+        Ok(())
+    }
+    /// Pure metadata validation, safe on any thread. Update discovery must see
+    /// incompatible releases so it can report a held-back reason.
+    pub fn matches(&self, id: &str, channel: Channel) -> Result<()> {
+        if self.id != id || self.channel != channel {
+            return Err(Error::new(
+                "manifest",
+                "Release app or channel does not match the requested app.",
             ));
         }
         Ok(())
@@ -198,6 +245,7 @@ pub fn safe_filename(name: &str) -> Result<()> {
     }
     Ok(())
 }
+/// File/hash work on a worker thread; never a UI thread.
 pub fn checksum(path: &Path) -> Result<String> {
     let mut reader = std::fs::File::open(path)?;
     let mut hash = Sha256::new();
@@ -211,6 +259,7 @@ pub fn checksum(path: &Path) -> Result<String> {
     }
     Ok(format!("{:x}", hash.finalize()))
 }
+/// Filesystem/hash verification on a worker thread; performs no mutation.
 pub fn verify(path: &Path, asset: &Asset) -> Result<()> {
     if asset
         .size
@@ -223,4 +272,27 @@ pub fn verify(path: &Path, asset: &Asset) -> Result<()> {
         ));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod version_tests {
+    use super::*;
+
+    #[test]
+    fn nightly_base_receipts_require_matching_base_and_nightly_identity() {
+        for id in ["0.2.0-nightly.42", "0.2.0-nightly.20261014+abc"] {
+            assert!(versions_match("0.2.0", id, Channel::Nightly));
+            assert!(versions_match(id, "0.2.0", Channel::Nightly));
+            assert!(!versions_match("0.2.0", id, Channel::Stable));
+            assert!(!versions_match("0.1.0", id, Channel::Nightly));
+        }
+        assert!(!versions_match(
+            "0.2.0-nightly.41",
+            "0.2.0-nightly.42",
+            Channel::Nightly
+        ));
+        assert!(!versions_match("0.2.0", "0.2.0-beta.1", Channel::Nightly));
+        assert!(!versions_match("build-a", "build-b", Channel::Nightly));
+        assert!(versions_match("0.2.0", "0.2.0+build.42", Channel::Stable));
+    }
 }

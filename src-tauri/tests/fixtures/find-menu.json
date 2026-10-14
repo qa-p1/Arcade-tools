@@ -1,0 +1,10 @@
+{
+  "schema": 1, "id": "arcade.find", "name": "Arcade Find", "version": "1",
+  "executable": "/fixture/find", "settings": {"linkEnabled": true},
+  "menu": [
+    {"id": "rescan", "title": "Rescan index", "kind": "action", "enabled": true},
+    {"id": "private", "title": "Private mode", "kind": "toggle", "enabled": true, "checked": true},
+    {"id": "separator", "title": "", "kind": "separator", "enabled": false},
+    {"id": "offline", "title": "Offline action", "kind": "action", "enabled": false}
+  ]
+}

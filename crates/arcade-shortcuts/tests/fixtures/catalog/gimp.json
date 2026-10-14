@@ -1,0 +1,548 @@
+{
+  "schema": 1,
+  "id": "gimp",
+  "name": "GIMP",
+  "checkedVersion": "3.0",
+  "sources": [
+    "https://docs.gimp.org/3.0/pdf/gimp-keys-en.pdf",
+    "https://docs.gimp.org/3.0/en/key-reference-tools.html",
+    "https://docs.gimp.org/3.0/en/key-reference-view.html",
+    "https://www.gimp.org/news/2022/08/27/gimp-2-99-12-released/"
+  ],
+  "match": {
+    "linux": {
+      "class": [
+        "gimp",
+        "org.gimp.GIMP"
+      ]
+    },
+    "windows": {
+      "exe": [
+        "gimp-3.0.exe"
+      ]
+    },
+    "macos": {
+      "bundle": [
+        "org.gimp.GIMP"
+      ]
+    }
+  },
+  "groups": [
+    {
+      "title": "Image files",
+      "context": "document",
+      "shortcuts": [
+        {
+          "id": "new-image",
+          "title": "Create a new image",
+          "keys": {
+            "default": "Ctrl+N",
+            "macos": "Super+N"
+          }
+        },
+        {
+          "id": "open-image",
+          "title": "Open an image",
+          "keys": {
+            "default": "Ctrl+O",
+            "macos": "Super+O"
+          }
+        },
+        {
+          "id": "save-image",
+          "title": "Save the image",
+          "keys": {
+            "default": "Ctrl+S",
+            "macos": "Super+S"
+          }
+        },
+        {
+          "id": "save-as",
+          "title": "Save under a new name",
+          "keys": {
+            "default": "Ctrl+Shift+S",
+            "macos": "Shift+Super+S"
+          }
+        },
+        {
+          "id": "export-image",
+          "title": "Export the image",
+          "keys": {
+            "default": "Ctrl+E",
+            "macos": "Super+E"
+          }
+        },
+        {
+          "id": "export-as",
+          "title": "Export to a chosen format",
+          "keys": {
+            "default": "Ctrl+Shift+E",
+            "macos": "Shift+Super+E"
+          }
+        },
+        {
+          "id": "print-image",
+          "title": "Print the image",
+          "keys": {
+            "default": "Ctrl+P",
+            "macos": "Super+P"
+          }
+        },
+        {
+          "id": "close-image",
+          "title": "Close the image window",
+          "keys": {
+            "default": "Ctrl+W",
+            "macos": "Super+W"
+          }
+        },
+        {
+          "id": "quit",
+          "title": "Quit GIMP",
+          "keys": {
+            "default": "Ctrl+Q",
+            "macos": "Super+Q"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Edit",
+      "context": "editing",
+      "shortcuts": [
+        {
+          "id": "undo",
+          "title": "Undo the last action",
+          "keys": {
+            "default": "Ctrl+Z",
+            "macos": "Super+Z"
+          }
+        },
+        {
+          "id": "redo",
+          "title": "Redo the last action",
+          "keys": {
+            "default": "Ctrl+Y",
+            "macos": "Super+Y"
+          }
+        },
+        {
+          "id": "cut",
+          "title": "Cut the selection",
+          "keys": {
+            "default": "Ctrl+X",
+            "macos": "Super+X"
+          }
+        },
+        {
+          "id": "copy",
+          "title": "Copy the selection",
+          "keys": {
+            "default": "Ctrl+C",
+            "macos": "Super+C"
+          }
+        },
+        {
+          "id": "copy-visible",
+          "title": "Copy the visible image",
+          "keys": {
+            "default": "Ctrl+Shift+C",
+            "macos": "Shift+Super+C"
+          }
+        },
+        {
+          "id": "paste",
+          "title": "Paste from the clipboard",
+          "keys": {
+            "default": "Ctrl+V",
+            "macos": "Super+V"
+          }
+        },
+        {
+          "id": "paste-in-place",
+          "title": "Paste in place",
+          "keys": {
+            "default": "Ctrl+Alt+V",
+            "macos": "Alt+Super+V"
+          }
+        },
+        {
+          "id": "paste-as-image",
+          "title": "Paste as a new image",
+          "keys": {
+            "default": "Ctrl+Shift+V",
+            "macos": "Shift+Super+V"
+          }
+        },
+        {
+          "id": "clear-selection",
+          "title": "Clear the selected area",
+          "keys": {
+            "default": "Delete",
+            "macos": "Delete"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Selection",
+      "context": "selection",
+      "shortcuts": [
+        {
+          "id": "toggle-selection-outline",
+          "title": "Show or hide the selection outline",
+          "keys": {
+            "default": "Ctrl+T",
+            "macos": "Super+T"
+          }
+        },
+        {
+          "id": "select-all",
+          "title": "Select the whole image",
+          "keys": {
+            "default": "Ctrl+A",
+            "macos": "Super+A"
+          }
+        },
+        {
+          "id": "select-none",
+          "title": "Remove the selection",
+          "keys": {
+            "default": "Ctrl+Shift+A",
+            "macos": "Shift+Super+A"
+          }
+        },
+        {
+          "id": "invert-selection",
+          "title": "Invert the selection",
+          "keys": {
+            "default": "Ctrl+I",
+            "macos": "Super+I"
+          }
+        },
+        {
+          "id": "float-selection",
+          "title": "Float the selection",
+          "keys": {
+            "default": "Ctrl+L",
+            "macos": "Super+L"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Canvas view",
+      "context": "view",
+      "shortcuts": [
+        {
+          "id": "fullscreen",
+          "title": "Toggle fullscreen",
+          "keys": {
+            "default": "F11",
+            "macos": "F11"
+          }
+        },
+        {
+          "id": "toggle-docks",
+          "title": "Show or hide docks",
+          "keys": {
+            "default": "Tab",
+            "macos": "Tab"
+          }
+        },
+        {
+          "id": "quick-mask",
+          "title": "Toggle Quick Mask",
+          "keys": {
+            "default": "Shift+Q",
+            "macos": "Shift+Q"
+          }
+        },
+        {
+          "id": "center-image",
+          "title": "Center the image in the window",
+          "keys": {
+            "default": "Shift+J",
+            "macos": "Shift+J"
+          }
+        },
+        {
+          "id": "fit-image",
+          "title": "Fit the image in the window",
+          "keys": {
+            "default": "Ctrl+Shift+J",
+            "macos": "Shift+Super+J"
+          }
+        },
+        {
+          "id": "shrink-wrap",
+          "title": "Fit the window to the image",
+          "keys": {
+            "default": "Ctrl+J",
+            "macos": "Super+J"
+          }
+        },
+        {
+          "id": "toggle-rulers",
+          "title": "Show or hide rulers",
+          "keys": {
+            "default": "Ctrl+Shift+R",
+            "macos": "Shift+Super+R"
+          }
+        },
+        {
+          "id": "toggle-guides",
+          "title": "Show or hide guides",
+          "keys": {
+            "default": "Ctrl+Shift+T",
+            "macos": "Shift+Super+T"
+          }
+        },
+        {
+          "id": "zoom-in",
+          "title": "Zoom in",
+          "keys": {
+            "default": "Shift+Equal",
+            "macos": "Shift+Equal"
+          }
+        },
+        {
+          "id": "zoom-out",
+          "title": "Zoom out",
+          "keys": {
+            "default": "Minus",
+            "macos": "Minus"
+          }
+        },
+        {
+          "id": "zoom-one-to-one",
+          "title": "View the image at actual size",
+          "keys": {
+            "default": "1",
+            "macos": "1"
+          }
+        },
+        {
+          "id": "image-properties",
+          "title": "Show image properties",
+          "keys": {
+            "default": "Alt+Enter",
+            "macos": "Alt+Enter"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Dialogs",
+      "context": "dialogs",
+      "shortcuts": [
+        {
+          "id": "layers-dialog",
+          "title": "Show or focus the Layers dialog",
+          "keys": {
+            "default": "Ctrl+L",
+            "macos": "Super+L"
+          }
+        },
+        {
+          "id": "brushes-dialog",
+          "title": "Show or focus the Brushes dialog",
+          "keys": {
+            "default": "Ctrl+Shift+B",
+            "macos": "Shift+Super+B"
+          }
+        },
+        {
+          "id": "patterns-dialog",
+          "title": "Show or focus the Patterns dialog",
+          "keys": {
+            "default": "Ctrl+Shift+P",
+            "macos": "Shift+Super+P"
+          }
+        },
+        {
+          "id": "gradients-dialog",
+          "title": "Show or focus the Gradients dialog",
+          "keys": {
+            "default": "Ctrl+G",
+            "macos": "Super+G"
+          }
+        },
+        {
+          "id": "tool-options-dialog",
+          "title": "Show or focus Tool Options",
+          "keys": {
+            "default": "Ctrl+Shift+T",
+            "macos": "Shift+Super+T"
+          }
+        },
+        {
+          "id": "palettes-dialog",
+          "title": "Show or focus the Palettes dialog",
+          "keys": {
+            "default": "Ctrl+P",
+            "macos": "Super+P"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Choose a tool",
+      "context": "tools",
+      "shortcuts": [
+        {
+          "id": "rectangle-select",
+          "title": "Choose Rectangle Select",
+          "keys": {
+            "default": "R",
+            "macos": "R"
+          }
+        },
+        {
+          "id": "ellipse-select",
+          "title": "Choose Ellipse Select",
+          "keys": {
+            "default": "E",
+            "macos": "E"
+          }
+        },
+        {
+          "id": "free-select",
+          "title": "Choose Free Select",
+          "keys": {
+            "default": "F",
+            "macos": "F"
+          }
+        },
+        {
+          "id": "fuzzy-select",
+          "title": "Choose Fuzzy Select",
+          "keys": {
+            "default": "U",
+            "macos": "U"
+          }
+        },
+        {
+          "id": "select-by-color",
+          "title": "Choose Select by Color",
+          "keys": {
+            "default": "Shift+O",
+            "macos": "Shift+O"
+          }
+        },
+        {
+          "id": "move-tool",
+          "title": "Choose Move",
+          "keys": {
+            "default": "M",
+            "macos": "M"
+          }
+        },
+        {
+          "id": "crop-tool",
+          "title": "Choose Crop",
+          "keys": {
+            "default": "Shift+C",
+            "macos": "Shift+C"
+          }
+        },
+        {
+          "id": "rotate-tool",
+          "title": "Choose Rotate",
+          "keys": {
+            "default": "Shift+R",
+            "macos": "Shift+R"
+          }
+        },
+        {
+          "id": "scale-tool",
+          "title": "Choose Scale",
+          "keys": {
+            "default": "Shift+S",
+            "macos": "Shift+S"
+          }
+        },
+        {
+          "id": "unified-transform-tool",
+          "title": "Choose Unified Transform",
+          "keys": {
+            "default": "Shift+T",
+            "macos": "Shift+T"
+          }
+        },
+        {
+          "id": "flip-tool",
+          "title": "Choose Flip",
+          "keys": {
+            "default": "Shift+F",
+            "macos": "Shift+F"
+          }
+        },
+        {
+          "id": "paths-tool",
+          "title": "Choose Paths",
+          "keys": {
+            "default": "B",
+            "macos": "B"
+          }
+        },
+        {
+          "id": "text-tool",
+          "title": "Choose Text",
+          "keys": {
+            "default": "T",
+            "macos": "T"
+          }
+        },
+        {
+          "id": "color-picker-tool",
+          "title": "Choose Color Picker",
+          "keys": {
+            "default": "O",
+            "macos": "O"
+          }
+        },
+        {
+          "id": "zoom-tool",
+          "title": "Choose Zoom",
+          "keys": {
+            "default": "Z",
+            "macos": "Z"
+          }
+        },
+        {
+          "id": "paintbrush-tool",
+          "title": "Choose Paintbrush",
+          "keys": {
+            "default": "P",
+            "macos": "P"
+          }
+        },
+        {
+          "id": "bucket-fill-tool",
+          "title": "Choose Bucket Fill",
+          "keys": {
+            "default": "Shift+B",
+            "macos": "Shift+B"
+          }
+        },
+        {
+          "id": "gradient-tool",
+          "title": "Choose Gradient",
+          "keys": {
+            "default": "G",
+            "macos": "G"
+          }
+        },
+        {
+          "id": "pencil-tool",
+          "title": "Choose Pencil",
+          "keys": {
+            "default": "N",
+            "macos": "N"
+          }
+        }
+      ]
+    }
+  ]
+}

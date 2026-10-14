@@ -1,0 +1,507 @@
+{
+  "schema": 1,
+  "id": "firefox",
+  "name": "Firefox",
+  "checkedVersion": "157.0.1",
+  "sources": [
+    "https://support.mozilla.org/en-US/kb/keyboard-shortcuts-perform-firefox-tasks-quickly",
+    "https://www.firefox.com/en-US/firefox/157.0.1/releasenotes/"
+  ],
+  "match": {
+    "linux": {
+      "class": [
+        "firefox",
+        "org.mozilla.firefox"
+      ]
+    },
+    "windows": {
+      "exe": [
+        "firefox.exe"
+      ]
+    },
+    "macos": {
+      "bundle": [
+        "org.mozilla.firefox"
+      ]
+    }
+  },
+  "groups": [
+    {
+      "title": "Tabs and windows",
+      "context": "tabs",
+      "shortcuts": [
+        {
+          "id": "new-tab",
+          "title": "Open a new tab",
+          "keys": {
+            "default": "Ctrl+T",
+            "macos": "Super+T"
+          }
+        },
+        {
+          "id": "new-window",
+          "title": "Open a new window",
+          "keys": {
+            "default": "Ctrl+N",
+            "macos": "Super+N"
+          }
+        },
+        {
+          "id": "private-window",
+          "title": "Open a private window",
+          "keys": {
+            "default": "Ctrl+Shift+P",
+            "macos": "Shift+Super+P"
+          }
+        },
+        {
+          "id": "close-tab",
+          "title": "Close the current tab",
+          "keys": {
+            "default": "Ctrl+W",
+            "macos": "Super+W"
+          }
+        },
+        {
+          "id": "close-window",
+          "title": "Close the current window",
+          "keys": {
+            "default": "Ctrl+Shift+W",
+            "macos": "Shift+Super+W"
+          }
+        },
+        {
+          "id": "reopen-tab",
+          "title": "Reopen the last closed tab",
+          "keys": {
+            "default": "Ctrl+Shift+T",
+            "macos": "Shift+Super+T"
+          }
+        },
+        {
+          "id": "next-tab",
+          "title": "Switch to the next tab",
+          "keys": {
+            "default": "Ctrl+PageDown",
+            "macos": "Alt+Super+Right"
+          }
+        },
+        {
+          "id": "previous-tab",
+          "title": "Switch to the previous tab",
+          "keys": {
+            "default": "Ctrl+PageUp",
+            "macos": "Alt+Super+Left"
+          }
+        },
+        {
+          "id": "last-tab",
+          "title": "Switch to the last tab",
+          "keys": {
+            "default": "Ctrl+9",
+            "macos": "Super+9"
+          }
+        },
+        {
+          "id": "move-tab-left",
+          "title": "Move the selected tab left",
+          "keys": {
+            "default": "Ctrl+Shift+PageUp"
+          }
+        },
+        {
+          "id": "move-tab-right",
+          "title": "Move the selected tab right",
+          "keys": {
+            "default": "Ctrl+Shift+PageDown"
+          }
+        },
+        {
+          "id": "mute-tab",
+          "title": "Mute or unmute the selected tab",
+          "keys": {
+            "default": "Ctrl+M",
+            "macos": "Ctrl+M"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Navigation",
+      "context": "navigation",
+      "shortcuts": [
+        {
+          "id": "back",
+          "title": "Go back",
+          "keys": {
+            "default": [
+              "Alt+Left",
+              "Ctrl+BracketLeft"
+            ],
+            "macos": "Super+Left"
+          }
+        },
+        {
+          "id": "forward",
+          "title": "Go forward",
+          "keys": {
+            "default": [
+              "Alt+Right",
+              "Ctrl+BracketRight"
+            ],
+            "macos": "Super+Right"
+          }
+        },
+        {
+          "id": "home",
+          "title": "Open the home page",
+          "keys": {
+            "default": "Alt+Home",
+            "macos": "Alt+Home"
+          }
+        },
+        {
+          "id": "focus-address",
+          "title": "Focus the address bar",
+          "keys": {
+            "default": [
+              "Ctrl+L",
+              "Alt+D"
+            ],
+            "macos": "Super+L"
+          }
+        },
+        {
+          "id": "reload",
+          "title": "Reload the page",
+          "keys": {
+            "default": [
+              "F5",
+              "Ctrl+R"
+            ],
+            "macos": "Super+R"
+          }
+        },
+        {
+          "id": "reload-bypass-cache",
+          "title": "Reload while bypassing the cache",
+          "keys": {
+            "default": [
+              "Ctrl+F5",
+              "Ctrl+Shift+R"
+            ],
+            "macos": "Shift+Super+R"
+          }
+        },
+        {
+          "id": "stop-loading",
+          "title": "Stop loading the page",
+          "keys": {
+            "default": "Escape",
+            "macos": "Super+Period"
+          }
+        },
+        {
+          "id": "full-screen",
+          "title": "Toggle full-screen mode",
+          "keys": {
+            "default": "F11",
+            "macos": "Shift+Super+F"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Page",
+      "context": "page",
+      "shortcuts": [
+        {
+          "id": "print",
+          "title": "Print the page",
+          "keys": {
+            "default": "Ctrl+P",
+            "macos": "Super+P"
+          }
+        },
+        {
+          "id": "save-page",
+          "title": "Save the page",
+          "keys": {
+            "default": "Ctrl+S",
+            "macos": "Super+S"
+          }
+        },
+        {
+          "id": "zoom-in",
+          "title": "Zoom in",
+          "keys": {
+            "default": "Ctrl+Shift+Equal",
+            "macos": "Shift+Super+Equal"
+          }
+        },
+        {
+          "id": "zoom-out",
+          "title": "Zoom out",
+          "keys": {
+            "default": "Ctrl+Minus",
+            "macos": "Super+Minus"
+          }
+        },
+        {
+          "id": "zoom-reset",
+          "title": "Reset page zoom",
+          "keys": {
+            "default": "Ctrl+0",
+            "macos": "Super+0"
+          }
+        },
+        {
+          "id": "reader-mode",
+          "title": "Toggle Reader View",
+          "keys": {
+            "default": [
+              "Ctrl+Alt+R",
+              "F9"
+            ],
+            "macos": "Alt+Super+R"
+          }
+        },
+        {
+          "id": "caret-browsing",
+          "title": "Toggle caret browsing",
+          "keys": {
+            "default": "F7",
+            "macos": "F7"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Find and search",
+      "context": "search",
+      "shortcuts": [
+        {
+          "id": "find",
+          "title": "Find text on the page",
+          "keys": {
+            "default": "Ctrl+F",
+            "macos": "Super+F"
+          }
+        },
+        {
+          "id": "find-next",
+          "title": "Find the next match",
+          "keys": {
+            "default": [
+              "F3",
+              "Ctrl+G"
+            ],
+            "macos": "Super+G"
+          }
+        },
+        {
+          "id": "find-previous",
+          "title": "Find the previous match",
+          "keys": {
+            "default": [
+              "Shift+F3",
+              "Ctrl+Shift+G"
+            ],
+            "macos": "Shift+Super+G"
+          }
+        },
+        {
+          "id": "focus-search",
+          "title": "Focus the search field",
+          "keys": {
+            "default": [
+              "Ctrl+K",
+              "Ctrl+E",
+              "Ctrl+J"
+            ],
+            "macos": "Alt+Super+F"
+          }
+        }
+      ]
+    },
+    {
+      "title": "History and bookmarks",
+      "context": "library",
+      "shortcuts": [
+        {
+          "id": "history",
+          "title": "Open the History sidebar",
+          "keys": {
+            "default": "Ctrl+H",
+            "macos": "Shift+Super+H"
+          }
+        },
+        {
+          "id": "clear-history",
+          "title": "Clear recent history",
+          "keys": {
+            "default": "Ctrl+Shift+Delete",
+            "macos": "Shift+Super+Delete"
+          }
+        },
+        {
+          "id": "bookmark-page",
+          "title": "Bookmark the current page",
+          "keys": {
+            "default": "Ctrl+D",
+            "macos": "Super+D"
+          }
+        },
+        {
+          "id": "bookmark-tabs",
+          "title": "Bookmark all tabs",
+          "keys": {
+            "default": "Ctrl+Shift+D",
+            "macos": "Shift+Super+D"
+          }
+        },
+        {
+          "id": "bookmarks-sidebar",
+          "title": "Open the Bookmarks sidebar",
+          "keys": {
+            "default": "Ctrl+B",
+            "macos": "Super+B"
+          }
+        },
+        {
+          "id": "bookmarks-library",
+          "title": "Open the Bookmarks library",
+          "keys": {
+            "default": "Ctrl+Shift+O",
+            "macos": "Shift+Super+O"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Tools",
+      "context": "tools",
+      "shortcuts": [
+        {
+          "id": "downloads",
+          "title": "Open Downloads",
+          "keys": {
+            "default": [
+              "Ctrl+J",
+              "Ctrl+Shift+Y"
+            ],
+            "macos": "Super+J"
+          }
+        },
+        {
+          "id": "add-ons",
+          "title": "Open Add-ons Manager",
+          "keys": {
+            "default": "Ctrl+Shift+A",
+            "macos": "Shift+Super+A"
+          }
+        },
+        {
+          "id": "developer-tools",
+          "title": "Toggle Developer Tools",
+          "keys": {
+            "default": [
+              "F12",
+              "Ctrl+Shift+I"
+            ],
+            "macos": "Alt+Super+I"
+          }
+        },
+        {
+          "id": "web-console",
+          "title": "Open the Web Console",
+          "keys": {
+            "default": "Ctrl+Shift+K",
+            "macos": "Alt+Super+K"
+          }
+        },
+        {
+          "id": "inspector",
+          "title": "Open the Inspector",
+          "keys": {
+            "default": "Ctrl+Shift+C",
+            "macos": "Alt+Super+C"
+          }
+        },
+        {
+          "id": "screenshot",
+          "title": "Take a screenshot",
+          "keys": {
+            "default": "Ctrl+Shift+S",
+            "macos": "Shift+Super+S"
+          }
+        },
+        {
+          "id": "task-manager",
+          "title": "Open the Firefox Task Manager",
+          "keys": {
+            "default": "Shift+Escape"
+          }
+        },
+        {
+          "id": "page-source",
+          "title": "View page source",
+          "keys": {
+            "default": "Ctrl+U",
+            "macos": "Super+U"
+          }
+        }
+      ]
+    },
+    {
+      "title": "PDF viewer",
+      "context": "pdf-viewer",
+      "shortcuts": [
+        {
+          "id": "pdf-next-page",
+          "title": "Go to the next PDF page",
+          "keys": {
+            "default": [
+              "N",
+              "J",
+              "Right"
+            ]
+          }
+        },
+        {
+          "id": "pdf-previous-page",
+          "title": "Go to the previous PDF page",
+          "keys": {
+            "default": [
+              "P",
+              "K",
+              "Left"
+            ]
+          }
+        },
+        {
+          "id": "pdf-rotate-right",
+          "title": "Rotate the PDF clockwise",
+          "keys": {
+            "default": "R"
+          }
+        },
+        {
+          "id": "pdf-rotate-left",
+          "title": "Rotate the PDF counterclockwise",
+          "keys": {
+            "default": "Shift+R"
+          }
+        },
+        {
+          "id": "pdf-presentation",
+          "title": "Enter PDF presentation mode",
+          "keys": {
+            "default": "Ctrl+Alt+P",
+            "macos": "Alt+Super+P"
+          }
+        }
+      ]
+    }
+  ]
+}

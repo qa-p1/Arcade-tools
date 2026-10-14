@@ -1,0 +1,300 @@
+{
+  "schema": 1,
+  "id": "spotify",
+  "name": "Spotify",
+  "checkedVersion": "Unversioned official shortcut docs (checked 2026-10-11)",
+  "sources": [
+    "https://support.spotify.com/us/article/Keyboard-shortcuts/",
+    "https://support.spotify.com/ie/article/create-playlists/"
+  ],
+  "match": {
+    "linux": {
+      "class": [
+        "spotify",
+        "Spotify"
+      ]
+    },
+    "windows": {
+      "exe": [
+        "Spotify.exe"
+      ]
+    },
+    "macos": {
+      "bundle": [
+        "com.spotify.client"
+      ]
+    }
+  },
+  "groups": [
+    {
+      "title": "Search and navigation",
+      "context": "navigation",
+      "shortcuts": [
+        {
+          "id": "open-search",
+          "title": "Open Search",
+          "keys": {
+            "default": "Ctrl+K",
+            "macos": "Super+K"
+          }
+        },
+        {
+          "id": "go-to-search",
+          "title": "Go to Search",
+          "keys": {
+            "default": "Ctrl+L",
+            "macos": "Shift+Super+L"
+          }
+        },
+        {
+          "id": "go-to-library",
+          "title": "Go to Your Library",
+          "keys": {
+            "default": "Alt+Shift+0"
+          }
+        },
+        {
+          "id": "go-to-playlists",
+          "title": "Go to Playlists",
+          "keys": {
+            "default": "Alt+Shift+1"
+          }
+        },
+        {
+          "id": "go-to-podcasts",
+          "title": "Go to Podcasts",
+          "keys": {
+            "default": "Alt+Shift+2"
+          }
+        },
+        {
+          "id": "go-to-artists",
+          "title": "Go to Artists",
+          "keys": {
+            "default": "Alt+Shift+3"
+          }
+        },
+        {
+          "id": "go-to-albums",
+          "title": "Go to Albums",
+          "keys": {
+            "default": "Alt+Shift+4"
+          }
+        },
+        {
+          "id": "go-to-audiobooks",
+          "title": "Go to Audiobooks",
+          "keys": {
+            "default": "Alt+Shift+5"
+          }
+        },
+        {
+          "id": "go-to-home",
+          "title": "Go to Home",
+          "keys": {
+            "default": "Alt+Shift+H"
+          }
+        },
+        {
+          "id": "go-to-now-playing",
+          "title": "Go to Now Playing",
+          "keys": {
+            "default": "Alt+Shift+J"
+          }
+        },
+        {
+          "id": "go-to-liked-songs",
+          "title": "Go to Liked Songs",
+          "keys": {
+            "default": "Alt+Shift+S"
+          }
+        },
+        {
+          "id": "go-to-made-for-you",
+          "title": "Go to Made For You",
+          "keys": {
+            "default": "Alt+Shift+M"
+          }
+        },
+        {
+          "id": "go-to-new-releases",
+          "title": "Go to New Releases",
+          "keys": {
+            "default": "Alt+Shift+N"
+          }
+        },
+        {
+          "id": "go-to-charts",
+          "title": "Go to Charts",
+          "keys": {
+            "default": "Alt+Shift+C"
+          }
+        },
+        {
+          "id": "go-to-queue",
+          "title": "Go to Queue",
+          "keys": {
+            "default": "Alt+Shift+Q"
+          }
+        },
+        {
+          "id": "create-playlist",
+          "title": "Create a playlist",
+          "keys": {
+            "default": "Ctrl+N",
+            "macos": "Super+N"
+          }
+        },
+        {
+          "id": "preferences",
+          "title": "Open preferences",
+          "keys": {
+            "default": "Ctrl+Comma",
+            "macos": "Super+Comma"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Playback",
+      "context": "playback",
+      "shortcuts": [
+        {
+          "id": "play-pause",
+          "title": "Play or pause",
+          "keys": {
+            "default": "Space"
+          }
+        },
+        {
+          "id": "shuffle",
+          "title": "Toggle shuffle",
+          "keys": {
+            "default": "Ctrl+S",
+            "macos": "Alt+S"
+          }
+        },
+        {
+          "id": "repeat",
+          "title": "Toggle repeat",
+          "keys": {
+            "default": "Ctrl+R",
+            "macos": "Alt+R"
+          }
+        },
+        {
+          "id": "mute",
+          "title": "Mute or unmute",
+          "keys": {
+            "default": "M"
+          }
+        },
+        {
+          "id": "previous-track",
+          "title": "Go to the previous track",
+          "keys": {
+            "default": "Up"
+          }
+        },
+        {
+          "id": "next-track",
+          "title": "Go to the next track",
+          "keys": {
+            "default": "Down"
+          }
+        },
+        {
+          "id": "like-song",
+          "title": "Like or dislike a song",
+          "keys": {
+            "default": "Alt+Shift+B"
+          }
+        },
+        {
+          "id": "add-to-library",
+          "title": "Add the current item to Your Library",
+          "keys": {
+            "default": "Left"
+          }
+        },
+        {
+          "id": "add-to-queue",
+          "title": "Add the current item to the queue",
+          "keys": {
+            "default": "Right"
+          }
+        },
+        {
+          "id": "context-menu",
+          "title": "Open the context menu",
+          "keys": {
+            "default": "Alt+J"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Search and help",
+      "context": "search",
+      "shortcuts": [
+        {
+          "id": "open-shortcuts",
+          "title": "Open the keyboard shortcuts list",
+          "keys": {
+            "default": [
+              "Ctrl+Slash",
+              "Ctrl+Shift+Slash"
+            ],
+            "macos": [
+              "Super+Slash",
+              "Shift+Super+Slash"
+            ]
+          }
+        },
+        {
+          "id": "filter",
+          "title": "Filter the current view",
+          "keys": {
+            "default": "Ctrl+F",
+            "macos": "Super+F"
+          }
+        },
+        {
+          "id": "select-all",
+          "title": "Select all items",
+          "keys": {
+            "default": "Ctrl+A",
+            "macos": "Super+A"
+          }
+        },
+        {
+          "id": "logout",
+          "title": "Log out of Spotify",
+          "keys": {
+            "default": "Alt+Shift+F6"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Panels",
+      "context": "panels",
+      "shortcuts": [
+        {
+          "id": "toggle-now-playing-sidebar",
+          "title": "Show or hide the Now Playing sidebar",
+          "keys": {
+            "default": "Alt+Shift+R"
+          }
+        },
+        {
+          "id": "toggle-library-sidebar",
+          "title": "Show or hide the Library sidebar",
+          "keys": {
+            "default": "Alt+Shift+L"
+          }
+        }
+      ]
+    }
+  ]
+}

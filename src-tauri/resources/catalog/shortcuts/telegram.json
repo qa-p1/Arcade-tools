@@ -1,0 +1,324 @@
+{
+  "schema": 1,
+  "id": "telegram",
+  "name": "Telegram Desktop",
+  "checkedVersion": "7.3.0",
+  "sources": [
+    "https://github.com/telegramdesktop/tdesktop/blob/v7.3.0/Telegram/SourceFiles/core/shortcuts.cpp"
+  ],
+  "match": {
+    "linux": {
+      "class": [
+        "org.telegram.desktop",
+        "TelegramDesktop"
+      ]
+    },
+    "windows": {
+      "exe": [
+        "Telegram.exe",
+        "TelegramDesktop.exe"
+      ]
+    },
+    "macos": {
+      "bundle": [
+        "org.telegram.desktop"
+      ]
+    }
+  },
+  "groups": [
+    {
+      "title": "Application",
+      "context": "app",
+      "shortcuts": [
+        {
+          "id": "close-window",
+          "title": "Close the window",
+          "keys": {
+            "default": [
+              "Ctrl+W",
+              "F4"
+            ],
+            "macos": [
+              "Super+W",
+              "F4"
+            ]
+          }
+        },
+        {
+          "id": "lock",
+          "title": "Lock Telegram",
+          "keys": {
+            "default": "Ctrl+L",
+            "macos": "Super+L"
+          }
+        },
+        {
+          "id": "minimize",
+          "title": "Minimize the window",
+          "keys": {
+            "default": "Ctrl+M",
+            "macos": "Super+M"
+          }
+        },
+        {
+          "id": "quit",
+          "title": "Quit Telegram",
+          "keys": {
+            "default": "Ctrl+Q",
+            "macos": "Super+Q"
+          }
+        },
+        {
+          "id": "reopen-closed-tab",
+          "title": "Reopen the last closed tab",
+          "keys": {
+            "default": "Ctrl+Shift+T",
+            "macos": "Shift+Super+T"
+          }
+        },
+        {
+          "id": "close-other-windows",
+          "title": "Close other Telegram windows",
+          "keys": {
+            "default": "Ctrl+Shift+W",
+            "macos": "Shift+Super+W"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Chats and folders",
+      "context": "navigation",
+      "shortcuts": [
+        {
+          "id": "search",
+          "title": "Search chats and messages",
+          "keys": {
+            "default": "Ctrl+F",
+            "macos": "Super+F"
+          }
+        },
+        {
+          "id": "next-chat",
+          "title": "Open the next chat",
+          "keys": {
+            "default": [
+              "Ctrl+PageDown",
+              "Alt+Down"
+            ],
+            "macos": [
+              "Super+PageDown",
+              "Alt+Down"
+            ]
+          }
+        },
+        {
+          "id": "previous-chat",
+          "title": "Open the previous chat",
+          "keys": {
+            "default": [
+              "Ctrl+PageUp",
+              "Alt+Up"
+            ],
+            "macos": [
+              "Super+PageUp",
+              "Alt+Up"
+            ]
+          }
+        },
+        {
+          "id": "first-chat",
+          "title": "Open the first chat",
+          "keys": {
+            "default": "Ctrl+Alt+Home",
+            "macos": "Alt+Super+Home"
+          }
+        },
+        {
+          "id": "last-chat",
+          "title": "Open the last chat",
+          "keys": {
+            "default": "Ctrl+Alt+End",
+            "macos": "Alt+Super+End"
+          }
+        },
+        {
+          "id": "next-folder",
+          "title": "Switch to the next folder",
+          "keys": {
+            "default": "Ctrl+Shift+Down",
+            "macos": "Shift+Super+Down"
+          }
+        },
+        {
+          "id": "previous-folder",
+          "title": "Switch to the previous folder",
+          "keys": {
+            "default": "Ctrl+Shift+Up",
+            "macos": "Shift+Super+Up"
+          }
+        },
+        {
+          "id": "show-contacts",
+          "title": "Open contacts",
+          "keys": {
+            "default": "Ctrl+J",
+            "macos": "Super+J"
+          }
+        },
+        {
+          "id": "mark-chat-read",
+          "title": "Mark the current chat as read",
+          "keys": {
+            "default": "Ctrl+R",
+            "macos": "Super+R"
+          }
+        },
+        {
+          "id": "show-chat-menu",
+          "title": "Open the chat menu",
+          "keys": {
+            "default": "Ctrl+Backslash",
+            "macos": "Super+Backslash"
+          }
+        },
+        {
+          "id": "preview-chat",
+          "title": "Preview the selected chat",
+          "keys": {
+            "default": "Ctrl+BracketRight",
+            "macos": "Super+BracketRight"
+          }
+        },
+        {
+          "id": "open-saved-messages",
+          "title": "Open Saved Messages",
+          "keys": {
+            "default": "Ctrl+0",
+            "macos": "Super+0"
+          }
+        },
+        {
+          "id": "open-archive",
+          "title": "Open Archived Chats",
+          "keys": {
+            "default": "Ctrl+9",
+            "macos": "Super+9"
+          }
+        },
+        {
+          "id": "open-pinned-chat-1",
+          "title": "Open pinned chat 1",
+          "keys": {
+            "default": "Ctrl+1",
+            "macos": "Super+1"
+          }
+        },
+        {
+          "id": "open-pinned-chat-2",
+          "title": "Open pinned chat 2",
+          "keys": {
+            "default": "Ctrl+2",
+            "macos": "Super+2"
+          }
+        },
+        {
+          "id": "open-pinned-chat-3",
+          "title": "Open pinned chat 3",
+          "keys": {
+            "default": "Ctrl+3",
+            "macos": "Super+3"
+          }
+        },
+        {
+          "id": "open-pinned-chat-4",
+          "title": "Open pinned chat 4",
+          "keys": {
+            "default": "Ctrl+4",
+            "macos": "Super+4"
+          }
+        },
+        {
+          "id": "open-pinned-chat-5",
+          "title": "Open pinned chat 5",
+          "keys": {
+            "default": "Ctrl+5",
+            "macos": "Super+5"
+          }
+        },
+        {
+          "id": "open-pinned-chat-6",
+          "title": "Open pinned chat 6",
+          "keys": {
+            "default": "Ctrl+6",
+            "macos": "Super+6"
+          }
+        },
+        {
+          "id": "open-pinned-chat-7",
+          "title": "Open pinned chat 7",
+          "keys": {
+            "default": "Ctrl+7",
+            "macos": "Super+7"
+          }
+        },
+        {
+          "id": "open-pinned-chat-8",
+          "title": "Open pinned chat 8",
+          "keys": {
+            "default": "Ctrl+8",
+            "macos": "Super+8"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Media playback",
+      "context": "playback",
+      "shortcuts": [
+        {
+          "id": "play-pause",
+          "title": "Play or pause media",
+          "keys": {
+            "default": "MediaPlayPause"
+          }
+        },
+        {
+          "id": "stop",
+          "title": "Stop media",
+          "keys": {
+            "default": "MediaStop"
+          }
+        },
+        {
+          "id": "previous-track",
+          "title": "Play the previous track",
+          "keys": {
+            "default": "MediaPrevious"
+          }
+        },
+        {
+          "id": "next-track",
+          "title": "Play the next track",
+          "keys": {
+            "default": "MediaNext"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Message composer",
+      "context": "composer",
+      "shortcuts": [
+        {
+          "id": "record-voice-message",
+          "title": "Record a voice message",
+          "keys": {
+            "default": "Ctrl+R",
+            "macos": "Super+R"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,328 @@
+{
+  "schema": 1,
+  "id": "jetbrains",
+  "name": "JetBrains IDEs",
+  "checkedVersion": "2026.2",
+  "sources": [
+    "https://www.jetbrains.com/help/idea/reference-keymap-win-default.html",
+    "https://www.jetbrains.com/help/idea/reference-keymap-mac-default.html"
+  ],
+  "match": {
+    "linux": {
+      "class": [
+        "jetbrains-idea",
+        "jetbrains-pycharm",
+        "jetbrains-webstorm",
+        "jetbrains-clion",
+        "jetbrains-goland",
+        "jetbrains-rustrover",
+        "jetbrains-rider",
+        "jetbrains-datagrip",
+        "jetbrains-phpstorm",
+        "jetbrains-rubymine"
+      ]
+    },
+    "windows": {
+      "exe": [
+        "idea64.exe",
+        "pycharm64.exe",
+        "webstorm64.exe",
+        "clion64.exe",
+        "goland64.exe",
+        "rustrover64.exe",
+        "rider64.exe",
+        "datagrip64.exe",
+        "phpstorm64.exe",
+        "rubymine64.exe"
+      ]
+    },
+    "macos": {
+      "bundle": [
+        "com.jetbrains.IntelliJIdea",
+        "com.jetbrains.PyCharm",
+        "com.jetbrains.WebStorm",
+        "com.jetbrains.CLion",
+        "com.jetbrains.GoLand",
+        "com.jetbrains.RustRover",
+        "com.jetbrains.Rider",
+        "com.jetbrains.DataGrip",
+        "com.jetbrains.PhpStorm",
+        "com.jetbrains.RubyMine"
+      ]
+    }
+  },
+  "groups": [
+    {
+      "title": "IDE actions",
+      "context": "app",
+      "shortcuts": [
+        {
+          "id": "find-action",
+          "title": "Find an IDE action",
+          "keys": {
+            "default": "Ctrl+Shift+A",
+            "macos": "Shift+Super+A"
+          }
+        },
+        {
+          "id": "project-window",
+          "title": "Show the Project tool window",
+          "keys": {
+            "default": "Alt+1",
+            "macos": "Super+1"
+          }
+        },
+        {
+          "id": "recent-files",
+          "title": "Show recent files",
+          "keys": {
+            "default": "Ctrl+E",
+            "macos": "Super+E"
+          }
+        },
+        {
+          "id": "settings",
+          "title": "Open Settings",
+          "keys": {
+            "default": "Ctrl+Alt+S",
+            "macos": "Super+Comma"
+          }
+        },
+        {
+          "id": "build",
+          "title": "Build the project",
+          "keys": {
+            "default": "Ctrl+F9",
+            "macos": "Super+F9"
+          }
+        },
+        {
+          "id": "rebuild",
+          "title": "Rebuild the project",
+          "keys": {
+            "default": "Ctrl+Shift+F9",
+            "macos": "Shift+Super+F9"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Editing",
+      "context": "editor",
+      "shortcuts": [
+        {
+          "id": "cut",
+          "title": "Cut the selection",
+          "keys": {
+            "default": "Ctrl+X",
+            "macos": "Super+X"
+          }
+        },
+        {
+          "id": "copy",
+          "title": "Copy the selection",
+          "keys": {
+            "default": "Ctrl+C",
+            "macos": "Super+C"
+          }
+        },
+        {
+          "id": "paste",
+          "title": "Paste from the clipboard",
+          "keys": {
+            "default": "Ctrl+V",
+            "macos": "Super+V"
+          }
+        },
+        {
+          "id": "save-all",
+          "title": "Save all files",
+          "keys": {
+            "default": "Ctrl+S",
+            "macos": "Super+S"
+          }
+        },
+        {
+          "id": "undo",
+          "title": "Undo the last edit",
+          "keys": {
+            "default": "Ctrl+Z",
+            "macos": "Super+Z"
+          }
+        },
+        {
+          "id": "redo",
+          "title": "Redo the last edit",
+          "keys": {
+            "default": "Ctrl+Shift+Z",
+            "macos": "Shift+Super+Z"
+          }
+        },
+        {
+          "id": "duplicate-line",
+          "title": "Duplicate the current line or selection",
+          "keys": {
+            "default": "Ctrl+D",
+            "macos": "Super+D"
+          }
+        },
+        {
+          "id": "new-line",
+          "title": "Start a new line",
+          "keys": {
+            "default": "Shift+Enter",
+            "macos": "Shift+Enter"
+          }
+        },
+        {
+          "id": "delete-line",
+          "title": "Delete the current line",
+          "keys": {
+            "default": "Ctrl+Y",
+            "macos": "Super+Backspace"
+          }
+        },
+        {
+          "id": "toggle-line-comment",
+          "title": "Toggle line comments",
+          "keys": {
+            "default": "Ctrl+Slash",
+            "macos": "Super+Slash"
+          }
+        },
+        {
+          "id": "reformat-code",
+          "title": "Reformat the code",
+          "keys": {
+            "default": "Ctrl+Alt+L",
+            "macos": "Alt+Super+L"
+          }
+        },
+        {
+          "id": "intention-actions",
+          "title": "Show intention actions",
+          "keys": {
+            "default": "Alt+Enter",
+            "macos": "Alt+Enter"
+          }
+        },
+        {
+          "id": "generate",
+          "title": "Open code generation actions",
+          "keys": {
+            "default": "Alt+Insert",
+            "macos": "Super+N"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Search and navigation",
+      "context": "search",
+      "shortcuts": [
+        {
+          "id": "find",
+          "title": "Find in the current file",
+          "keys": {
+            "default": "Ctrl+F",
+            "macos": "Super+F"
+          }
+        },
+        {
+          "id": "find-next",
+          "title": "Find the next occurrence",
+          "keys": {
+            "default": "F3",
+            "macos": "Super+G"
+          }
+        },
+        {
+          "id": "find-previous",
+          "title": "Find the previous occurrence",
+          "keys": {
+            "default": "Shift+F3",
+            "macos": "Shift+Super+G"
+          }
+        },
+        {
+          "id": "replace",
+          "title": "Replace in the current file",
+          "keys": {
+            "default": "Ctrl+R",
+            "macos": "Super+R"
+          }
+        },
+        {
+          "id": "find-in-files",
+          "title": "Find in files",
+          "keys": {
+            "default": "Ctrl+Shift+F",
+            "macos": "Shift+Super+F"
+          }
+        },
+        {
+          "id": "replace-in-files",
+          "title": "Replace in files",
+          "keys": {
+            "default": "Ctrl+Shift+R",
+            "macos": "Shift+Super+R"
+          }
+        },
+        {
+          "id": "go-to-file",
+          "title": "Go to a file",
+          "keys": {
+            "default": "Ctrl+Shift+N",
+            "macos": "Shift+Super+O"
+          }
+        },
+        {
+          "id": "go-to-symbol",
+          "title": "Go to a symbol",
+          "keys": {
+            "default": "Ctrl+Alt+Shift+N",
+            "macos": "Alt+Super+O"
+          }
+        },
+        {
+          "id": "go-to-declaration",
+          "title": "Go to the declaration",
+          "keys": {
+            "default": "Ctrl+B",
+            "macos": "Super+B"
+          }
+        },
+        {
+          "id": "find-usages",
+          "title": "Find usages of the symbol",
+          "keys": {
+            "default": "Alt+F7",
+            "macos": "Alt+F7"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Run and debug",
+      "context": "run",
+      "shortcuts": [
+        {
+          "id": "run-context",
+          "title": "Run the current configuration",
+          "keys": {
+            "default": "Shift+F10",
+            "macos": "Ctrl+R"
+          }
+        },
+        {
+          "id": "debug-context",
+          "title": "Debug the current configuration",
+          "keys": {
+            "default": "Shift+F9",
+            "macos": "Ctrl+D"
+          }
+        }
+      ]
+    }
+  ]
+}

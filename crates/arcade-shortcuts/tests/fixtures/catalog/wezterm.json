@@ -1,0 +1,462 @@
+{
+  "schema": 1,
+  "id": "wezterm",
+  "name": "WezTerm",
+  "checkedVersion": "20240203-110809-5046fc22",
+  "sources": [
+    "https://wezterm.org/config/default-keys.html",
+    "https://wezterm.org/config/keys.html",
+    "https://github.com/wez/wezterm/releases/tag/20240203-110809-5046fc22"
+  ],
+  "match": {
+    "linux": {
+      "class": [
+        "org.wezfurlong.wezterm"
+      ]
+    },
+    "windows": {
+      "exe": [
+        "wezterm-gui.exe"
+      ]
+    },
+    "macos": {
+      "bundle": [
+        "org.wezfurlong.wezterm"
+      ]
+    }
+  },
+  "groups": [
+    {
+      "title": "Clipboard",
+      "context": "clipboard",
+      "shortcuts": [
+        {
+          "id": "copy",
+          "title": "Copy the selection",
+          "keys": {
+            "default": [
+              "Ctrl+Shift+C",
+              "Super+C"
+            ]
+          }
+        },
+        {
+          "id": "paste",
+          "title": "Paste from the clipboard",
+          "keys": {
+            "default": [
+              "Ctrl+Shift+V",
+              "Super+V"
+            ]
+          }
+        },
+        {
+          "id": "copy-primary",
+          "title": "Copy to the primary selection",
+          "keys": {
+            "default": "Ctrl+Insert"
+          }
+        },
+        {
+          "id": "paste-primary",
+          "title": "Paste from the primary selection",
+          "keys": {
+            "default": "Shift+Insert"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Windows",
+      "context": "windows",
+      "shortcuts": [
+        {
+          "id": "new-window",
+          "title": "Open a new window",
+          "keys": {
+            "default": [
+              "Ctrl+Shift+N",
+              "Super+N"
+            ]
+          }
+        },
+        {
+          "id": "full-screen",
+          "title": "Toggle full-screen mode",
+          "keys": {
+            "default": "Alt+Enter"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Tabs",
+      "context": "tabs",
+      "shortcuts": [
+        {
+          "id": "new-tab",
+          "title": "Open a tab in the current pane domain",
+          "keys": {
+            "default": [
+              "Ctrl+Shift+T",
+              "Super+T"
+            ]
+          }
+        },
+        {
+          "id": "new-default-tab",
+          "title": "Open a tab in the default domain",
+          "keys": {
+            "default": "Shift+Super+T"
+          }
+        },
+        {
+          "id": "close-tab",
+          "title": "Close the current tab",
+          "keys": {
+            "default": [
+              "Ctrl+Shift+W",
+              "Super+W"
+            ]
+          }
+        },
+        {
+          "id": "next-tab",
+          "title": "Switch to the next tab",
+          "keys": {
+            "default": [
+              "Ctrl+Tab",
+              "Ctrl+PageDown",
+              "Shift+Super+BracketRight"
+            ]
+          }
+        },
+        {
+          "id": "previous-tab",
+          "title": "Switch to the previous tab",
+          "keys": {
+            "default": [
+              "Ctrl+Shift+Tab",
+              "Ctrl+PageUp",
+              "Shift+Super+BracketLeft"
+            ]
+          }
+        },
+        {
+          "id": "move-tab-left",
+          "title": "Move the current tab left",
+          "keys": {
+            "default": "Ctrl+Shift+PageUp"
+          }
+        },
+        {
+          "id": "move-tab-right",
+          "title": "Move the current tab right",
+          "keys": {
+            "default": "Ctrl+Shift+PageDown"
+          }
+        },
+        {
+          "id": "tab-1",
+          "title": "Switch to tab 1",
+          "keys": {
+            "default": [
+              "Ctrl+Shift+1",
+              "Super+1"
+            ]
+          }
+        },
+        {
+          "id": "tab-2",
+          "title": "Switch to tab 2",
+          "keys": {
+            "default": [
+              "Ctrl+Shift+2",
+              "Super+2"
+            ]
+          }
+        },
+        {
+          "id": "tab-3",
+          "title": "Switch to tab 3",
+          "keys": {
+            "default": [
+              "Ctrl+Shift+3",
+              "Super+3"
+            ]
+          }
+        },
+        {
+          "id": "tab-4",
+          "title": "Switch to tab 4",
+          "keys": {
+            "default": [
+              "Ctrl+Shift+4",
+              "Super+4"
+            ]
+          }
+        },
+        {
+          "id": "tab-5",
+          "title": "Switch to tab 5",
+          "keys": {
+            "default": [
+              "Ctrl+Shift+5",
+              "Super+5"
+            ]
+          }
+        },
+        {
+          "id": "tab-6",
+          "title": "Switch to tab 6",
+          "keys": {
+            "default": [
+              "Ctrl+Shift+6",
+              "Super+6"
+            ]
+          }
+        },
+        {
+          "id": "tab-7",
+          "title": "Switch to tab 7",
+          "keys": {
+            "default": [
+              "Ctrl+Shift+7",
+              "Super+7"
+            ]
+          }
+        },
+        {
+          "id": "tab-8",
+          "title": "Switch to tab 8",
+          "keys": {
+            "default": [
+              "Ctrl+Shift+8",
+              "Super+8"
+            ]
+          }
+        },
+        {
+          "id": "last-tab",
+          "title": "Switch to the last tab",
+          "keys": {
+            "default": [
+              "Ctrl+Shift+9",
+              "Super+9"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "title": "Pane controls",
+      "context": "panes",
+      "shortcuts": [
+        {
+          "id": "split-vertical",
+          "title": "Split the pane vertically",
+          "keys": {
+            "default": "Ctrl+Alt+Shift+Quote"
+          }
+        },
+        {
+          "id": "split-horizontal",
+          "title": "Split the pane horizontally",
+          "keys": {
+            "default": "Ctrl+Alt+Shift+5"
+          }
+        },
+        {
+          "id": "focus-left",
+          "title": "Focus the pane to the left",
+          "keys": {
+            "default": "Ctrl+Shift+Left"
+          }
+        },
+        {
+          "id": "focus-right",
+          "title": "Focus the pane to the right",
+          "keys": {
+            "default": "Ctrl+Shift+Right"
+          }
+        },
+        {
+          "id": "focus-up",
+          "title": "Focus the pane above",
+          "keys": {
+            "default": "Ctrl+Shift+Up"
+          }
+        },
+        {
+          "id": "focus-down",
+          "title": "Focus the pane below",
+          "keys": {
+            "default": "Ctrl+Shift+Down"
+          }
+        },
+        {
+          "id": "toggle-pane-zoom",
+          "title": "Toggle pane zoom",
+          "keys": {
+            "default": "Ctrl+Shift+Z"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Adjust panes",
+      "context": "pane-size",
+      "shortcuts": [
+        {
+          "id": "resize-left",
+          "title": "Resize the pane to the left",
+          "keys": {
+            "default": "Ctrl+Alt+Shift+Left"
+          }
+        },
+        {
+          "id": "resize-right",
+          "title": "Resize the pane to the right",
+          "keys": {
+            "default": "Ctrl+Alt+Shift+Right"
+          }
+        },
+        {
+          "id": "resize-up",
+          "title": "Resize the pane upward",
+          "keys": {
+            "default": "Ctrl+Alt+Shift+Up"
+          }
+        },
+        {
+          "id": "resize-down",
+          "title": "Resize the pane downward",
+          "keys": {
+            "default": "Ctrl+Alt+Shift+Down"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Scrollback and search",
+      "context": "scrollback",
+      "shortcuts": [
+        {
+          "id": "scroll-page-up",
+          "title": "Scroll up one page",
+          "keys": {
+            "default": "Shift+PageUp"
+          }
+        },
+        {
+          "id": "scroll-page-down",
+          "title": "Scroll down one page",
+          "keys": {
+            "default": "Shift+PageDown"
+          }
+        },
+        {
+          "id": "search",
+          "title": "Search the scrollback",
+          "keys": {
+            "default": [
+              "Ctrl+Shift+F",
+              "Super+F"
+            ]
+          }
+        },
+        {
+          "id": "copy-mode",
+          "title": "Enter copy mode",
+          "keys": {
+            "default": "Ctrl+Shift+X"
+          }
+        },
+        {
+          "id": "quick-select",
+          "title": "Enter quick select mode",
+          "keys": {
+            "default": "Ctrl+Shift+Space"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Appearance and configuration",
+      "context": "appearance",
+      "shortcuts": [
+        {
+          "id": "font-increase",
+          "title": "Increase font size",
+          "keys": {
+            "default": [
+              "Ctrl+Equal",
+              "Super+Equal"
+            ]
+          }
+        },
+        {
+          "id": "font-decrease",
+          "title": "Decrease font size",
+          "keys": {
+            "default": [
+              "Ctrl+Minus",
+              "Super+Minus"
+            ]
+          }
+        },
+        {
+          "id": "font-reset",
+          "title": "Reset font size",
+          "keys": {
+            "default": [
+              "Ctrl+0",
+              "Super+0"
+            ]
+          }
+        },
+        {
+          "id": "reload-config",
+          "title": "Reload the configuration",
+          "keys": {
+            "default": [
+              "Ctrl+Shift+R",
+              "Super+R"
+            ]
+          }
+        },
+        {
+          "id": "clear-scrollback",
+          "title": "Clear scrollback history",
+          "keys": {
+            "default": [
+              "Ctrl+Shift+K",
+              "Super+K"
+            ]
+          }
+        },
+        {
+          "id": "command-palette",
+          "title": "Open the command palette",
+          "keys": {
+            "default": "Ctrl+Shift+P"
+          }
+        },
+        {
+          "id": "debug-overlay",
+          "title": "Show the debug overlay",
+          "keys": {
+            "default": "Ctrl+Shift+L"
+          }
+        },
+        {
+          "id": "unicode-picker",
+          "title": "Open the character picker",
+          "keys": {
+            "default": "Ctrl+Shift+U"
+          }
+        }
+      ]
+    }
+  ]
+}

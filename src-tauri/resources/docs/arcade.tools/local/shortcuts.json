@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "app": "arcade.tools",
+  "version": "0.2.0",
+  "groups": [
+    {
+      "title": "Global",
+      "context": "global",
+      "shortcuts": [
+        {
+          "id": "cheat-sheet",
+          "title": "Show shortcut cheat sheet",
+          "keys": {
+            "default": "Super+Slash",
+            "windows": "Ctrl+Alt+Slash",
+            "macos": "Ctrl+Alt+Slash"
+          },
+          "rebindable": false
+        }
+      ]
+    },
+    {
+      "title": "Overlay",
+      "context": "overlay",
+      "shortcuts": [
+        {
+          "id": "close",
+          "title": "Close the cheat sheet",
+          "keys": {
+            "default": "Escape"
+          }
+        },
+        {
+          "id": "scope",
+          "title": "Cycle shortcut scopes",
+          "keys": {
+            "default": "Tab"
+          }
+        }
+      ]
+    }
+  ]
+}

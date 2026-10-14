@@ -1,0 +1,312 @@
+{
+  "schema": 1,
+  "engines": [
+    {
+      "id": "tesseract",
+      "name": "Tesseract OCR",
+      "homepage": "https://github.com/tesseract-ocr/tesseract",
+      "detect": {
+        "binaries": [
+          "tesseract"
+        ],
+        "versionArgs": [
+          "--version"
+        ]
+      },
+      "usedBy": [
+        {
+          "app": "arcade.box",
+          "for": "Recognize text in images and create searchable PDFs."
+        },
+        {
+          "app": "arcade.lens",
+          "for": "Recognize text in screen selections on Linux."
+        }
+      ],
+      "install": {
+        "arch": "sudo pacman -S tesseract",
+        "debian": "sudo apt install tesseract-ocr",
+        "fedora": "sudo dnf install tesseract",
+        "macos": "brew install tesseract"
+      },
+      "linkDownload": true
+    },
+    {
+      "id": "ripgrep",
+      "name": "ripgrep",
+      "homepage": "https://github.com/BurntSushi/ripgrep",
+      "detect": {
+        "binaries": [
+          "rg"
+        ],
+        "versionArgs": [
+          "--version"
+        ]
+      },
+      "usedBy": [
+        {
+          "app": "arcade.find",
+          "for": "Search inside file contents."
+        }
+      ],
+      "install": {
+        "arch": "sudo pacman -S ripgrep",
+        "debian": "sudo apt install ripgrep",
+        "fedora": "sudo dnf install ripgrep",
+        "macos": "brew install ripgrep"
+      },
+      "linkDownload": false
+    },
+    {
+      "id": "ffmpeg",
+      "name": "FFmpeg",
+      "homepage": "https://ffmpeg.org/",
+      "detect": {
+        "binaries": [
+          "ffmpeg",
+          "ffprobe"
+        ],
+        "versionArgs": [
+          "-version"
+        ]
+      },
+      "usedBy": [
+        {
+          "app": "arcade.box",
+          "for": "Inspect and convert audio and video, and record the screen."
+        },
+        {
+          "app": "arcade.lens",
+          "for": "Record screen selections on X11 and Windows."
+        },
+        {
+          "app": "arcade.look",
+          "for": "Optional example plugin to transcode unsupported video."
+        }
+      ],
+      "install": {
+        "arch": "sudo pacman -S ffmpeg",
+        "debian": "sudo apt install ffmpeg",
+        "fedora": "sudo dnf install ffmpeg-free",
+        "macos": "brew install ffmpeg"
+      },
+      "linkDownload": false
+    },
+    {
+      "id": "poppler",
+      "name": "Poppler utilities",
+      "homepage": "https://poppler.freedesktop.org/",
+      "detect": {
+        "binaries": [
+          "pdftoppm",
+          "pdftotext",
+          "pdfinfo",
+          "pdfimages",
+          "pdfdetach"
+        ],
+        "versionArgs": [
+          "-v"
+        ]
+      },
+      "usedBy": [
+        {
+          "app": "arcade.box",
+          "for": "Render PDFs, extract text and metadata, and list images and attachments."
+        }
+      ],
+      "install": {
+        "arch": "sudo pacman -S poppler",
+        "debian": "sudo apt install poppler-utils",
+        "fedora": "sudo dnf install poppler-utils",
+        "macos": "brew install poppler"
+      },
+      "linkDownload": false
+    },
+    {
+      "id": "qpdf",
+      "name": "qpdf",
+      "homepage": "https://github.com/qpdf/qpdf",
+      "detect": {
+        "binaries": [
+          "qpdf"
+        ],
+        "versionArgs": [
+          "--version"
+        ]
+      },
+      "usedBy": [
+        {
+          "app": "arcade.box",
+          "for": "Merge, split, sign, and make structural changes to PDFs."
+        }
+      ],
+      "install": {
+        "arch": "sudo pacman -S qpdf",
+        "debian": "sudo apt install qpdf",
+        "fedora": "sudo dnf install qpdf",
+        "macos": "brew install qpdf"
+      },
+      "linkDownload": false
+    },
+    {
+      "id": "espeak-ng",
+      "name": "eSpeak NG",
+      "homepage": "https://github.com/espeak-ng/espeak-ng",
+      "detect": {
+        "binaries": [
+          "espeak-ng",
+          "espeak"
+        ],
+        "versionArgs": [
+          "--version"
+        ]
+      },
+      "usedBy": [
+        {
+          "app": "arcade.box",
+          "for": "Speak text and create speech audio."
+        }
+      ],
+      "install": {
+        "arch": "sudo pacman -S espeak-ng",
+        "debian": "sudo apt install espeak-ng",
+        "fedora": "sudo dnf install espeak-ng",
+        "macos": "brew install espeak-ng"
+      },
+      "linkDownload": false
+    },
+    {
+      "id": "libvips",
+      "name": "libvips",
+      "homepage": "https://github.com/libvips/libvips",
+      "detect": {
+        "binaries": [
+          "vips",
+          "vipsheader"
+        ],
+        "versionArgs": [
+          "--version"
+        ]
+      },
+      "usedBy": [
+        {
+          "app": "arcade.box",
+          "for": "Process and convert images."
+        }
+      ],
+      "install": {
+        "arch": "sudo pacman -S libvips",
+        "debian": "sudo apt install libvips-tools",
+        "macos": "brew install vips"
+      },
+      "linkDownload": false
+    },
+    {
+      "id": "imagemagick",
+      "name": "ImageMagick",
+      "homepage": "https://imagemagick.org/",
+      "detect": {
+        "binaries": [
+          "magick"
+        ],
+        "versionArgs": [
+          "-version"
+        ]
+      },
+      "usedBy": [
+        {
+          "app": "arcade.box",
+          "for": "Transform images and prepare PDF pages for signing."
+        }
+      ],
+      "install": {
+        "arch": "sudo pacman -S imagemagick",
+        "debian": "sudo apt install imagemagick",
+        "fedora": "sudo dnf install ImageMagick",
+        "macos": "brew install imagemagick"
+      },
+      "linkDownload": false
+    },
+    {
+      "id": "ghostscript",
+      "name": "Ghostscript",
+      "homepage": "https://www.ghostscript.com/",
+      "detect": {
+        "binaries": [
+          "gs",
+          "gswin64c",
+          "gswin32c"
+        ],
+        "versionArgs": [
+          "--version"
+        ]
+      },
+      "usedBy": [
+        {
+          "app": "arcade.box",
+          "for": "Reduce the size of PDF files."
+        }
+      ],
+      "install": {
+        "arch": "sudo pacman -S ghostscript",
+        "debian": "sudo apt install ghostscript",
+        "fedora": "sudo dnf install ghostscript",
+        "macos": "brew install ghostscript"
+      },
+      "linkDownload": false
+    },
+    {
+      "id": "pandoc",
+      "name": "Pandoc",
+      "homepage": "https://pandoc.org/",
+      "detect": {
+        "binaries": [
+          "pandoc"
+        ],
+        "versionArgs": [
+          "--version"
+        ]
+      },
+      "usedBy": [
+        {
+          "app": "arcade.look",
+          "for": "Optional example plugin to preview documents as HTML."
+        }
+      ],
+      "install": {
+        "arch": "sudo pacman -S haskell-pandoc",
+        "debian": "sudo apt install pandoc",
+        "fedora": "sudo dnf install pandoc",
+        "macos": "brew install pandoc"
+      },
+      "linkDownload": false
+    },
+    {
+      "id": "libreoffice",
+      "name": "LibreOffice",
+      "homepage": "https://www.libreoffice.org/",
+      "detect": {
+        "binaries": [
+          "soffice",
+          "libreoffice"
+        ],
+        "versionArgs": [
+          "--version"
+        ]
+      },
+      "usedBy": [
+        {
+          "app": "arcade.look",
+          "for": "Optional example plugin to convert older Office files to PDF."
+        }
+      ],
+      "install": {
+        "arch": "sudo pacman -S libreoffice-fresh",
+        "debian": "sudo apt install libreoffice",
+        "fedora": "sudo dnf install libreoffice",
+        "macos": "brew install --cask libreoffice"
+      },
+      "linkDownload": false
+    }
+  ]
+}

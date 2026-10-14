@@ -1,0 +1,461 @@
+{
+  "schema": 1,
+  "id": "mpv",
+  "name": "mpv",
+  "checkedVersion": "0.41.0",
+  "sources": [
+    "https://mpv.io/manual/stable/",
+    "https://github.com/mpv-player/mpv/blob/v0.41.0/etc/input.conf"
+  ],
+  "match": {
+    "linux": {
+      "class": [
+        "mpv"
+      ]
+    },
+    "windows": {
+      "exe": [
+        "mpv.exe"
+      ]
+    },
+    "macos": {
+      "bundle": [
+        "io.mpv"
+      ]
+    }
+  },
+  "groups": [
+    {
+      "title": "Seek and chapters",
+      "context": "navigation",
+      "shortcuts": [
+        {
+          "id": "seek-back",
+          "title": "Seek backward five seconds",
+          "keys": {
+            "default": "Left"
+          }
+        },
+        {
+          "id": "seek-forward",
+          "title": "Seek forward five seconds",
+          "keys": {
+            "default": "Right"
+          }
+        },
+        {
+          "id": "seek-minute-forward",
+          "title": "Seek forward one minute",
+          "keys": {
+            "default": "Up"
+          }
+        },
+        {
+          "id": "seek-minute-back",
+          "title": "Seek backward one minute",
+          "keys": {
+            "default": "Down"
+          }
+        },
+        {
+          "id": "exact-seek-back",
+          "title": "Seek backward one exact second",
+          "keys": {
+            "default": "Shift+Left"
+          }
+        },
+        {
+          "id": "exact-seek-forward",
+          "title": "Seek forward one exact second",
+          "keys": {
+            "default": "Shift+Right"
+          }
+        },
+        {
+          "id": "subtitle-previous",
+          "title": "Seek to the previous subtitle",
+          "keys": {
+            "default": "Ctrl+Left"
+          }
+        },
+        {
+          "id": "subtitle-next",
+          "title": "Seek to the next subtitle",
+          "keys": {
+            "default": "Ctrl+Right"
+          }
+        },
+        {
+          "id": "subtitle-step-back",
+          "title": "Adjust subtitle timing backward",
+          "keys": {
+            "default": "Ctrl+Shift+Left"
+          }
+        },
+        {
+          "id": "subtitle-step-forward",
+          "title": "Adjust subtitle timing forward",
+          "keys": {
+            "default": "Ctrl+Shift+Right"
+          }
+        },
+        {
+          "id": "seek-start",
+          "title": "Seek to the start",
+          "keys": {
+            "default": "Home"
+          }
+        },
+        {
+          "id": "next-chapter",
+          "title": "Go to the next chapter",
+          "keys": {
+            "default": "PageUp"
+          }
+        },
+        {
+          "id": "previous-chapter",
+          "title": "Go to the previous chapter",
+          "keys": {
+            "default": "PageDown"
+          }
+        },
+        {
+          "id": "seek-ten-minutes-forward",
+          "title": "Seek forward ten minutes",
+          "keys": {
+            "default": "Shift+PageUp"
+          }
+        },
+        {
+          "id": "seek-ten-minutes-back",
+          "title": "Seek backward ten minutes",
+          "keys": {
+            "default": "Shift+PageDown"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Playback",
+      "context": "playback",
+      "shortcuts": [
+        {
+          "id": "speed-down",
+          "title": "Decrease playback speed",
+          "keys": {
+            "default": "BracketLeft"
+          }
+        },
+        {
+          "id": "speed-up",
+          "title": "Increase playback speed",
+          "keys": {
+            "default": "BracketRight"
+          }
+        },
+        {
+          "id": "speed-half",
+          "title": "Halve playback speed",
+          "keys": {
+            "default": "Shift+BracketLeft"
+          }
+        },
+        {
+          "id": "speed-double",
+          "title": "Double playback speed",
+          "keys": {
+            "default": "Shift+BracketRight"
+          }
+        },
+        {
+          "id": "speed-normal",
+          "title": "Reset playback speed",
+          "keys": {
+            "default": "Backspace"
+          }
+        },
+        {
+          "id": "undo-seek",
+          "title": "Undo the previous seek",
+          "keys": {
+            "default": "Shift+Backspace"
+          }
+        },
+        {
+          "id": "toggle-pause",
+          "title": "Toggle playback",
+          "keys": {
+            "default": [
+              "P",
+              "Space"
+            ]
+          }
+        },
+        {
+          "id": "next-file",
+          "title": "Play the next playlist entry",
+          "keys": {
+            "default": [
+              "Enter",
+              "Shift+Period"
+            ]
+          }
+        },
+        {
+          "id": "previous-file",
+          "title": "Play the previous playlist entry",
+          "keys": {
+            "default": "Shift+Comma"
+          }
+        },
+        {
+          "id": "quit",
+          "title": "Quit mpv",
+          "keys": {
+            "default": "Q"
+          }
+        },
+        {
+          "id": "quit-remember-position",
+          "title": "Quit and remember the position",
+          "keys": {
+            "default": "Shift+Q"
+          }
+        },
+        {
+          "id": "quit-now",
+          "title": "Quit immediately",
+          "keys": {
+            "default": "Ctrl+C"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Audio and subtitles",
+      "context": "tracks",
+      "shortcuts": [
+        {
+          "id": "show-progress",
+          "title": "Show playback progress",
+          "keys": {
+            "default": "O"
+          }
+        },
+        {
+          "id": "show-stats",
+          "title": "Show playback statistics",
+          "keys": {
+            "default": "I"
+          }
+        },
+        {
+          "id": "toggle-stats",
+          "title": "Keep playback statistics visible",
+          "keys": {
+            "default": "Shift+I"
+          }
+        },
+        {
+          "id": "increase-subtitle-size",
+          "title": "Increase subtitle size",
+          "keys": {
+            "default": "Shift+G"
+          }
+        },
+        {
+          "id": "decrease-subtitle-size",
+          "title": "Decrease subtitle size",
+          "keys": {
+            "default": "Shift+F"
+          }
+        },
+        {
+          "id": "subtitle-delay-earlier",
+          "title": "Move subtitles earlier",
+          "keys": {
+            "default": "Z"
+          }
+        },
+        {
+          "id": "subtitle-delay-later",
+          "title": "Move subtitles later",
+          "keys": {
+            "default": [
+              "Shift+Z",
+              "X"
+            ]
+          }
+        },
+        {
+          "id": "volume-down",
+          "title": "Decrease volume",
+          "keys": {
+            "default": "9"
+          }
+        },
+        {
+          "id": "volume-up",
+          "title": "Increase volume",
+          "keys": {
+            "default": "0"
+          }
+        },
+        {
+          "id": "mute",
+          "title": "Toggle mute",
+          "keys": {
+            "default": "M"
+          }
+        },
+        {
+          "id": "toggle-subtitles",
+          "title": "Show or hide subtitles",
+          "keys": {
+            "default": "V"
+          }
+        },
+        {
+          "id": "next-subtitle-track",
+          "title": "Switch to the next subtitle track",
+          "keys": {
+            "default": "J"
+          }
+        },
+        {
+          "id": "previous-subtitle-track",
+          "title": "Switch to the previous subtitle track",
+          "keys": {
+            "default": "Shift+J"
+          }
+        },
+        {
+          "id": "next-audio-track",
+          "title": "Switch audio tracks",
+          "keys": {
+            "default": "Shift+3"
+          }
+        },
+        {
+          "id": "next-video-track",
+          "title": "Switch video tracks",
+          "keys": {
+            "default": "Shift+Minus"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Video view",
+      "context": "video",
+      "shortcuts": [
+        {
+          "id": "toggle-fullscreen",
+          "title": "Toggle fullscreen",
+          "keys": {
+            "default": "F"
+          }
+        },
+        {
+          "id": "screenshot",
+          "title": "Take a screenshot with subtitles",
+          "keys": {
+            "default": "S"
+          }
+        },
+        {
+          "id": "screenshot-no-subtitles",
+          "title": "Take a screenshot without subtitles",
+          "keys": {
+            "default": "Shift+S"
+          }
+        },
+        {
+          "id": "screenshot-window",
+          "title": "Capture the window with subtitles",
+          "keys": {
+            "default": "Ctrl+S"
+          }
+        },
+        {
+          "id": "aspect-ratio",
+          "title": "Cycle the video aspect ratio",
+          "keys": {
+            "default": "Shift+A"
+          }
+        },
+        {
+          "id": "toggle-deband",
+          "title": "Toggle debanding",
+          "keys": {
+            "default": "B"
+          }
+        },
+        {
+          "id": "toggle-deinterlace",
+          "title": "Toggle deinterlacing",
+          "keys": {
+            "default": "D"
+          }
+        },
+        {
+          "id": "subtitle-position-up",
+          "title": "Move subtitles up",
+          "keys": {
+            "default": "R"
+          }
+        },
+        {
+          "id": "subtitle-position-down",
+          "title": "Move subtitles down",
+          "keys": {
+            "default": "Shift+R"
+          }
+        },
+        {
+          "id": "toggle-osc",
+          "title": "Toggle the on-screen controller",
+          "keys": {
+            "default": "Delete"
+          }
+        },
+        {
+          "id": "show-playlist",
+          "title": "Show the playlist",
+          "keys": {
+            "default": "F8"
+          }
+        },
+        {
+          "id": "show-track-list",
+          "title": "Show the track list",
+          "keys": {
+            "default": "F9"
+          }
+        },
+        {
+          "id": "open-console",
+          "title": "Open the command console",
+          "keys": {
+            "default": "Backquote"
+          }
+        },
+        {
+          "id": "load-clipboard-path",
+          "title": "Append the clipboard path to the playlist",
+          "keys": {
+            "default": "Ctrl+V"
+          }
+        },
+        {
+          "id": "toggle-hardware-decoding",
+          "title": "Toggle hardware decoding",
+          "keys": {
+            "default": "Ctrl+H"
+          }
+        }
+      ]
+    }
+  ]
+}

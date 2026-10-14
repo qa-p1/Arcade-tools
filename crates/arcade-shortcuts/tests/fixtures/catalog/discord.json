@@ -1,0 +1,297 @@
+{
+  "schema": 1,
+  "id": "discord",
+  "name": "Discord",
+  "checkedVersion": "Unversioned official hotkey docs (checked 2026-10-11)",
+  "sources": [
+    "https://support.discord.com/hc/en-us/articles/225977308--Windows-Discord-Hotkeys",
+    "https://support.discord.com/hc/en-us/articles/225878307--macOS-Discord-Hotkeys"
+  ],
+  "match": {
+    "linux": {
+      "class": [
+        "discord",
+        "Discord"
+      ]
+    },
+    "windows": {
+      "exe": [
+        "Discord.exe"
+      ]
+    },
+    "macos": {
+      "bundle": [
+        "com.hnc.Discord"
+      ]
+    }
+  },
+  "groups": [
+    {
+      "title": "Move between servers and channels",
+      "context": "navigation",
+      "shortcuts": [
+        {
+          "id": "move-server-up",
+          "title": "Move to the previous server",
+          "keys": {
+            "default": "Ctrl+Alt+Up",
+            "macos": "Alt+Super+Up"
+          }
+        },
+        {
+          "id": "move-server-down",
+          "title": "Move to the next server",
+          "keys": {
+            "default": "Ctrl+Alt+Down",
+            "macos": "Alt+Super+Down"
+          }
+        },
+        {
+          "id": "move-channel-up",
+          "title": "Move to the previous channel",
+          "keys": {
+            "default": "Alt+Up"
+          }
+        },
+        {
+          "id": "move-channel-down",
+          "title": "Move to the next channel",
+          "keys": {
+            "default": "Alt+Down"
+          }
+        },
+        {
+          "id": "move-unread-channel-up",
+          "title": "Move to the previous unread channel",
+          "keys": {
+            "default": "Alt+Shift+Up"
+          }
+        },
+        {
+          "id": "move-unread-channel-down",
+          "title": "Move to the next unread channel",
+          "keys": {
+            "default": "Alt+Shift+Down"
+          }
+        },
+        {
+          "id": "move-mentioned-unread-up",
+          "title": "Move to the previous unread channel with mentions",
+          "keys": {
+            "default": "Ctrl+Alt+Shift+Up",
+            "macos": "Alt+Shift+Super+Up"
+          }
+        },
+        {
+          "id": "move-mentioned-unread-down",
+          "title": "Move to the next unread channel with mentions",
+          "keys": {
+            "default": "Ctrl+Alt+Shift+Down",
+            "macos": "Alt+Shift+Super+Down"
+          }
+        },
+        {
+          "id": "previous-text-channel",
+          "title": "Return to the previous text channel",
+          "keys": {
+            "default": "Ctrl+B",
+            "macos": "Ctrl+B"
+          }
+        },
+        {
+          "id": "active-audio-channel",
+          "title": "Return to the active audio channel",
+          "keys": {
+            "default": "Ctrl+Alt+A",
+            "macos": "Alt+Super+A"
+          }
+        },
+        {
+          "id": "find-direct-message",
+          "title": "Find or start a direct message",
+          "keys": {
+            "default": "Ctrl+K",
+            "macos": "Super+K"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Read messages",
+      "context": "reading",
+      "shortcuts": [
+        {
+          "id": "mark-channel-read",
+          "title": "Mark the current channel as read",
+          "keys": {
+            "default": "Escape"
+          }
+        },
+        {
+          "id": "mark-server-read",
+          "title": "Mark the current server as read",
+          "keys": {
+            "default": "Shift+Escape"
+          }
+        },
+        {
+          "id": "scroll-chat-up",
+          "title": "Scroll chat up",
+          "keys": {
+            "default": "PageUp"
+          }
+        },
+        {
+          "id": "scroll-chat-down",
+          "title": "Scroll chat down",
+          "keys": {
+            "default": "PageDown"
+          }
+        },
+        {
+          "id": "oldest-unread-message",
+          "title": "Jump to the oldest unread message",
+          "keys": {
+            "default": "Shift+PageUp"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Channel tools",
+      "context": "channel-tools",
+      "shortcuts": [
+        {
+          "id": "toggle-pins",
+          "title": "Show or hide pinned messages",
+          "keys": {
+            "default": "Ctrl+P",
+            "macos": "Super+P"
+          }
+        },
+        {
+          "id": "toggle-mentions",
+          "title": "Show or hide mentions",
+          "keys": {
+            "default": "Ctrl+I",
+            "macos": "Alt+Shift+Super+2"
+          }
+        },
+        {
+          "id": "toggle-members",
+          "title": "Show or hide the member list",
+          "keys": {
+            "default": "Ctrl+U",
+            "macos": "Super+U"
+          }
+        },
+        {
+          "id": "toggle-emoji-picker",
+          "title": "Open or close the emoji picker",
+          "keys": {
+            "default": "Ctrl+E",
+            "macos": "Super+E"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Servers and calls",
+      "context": "server-call",
+      "shortcuts": [
+        {
+          "id": "create-or-join-server",
+          "title": "Create or join a server",
+          "keys": {
+            "default": "Ctrl+Shift+N",
+            "macos": "Shift+Super+N"
+          }
+        },
+        {
+          "id": "create-private-group",
+          "title": "Create a private group",
+          "keys": {
+            "default": "Ctrl+Shift+T",
+            "macos": "Shift+Super+T"
+          }
+        },
+        {
+          "id": "answer-call",
+          "title": "Answer an incoming call",
+          "keys": {
+            "default": "Ctrl+Enter",
+            "macos": "Super+Enter"
+          }
+        },
+        {
+          "id": "decline-call",
+          "title": "Decline an incoming call",
+          "keys": {
+            "default": "Escape"
+          }
+        },
+        {
+          "id": "start-direct-call",
+          "title": "Start a call in a direct message or group",
+          "keys": {
+            "default": "Ctrl+BracketLeft",
+            "macos": "Ctrl+Backquote"
+          }
+        },
+        {
+          "id": "toggle-mute",
+          "title": "Toggle microphone mute",
+          "keys": {
+            "default": "Ctrl+Shift+M",
+            "macos": "Shift+Super+M"
+          }
+        },
+        {
+          "id": "toggle-deafen",
+          "title": "Toggle deafen",
+          "keys": {
+            "default": "Ctrl+Shift+D",
+            "macos": "Shift+Super+D"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Keyboard and message input",
+      "context": "input",
+      "shortcuts": [
+        {
+          "id": "show-hotkeys",
+          "title": "Show keyboard shortcuts",
+          "keys": {
+            "default": "Ctrl+Slash",
+            "macos": null
+          }
+        },
+        {
+          "id": "focus-text-area",
+          "title": "Focus the message text area",
+          "keys": {
+            "default": "Tab"
+          }
+        },
+        {
+          "id": "upload-file",
+          "title": "Upload a file",
+          "keys": {
+            "default": "Ctrl+Shift+U",
+            "macos": "Shift+Super+U"
+          }
+        },
+        {
+          "id": "open-help",
+          "title": "Open help",
+          "keys": {
+            "default": "Ctrl+Shift+H",
+            "macos": "Shift+Super+H"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -21,6 +21,8 @@ impl CommandSpec {
             .map(String::as_str)
             .filter(|arg| arg.starts_with("/D=") || arg.starts_with("_?="))
     }
+    /// Blocking child-process work on a worker thread. Environment overrides
+    /// stay scoped to this process and never reach persistent config files.
     pub fn run(&self, paths: &Paths) -> Result<()> {
         let mut command = Command::new(&self.program);
         #[cfg(windows)]
@@ -34,12 +36,20 @@ impl CommandSpec {
         }
         #[cfg(not(windows))]
         command.args(&self.args);
-        let out = command
-            .env("HOME", &paths.home)
-            .env("XDG_CONFIG_HOME", &paths.config)
-            .env("XDG_DATA_HOME", &paths.data)
-            .env("XDG_CACHE_HOME", &paths.cache)
-            .output()?;
+        child_environment(&mut command, paths);
+        command.stdin(std::process::Stdio::null());
+        // A freshly staged installer can be briefly held open for writing by a
+        // child another thread forked before it exec'd (ETXTBSY); retry it.
+        let mut attempts = 0;
+        let out = loop {
+            match command.output() {
+                Err(e) if e.kind() == std::io::ErrorKind::ExecutableFileBusy && attempts < 40 => {
+                    attempts += 1;
+                    std::thread::sleep(std::time::Duration::from_millis(25));
+                }
+                result => break result?,
+            }
+        };
         if !out.status.success() {
             return Err(Error::new(
                 "installer",
@@ -53,6 +63,48 @@ impl CommandSpec {
         }
         Ok(())
     }
+}
+
+pub(crate) fn child_environment(command: &mut Command, paths: &Paths) {
+    command
+        .env("HOME", &paths.home)
+        .env("USERPROFILE", &paths.home)
+        .env("LOCALAPPDATA", &paths.local)
+        .env("APPDATA", &paths.roaming)
+        .env("XDG_CONFIG_HOME", &paths.config)
+        .env("XDG_DATA_HOME", &paths.data)
+        .env("XDG_CACHE_HOME", &paths.cache)
+        .env("ARCADE_NO_INSTALL_PROMPT", "1");
+    if paths.isolated {
+        command.env("ARCADE_HOME", &paths.home);
+    }
+}
+
+/// Launch on a worker with process-scoped paths and no inherited stdio. The
+/// reaper blocks on child exit; there is no timer or idle polling.
+pub fn spawn_detached(paths: &Paths, executable: &Path, args: &[String]) -> Result<()> {
+    let mut command = Command::new(executable);
+    child_environment(&mut command, paths);
+    command
+        .args(args)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        command.process_group(0);
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0x00000008 | 0x00000200);
+    }
+    let mut child = command.spawn()?;
+    std::thread::spawn(move || {
+        let _ = child.wait();
+    });
+    Ok(())
 }
 pub fn windows_install(asset: &Asset, file: &Path, destination: &Path) -> Result<CommandSpec> {
     let expected: &[&str] = match asset.kind {
@@ -95,6 +147,39 @@ pub fn windows_install(asset: &Asset, file: &Path, destination: &Path) -> Result
         program: file.into(),
         args,
     })
+}
+/// Pure silent command planning, safe on any thread. Shared v0.3 installer
+/// tasks preserve the caller's login preference without creating shortcuts here.
+pub fn windows_install_options(
+    asset: &Asset,
+    file: &Path,
+    destination: &Path,
+    channel: crate::release::Channel,
+    login: bool,
+) -> Result<CommandSpec> {
+    let mut command = windows_install(asset, file, destination)?;
+    let destination = command.args.pop().unwrap();
+    command
+        .args
+        .push(format!("/ARCADECHANNEL={}", channel.as_str()));
+    command.args.push("/ARCADEMANAGEDBY=tools".into());
+    if asset.kind == Kind::Inno {
+        command.args.push(format!(
+            "/MERGETASKS={},!arcade_desktop",
+            if login {
+                "arcade_startup"
+            } else {
+                "!arcade_startup"
+            }
+        ));
+    } else {
+        command
+            .args
+            .push(format!("/STARTATLOGIN={}", u8::from(login)));
+        command.args.push("/DESKTOPSHORTCUT=0".into());
+    }
+    command.args.push(destination); // NSIS's /D must remain the final raw tail.
+    Ok(command)
 }
 pub fn windows_uninstall(kind: Kind, root: &Path) -> Result<CommandSpec> {
     match kind {
@@ -171,6 +256,7 @@ impl Replacement {
             committed: false,
         })
     }
+    /// Commit and remove the backup on a worker thread; Drop performs disk work.
     pub fn commit(mut self) {
         self.committed = true;
     }
@@ -186,15 +272,74 @@ impl Drop for Replacement {
     }
 }
 
+/// Installer/process/disk work on a worker thread. Keep/drop `Replacement` on
+/// that worker too: its destructor restores files on failure.
 pub fn install(
     paths: &Paths,
     id: &str,
     asset: &Asset,
     verified: &Path,
 ) -> Result<(PathBuf, Replacement)> {
+    install_with_options(
+        paths,
+        id,
+        asset,
+        verified,
+        crate::release::Channel::Stable,
+        autostart_enabled(paths, id),
+        None,
+    )
+}
+/// The folder a Windows update replaces: where the user installed the app, as
+/// its installer recorded in the receipt. `None` selects the default folder.
+pub fn windows_install_root(receipt: Option<&arcade_link::receipt::Receipt>) -> Option<PathBuf> {
+    receipt
+        .filter(|r| r.method == arcade_link::receipt::InstallMethod::WindowsInstaller)
+        .and_then(|r| r.path.parent())
+        .map(Path::to_path_buf)
+}
+/// Native updates keep the destination selected by the standalone installer
+/// or by dragging a macOS bundle into Applications.
+pub fn native_install_root(receipt: Option<&arcade_link::receipt::Receipt>) -> Option<PathBuf> {
+    match receipt {
+        Some(receipt) if receipt.method == arcade_link::receipt::InstallMethod::MacosBundle => {
+            Some(receipt.path.clone())
+        }
+        receipt => windows_install_root(receipt),
+    }
+}
+
+pub fn native_install_paths(
+    paths: &Paths,
+    id: &str,
+    os: Os,
+    tarball: bool,
+    chosen: Option<&Path>,
+) -> (PathBuf, PathBuf) {
+    let root = paths.install_root(id, os, tarball);
+    let executable = paths.executable(id, os, tarball);
+    match chosen.filter(|_| matches!(os, Os::Windows | Os::Macos)) {
+        Some(chosen) => (
+            chosen.to_path_buf(),
+            chosen.join(executable.strip_prefix(root).unwrap()),
+        ),
+        None => (root, executable),
+    }
+}
+/// Verified native/transition installer work on a worker. The app's own
+/// installer receives the selected channel and existing login preference.
+/// `native_root` keeps native updates in the folder the user chose.
+pub fn install_with_options(
+    paths: &Paths,
+    id: &str,
+    asset: &Asset,
+    verified: &Path,
+    channel: crate::release::Channel,
+    login: bool,
+    native_root: Option<&Path>,
+) -> Result<(PathBuf, Replacement)> {
     let tarball = asset.kind == Kind::Tarball;
-    let executable = paths.executable(id, Os::current(), tarball);
-    let root = paths.install_root(id, Os::current(), tarball);
+    let (root, executable) = native_install_paths(paths, id, Os::current(), tarball, native_root);
     let destination = if asset.kind == Kind::Appimage {
         &executable
     } else {
@@ -212,6 +357,7 @@ pub fn install(
         None
     };
     let replacement = Replacement::begin(paths, destination)?;
+    let _ = (channel, login); // Native Windows arguments; no extra Linux policy.
     #[cfg(target_os = "linux")]
     match asset.kind {
         Kind::Appimage => {
@@ -226,6 +372,8 @@ pub fn install(
                 .persist(&executable)
                 .map_err(|e| Error::from(e.error))?;
         }
+        // Transition release only: retain Shelf/Clipboard tarballs until the
+        // coordinated AppImage release has shipped. New manifests use installArgs.
         Kind::Tarball if id == crate::apps::SHELF => {
             // The bundle is data, never an executable installation script.
             let (_, package) = prepared.as_ref().unwrap();
@@ -258,7 +406,7 @@ pub fn install(
             .tempfile_in(paths.downloads())?;
         fs::copy(verified, temp.path())?;
         let temp_path = temp.into_temp_path();
-        windows_install(asset, &temp_path, &root)?.run(paths)?;
+        windows_install_options(asset, &temp_path, &root, channel, login)?.run(paths)?;
     }
     #[cfg(target_os = "macos")]
     {
@@ -303,6 +451,7 @@ pub fn install(
 }
 
 /// Extract a Shelf runtime bundle without following links or running scripts.
+/// Filesystem/archive work on a worker thread.
 pub fn extract_shelf(file: &Path, cache: &Path) -> Result<(tempfile::TempDir, PathBuf)> {
     fs::create_dir_all(cache)?;
     let directory = tempfile::Builder::new()
@@ -388,6 +537,7 @@ fn copy_shelf_bundle(source: &Path, destination: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Filesystem/archive work on a worker thread; no scripts are executed here.
 pub fn extract_clipboard(file: &Path, cache: &Path) -> Result<(tempfile::TempDir, PathBuf)> {
     fs::create_dir_all(cache)?;
     let directory = tempfile::Builder::new()
@@ -448,6 +598,7 @@ pub fn extract_clipboard(file: &Path, cache: &Path) -> Result<(tempfile::TempDir
     }
     Ok((directory, packages[0].clone()))
 }
+/// Filesystem mutation on a worker thread; missing files are tolerated.
 pub fn remove(path: &Path) -> Result<()> {
     match fs::symlink_metadata(path) {
         Ok(m) if m.is_dir() && !m.file_type().is_symlink() => fs::remove_dir_all(path)?,
@@ -553,7 +704,31 @@ pub fn update_desktop(existing: &str, proposed: &str) -> Result<String> {
     }
     Ok(lines.join("\n") + "\n")
 }
+/// Generated login-entry disk/process work on a worker thread; reads and backs
+/// up existing entries and validates the saved result.
 pub fn set_autostart(paths: &Paths, id: &str, executable: &Path, enabled: bool) -> Result<()> {
+    set_autostart_entry(paths, id, executable, enabled)?;
+    #[cfg(not(windows))]
+    crate::installation::record_autostart(
+        paths,
+        id,
+        enabled.then(|| paths.autostart(id, Os::current())),
+    )?;
+    Ok(())
+}
+fn set_autostart_entry(paths: &Paths, id: &str, executable: &Path, enabled: bool) -> Result<()> {
+    // An app installed by its own Windows installer owns a receipt-recorded
+    // Startup shortcut. Remove the transition entries first so the app is
+    // never started twice, then toggle that shortcut.
+    #[cfg(windows)]
+    if crate::windows_login::state(paths, id).is_some() {
+        if id == crate::apps::SHELF {
+            remove_managed_shelf_entry(paths)?;
+        } else {
+            delete_run_value(paths, id)?;
+        }
+        return crate::windows_login::set(paths, id, enabled, crate::windows_login::write_shortcut);
+    }
     if id == crate::apps::SHELF {
         return set_shelf_autostart(paths, executable, enabled);
     }
@@ -671,7 +846,10 @@ fn set_shelf_autostart(paths: &Paths, executable: &Path, enabled: bool) -> Resul
     }
     let previous = match fs::read(&path) {
         Ok(bytes) => {
-            if !String::from_utf8_lossy(&bytes).contains("Arcade Shelf managed login entry") {
+            let text = String::from_utf8_lossy(&bytes);
+            let owned = text.contains("Arcade Shelf managed login entry")
+                || (Os::current() == Os::Linux && desktop_owned(&text, crate::apps::SHELF));
+            if !owned {
                 return Err(Error::new(
                     "autostart",
                     "An unrelated login entry already uses Shelf's name.",
@@ -722,6 +900,53 @@ fn set_shelf_autostart(paths: &Paths, executable: &Path, enabled: bool) -> Resul
     Ok(())
 }
 
+pub fn desktop_owned(text: &str, id: &str) -> bool {
+    let mut main = false;
+    text.lines().any(|line| {
+        if line.starts_with('[') {
+            main = line.trim() == "[Desktop Entry]";
+        }
+        main && line.trim().strip_prefix("X-Arcade-Id=") == Some(id)
+    })
+}
+
+#[cfg(windows)]
+fn delete_run_value(paths: &Paths, id: &str) -> Result<()> {
+    let key = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
+    let name = windows_run_name(id);
+    if Command::new("reg.exe")
+        .args(["query", key, "/v", name])
+        .output()?
+        .status
+        .success()
+    {
+        CommandSpec {
+            program: "reg.exe".into(),
+            args: ["delete", key, "/v", name, "/f"]
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
+        }
+        .run(paths)?;
+    }
+    Ok(())
+}
+#[cfg(windows)]
+fn remove_managed_shelf_entry(paths: &Paths) -> Result<()> {
+    let path = paths.autostart(crate::apps::SHELF, Os::Windows);
+    paths.guard(&path)?;
+    match fs::read(&path) {
+        Ok(bytes)
+            if String::from_utf8_lossy(&bytes).contains("Arcade Shelf managed login entry") =>
+        {
+            remove(&path)
+        }
+        Ok(_) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(e.into()),
+    }
+}
+
 pub fn windows_run_name(id: &str) -> &'static str {
     match id {
         ids::BOX => "Arcade Box",
@@ -734,7 +959,12 @@ pub fn windows_run_name(id: &str) -> &'static str {
         _ => "ArcadeTools",
     }
 }
+/// Filesystem/Windows registry-process read on a worker thread.
 pub fn autostart_enabled(paths: &Paths, id: &str) -> bool {
+    #[cfg(windows)]
+    if let Some(enabled) = crate::windows_login::state(paths, id) {
+        return enabled;
+    }
     if id == crate::apps::SHELF {
         return paths.autostart(id, Os::current()).is_file();
     }

@@ -1,0 +1,267 @@
+{
+  "schema": 1,
+  "id": "ptyxis",
+  "name": "Ptyxis",
+  "checkedVersion": "50.1",
+  "sources": [
+    "https://download.gnome.org/sources/ptyxis/50/ptyxis-50.1.tar.xz"
+  ],
+  "match": {
+    "linux": {
+      "class": [
+        "org.gnome.Ptyxis"
+      ]
+    }
+  },
+  "groups": [
+    {
+      "title": "Tabs and windows",
+      "context": "tabs",
+      "shortcuts": [
+        {
+          "id": "new-window",
+          "title": "Open a new window",
+          "keys": {
+            "default": "Ctrl+Shift+N"
+          }
+        },
+        {
+          "id": "new-tab",
+          "title": "Open a new tab",
+          "keys": {
+            "default": "Ctrl+Shift+T"
+          }
+        },
+        {
+          "id": "tab-overview",
+          "title": "Show the tab overview",
+          "keys": {
+            "default": "Ctrl+Shift+O"
+          }
+        },
+        {
+          "id": "close-tab",
+          "title": "Close the current tab",
+          "keys": {
+            "default": "Ctrl+Shift+W"
+          }
+        },
+        {
+          "id": "close-window",
+          "title": "Close the current window",
+          "keys": {
+            "default": "Ctrl+Shift+Q"
+          }
+        },
+        {
+          "id": "undo-close-tab",
+          "title": "Reopen the last closed tab",
+          "keys": {
+            "default": "Ctrl+Alt+Shift+T"
+          }
+        },
+        {
+          "id": "next-tab",
+          "title": "Switch to the next tab",
+          "keys": {
+            "default": "Ctrl+PageDown"
+          }
+        },
+        {
+          "id": "previous-tab",
+          "title": "Switch to the previous tab",
+          "keys": {
+            "default": "Ctrl+PageUp"
+          }
+        },
+        {
+          "id": "move-tab-right",
+          "title": "Move the tab right",
+          "keys": {
+            "default": "Ctrl+Shift+PageDown"
+          }
+        },
+        {
+          "id": "move-tab-left",
+          "title": "Move the tab left",
+          "keys": {
+            "default": "Ctrl+Shift+PageUp"
+          }
+        },
+        {
+          "id": "tab-1",
+          "title": "Switch to tab 1",
+          "keys": {
+            "default": "Alt+1"
+          }
+        },
+        {
+          "id": "tab-2",
+          "title": "Switch to tab 2",
+          "keys": {
+            "default": "Alt+2"
+          }
+        },
+        {
+          "id": "tab-3",
+          "title": "Switch to tab 3",
+          "keys": {
+            "default": "Alt+3"
+          }
+        },
+        {
+          "id": "tab-4",
+          "title": "Switch to tab 4",
+          "keys": {
+            "default": "Alt+4"
+          }
+        },
+        {
+          "id": "tab-5",
+          "title": "Switch to tab 5",
+          "keys": {
+            "default": "Alt+5"
+          }
+        },
+        {
+          "id": "tab-6",
+          "title": "Switch to tab 6",
+          "keys": {
+            "default": "Alt+6"
+          }
+        },
+        {
+          "id": "tab-7",
+          "title": "Switch to tab 7",
+          "keys": {
+            "default": "Alt+7"
+          }
+        },
+        {
+          "id": "tab-8",
+          "title": "Switch to tab 8",
+          "keys": {
+            "default": "Alt+8"
+          }
+        },
+        {
+          "id": "tab-9",
+          "title": "Switch to tab 9",
+          "keys": {
+            "default": "Alt+9"
+          }
+        },
+        {
+          "id": "tab-10",
+          "title": "Switch to tab 10",
+          "keys": {
+            "default": "Alt+0"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Terminal",
+      "context": "terminal",
+      "shortcuts": [
+        {
+          "id": "copy",
+          "title": "Copy the selection",
+          "keys": {
+            "default": "Ctrl+Shift+C"
+          }
+        },
+        {
+          "id": "paste",
+          "title": "Paste from the clipboard",
+          "keys": {
+            "default": "Ctrl+Shift+V"
+          }
+        },
+        {
+          "id": "select-all",
+          "title": "Select all terminal output",
+          "keys": {
+            "default": "Ctrl+Shift+A"
+          }
+        },
+        {
+          "id": "search",
+          "title": "Search terminal history",
+          "keys": {
+            "default": "Ctrl+Shift+F"
+          }
+        },
+        {
+          "id": "popup-menu",
+          "title": "Open the terminal context menu",
+          "keys": {
+            "default": "Shift+F10"
+          }
+        },
+        {
+          "id": "primary-menu",
+          "title": "Open the window menu",
+          "keys": {
+            "default": "F10"
+          }
+        },
+        {
+          "id": "tab-menu",
+          "title": "Open the tab menu",
+          "keys": {
+            "default": "Alt+Comma"
+          }
+        },
+        {
+          "id": "keyboard-shortcuts",
+          "title": "Show keyboard shortcuts",
+          "keys": {
+            "default": "Ctrl+Shift+Slash"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Appearance",
+      "context": "appearance",
+      "shortcuts": [
+        {
+          "id": "zoom-in",
+          "title": "Increase font size",
+          "keys": {
+            "default": "Ctrl+Shift+Equal"
+          }
+        },
+        {
+          "id": "zoom-out",
+          "title": "Decrease font size",
+          "keys": {
+            "default": "Ctrl+Minus"
+          }
+        },
+        {
+          "id": "zoom-reset",
+          "title": "Reset font size",
+          "keys": {
+            "default": "Ctrl+0"
+          }
+        },
+        {
+          "id": "fullscreen",
+          "title": "Toggle full-screen mode",
+          "keys": {
+            "default": "F11"
+          }
+        },
+        {
+          "id": "preferences",
+          "title": "Open Preferences",
+          "keys": {
+            "default": "Ctrl+Comma"
+          }
+        }
+      ]
+    }
+  ]
+}
