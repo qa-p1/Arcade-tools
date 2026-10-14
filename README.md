@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="public/glyphs/arcade.tools.svg" width="96" alt="Arcade Tools logo">
+  <img src="assets/icon.svg" width="112" alt="Arcade Tools icon">
 </p>
 
 <h1 align="center">Arcade Tools</h1>
