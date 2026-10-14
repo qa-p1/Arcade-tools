@@ -11,6 +11,7 @@ use arcade_link::manifest::ids;
 use arcade_link::wire::PeerInfo;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fs::{self, File};
 use std::io::{Cursor, Read, Write};
@@ -36,6 +37,7 @@ const MAX_SETTINGS_PER_APP: usize = 8;
 const MAX_EXPANSION_RATIO: u64 = 200;
 const MAX_PLAN_AGE: Duration = Duration::from_secs(10 * 60);
 const MAX_PENDING_PLANS: usize = 8;
+const OPAQUE_ENCODING: &str = "opaque";
 const INSTALLABLE_APPS: &[&str] = &[
     ids::BOX,
     ids::CLIPBOARD,
@@ -84,6 +86,20 @@ struct SettingsFile {
     archive_path: String,
     filename: String,
     content_type: String,
+    /// `None` is a JSON export (the original format, scanned for excluded
+    /// data); `opaque` is a non-JSON export such as Shelf's
+    /// `ARCADE-SHELF-PORTABLE` file, stored byte-for-byte and handed back to
+    /// the app's import unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    encoding: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    sha256: Option<String>,
+}
+
+impl SettingsFile {
+    fn is_opaque(&self) -> bool {
+        self.encoding.as_deref() == Some(OPAQUE_ENCODING)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -418,13 +434,10 @@ fn export_app_settings(
                     break;
                 }
             };
-            if serde_json::from_slice::<Value>(&bytes)
-                .ok()
-                .is_none_or(|value| contains_excluded_data(&value, &app.id))
-            {
+            let Some(opaque) = export_is_opaque(&bytes, &app.id) else {
                 invalid = true;
                 break;
-            }
+            };
             if exported_bytes.saturating_add(bytes.len()) > MAX_EXPORT_BYTES {
                 invalid = true;
                 break;
@@ -434,14 +447,22 @@ fn export_app_settings(
                 .as_deref()
                 .filter(|name| valid_filename(name))
                 .map(str::to_owned)
-                .unwrap_or_else(|| format!("settings-{index}.json"));
-            let archive_path = format!("apps/{}/settings-{index:02}.json", app.id);
+                .unwrap_or_else(|| {
+                    format!("settings-{index}.{}", if opaque { "bin" } else { "json" })
+                });
+            let archive_path = format!(
+                "apps/{}/settings-{index:02}.{}",
+                app.id,
+                if opaque { "bin" } else { "json" }
+            );
             app_exports.push((
                 SettingsFile {
                     app_id: app.id.clone(),
                     archive_path: archive_path.clone(),
                     filename,
                     content_type,
+                    encoding: opaque.then(|| OPAQUE_ENCODING.into()),
+                    sha256: Some(format!("{:x}", Sha256::digest(&bytes))),
                 },
                 ArchiveEntry {
                     name: archive_path,
@@ -625,8 +646,15 @@ fn valid_label_key(key: &str) -> bool {
             .is_some_and(|(_, chord)| !chord.trim().is_empty())
 }
 
+/// Resolves an app's settings export to a file inside the handoff root.
+/// `app_id` is the app Tools asked for the export. Some apps (Wheel) omit
+/// `owner`; the export is then attributed to the app that answered the call.
+/// An owner naming a different app is always rejected.
 fn handoff_source(root: &Path, content: &Content, app_id: &str) -> Option<PathBuf> {
-    if content.owner.as_deref() != Some(app_id)
+    if content
+        .owner
+        .as_deref()
+        .is_some_and(|owner| owner != app_id)
         || !content.kind.starts_with("file/")
         || content.kind.ends_with("[]")
         || !content.paths.is_empty()
@@ -751,7 +779,12 @@ fn contains_excluded_data(value: &Value, app_id: &str) -> bool {
                 "identity",
             ]
             .iter()
-            .any(|needle| normalized.contains(needle));
+            .any(|needle| normalized.contains(needle))
+                // A boolean, number or null under a secret-sounding name is a
+                // preference such as Lens's `privacy.guard_secrets`, not
+                // secret material. Strings, arrays (bytes) and objects stay
+                // excluded.
+                && holds_material(child);
             let app_exclusion = app_id == ids::CLIPBOARD
                 && ["key", "keys", "history", "device"].contains(&normalized.as_str())
                 || app_id == ids::FIND
@@ -764,6 +797,23 @@ fn contains_excluded_data(value: &Value, app_id: &str) -> bool {
         Value::String(text) => crate::diagnostics_archive::has_secret_markers(text),
         _ => false,
     }
+}
+
+/// Classifies an app's settings export: `Some(false)` for JSON that passed the
+/// excluded-data scan, `Some(true)` for a non-JSON app-defined format (Shelf's
+/// binary export) and `None` for JSON holding excluded data. Tools cannot
+/// interpret opaque formats, so their privacy boundary is the app's own export
+/// contract; Tools only bounds, hashes and returns the bytes unchanged.
+fn export_is_opaque(bytes: &[u8], app_id: &str) -> Option<bool> {
+    match serde_json::from_slice::<Value>(bytes) {
+        Ok(value) if contains_excluded_data(&value, app_id) => None,
+        Ok(_) => Some(false),
+        Err(_) => Some(true),
+    }
+}
+
+fn holds_material(value: &Value) -> bool {
+    matches!(value, Value::String(_) | Value::Array(_) | Value::Object(_))
 }
 
 fn valid_filename(name: &str) -> bool {
@@ -1084,7 +1134,22 @@ fn validate_document(document: &BackupDocument, files: &BTreeMap<String, Vec<u8>
             || !settings
                 .archive_path
                 .starts_with(&format!("apps/{}/settings-", settings.app_id))
-            || !settings.archive_path.ends_with(".json")
+            || !settings.archive_path.ends_with(if settings.is_opaque() {
+                ".bin"
+            } else {
+                ".json"
+            })
+            || settings
+                .encoding
+                .as_deref()
+                .is_some_and(|encoding| encoding != OPAQUE_ENCODING)
+            || settings.sha256.as_deref().is_some_and(|sha256| {
+                sha256.len() != 64
+                    || !sha256
+                        .bytes()
+                        .all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f'))
+            })
+            || (settings.is_opaque() && settings.sha256.is_none())
             || !valid_archive_name(&settings.archive_path)
             || !valid_filename(&settings.filename)
             || !settings.content_type.starts_with("file/")
@@ -1107,9 +1172,31 @@ fn validate_document(document: &BackupDocument, files: &BTreeMap<String, Vec<u8>
         let bytes = files
             .get(&settings.archive_path)
             .ok_or_else(|| Error::new("archive_manifest", "An app settings file is missing."))?;
-        let value: Value = serde_json::from_slice(bytes)
-            .map_err(|error| Error::new("archive_settings", error.to_string()))?;
-        if bytes.len() > MAX_SETTINGS_BYTES || contains_excluded_data(&value, &settings.app_id) {
+        if bytes.len() > MAX_SETTINGS_BYTES
+            || settings
+                .sha256
+                .as_deref()
+                .is_some_and(|sha256| sha256 != format!("{:x}", Sha256::digest(bytes)))
+        {
+            return Err(Error::new(
+                "archive_settings",
+                "An app settings file does not match the backup index.",
+            ));
+        }
+        let parsed = serde_json::from_slice::<Value>(bytes);
+        if settings.is_opaque() {
+            // Opaque payloads rely on the app's export contract. JSON is never
+            // accepted as opaque, so it cannot bypass the privacy scan.
+            if parsed.is_ok() {
+                return Err(Error::new(
+                    "archive_privacy",
+                    "The backup includes settings excluded by the privacy contract.",
+                ));
+            }
+            continue;
+        }
+        let value = parsed.map_err(|error| Error::new("archive_settings", error.to_string()))?;
+        if contains_excluded_data(&value, &settings.app_id) {
             return Err(Error::new(
                 "archive_privacy",
                 "The backup includes settings excluded by the privacy contract.",
@@ -1235,6 +1322,8 @@ mod tests {
                 archive_path: "apps/arcade.find/settings-00.json".into(),
                 filename: "find-settings.json".into(),
                 content_type: "file/any".into(),
+                encoding: None,
+                sha256: None,
             }],
             not_included: vec![],
         }
@@ -1333,5 +1422,119 @@ mod tests {
             &json!({ "credential": "x" }),
             ids::FIND
         ));
+    }
+
+    #[test]
+    fn lens_boolean_secret_toggle_is_not_excluded() {
+        let lens = json!({
+            "privacy": {
+                "history_enabled": false,
+                "learn_action_usage": true,
+                "guard_secrets": true
+            },
+            "secret_scan_limit": 4096,
+            "token_budget": null
+        });
+        assert!(!contains_excluded_data(&lens, ids::LENS));
+        assert_eq!(
+            export_is_opaque(&serde_json::to_vec(&lens).unwrap(), ids::LENS),
+            Some(false)
+        );
+    }
+
+    #[test]
+    fn real_secret_material_is_still_excluded() {
+        for value in [
+            json!({ "privacy": { "guard_secrets": "s3cr3t-value" } }),
+            json!({ "api_token": "abc123" }),
+            json!({ "password": "hunter2" }),
+            json!({ "private_key": [1, 2, 3] }),
+            json!({ "credentials": { "user": "me" } }),
+            json!({ "device_identity": "phone-1" }),
+            json!({ "notes": "ghp_0123456789abcdefghijklmnopqrstuvwxyz" }),
+        ] {
+            assert!(contains_excluded_data(&value, ids::LENS), "{value}");
+            assert_eq!(
+                export_is_opaque(&serde_json::to_vec(&value).unwrap(), ids::LENS),
+                None
+            );
+        }
+    }
+
+    #[test]
+    fn missing_owner_is_attributed_to_the_requested_app() {
+        let root = std::env::temp_dir().join(format!("tools-handoff-{}", std::process::id()));
+        fs::create_dir_all(&root).unwrap();
+        let path = root.join("wheel-settings.json");
+        fs::write(&path, br#"{"ring":[]}"#).unwrap();
+        let mut content = Content::file(&path);
+        content.kind = "file/any".into();
+        content.owner = None;
+        assert!(handoff_source(&root, &content, ids::WHEEL).is_some());
+        content.owner = Some(ids::WHEEL.into());
+        assert!(handoff_source(&root, &content, ids::WHEEL).is_some());
+        content.owner = Some(ids::LENS.into());
+        assert!(handoff_source(&root, &content, ids::WHEEL).is_none());
+        fs::remove_dir_all(&root).unwrap();
+    }
+
+    fn shelf_archive(settings: SettingsFile, payload: &[u8]) -> Vec<u8> {
+        let mut document = minimal_document();
+        document.installed_apps.push(InstalledApp {
+            id: ids::SHELF.into(),
+            version: Some("0.2.0".into()),
+            channel: Channel::Stable,
+        });
+        document.settings_files = vec![settings.clone()];
+        write_zip(vec![
+            ArchiveEntry {
+                name: "tools/shortcut-labels.json".into(),
+                bytes: serde_json::to_vec(&document.shortcut_labels).unwrap(),
+            },
+            ArchiveEntry {
+                name: settings.archive_path,
+                bytes: payload.to_vec(),
+            },
+            ArchiveEntry {
+                name: BACKUP_DOCUMENT.into(),
+                bytes: serde_json::to_vec(&document).unwrap(),
+            },
+        ])
+        .unwrap()
+    }
+
+    #[test]
+    fn opaque_shelf_export_roundtrips_byte_for_byte() {
+        let mut payload = b"ARCADE-SHELF-PORTABLE\n".to_vec();
+        payload.extend_from_slice(&[0, 0, 0, 2, b'{', b'}', 0xff, 0xfe, 0x00]);
+        assert_eq!(export_is_opaque(&payload, ids::SHELF), Some(true));
+        let settings = SettingsFile {
+            app_id: ids::SHELF.into(),
+            archive_path: "apps/arcade.shelf/settings-00.bin".into(),
+            filename: "Arcade-Shelf.arcade-shelf".into(),
+            content_type: "file/any".into(),
+            encoding: Some(OPAQUE_ENCODING.into()),
+            sha256: Some(format!("{:x}", Sha256::digest(&payload))),
+        };
+        let validated = validate_archive(&shelf_archive(settings.clone(), &payload)).unwrap();
+        assert!(validated.document.settings_files[0].is_opaque());
+        assert_eq!(validated.files[&settings.archive_path], payload);
+
+        let mut tampered = payload.clone();
+        tampered.push(1);
+        assert!(validate_archive(&shelf_archive(settings.clone(), &tampered)).is_err());
+
+        let mut unhashed = settings.clone();
+        unhashed.sha256 = None;
+        assert!(validate_archive(&shelf_archive(unhashed, &payload)).is_err());
+
+        let mut wrong_extension = settings.clone();
+        wrong_extension.archive_path = "apps/arcade.shelf/settings-00.json".into();
+        assert!(validate_archive(&shelf_archive(wrong_extension, &payload)).is_err());
+
+        let secret_json = br#"{"password":"hunter2"}"#;
+        let mut smuggled = settings;
+        smuggled.sha256 = Some(format!("{:x}", Sha256::digest(secret_json)));
+        assert!(validate_archive(&shelf_archive(smuggled, secret_json)).is_err());
     }
 }
