@@ -415,7 +415,9 @@ fn auto_update_is_opt_in_requires_known_idle_state_and_ten_minutes() {
         .eligible
     );
     assert!(!auto_update_policy(true, &json!({}), Some(0), 1000).eligible);
-    assert!(!auto_update_policy(true, &idle, None, 1000).eligible);
+    assert!(auto_update_policy(true, &idle, None, 1000).eligible);
+    assert!(!auto_update_policy(true, &busy, None, 1000).eligible);
+    assert!(!auto_update_policy(true, &json!({}), None, 1000).eligible);
     assert!(!auto_update_policy(true, &idle, Some(401), 1000).eligible);
     assert!(auto_update_policy(true, &idle, Some(400), 1000).eligible);
     assert!(!auto_update_policy(true, &idle, Some(1001), 1000).eligible);

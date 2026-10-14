@@ -27,9 +27,35 @@ fn install_options(
     _start_at_login: bool,
     _remove_download: bool,
 ) -> Result<arcade_link::receipt::Receipt> {
-    Err(unsupported())
+    let paths = Paths::discover()?;
+    windows_install_receipt(&paths, &std::env::current_exe()?)
 }
-#[cfg(windows)]
+#[cfg(any(windows, test))]
+fn windows_install_receipt(
+    paths: &Paths,
+    executable: &std::path::Path,
+) -> Result<arcade_link::receipt::Receipt> {
+    let receipt = arcade_link::receipt::Store::new(&paths.link)
+        .read("arcade.tools")?
+        .filter(|r| r.method == arcade_link::receipt::InstallMethod::WindowsInstaller)
+        .ok_or_else(unsupported)?;
+    arcade_tools_core::installation::validate_receipt(
+        paths,
+        &receipt,
+        "arcade.tools",
+        env!("CARGO_PKG_VERSION"),
+        if receipt.channel == "nightly" {
+            arcade_tools_core::release::Channel::Nightly
+        } else {
+            arcade_tools_core::release::Channel::Stable
+        },
+    )?;
+    if std::fs::canonicalize(&receipt.path)? != std::fs::canonicalize(executable)? {
+        return Err(unsupported());
+    }
+    Ok(receipt)
+}
+#[cfg(any(windows, test))]
 fn unsupported() -> Error {
     Error::new(
         "unsupported",
@@ -123,15 +149,7 @@ fn install_options(
                 "Applications already contains Arcade Tools without its receipt; it was left unchanged.",
             ));
         }
-        let stage = root.join(format!(
-            ".arcade-tools-{}",
-            arcade_link::endpoint::new_token()?
-        ));
-        let staged = macos::move_to_applications(&environment, &source, Some(&stage))?;
-        if target.exists() {
-            std::fs::remove_dir_all(&target)?;
-        }
-        std::fs::rename(staged, &target)?;
+        stage_bundle(&environment, &source, &target)?;
     }
     let cli = macos::install_cli(
         &environment,
@@ -142,6 +160,26 @@ fn install_options(
     environment.receipts().write(&receipt)?;
     write_manifest(&environment, &receipt)?;
     Ok(receipt)
+}
+#[cfg(target_os = "macos")]
+fn stage_bundle(
+    environment: &Environment,
+    source: &std::path::Path,
+    target: &std::path::Path,
+) -> Result<()> {
+    let stage = tempfile::Builder::new()
+        .prefix(".arcade-tools-")
+        .tempdir_in(target.parent().unwrap())?;
+    let staged = arcade_link::install::platform::macos::move_to_applications(
+        environment,
+        source,
+        Some(stage.path()),
+    )?;
+    if target.exists() {
+        std::fs::remove_dir_all(target)?;
+    }
+    std::fs::rename(staged, target)?;
+    Ok(())
 }
 #[cfg(target_os = "linux")]
 fn install_options(
@@ -180,7 +218,19 @@ fn install_options(
 }
 #[cfg(target_os = "linux")]
 fn repair(environment: &Environment) -> Result<arcade_link::receipt::Receipt> {
-    Ok(arcade_link::install::repair(environment, &info(), None)?)
+    let runtime = Runtime::discover()?;
+    repair_at(environment, runtime.appimage.as_deref())
+}
+#[cfg(target_os = "linux")]
+fn repair_at(
+    environment: &Environment,
+    moved_to: Option<&std::path::Path>,
+) -> Result<arcade_link::receipt::Receipt> {
+    Ok(arcade_link::install::repair(
+        environment,
+        &info(),
+        moved_to,
+    )?)
 }
 /// Link removes the CLI link only when it targets the receipt path, which on
 /// macOS is the bundle; this link targets the executable inside it.
@@ -431,4 +481,82 @@ pub async fn dismiss_self_install() -> Result<()> {
     })
     .await
     .map_err(|e| Error::new("worker", e.to_string()))?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use arcade_link::receipt::{InstallMethod, Integration, ManagedBy, Receipt, Store};
+    use std::fs;
+
+    fn receipt(paths: &Paths) -> Receipt {
+        Receipt {
+            schema: 1,
+            id: "arcade.tools".into(),
+            version: env!("CARGO_PKG_VERSION").into(),
+            channel: "stable".into(),
+            method: InstallMethod::WindowsInstaller,
+            managed_by: ManagedBy::SelfManaged,
+            path: paths.home.join("Apps/Tools/arcade-tools.exe"),
+            integration: Integration::default(),
+            previous: None,
+            installed_at: "2026-10-01T00:00:00Z".into(),
+            updated_at: "2026-10-01T00:00:00Z".into(),
+        }
+    }
+
+    #[test]
+    fn windows_native_self_install_uses_its_existing_installer_receipt() {
+        let root = tempfile::tempdir().unwrap();
+        let paths = Paths::under(root.path());
+        let receipt = receipt(&paths);
+        fs::create_dir_all(receipt.path.parent().unwrap()).unwrap();
+        fs::write(&receipt.path, "fixture").unwrap();
+        let other = receipt.path.with_file_name("other.exe");
+        fs::write(&other, "fixture").unwrap();
+        assert!(windows_install_receipt(&paths, &receipt.path).is_err());
+        Store::new(&paths.link).write(&receipt).unwrap();
+        assert_eq!(
+            windows_install_receipt(&paths, &receipt.path).unwrap(),
+            receipt
+        );
+        assert!(windows_install_receipt(&paths, &other).is_err());
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn repair_repoints_a_moved_appimage_and_its_cli() {
+        let root = tempfile::tempdir().unwrap();
+        let paths = Paths::under(root.path());
+        let environment = Environment::under(root.path());
+        let mut receipt = receipt(&paths);
+        receipt.method = InstallMethod::Appimage;
+        receipt.path = paths.home.join("Applications/Arcade/Arcade-Tools.AppImage");
+        let moved = paths.home.join("Applications/Arcade/Moved-Tools.AppImage");
+        fs::create_dir_all(moved.parent().unwrap()).unwrap();
+        fs::write(&moved, "fixture").unwrap();
+        let cli = paths.home.join(".local/bin/arcade-tools");
+        fs::create_dir_all(cli.parent().unwrap()).unwrap();
+        std::os::unix::fs::symlink(&receipt.path, &cli).unwrap();
+        receipt.integration.cli = Some(cli.clone());
+        environment.receipts().write(&receipt).unwrap();
+        let repaired = repair_at(&environment, Some(&moved)).unwrap();
+        assert_eq!(repaired.path, moved.canonicalize().unwrap());
+        assert_eq!(fs::read_link(cli).unwrap(), repaired.path);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_bundle_staging_leaves_no_arcade_directory() {
+        let root = tempfile::tempdir().unwrap();
+        let environment = Environment::under(root.path());
+        let source = root.path().join("Downloads/Arcade Tools.app");
+        fs::create_dir_all(source.join("Contents/MacOS")).unwrap();
+        fs::write(source.join(BUNDLE_EXECUTABLE), "fixture").unwrap();
+        let target = root.path().join("Applications/Arcade Tools.app");
+        fs::create_dir_all(target.parent().unwrap()).unwrap();
+        stage_bundle(&environment, &source, &target).unwrap();
+        assert!(target.join(BUNDLE_EXECUTABLE).is_file());
+        assert_eq!(fs::read_dir(target.parent().unwrap()).unwrap().count(), 1);
+    }
 }

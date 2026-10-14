@@ -261,6 +261,7 @@ export const api = {
   readDoc: (id: string, path: string, latest = false) => invoke<DocPage>('read_doc', { id, path, latest }),
   downloadEngine: (id: string) => invoke<string>('download_engine', { id }),
   selfUpdate: () => invoke<void>('self_update'),
+  selfRollback: () => invoke<void>('self_rollback'),
   installTools: () => invoke<void>('install_tools'),
   planUninstallAll: (removeData: boolean) => invoke<UninstallPlan>('plan_uninstall_all', { removeData }),
   uninstallAll: (plan: UninstallPlan) => invoke<{ results: { app: string; removed: boolean; reason: string }[] }>('uninstall_all', { plan }),

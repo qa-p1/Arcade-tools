@@ -403,10 +403,12 @@ impl Manager {
         }
         let registry = Registry::load(&self.paths.link);
         let receipt = self.receipt(id)?;
+        let class = self.class(id, &registry, receipt.as_ref())?;
         if !matches!(
-            self.class(id, &registry, receipt.as_ref())?,
+            class,
             InstallationClass::Managed | InstallationClass::LegacyManaged
-        ) {
+        ) && !(id == ids::TOOLS && class == InstallationClass::SelfInstalled)
+        {
             return Ok(deny(
                 "Only managed, non-development installations can auto-update.",
             ));
@@ -419,7 +421,7 @@ impl Manager {
                 "Arcade Link is disabled; close the app and update manually.",
             ));
         }
-        let status = match Client::connect(&self.paths.link, id, &me()) {
+        let mut status = match Client::connect(&self.paths.link, id, &me()) {
             Ok(mut client) => client.status().map_err(|error| link_error(id, error))?,
             Err(error) if error.code == arcade_link::ErrorCode::NotRunning => {
                 if arcade_link::endpoint::read(&self.paths.link, id)
@@ -431,7 +433,19 @@ impl Manager {
             }
             Err(error) => return Ok(deny(&link_error(id, error).message)),
         };
+        if self.own_process(id) {
+            status["busy"] = false.into();
+            if let Some(nested) = status.get_mut("status") {
+                nested["busy"] = false.into();
+            }
+        }
         Ok(updates::auto_update_policy(true, &status, last_used, now))
+    }
+
+    fn own_process(&self, id: &str) -> bool {
+        id == ids::TOOLS
+            && arcade_link::endpoint::read(&self.paths.link, id)
+                .is_ok_and(|endpoint| endpoint.pid == std::process::id())
     }
 
     /// Download and verify Tools itself on a worker, persist a handoff plan, then
@@ -447,6 +461,117 @@ impl Manager {
     ) -> Result<crate::self_update::StagedSelfUpdate> {
         let _lock = self.lock()?;
         self.prepare_self_update_locked(mode, cancel, progress, hook)
+    }
+
+    /// Stage rollback for the same separate helper used by self updates.
+    pub fn prepare_self_rollback(
+        &self,
+        mode: LaunchMode,
+        cancel: &AtomicBool,
+        hook: &mut dyn FnMut(&Path) -> Result<()>,
+    ) -> Result<PathBuf> {
+        let _lock = self.lock()?;
+        check_cancel(cancel)?;
+        let receipt = self.receipt(ids::TOOLS)?;
+        if !matches!(
+            self.class(
+                ids::TOOLS,
+                &Registry::load(&self.paths.link),
+                receipt.as_ref()
+            )?,
+            InstallationClass::Managed
+                | InstallationClass::LegacyManaged
+                | InstallationClass::SelfInstalled
+        ) {
+            return Err(Error::new(
+                "unmanaged",
+                "Install Arcade Tools before rolling it back.",
+            ));
+        }
+        if self.rollback_version(ids::TOOLS)?.is_none() {
+            return Err(Error::new(
+                "no_previous",
+                "There is no retained previous Tools version.",
+            ));
+        }
+        let old = self
+            .record(ids::TOOLS)?
+            .ok_or_else(|| Error::new("unmanaged", "Tools is not installed."))?;
+        let plan = crate::self_update::SelfRollbackPlan {
+            schema: 1,
+            expected_version: old.version.clone(),
+            expected_path: self.executable(&old),
+            expected_sha256: checksum(&self.executable(&old))?,
+            mode,
+            parent_pid: std::process::id(),
+        };
+        let file = self.paths.state().join("self-update").join(format!(
+            "rollback-{}.json",
+            arcade_link::endpoint::new_token()?
+        ));
+        self.write(&file, &plan)?;
+        if let Err(error) = hook(&file) {
+            platform::remove(&file)?;
+            return Err(error);
+        }
+        Ok(file)
+    }
+
+    /// Revalidate the current installation after shutdown, then roll back.
+    pub fn finish_self_rollback(
+        &self,
+        plan: &crate::self_update::SelfRollbackPlan,
+        cancel: &AtomicBool,
+        progress: &mut dyn FnMut(Progress),
+    ) -> Result<String> {
+        if plan.schema != 1 || plan.parent_pid == std::process::id() {
+            return Err(Error::new(
+                "self_update",
+                "Tools rollback requires a separate helper after shutdown.",
+            ));
+        }
+        let _lock = self.lock()?;
+        let deadline = Instant::now() + Duration::from_secs(30);
+        while process_alive(plan.parent_pid) {
+            check_cancel(cancel)?;
+            if Instant::now() >= deadline {
+                return Err(Error::new(
+                    "timeout",
+                    "Old Arcade Tools did not exit; rollback left it unchanged.",
+                ));
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        let old = self
+            .record(ids::TOOLS)?
+            .ok_or_else(|| Error::new("unmanaged", "Tools is not installed."))?;
+        self.paths.guard(&plan.expected_path)?;
+        if old.version != plan.expected_version
+            || self.executable(&old) != plan.expected_path
+            || checksum(&plan.expected_path)? != plan.expected_sha256
+        {
+            return Err(Error::new(
+                "state_changed",
+                "Tools changed after staging; request rollback again.",
+            ));
+        }
+        let result = self.operate_locked(
+            &Request {
+                id: ids::TOOLS.into(),
+                operation: Operation::Rollback,
+                mode: Some(plan.mode),
+                remove_data: false,
+                app_closed: true,
+            },
+            cancel,
+            progress,
+            SystemClock.now(),
+        );
+        let launch = platform::spawn_detached(&self.paths, &plan.expected_path, &plan.mode.args());
+        if result.is_ok() {
+            launch?;
+        }
+        result
     }
     fn prepare_self_update_locked(
         &self,
@@ -467,7 +592,9 @@ impl Manager {
         let registry = Registry::load(&self.paths.link);
         if !matches!(
             self.class(id, &registry, receipt.as_ref())?,
-            InstallationClass::Managed | InstallationClass::LegacyManaged
+            InstallationClass::Managed
+                | InstallationClass::LegacyManaged
+                | InstallationClass::SelfInstalled
         ) {
             return Err(Error::new(
                 "unmanaged",
@@ -476,8 +603,9 @@ impl Manager {
         }
         if let Ok(mut client) = Client::connect(&self.paths.link, id, &me()) {
             let status = client.status().map_err(|error| link_error(id, error))?;
-            if status.get("busy").and_then(Value::as_bool) == Some(true)
-                || status.pointer("/status/busy").and_then(Value::as_bool) == Some(true)
+            if !self.own_process(id)
+                && (status.get("busy").and_then(Value::as_bool) == Some(true)
+                    || status.pointer("/status/busy").and_then(Value::as_bool) == Some(true))
             {
                 return Err(Error::new(
                     "busy",
@@ -606,7 +734,9 @@ impl Manager {
                 &Registry::load(&self.paths.link),
                 receipt.as_ref()
             )?,
-            InstallationClass::Managed | InstallationClass::LegacyManaged
+            InstallationClass::Managed
+                | InstallationClass::LegacyManaged
+                | InstallationClass::SelfInstalled
         ) {
             return Err(Error::new(
                 "dev_build",
@@ -900,6 +1030,7 @@ impl Manager {
             .pointer("/status/lastUsed")
             .or_else(|| status.pointer("/status/lastUsedAt"))
             .or_else(|| status.get("lastUsed"))
+            .or_else(|| status.get("lastUsedAt"))
             .and_then(Value::as_u64)
     }
     /// Fetch and cache one app's docs for the selected installed version. This
@@ -953,22 +1084,32 @@ impl Manager {
     pub fn adoptions(&self) -> Result<Vec<Adoption>> {
         let registry = Registry::load(&self.paths.link);
         let mut result = Vec::new();
-        for peer in registry
-            .apps()
-            .iter()
-            .filter(|peer| crate::apps::APPS.contains(&peer.id.as_str()))
-        {
-            let receipt = self.receipt(&peer.id)?;
-            let class = self.class(&peer.id, &registry, receipt.as_ref())?;
+        for id in crate::apps::APPS {
+            let peer = registry.get(id);
+            let receipt = self.receipt(id)?;
+            let Some((executable, version)) = peer
+                .map(|peer| (PathBuf::from(&peer.executable), peer.version.clone()))
+                .or_else(|| {
+                    receipt.as_ref().map(|receipt| {
+                        (
+                            installation::executable(&self.paths, receipt),
+                            receipt.version.clone(),
+                        )
+                    })
+                })
+            else {
+                continue;
+            };
+            let class = self.class(id, &registry, receipt.as_ref())?;
             let can_adopt = matches!(
                 class,
                 InstallationClass::Manual | InstallationClass::SelfInstalled
             );
             result.push(Adoption {
-                id: peer.id.clone(),
+                id: id.to_string(),
                 class,
-                executable: PathBuf::from(&peer.executable),
-                version: peer.version.clone(),
+                executable,
+                version,
                 can_adopt,
                 reason: if class == InstallationClass::Dev {
                     Some("Development build; Arcade Tools will never modify it.".into())
@@ -1015,9 +1156,10 @@ impl Manager {
             let running = probe && Client::connect(&self.paths.link, id, &me()).is_ok();
             let healthy = executable.as_ref().is_some_and(|p| p.is_file());
             let reason = if class == InstallationClass::Dev { Some("Development build; launch is available, installation changes are disabled.".into()) }
-                else if matches!(class, InstallationClass::Manual | InstallationClass::SelfInstalled) && peer.is_some() { Some("Installed outside Arcade Tools. Choose Let Arcade Tools manage this to enable updates.".into()) }
+                else if id != ids::TOOLS && matches!(class, InstallationClass::Manual | InstallationClass::SelfInstalled) && (peer.is_some() || receipt.is_some()) { Some("Installed outside Arcade Tools. Choose Let Arcade Tools manage this to enable updates.".into()) }
                 else if peer.is_some_and(|m| !m.settings.link_enabled) { Some("Arcade Link is disabled in this app. Close it before changing its installation.".into()) }
-                else if record.is_some() && !healthy { Some("Installed executable is missing. Choose Repair.".into()) } else { None };
+                else if record.is_some() && !healthy { Some("Installed executable is missing. Choose Repair.".into()) }
+                else { record.as_ref().and_then(first_update_rollback_notice).map(str::to_owned) };
             Ok(AppView { id: id.to_string(), name: app.name.clone(), pitch: app.pitch.clone(), releases_url: app.releases_url(),
                 version: record.as_ref().map(|r| r.version.clone()).or_else(|| peer.map(|m| m.version.clone())), managed: matches!(class, InstallationClass::Managed | InstallationClass::LegacyManaged), installed: healthy,
                 running, channel: prefs.channels.get(id).copied().or(record.as_ref().map(|r| r.channel)).unwrap_or_default(), healthy,
@@ -1511,6 +1653,7 @@ impl Manager {
                         "The receipt's executable is present; adoption is required.",
                     ));
                 }
+                installation::cleanup_missing_bundle(&self.paths, &receipt)?;
                 Store::new(&self.paths.link).remove(id)?;
                 Ok("Removed the stale receipt; no app or data files were removed.".into())
             }
@@ -2000,10 +2143,17 @@ impl Manager {
         cancel: &AtomicBool,
         progress: &mut dyn FnMut(Progress),
     ) -> Result<String> {
-        let peer = peer.ok_or_else(|| {
+        let receipt_peer = old_receipt.as_ref().map(|receipt| {
+            Manifest::new(
+                &request.id,
+                &receipt.version,
+                &installation::executable(&self.paths, receipt).to_string_lossy(),
+            )
+        });
+        let peer = peer.or(receipt_peer.as_ref()).ok_or_else(|| {
             Error::new(
                 "not_installed",
-                "There is no installed registry entry to adopt.",
+                "There is no installation receipt or registry entry to adopt.",
             )
         })?;
         if old_receipt
@@ -2183,7 +2333,7 @@ impl Manager {
                 "There is no managed installation to roll back.",
             )
         })?;
-        if receipt.is_some_and(|r| r.managed_by != ManagedBy::Tools) {
+        if receipt.is_some_and(|r| r.managed_by != ManagedBy::Tools) && request.id != ids::TOOLS {
             return Err(Error::new(
                 "unmanaged",
                 "Let Arcade Tools manage this first.",
@@ -2600,6 +2750,12 @@ fn windows_kind(uninstaller: Option<&Path>) -> Kind {
     } else {
         Kind::Nsis
     }
+}
+
+fn first_update_rollback_notice(record: &Record) -> Option<&'static str> {
+    (matches!(record.kind, Kind::Nsis | Kind::Inno) && record.package.is_none()).then_some(
+        "Rollback is unavailable for the first Windows update after adoption because the previous installer is not cached. Later updates retain an installer for rollback.",
+    )
 }
 
 /// Bounded transient successor wait; never used by idle services.

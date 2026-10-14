@@ -448,8 +448,8 @@ pub struct AutoUpdateOutcome {
     /// Present after execution. The desktop may notify once this is returned.
     pub message: Option<String>,
 }
-/// Pure opt-in/idle policy, safe on any thread. Unknown status or last-used time
-/// is ineligible; the caller supplies `app.status` and its last-used timestamp.
+/// Pure opt-in/idle policy, safe on any thread. Older apps without last-used
+/// status can update when explicitly not busy; known use still waits 10 minutes.
 /// Recheck this and compatibility immediately before calling `Manager::operate`.
 pub fn auto_update_policy(
     opted_in: bool,
@@ -472,9 +472,7 @@ pub fn auto_update_policy(
         Some("The app is busy; finish its job first.")
     } else if busy.is_none() {
         Some("The app's busy state is unknown.")
-    } else if last_used.is_none() {
-        Some("The app's last-used time is unknown.")
-    } else if now.saturating_sub(last_used.unwrap()) < AUTO_UPDATE_IDLE {
+    } else if last_used.is_some_and(|used| now.saturating_sub(used) < AUTO_UPDATE_IDLE) {
         Some("The app was used within the last 10 minutes.")
     } else {
         None

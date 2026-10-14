@@ -19,6 +19,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
   prepare:
     runs-on: ubuntu-22.04
     outputs:
@@ -113,7 +116,7 @@ jobs:
           if-no-files-found: error
 
   publish:
-    needs: [prepare, bundle]
+    needs: [prepare, bundle, ci]
     runs-on: ubuntu-22.04
     permissions:
       contents: write

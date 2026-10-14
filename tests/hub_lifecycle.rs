@@ -291,6 +291,36 @@ fn hub_lifecycle_wheel_build_metadata_receipts_updates_and_rollback() {
 }
 
 #[test]
+fn hub_lifecycle_nightly_receipts_can_record_the_compiled_base_version() {
+    let (server, manager) = fixture();
+    for id in ["arcade.look", "arcade.lens", "arcade.clipboard"] {
+        server.publish(
+            id,
+            "0.2.0-nightly.42",
+            "nightly",
+            &[(
+                "App_x64.AppImage",
+                &fake_app(&manager.paths, id, "0.2.0", false),
+            )],
+            "nsis",
+        );
+        server.amend_manifest(id, "0.2.0-nightly.42", "nightly", |manifest| {
+            manifest["assets"][0]["installArgs"] = json!(["--install", "--silent"]);
+        });
+        manager
+            .set_channel(id, arcade_tools_core::release::Channel::Nightly)
+            .unwrap();
+        operate(&manager, id, Operation::Install).unwrap();
+        assert_eq!(manager.receipt(id).unwrap().unwrap().version, "0.2.0");
+        assert_eq!(
+            manager.record(id).unwrap().unwrap().version,
+            "0.2.0-nightly.42"
+        );
+        assert!(!manager.check(id).unwrap().update_available);
+    }
+}
+
+#[test]
 fn hub_lifecycle_install_update_rollback_repeated_updates_and_uninstall() {
     let (server, manager) = fixture();
     installed(&server, &manager, "arcade.look");
@@ -428,6 +458,9 @@ fn hub_lifecycle_adopt_manual_self_and_refuse_dev() {
             &Manifest::new(id, "1.0.0", exe.to_str().unwrap()),
         )
         .unwrap();
+        if self_install {
+            arcade_link::manifest::remove_manifest(&manager.paths.link, id).unwrap();
+        }
         let adoption = manager
             .adoptions()
             .unwrap()
@@ -629,9 +662,26 @@ fn hub_lifecycle_tools_self_update_handoff_verification_and_helper_flow() {
     }
     .run(&manager.paths)
     .unwrap();
-    let mut receipt = manager.receipt("arcade.tools").unwrap().unwrap();
-    receipt.managed_by = ManagedBy::Tools;
-    Store::new(&manager.paths.link).write(&receipt).unwrap();
+    assert_eq!(
+        manager.receipt("arcade.tools").unwrap().unwrap().managed_by,
+        ManagedBy::SelfManaged
+    );
+    let busy_tools = Arc::new(RunningApp {
+        server: Mutex::new(None),
+        busy: AtomicBool::new(true),
+        quit: AtomicBool::new(false),
+    });
+    let tools_server = Server::start(
+        ServerConfig {
+            app: PeerInfo {
+                id: "arcade.tools".into(),
+                version: "1.0.0".into(),
+            },
+            locations: manager.paths.link.clone(),
+        },
+        busy_tools.clone(),
+    )
+    .unwrap();
     server.publish(
         "arcade.tools",
         "2.0.0+build.40",
@@ -664,6 +714,8 @@ fn hub_lifecycle_tools_self_update_handoff_verification_and_helper_flow() {
         )
         .unwrap();
     assert!(called && staged.file.exists());
+    drop(tools_server);
+    assert!(!busy_tools.quit.load(Ordering::SeqCst));
     assert_eq!(
         manager
             .finish_self_update(&staged.plan, &AtomicBool::new(false), &mut |_| {})
@@ -688,6 +740,41 @@ fn hub_lifecycle_tools_self_update_handoff_verification_and_helper_flow() {
     wait_for(
         &manager.paths.link.registry.join("arcade.tools.json"),
         |text| text.contains("2.0.0"),
+    );
+    let rollback = manager
+        .prepare_self_rollback(LaunchMode::Background, &AtomicBool::new(false), &mut |_| {
+            Ok(())
+        })
+        .unwrap();
+    let mut rollback: arcade_tools_core::self_update::SelfRollbackPlan =
+        serde_json::from_slice(&fs::read(rollback).unwrap()).unwrap();
+    assert_eq!(
+        manager
+            .finish_self_rollback(&rollback, &AtomicBool::new(false), &mut |_| {})
+            .unwrap_err()
+            .code,
+        "self_update"
+    );
+    rollback.parent_pid = 2_000_000_000;
+    let mut changed = rollback.clone();
+    changed.expected_sha256 = "0".repeat(64);
+    assert_eq!(
+        manager
+            .finish_self_rollback(&changed, &AtomicBool::new(false), &mut |_| {})
+            .unwrap_err()
+            .code,
+        "state_changed"
+    );
+    manager
+        .finish_self_rollback(&rollback, &AtomicBool::new(false), &mut |_| {})
+        .unwrap();
+    assert_eq!(
+        manager.record("arcade.tools").unwrap().unwrap().version,
+        "1.0.0"
+    );
+    wait_for(
+        &manager.paths.link.registry.join("arcade.tools.json"),
+        |text| text.contains("1.0.0"),
     );
     let mut removal = manager.prepare_self_uninstall(false).unwrap();
     removal.parent_pid = 2_000_000_000;

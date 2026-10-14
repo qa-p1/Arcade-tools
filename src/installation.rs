@@ -203,8 +203,92 @@ pub fn claim(paths: &Paths, mut receipt: Receipt, previous: Option<Previous>) ->
     receipt.managed_by = ManagedBy::Tools;
     receipt.previous = previous;
     receipt.updated_at = arcade_link::manifest::now_rfc3339().max(receipt.installed_at.clone());
-    Store::new(&paths.link).write(&receipt)?;
+    write_receipt(paths, &receipt)?;
     Ok(receipt)
+}
+
+/// Preserve fields introduced by installers newer than the pinned Link crate.
+pub fn write_receipt(paths: &Paths, receipt: &Receipt) -> Result<()> {
+    receipt.validate_native_paths()?;
+    if receipt.method == InstallMethod::Dev {
+        return Err(Error::new(
+            "dev_build",
+            "Development builds never write install receipts.",
+        ));
+    }
+    let file = paths.guard_receipt(&receipt.id)?;
+    let mut document = match fs::read(&file) {
+        Ok(bytes) => {
+            Store::new(&paths.link).read(&receipt.id)?;
+            serde_json::from_slice(&bytes)?
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => serde_json::Value::Null,
+        Err(e) => return Err(e.into()),
+    };
+    fn merge(target: &mut serde_json::Value, value: serde_json::Value) {
+        if let (Some(target), Some(value)) = (target.as_object_mut(), value.as_object()) {
+            for (key, value) in value {
+                merge(
+                    target.entry(key.clone()).or_insert(serde_json::Value::Null),
+                    value.clone(),
+                );
+            }
+        } else {
+            *target = value;
+        }
+    }
+    merge(&mut document, serde_json::to_value(receipt)?);
+    arcade_link::paths::ensure_private_dir(file.parent().unwrap())?;
+    arcade_link::paths::write_atomic(&file, &serde_json::to_vec_pretty(&document)?, true)?;
+    Ok(())
+}
+
+/// Record a successful login toggle without changing receipt ownership.
+pub fn record_autostart(paths: &Paths, id: &str, path: Option<PathBuf>) -> Result<()> {
+    paths.guard_receipt(id)?;
+    if let Some(mut receipt) = Store::new(&paths.link).read(id)? {
+        receipt.integration.autostart = path;
+        owned_paths(paths, &receipt)?;
+        receipt.updated_at = arcade_link::manifest::now_rfc3339().max(receipt.installed_at.clone());
+        write_receipt(paths, &receipt)?;
+    }
+    Ok(())
+}
+
+/// A trashed bundle leaves only receipt-owned generated integration behind.
+pub fn cleanup_missing_bundle(paths: &Paths, receipt: &Receipt) -> Result<()> {
+    if receipt.method != InstallMethod::MacosBundle || receipt.path.exists() {
+        return Ok(());
+    }
+    paths.guard(&receipt.path)?;
+    for path in owned_paths(paths, receipt)? {
+        match fs::symlink_metadata(&path) {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                let target = path.parent().unwrap().join(fs::read_link(&path)?);
+                let mut resolved = PathBuf::new();
+                for component in target.components() {
+                    match component {
+                        std::path::Component::ParentDir => {
+                            resolved.pop();
+                        }
+                        std::path::Component::CurDir => {}
+                        other => resolved.push(other.as_os_str()),
+                    }
+                }
+                if resolved.starts_with(&receipt.path) {
+                    fs::remove_file(path)?;
+                }
+            }
+            Ok(metadata)
+                if metadata.is_file() && receipt.integration.cli.as_ref() != Some(&path) =>
+            {
+                fs::remove_file(path)?;
+            }
+            Err(error) if error.kind() != std::io::ErrorKind::NotFound => return Err(error.into()),
+            _ => {}
+        }
+    }
+    Ok(())
 }
 
 /// Transition-only receipt for a release with no self-install contract. Disk
@@ -520,9 +604,18 @@ pub(crate) fn owned_paths(paths: &Paths, receipt: &Receipt) -> Result<Vec<PathBu
             paths.local.join("Programs"),
             paths.roaming.join("Microsoft/Windows/Start Menu/Programs"),
         ];
-        if !roots
-            .iter()
-            .any(|root| path.starts_with(root) && path != root)
+        let user_uninstaller = integration.uninstaller.as_ref() == Some(path)
+            && path.starts_with(&paths.home)
+            && path.parent() == receipt.path.parent()
+            && path.file_name().is_some_and(|name| {
+                ["uninstall.exe", "unins000.exe"]
+                    .iter()
+                    .any(|expected| name.to_string_lossy().eq_ignore_ascii_case(expected))
+            });
+        if !user_uninstaller
+            && !roots
+                .iter()
+                .any(|root| path.starts_with(root) && path != root)
         {
             return Err(Error::new(
                 "paths",

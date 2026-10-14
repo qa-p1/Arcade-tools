@@ -44,6 +44,17 @@ pub struct StagedSelfUpdate {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct SelfRollbackPlan {
+    pub schema: u32,
+    pub expected_version: String,
+    pub expected_sha256: String,
+    pub expected_path: PathBuf,
+    pub mode: LaunchMode,
+    pub parent_pid: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SelfUninstallPlan {
     pub schema: u32,
     pub expected_version: String,

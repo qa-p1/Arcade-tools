@@ -1,6 +1,6 @@
 use arcade_tools_core::manager::Manager;
 use arcade_tools_core::paths::Paths;
-use arcade_tools_core::self_update::{SelfUninstallPlan, SelfUpdatePlan};
+use arcade_tools_core::self_update::{SelfRollbackPlan, SelfUninstallPlan, SelfUpdatePlan};
 use arcade_tools_core::source::Source;
 use arcade_tools_core::{Error, Result};
 use std::path::Path;
@@ -35,7 +35,7 @@ pub fn run(args: &[String]) -> Option<Result<()>> {
     let operation = args.get(1)?.as_str();
     if !matches!(
         operation,
-        "--finish-self-update" | "--finish-self-uninstall"
+        "--finish-self-update" | "--finish-self-rollback" | "--finish-self-uninstall"
     ) {
         return None;
     }
@@ -66,6 +66,11 @@ pub fn run(args: &[String]) -> Option<Result<()>> {
         if operation == "--finish-self-update" {
             let plan = SelfUpdatePlan::read(&manager.paths, file)?;
             manager.finish_self_update(&plan, &cancel, &mut |_| {})?;
+        } else if operation == "--finish-self-rollback" {
+            let plan: SelfRollbackPlan = serde_json::from_slice(
+                &arcade_tools_core::catalog::read_bounded(file, 1024 * 1024)?,
+            )?;
+            manager.finish_self_rollback(&plan, &cancel, &mut |_| {})?;
         } else {
             let plan: SelfUninstallPlan = serde_json::from_slice(
                 &arcade_tools_core::catalog::read_bounded(file, 1024 * 1024)?,

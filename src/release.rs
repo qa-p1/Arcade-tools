@@ -115,15 +115,24 @@ pub struct ReleaseCache {
     pub body: String,
 }
 
-/// Stable app/receipt versions may omit release build metadata. Nightly
-/// versions and non-SemVer identities must still match literally.
+/// Receipts may record the compiled base version for a nightly build. Its
+/// channel is checked separately; two explicit nightly identities must agree.
 pub(crate) fn versions_match(left: &str, right: &str, channel: Channel) -> bool {
     left == right
-        || channel == Channel::Stable
-            && match (semver::Version::parse(left), semver::Version::parse(right)) {
-                (Ok(left), Ok(right)) => left.cmp_precedence(&right).is_eq(),
-                _ => false,
+        || match (semver::Version::parse(left), semver::Version::parse(right)) {
+            (Ok(left), Ok(right)) if channel == Channel::Stable => {
+                left.cmp_precedence(&right).is_eq()
             }
+            (Ok(left), Ok(right)) => {
+                let nightly = |v: &semver::Version| {
+                    v.pre.as_str() == "nightly" || v.pre.as_str().starts_with("nightly.")
+                };
+                (left.major, left.minor, left.patch) == (right.major, right.minor, right.patch)
+                    && (left.pre.is_empty() && nightly(&right)
+                        || right.pre.is_empty() && nightly(&left))
+            }
+            _ => false,
+        }
 }
 
 impl Release {
@@ -263,4 +272,27 @@ pub fn verify(path: &Path, asset: &Asset) -> Result<()> {
         ));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod version_tests {
+    use super::*;
+
+    #[test]
+    fn nightly_base_receipts_require_matching_base_and_nightly_identity() {
+        for id in ["0.2.0-nightly.42", "0.2.0-nightly.20261014+abc"] {
+            assert!(versions_match("0.2.0", id, Channel::Nightly));
+            assert!(versions_match(id, "0.2.0", Channel::Nightly));
+            assert!(!versions_match("0.2.0", id, Channel::Stable));
+            assert!(!versions_match("0.1.0", id, Channel::Nightly));
+        }
+        assert!(!versions_match(
+            "0.2.0-nightly.41",
+            "0.2.0-nightly.42",
+            Channel::Nightly
+        ));
+        assert!(!versions_match("0.2.0", "0.2.0-beta.1", Channel::Nightly));
+        assert!(!versions_match("build-a", "build-b", Channel::Nightly));
+        assert!(versions_match("0.2.0", "0.2.0+build.42", Channel::Stable));
+    }
 }

@@ -302,12 +302,17 @@ impl Source {
     }
     fn asset_url(&self, value: &str, repository: &str) -> Result<()> {
         let url = Url::parse(value).map_err(|e| Error::new("source", e.to_string()))?;
+        let prefix = format!("/{repository}/");
+        let repository_matches = url
+            .path()
+            .get(..prefix.len())
+            .is_some_and(|path| path.eq_ignore_ascii_case(&prefix))
+            && url
+                .path()
+                .get(prefix.len()..)
+                .is_some_and(|path| path.starts_with("releases/download/"));
         if !allowed(&url, self.test)
-            || !self.test
-                && (url.host_str() != Some("github.com")
-                    || !url
-                        .path()
-                        .starts_with(&format!("/{repository}/releases/download/")))
+            || !self.test && (url.host_str() != Some("github.com") || !repository_matches)
         {
             return Err(Error::new(
                 "source",
@@ -406,4 +411,32 @@ fn unique_asset<'a>(assets: &'a [GithubAsset], name: &str) -> Result<&'a GithubA
         ));
     }
     Ok(matches[0])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn github_repository_matching_ignores_case_but_keeps_repository_boundaries() {
+        let source = Source::github().unwrap();
+        for repository in ["qa-p1/arcade-look", "QA-P1/Arcade-look"] {
+            assert!(source
+                .asset_url(
+                    "https://github.com/qa-p1/Arcade-look/releases/download/v1/Look.AppImage",
+                    repository
+                )
+                .is_ok());
+        }
+        for url in [
+            "https://github.com/other/Arcade-look/releases/download/v1/Look.AppImage",
+            "https://github.com/qa-p1/Arcade-look-evil/releases/download/v1/Look.AppImage",
+            "https://github.com/qa-p1/Arcade-look/Releases/download/v1/Look.AppImage",
+            "https://github.com/qa-p1/Arcade-look/releases/other/v1/Look.AppImage",
+            "https://example.com/qa-p1/Arcade-look/releases/download/v1/Look.AppImage",
+            "http://github.com/qa-p1/Arcade-look/releases/download/v1/Look.AppImage",
+        ] {
+            assert!(source.asset_url(url, "qa-p1/arcade-look").is_err(), "{url}");
+        }
+    }
 }

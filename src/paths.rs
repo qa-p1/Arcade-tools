@@ -256,6 +256,7 @@ impl Paths {
             ]
             .iter()
             .any(|r| path.starts_with(r) && path != **r)
+                && !(!self.isolated && cfg!(target_os = "macos") && system_bundle_path(path))
         {
             return Err(Error::new(
                 "paths",
@@ -290,6 +291,16 @@ impl Paths {
         }
         Ok(path)
     }
+}
+
+fn system_bundle_path(path: &Path) -> bool {
+    crate::apps::APPS
+        .iter()
+        .copied()
+        .chain([ids::TOOLS])
+        .any(|id| {
+            path.starts_with(Path::new("/Applications").join(format!("{}.app", app_name(id))))
+        })
 }
 
 pub fn app_id(id: &str) -> Result<()> {
@@ -329,6 +340,43 @@ fn macos_alias_target(path: &Path, link: &Path) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn system_applications_exception_is_limited_to_known_arcade_bundles() {
+        assert!(system_bundle_path(Path::new(
+            "/Applications/Arcade Look.app"
+        )));
+        assert!(system_bundle_path(Path::new(
+            "/Applications/Arcade Tools.app/Contents/MacOS/arcade-tools"
+        )));
+        for path in [
+            "/Applications",
+            "/Applications/Other.app",
+            "/Applications/Arcade Look.app-old",
+            "/Applications/Other/Arcade Look.app",
+        ] {
+            assert!(!system_bundle_path(Path::new(path)), "{path}");
+        }
+        let root = tempfile::tempdir().unwrap();
+        let mut paths = Paths::under(root.path());
+        assert!(paths
+            .guard(Path::new("/Applications/Arcade Look.app"))
+            .is_err());
+        paths.isolated = false;
+        assert_eq!(
+            paths
+                .guard(Path::new("/Applications/Arcade Look.app"))
+                .is_ok(),
+            cfg!(target_os = "macos")
+        );
+        assert!(paths
+            .guard(Path::new("/Applications/Arcade Look.app/../Other.app"))
+            .is_err());
+        assert!(paths
+            .guard(&paths.home.join("Applications/Arcade Look.app"))
+            .is_ok());
+    }
 
     #[test]
     fn macos_system_aliases_accept_relative_and_absolute_targets_only() {

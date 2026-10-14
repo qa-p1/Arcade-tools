@@ -127,8 +127,7 @@ fn check(
                 .count(),
         );
         let _ = app.emit("updates-changed", &updates);
-        // Last-used status is optional. Unknown use, busy and compatibility
-        // holds all keep an opted-in app unchanged.
+        // Known use waits ten minutes; older apps still honor their busy state.
         for (id, update) in &updates.apps {
             if !update.update_available || update.held_back {
                 continue;
@@ -598,6 +597,22 @@ pub async fn self_update(app: AppHandle) -> Result<()> {
             },
             &mut hook,
         )?;
+        Ok(())
+    })
+    .await
+}
+#[tauri::command]
+pub async fn self_rollback(app: AppHandle) -> Result<()> {
+    let state = begin(&app)?;
+    worker(move || {
+        let _active = Active(state.clone());
+        let manager = state.manager()?;
+        manager.prepare_self_rollback(LaunchMode::Foreground, &state.cancel, &mut |file| {
+            crate::helpers::launch(&manager.paths, "--finish-self-rollback", file)?;
+            super::announce_restarting(&app);
+            app.exit(0);
+            Ok(())
+        })?;
         Ok(())
     })
     .await

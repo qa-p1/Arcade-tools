@@ -241,7 +241,7 @@ impl Handler for LinkHandler {
     }
     fn status(&self) -> Value {
         let background = self.state.background.load(Ordering::SeqCst);
-        json!({"mode": if background { "background" } else { "foreground" }, "background": background, "busy": self.state.active.load(Ordering::SeqCst)})
+        json!({"mode": if background { "background" } else { "foreground" }, "background": background, "busy": self.state.active.load(Ordering::SeqCst), "lastUsed": self.state.last_used.load(Ordering::SeqCst)})
     }
     fn activate(&self) -> std::result::Result<(), LinkError> {
         show(&self.app, &self.state);
@@ -1127,6 +1127,7 @@ pub fn run(background: bool, quit: bool) {
             hub::plan_uninstall_all,
             hub::uninstall_all,
             hub::self_update,
+            hub::self_rollback,
             hub::install_tools,
             hub::download_engine,
             ui_rendered,

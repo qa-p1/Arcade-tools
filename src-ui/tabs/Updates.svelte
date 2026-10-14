@@ -92,7 +92,7 @@
   {#if managedApps.length}
     <section class="feature-section" aria-labelledby="auto-update-heading">
       <h2 id="auto-update-heading">Automatic updates</h2>
-      <p class="setting-description">Opt in for each app. Tools waits until it is idle and has not been used for ten minutes.</p>
+      <p class="setting-description">Opt in for each app. Closed apps can update. Running apps must not be busy; when they report their last-used time, Tools waits ten minutes.</p>
       {#each managedApps as app (app.id)}<label class="auto-update-toggle"><input type="checkbox" checked={autoUpdate[app.id] ?? false} disabled={busy} onchange={(event) => run(() => onAutoUpdate(app, event.currentTarget.checked), app.name)} /> {app.name}</label>{/each}
     </section>
   {/if}

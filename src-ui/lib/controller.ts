@@ -224,7 +224,7 @@ export async function confirmOperation(app: AppView, operation: Operation): Prom
     ? 'The app will close and its installation will be removed. Settings and data are kept unless you select the option below.'
     : operation === 'install'
       ? `Install the ${app.channel} release for your user account and open the app.`
-      : `Download a fresh ${app.channel} release, close the app, and replace its installation. Settings and data are kept.`;
+      : `Download a fresh ${app.channel} release, close the app, and replace its installation. Settings and data are kept.${app.reason ? `\n${app.reason}` : ''}`;
   const choice = await askForConfirmation({
     title,
     copy,
@@ -234,6 +234,10 @@ export async function confirmOperation(app: AppView, operation: Operation): Prom
     folders: operation === 'uninstall' ? app.dataFolders : [],
   });
   if (!choice.confirmed) return;
+  if (app.id === 'arcade.tools' && operation === 'rollback') {
+    await withBusy(api.selfRollback, 'Rolling back Arcade Tools');
+    return;
+  }
   const request = operationRequest(app.id, operation);
   request.mode = operation === 'install' ? (choice.background ? 'background' : 'foreground') : null;
   request.removeData = choice.removeData;
@@ -314,7 +318,7 @@ export function openLearn(id: string): Promise<void> {
 export async function updateAll(apps: AppView[]): Promise<void> {
   const available = apps.filter((app) => ui.updates?.apps[app.id]?.updateAvailable && !ui.updates.apps[app.id]?.heldBack && app.managed);
   if (!available.length) return;
-  const choice = await askForConfirmation({ title: `Update ${available.length} apps?`, copy: available.map((app) => `${app.name} → ${ui.updates?.apps[app.id]?.latest[app.channel]?.latestVersion ?? 'latest'}`).join('\n') + '\nBusy apps will be left running. Settings and data are kept.', action: 'Update all', destructive: false, kind: null, folders: [] });
+  const choice = await askForConfirmation({ title: `Update ${available.length} apps?`, copy: available.map((app) => `${app.name} → ${ui.updates?.apps[app.id]?.latest[app.channel]?.latestVersion ?? 'latest'}${app.reason ? `\n${app.reason}` : ''}`).join('\n') + '\nBusy apps will be left running. Settings and data are kept.', action: 'Update all', destructive: false, kind: null, folders: [] });
   if (!choice.confirmed) return;
   for (const app of available) {
     if (app.id === 'arcade.tools') continue;

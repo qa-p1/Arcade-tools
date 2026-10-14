@@ -684,6 +684,16 @@ pub fn update_desktop(existing: &str, proposed: &str) -> Result<String> {
 /// Generated login-entry disk/process work on a worker thread; reads and backs
 /// up existing entries and validates the saved result.
 pub fn set_autostart(paths: &Paths, id: &str, executable: &Path, enabled: bool) -> Result<()> {
+    set_autostart_entry(paths, id, executable, enabled)?;
+    #[cfg(not(windows))]
+    crate::installation::record_autostart(
+        paths,
+        id,
+        enabled.then(|| paths.autostart(id, Os::current())),
+    )?;
+    Ok(())
+}
+fn set_autostart_entry(paths: &Paths, id: &str, executable: &Path, enabled: bool) -> Result<()> {
     // An app installed by its own Windows installer owns a receipt-recorded
     // Startup shortcut. Remove the transition entries first so the app is
     // never started twice, then toggle that shortcut.
@@ -813,7 +823,10 @@ fn set_shelf_autostart(paths: &Paths, executable: &Path, enabled: bool) -> Resul
     }
     let previous = match fs::read(&path) {
         Ok(bytes) => {
-            if !String::from_utf8_lossy(&bytes).contains("Arcade Shelf managed login entry") {
+            let text = String::from_utf8_lossy(&bytes);
+            if !text.contains("Arcade Shelf managed login entry")
+                && !(Os::current() == Os::Linux && desktop_owned(&text, crate::apps::SHELF))
+            {
                 return Err(Error::new(
                     "autostart",
                     "An unrelated login entry already uses Shelf's name.",
@@ -862,6 +875,16 @@ fn set_shelf_autostart(paths: &Paths, executable: &Path, enabled: bool) -> Resul
         ));
     }
     Ok(())
+}
+
+pub fn desktop_owned(text: &str, id: &str) -> bool {
+    let mut main = false;
+    text.lines().any(|line| {
+        if line.starts_with('[') {
+            main = line.trim() == "[Desktop Entry]";
+        }
+        main && line.trim().strip_prefix("X-Arcade-Id=") == Some(id)
+    })
 }
 
 #[cfg(windows)]

@@ -131,7 +131,9 @@ fn set_for(paths: &Paths, executable: &Path, enabled: bool, os: Os) -> Result<()
         .map(std::str::from_utf8)
         .transpose()
         .map_err(|error| Error::new("autostart", error.to_string()))?;
-    if previous_text.is_some_and(|text| !text.contains(MARKER)) {
+    if previous_text.is_some_and(|text| {
+        !text.contains(MARKER) && !(os == Os::Linux && platform::desktop_owned(text, ids::TOOLS))
+    }) {
         return Err(Error::new(
             "autostart",
             "An unrelated login entry uses Tools' name; it was left unchanged.",
@@ -144,7 +146,8 @@ fn set_for(paths: &Paths, executable: &Path, enabled: bool, os: Os) -> Result<()
         }
     }
     if enabled && previous_text == Some(proposed.as_str()) {
-        return validate(&path, &proposed, os);
+        validate(&path, &proposed, os)?;
+        return arcade_tools_core::installation::record_autostart(paths, ids::TOOLS, Some(path));
     }
     if let Some(bytes) = &previous {
         let backup = path.with_extension(format!(
@@ -155,9 +158,9 @@ fn set_for(paths: &Paths, executable: &Path, enabled: bool, os: Os) -> Result<()
     }
     if !enabled {
         if previous.is_some() {
-            fs::remove_file(path)?;
+            fs::remove_file(&path)?;
         }
-        return Ok(());
+        return arcade_tools_core::installation::record_autostart(paths, ids::TOOLS, None);
     }
     arcade_link::paths::write_atomic(&path, proposed.as_bytes(), true)?;
     if let Err(error) = validate(&path, &proposed, os) {
@@ -168,12 +171,58 @@ fn set_for(paths: &Paths, executable: &Path, enabled: bool, os: Os) -> Result<()
         }
         return Err(error);
     }
-    Ok(())
+    arcade_tools_core::installation::record_autostart(paths, ids::TOOLS, Some(path))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn link_installer_entries_are_owned_and_the_receipt_follows_login_changes() {
+        let root = tempfile::tempdir().unwrap();
+        let paths = Paths::under(root.path());
+        let executable = paths.home.join("Applications/Arcade-Tools.AppImage");
+        fs::create_dir_all(executable.parent().unwrap()).unwrap();
+        fs::write(&executable, "fixture").unwrap();
+        let receipt: arcade_link::receipt::Receipt = serde_json::from_value(serde_json::json!({
+            "schema":1, "id":ids::TOOLS, "version":"0.2.0", "channel":"stable",
+            "method":"appimage", "managedBy":"self", "path":executable, "integration":{},
+            "installedAt":"2026-10-01T00:00:00Z", "updatedAt":"2026-10-01T00:00:00Z"
+        }))
+        .unwrap();
+        let store = arcade_link::receipt::Store::new(&paths.link);
+        store.write(&receipt).unwrap();
+        let login = path(&paths, Os::Linux);
+        fs::create_dir_all(login.parent().unwrap()).unwrap();
+        let linked = platform::desktop_entry(ids::TOOLS, &executable).unwrap()
+            + "X-Arcade-Id=arcade.tools\nOnlyShowIn=GNOME;\n";
+        fs::write(&login, linked).unwrap();
+        set_for(&paths, &executable, true, Os::Linux).unwrap();
+        assert!(fs::read_to_string(&login)
+            .unwrap()
+            .contains("OnlyShowIn=GNOME;"));
+        assert_eq!(
+            store
+                .read(ids::TOOLS)
+                .unwrap()
+                .unwrap()
+                .integration
+                .autostart,
+            Some(login.clone())
+        );
+        set_for(&paths, &executable, false, Os::Linux).unwrap();
+        assert!(!login.exists());
+        assert!(store
+            .read(ids::TOOLS)
+            .unwrap()
+            .unwrap()
+            .integration
+            .autostart
+            .is_none());
+        fs::write(&login, "[Desktop Entry]\nX-Arcade-Id=arcade.look\n").unwrap();
+        assert!(set_for(&paths, &executable, true, Os::Linux).is_err());
+    }
 
     #[test]
     fn isolated_entries_enable_backup_replace_and_disable_on_every_platform() {

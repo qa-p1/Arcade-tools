@@ -64,7 +64,7 @@
   }
 
   async function updateTools(): Promise<void> {
-    const choice = await askForConfirmation({ title: 'Update Arcade Tools?', copy: 'Tools downloads the latest release, closes, and reopens itself. Your apps keep running.', action: 'Update', destructive: false, kind: null, folders: [] });
+    const choice = await askForConfirmation({ title: 'Update Arcade Tools?', copy: 'Tools downloads the latest release, closes, and reopens itself. Your apps keep running.' + (toolsApp?.reason ? `\n${toolsApp.reason}` : ''), action: 'Update', destructive: false, kind: null, folders: [] });
     if (choice.confirmed) await api.selfUpdate();
   }
 
@@ -207,6 +207,7 @@
         {/if}
         <button type="button" onclick={onOnboarding}>Run setup again</button>
       </div>
+      {#if toolsApp?.reason}<p class="setting-description">{toolsApp.reason}</p>{/if}
     </div>
   </section>
 
