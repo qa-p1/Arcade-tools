@@ -335,12 +335,13 @@ mod tests {
         let began = std::time::Instant::now();
         let focus = bounded(
             || {
-                std::thread::sleep(Duration::from_millis(150));
+                std::thread::sleep(Duration::from_secs(2));
                 Focus::default()
             },
-            Duration::from_millis(5),
+            DETECTION_TIMEOUT,
         );
         assert!(focus.identity.is_none());
-        assert!(began.elapsed() < DETECTION_TIMEOUT);
+        // Far below the stalled detector; loaded CI runners overshoot 50 ms.
+        assert!(began.elapsed() < Duration::from_secs(1));
     }
 }

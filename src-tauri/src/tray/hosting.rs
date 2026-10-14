@@ -260,8 +260,9 @@ mod tests {
             },
         )
         .unwrap();
+        // Connecting is not the measured budget; Windows runners can be slow.
         assert_eq!(
-            rx.recv_timeout(Duration::from_secs(1)).unwrap(),
+            rx.recv_timeout(Duration::from_secs(10)).unwrap(),
             TrayState::Hosted
         );
         let start = Instant::now();
