@@ -5,6 +5,8 @@
 - Restore portable settings as `file/any` inputs, which Link 0.3 requires;
   restoring Arcade Lens settings from a backup was rejected with
   `invalid_inputs`.
+- Stop bundling Ubuntu's `libwayland-client` in the AppImage. On newer distributions
+  (Arch, CachyOS, Fedora) it broke the host Mesa EGL and the Tools window rendered blank.
 
 ## 0.2.0
 

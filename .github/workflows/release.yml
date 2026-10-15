@@ -105,6 +105,9 @@ jobs:
       - name: Build the packaged native shortcut overlay
         run: python scripts/prepare-overlay.py --target ${{ matrix.target }}
       - name: Bundle using the OS webview
+        env:
+          # Use the host libwayland-client; Ubuntu's copy breaks EGL on newer distributions.
+          LINUXDEPLOY_EXCLUDED_LIBRARIES: 'libwayland-client.so*'
         run: npm run tauri -- build --config src-tauri/tauri.bundle.conf.json --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
       - name: Verify the exact release install and uninstall
         run: python3 scripts/verify-package.py --target ${{ matrix.target }}

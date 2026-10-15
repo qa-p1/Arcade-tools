@@ -163,6 +163,10 @@ with tempfile.TemporaryDirectory(prefix='arcade-tools-package-') as temporary:
         subprocess.run([str(staged_package),'--appimage-extract'],cwd=root,env=environment,stdout=subprocess.DEVNULL,check=True,timeout=90)
         binaries = root / 'squashfs-root' / 'usr' / 'bin'
         assert (binaries / 'arcade-tools-overlay').is_file()
+        # A bundled Ubuntu libwayland-client breaks the host Mesa EGL on newer
+        # distributions (WebKit aborts with EGL_BAD_PARAMETER, blank window).
+        bundled = sorted(p.name for p in (root / 'squashfs-root').rglob('libwayland-client.so*'))
+        assert not bundled, f'AppImage must use the host libwayland-client: {bundled}'
         subprocess.run([str(binaries / 'arcade-tools'),'--version'],env=environment,check=True,timeout=10)
         environment['APPIMAGE'] = str(staged_package)
         lifecycle(binaries / 'arcade-tools', environment, root)
