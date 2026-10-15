@@ -353,7 +353,7 @@
         onChange={shortcutsChanged}
       />
     </main>
-    <footer class="shell-footer"><span>Arcade Tools · 0.2.0</span><span>Apps stay independent; Tools makes them easier to manage.</span></footer>
+    <footer class="shell-footer"><span>Arcade Tools · 0.2.1</span><span>Apps stay independent; Tools makes them easier to manage.</span></footer>
   </div>
 </div>
 <ProgressBar visible={ui.busy} phase={ui.phase} progress={ui.progress} cancellable={ui.cancellable} onCancel={() => run(cancelOperation)} />

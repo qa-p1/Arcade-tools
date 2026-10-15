@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1
+
+- Restore portable settings as `file/any` inputs, which Link 0.3 requires;
+  restoring Arcade Lens settings from a backup was rejected with
+  `invalid_inputs`.
+
 ## 0.2.0
 
 - Replace the installer list with a Svelte hub: dashboard, catalog/bundles,
