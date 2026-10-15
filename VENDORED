@@ -11,10 +11,10 @@ packaging/windows/arcade.nsh  sha256:1f548b420bc08b479d6c65801a208aa67dc80fef851
 packaging/windows/arcade-integration.ps1  sha256:2b2a8b699dc1e6c81c02bb9ad9be1ddf2f8a5447541eb1dfe886056aa5dc4fd6  source:packaging/windows/arcade-integration.ps1
 
 Tauri NSIS template
-Source: https://github.com/tauri-apps/tauri, tag tauri-cli-v2.11.5
+Source: https://github.com/tauri-apps/tauri, tag tauri-cli-v2.12.1
 (crates/tauri-bundler/src/bundle/windows/nsis/installer.nsi, original SHA-256
-20f4ecc730defb71f1342eaeaec4021df13be3d843abba0effe88ea5835fa079), matching
-the pinned @tauri-apps/cli 2.11.5. License: MIT OR Apache-2.0, upstream texts
+dabed59013b1d78b879a1a85bc7f2eed2993b33a9a90cdabe5946de3d3950597), matching
+the pinned @tauri-apps/cli 2.12.1. License: MIT OR Apache-2.0, upstream texts
 alongside. Adapted the same way as Arcade Look's 2.12.1 template: installs to
 %LOCALAPPDATA%\Programs\Arcade Tools from .onInit, uses the arcade.tools Apps &
 features key (upgrading from Tauri's original key), shows the shared task page
@@ -22,7 +22,7 @@ instead of the Start menu page, creates no shortcuts outside the shared tasks,
 and guards Tauri's legacy cleanup with the receipt ownership result. Review it
 against upstream whenever the Tauri CLI changes.
 
-packaging/windows/installer.nsi  sha256:55df7ae8fe237cbb0608570e037a1a48496dc11e8b8322b8b3448ce6928c82c4  adapted:tauri-cli-v2.11.5
+packaging/windows/installer.nsi  sha256:d4180985b305a0a3218ebb913f030d99dfc573459fb6d9b4f5546d3442dafbc0  adapted:tauri-cli-v2.12.1
 packaging/windows/LICENSE-TAURI-MIT  sha256:9dd42ea92cff2ede5cd477cbfcce051b2d0115c0ac7f368ee88cb545055dff1d  source:LICENSE_MIT
 packaging/windows/LICENSE-TAURI-APACHE-2.0  sha256:0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594  source:LICENSE_APACHE-2.0
 
