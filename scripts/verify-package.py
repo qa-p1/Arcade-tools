@@ -13,6 +13,7 @@ parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--target', required=True)
 args = parser.parse_args()
 repo = Path(__file__).resolve().parents[1]
+version = json.loads((repo / 'src-tauri' / 'tauri.conf.json').read_text())['version']
 bundle = repo / 'target' / args.target / 'release' / 'bundle'
 extension = '.exe' if sys.platform == 'win32' else '.dmg' if sys.platform == 'darwin' else '.AppImage'
 packages = sorted(bundle.rglob('*' + extension))
@@ -26,7 +27,7 @@ def lifecycle(executable, environment, root):
         return subprocess.run([str(executable), *args], env=environment, capture_output=True, text=True, encoding='utf-8', check=True, timeout=90)
     installed = json.loads(run('--install', '--silent', '--no-launch').stdout)
     receipt_path = root / 'arcade' / 'installs' / 'arcade.tools.json'
-    assert installed['version'] == '0.2.0'
+    assert installed['version'] == version
     assert receipt_path.is_file()
     assert Path(installed['path']).exists()
     assert json.loads(run('--integration-status').stdout)
@@ -78,14 +79,14 @@ with tempfile.TemporaryDirectory(prefix='arcade-tools-package-') as temporary:
             executable = destination / 'arcade-tools.exe'
             assert executable.is_file() and (destination / 'arcade-tools-overlay.exe').is_file()
             receipt = json.loads(receipt_path.read_text(encoding='utf-8'))
-            assert receipt['method'] == 'windows-installer' and receipt['version'] == '0.2.0'
+            assert receipt['method'] == 'windows-installer' and receipt['version'] == version
             assert same(receipt['path'], executable), receipt['path']
             integration = receipt['integration']
             assert Path(integration['cli']).is_file()
             assert launcher.is_file() and same(integration['desktopEntry'], launcher)
             assert startup.is_file() == login == bool(integration.get('autostart')), integration
             assert desktop.is_file() == desktop_shortcut == bool(integration.get('desktopShortcut')), integration
-            assert registry('DisplayVersion') == '0.2.0'
+            assert registry('DisplayVersion') == version
             assert registry('URLInfoAbout') == 'https://github.com/qa-p1/Arcade-catalog'
             quiet = registry('QuietUninstallString')
             assert quiet.endswith('uninstall.exe" /S') and same(quiet[1:-len('" /S')], destination / 'uninstall.exe'), quiet
@@ -140,7 +141,7 @@ with tempfile.TemporaryDirectory(prefix='arcade-tools-package-') as temporary:
             assert (target / 'Contents' / 'MacOS' / 'arcade-tools-overlay').is_file()
             receipt_path = root / 'arcade' / 'installs' / 'arcade.tools.json'
             receipt = json.loads(receipt_path.read_text(encoding='utf-8'))
-            assert receipt['method'] == 'macos-bundle' and receipt['version'] == '0.2.0'
+            assert receipt['method'] == 'macos-bundle' and receipt['version'] == version
             assert Path(receipt['path']) == target and receipt['managedBy'] == 'self'
             cli = Path(receipt['integration']['cli'])
             assert cli.is_symlink() and cli.resolve(strict=True) == installed.resolve()
