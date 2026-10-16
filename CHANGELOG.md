@@ -1,6 +1,14 @@
 # Changelog
 
-## 0.2.0
+## 0.2.1 — 2026-10-15
+
+- Restore portable settings as `file/any` inputs, which Link 0.3 requires;
+  restoring Arcade Lens settings from a backup was rejected with
+  `invalid_inputs`.
+- Stop bundling Ubuntu's `libwayland-client` in the AppImage. On newer distributions
+  (Arch, CachyOS, Fedora) it broke the host Mesa EGL and the Tools window rendered blank.
+
+## 0.2.0 — 2026-10-14
 
 - Replace the installer list with a Svelte hub: dashboard, catalog/bundles,
   updates, shortcuts, Learn, Connections, Engines, Settings and onboarding.

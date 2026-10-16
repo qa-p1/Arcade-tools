@@ -584,7 +584,9 @@ fn import_app_settings(
             .get(&setting.archive_path)
             .ok_or_else(|| Error::new("archive", "Validated settings data is missing."))?;
         let mut content = handoff.file(&setting.filename, bytes)?;
-        content.kind = setting.content_type.clone();
+        // Link 0.3 accepts only `file/any` settings inputs, whatever type the
+        // app exported (Lens exports `file/json`).
+        content.kind = "file/any".into();
         inputs.push(content);
     }
     client
