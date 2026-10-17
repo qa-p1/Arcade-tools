@@ -41,6 +41,10 @@ pub struct UpdateSettings {
     pub enabled: bool,
     #[serde(default)]
     pub auto_update: BTreeMap<String, bool>,
+    /// The version each app was rolled back from. Auto-update skips it (and
+    /// anything older) until the user updates by hand or a newer release appears.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub rolled_back: BTreeMap<String, String>,
 }
 fn yes() -> bool {
     true
@@ -50,6 +54,7 @@ impl Default for UpdateSettings {
         Self {
             enabled: true,
             auto_update: BTreeMap::new(),
+            rolled_back: BTreeMap::new(),
         }
     }
 }

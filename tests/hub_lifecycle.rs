@@ -561,6 +561,95 @@ fn hub_lifecycle_auto_update_executes_only_opted_in_idle_compatible_apps() {
 }
 
 #[test]
+fn hub_lifecycle_auto_update_does_not_undo_a_rollback() {
+    let (server, manager) = fixture();
+    installed(&server, &manager, "arcade.look");
+    publish(&server, &manager, "arcade.look", "2.0.0", false);
+    manager.set_auto_update("arcade.look", true).unwrap();
+    operate(&manager, "arcade.look", Operation::Update).unwrap();
+    operate(&manager, "arcade.look", Operation::Rollback).unwrap();
+    let version = || manager.record("arcade.look").unwrap().unwrap().version;
+    assert_eq!(version(), "1.0.0");
+    let run = || {
+        manager.check_updates().unwrap();
+        manager
+            .auto_update(
+                "arcade.look",
+                Some(0),
+                &Time(1000),
+                &AtomicBool::new(false),
+                &mut |_| {},
+            )
+            .unwrap()
+    };
+    let outcome = run();
+    assert!(!outcome.decision.eligible, "{:?}", outcome.decision);
+    assert!(outcome.decision.reason.contains("rolled back from 2.0.0"));
+    assert_eq!(version(), "1.0.0");
+    // A newer release than the one rolled back from is installed again.
+    publish(&server, &manager, "arcade.look", "2.1.0", false);
+    assert!(run().decision.eligible);
+    assert_eq!(version(), "2.1.0");
+    assert!(manager
+        .preferences()
+        .unwrap()
+        .updates
+        .rolled_back
+        .is_empty());
+}
+
+#[test]
+fn hub_lifecycle_cancel_during_snapshot_keeps_the_old_version() {
+    let (server, manager) = fixture();
+    installed(&server, &manager, "arcade.look");
+    publish(&server, &manager, "arcade.look", "2.0.0", false);
+    // A large installed app widens the snapshot window (the audit used 256 MiB).
+    let executable = manager.receipt("arcade.look").unwrap().unwrap().path;
+    let mut padding = b"\n#".to_vec();
+    padding.resize(96 << 20, b'x');
+    let mut file = fs::OpenOptions::new()
+        .append(true)
+        .open(&executable)
+        .unwrap();
+    std::io::Write::write_all(&mut file, &padding).unwrap();
+    drop(file);
+    let before = fs::read(&executable).unwrap();
+    let snapshots = manager.paths.home.join("Applications/Arcade/.previous");
+    let existing: Vec<_> = fs::read_dir(&snapshots)
+        .map(|entries| entries.flatten().map(|e| e.path()).collect())
+        .unwrap_or_default();
+    let cancel = Arc::new(AtomicBool::new(false));
+    let watcher = {
+        let cancel = cancel.clone();
+        std::thread::spawn(move || {
+            let deadline = Instant::now() + Duration::from_secs(30);
+            while Instant::now() < deadline {
+                let started = fs::read_dir(&snapshots)
+                    .is_ok_and(|entries| entries.flatten().any(|e| !existing.contains(&e.path())));
+                if started {
+                    cancel.store(true, Ordering::SeqCst);
+                    return true;
+                }
+                std::thread::sleep(Duration::from_micros(200));
+            }
+            false
+        })
+    };
+    let result = manager.operate(
+        &request("arcade.look", Operation::Update),
+        &cancel,
+        &mut |_| {},
+    );
+    assert!(watcher.join().unwrap(), "the snapshot never started");
+    assert_eq!(result.unwrap_err().code, "cancelled");
+    assert_eq!(
+        manager.record("arcade.look").unwrap().unwrap().version,
+        "1.0.0"
+    );
+    assert!(fs::read(&executable).unwrap() == before);
+}
+
+#[test]
 fn hub_lifecycle_health_and_reviewed_uninstall_all() {
     let (server, manager) = fixture();
     installed(&server, &manager, "arcade.look");
@@ -838,6 +927,17 @@ fn hub_lifecycle_busy_holds_verification_before_quit_and_same_mode_restart() {
     installed(&server, &manager, "arcade.look");
     let app = running(&manager);
     publish(&server, &manager, "arcade.look", "2.0.0", false);
+    let downloads = || {
+        server
+            .requests
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(route, _)| {
+                route.contains("/assets/arcade-look-2.0.0") && route.ends_with(".AppImage")
+            })
+            .count()
+    };
     assert_eq!(
         operate(&manager, "arcade.look", Operation::Update)
             .unwrap_err()
@@ -845,6 +945,8 @@ fn hub_lifecycle_busy_holds_verification_before_quit_and_same_mode_restart() {
         "busy"
     );
     assert!(!app.quit.load(Ordering::SeqCst));
+    // The busy refusal comes before the download (m19).
+    assert_eq!(downloads(), 0);
     manager.set_auto_update("arcade.look", true).unwrap();
     assert!(
         !manager

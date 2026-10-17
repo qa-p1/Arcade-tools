@@ -384,7 +384,17 @@ impl Manager {
     ) -> Result<updates::AutoUpdateOutcome> {
         app_id(id)?;
         let _lock = self.lock()?;
-        let decision = self.auto_eligibility(id, last_used, clock.now())?;
+        let mut decision = self.auto_eligibility(id, last_used, clock.now())?;
+        if decision.eligible {
+            if let Some(skipped) = self.skipped_after_rollback(id)? {
+                decision = updates::AutoUpdateDecision {
+                    eligible: false,
+                    reason: format!(
+                        "You rolled back from {skipped}; auto-update waits for a newer release."
+                    ),
+                };
+            }
+        }
         if !decision.eligible {
             return Ok(updates::AutoUpdateOutcome {
                 decision,
@@ -424,6 +434,46 @@ impl Manager {
             }
             Err(error) => Err(error),
         }
+    }
+    /// A rollback marks the version it left so auto-update doesn't reinstall
+    /// it; a later update (by hand, or to a newer release) clears the mark.
+    fn remember_rollback(&self, id: &str, operation: Operation, from: Option<&str>) {
+        let Ok(mut prefs) = self.preferences() else {
+            return;
+        };
+        let changed = match (operation, from) {
+            (Operation::Rollback, Some(from)) => {
+                prefs.updates.rolled_back.insert(id.into(), from.into()) != Some(from.into())
+            }
+            (Operation::Rollback, None) => false,
+            _ => prefs.updates.rolled_back.remove(id).is_some(),
+        };
+        if changed {
+            if let Err(error) = self.save_preferences(&prefs) {
+                eprintln!("Rollback preference: {error}");
+            }
+        }
+    }
+    /// The rolled-back version, when the available update is not newer than it.
+    fn skipped_after_rollback(&self, id: &str) -> Result<Option<String>> {
+        let Some(skipped) = self.preferences()?.updates.rolled_back.get(id).cloned() else {
+            return Ok(None);
+        };
+        let state = self.update_state()?;
+        let latest = state.apps.get(id).and_then(|app| {
+            app.latest
+                .get(app.channel.as_str())
+                .and_then(|channel| channel.latest_version.clone())
+        });
+        let newer = match (
+            latest.as_deref().map(semver::Version::parse),
+            semver::Version::parse(&skipped),
+        ) {
+            (Some(Ok(latest)), Ok(skipped)) => latest > skipped,
+            (Some(_), _) => latest.as_deref() != Some(skipped.as_str()),
+            (None, _) => false,
+        };
+        Ok((!newer).then_some(skipped))
     }
     fn auto_eligibility(
         &self,
@@ -803,6 +853,7 @@ impl Manager {
                 peer: None,
             },
             Some(plan.mode),
+            cancel,
             progress,
             &mut replaced,
         );
@@ -1932,6 +1983,9 @@ impl Manager {
                 history.result = HistoryResult::RolledBack;
                 history.reason = Some("User requested rollback.".into());
             }
+            if result.is_ok() && request.operation != Operation::Repair {
+                self.remember_rollback(&request.id, request.operation, history.from.as_deref());
+            }
             if let Err(error) = &result {
                 history.result = if replaced {
                     if old.as_ref().is_some_and(|r| {
@@ -2053,6 +2107,8 @@ impl Manager {
                 "The install location already contains a file. Adopt it before installing.",
             ));
         }
+        // Refuse a busy or unreachable app before the download, not after it.
+        self.precheck_peer(id, peer, request)?;
         progress(Progress::new(id, "Downloading", Some(0.0), true));
         self.paths.guard(&self.paths.downloads())?;
         let downloaded = self.source.download(
@@ -2103,7 +2159,8 @@ impl Manager {
             }
             return Err(error);
         }
-        let result = self.install_package(request, package, prior, resume, progress, replaced);
+        let result =
+            self.install_package(request, package, prior, resume, cancel, progress, replaced);
         if result.is_err() {
             if let Some(mode) = resume {
                 let _ = self.launch_inner(&request.id, mode);
@@ -2112,12 +2169,14 @@ impl Manager {
         result
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn install_package(
         &self,
         request: &Request,
         package: &Package,
         prior: Prior<'_>,
         resume: Option<LaunchMode>,
+        cancel: &AtomicBool,
         progress: &mut dyn FnMut(Progress),
         replaced: &mut bool,
     ) -> Result<String> {
@@ -2157,6 +2216,12 @@ impl Manager {
         let previous_pointer = previous
             .as_ref()
             .and_then(|previous| previous.pointer(&self.paths));
+        // Snapshotting a large app takes a while and is still cancellable:
+        // nothing has been changed yet.
+        if let Err(error) = check_cancel(cancel) {
+            transaction.discard();
+            return Err(error);
+        }
         let login = platform::autostart_enabled(&self.paths, id);
         progress(Progress::new(id, "Installing", None, false));
         *replaced = true;
@@ -2350,7 +2415,17 @@ impl Manager {
             destination.clone()
         };
         let transaction =
-            Transaction::begin(&self.paths, &request.id, &target, old_receipt.as_ref())?;
+            match Transaction::begin(&self.paths, &request.id, &target, old_receipt.as_ref())
+                .and_then(|transaction| check_cancel(cancel).map(|()| transaction))
+            {
+                Ok(transaction) => transaction,
+                Err(error) => {
+                    if let Some(mode) = resume {
+                        let _ = self.launch_inner(&request.id, mode);
+                    }
+                    return Err(error);
+                }
+            };
         progress(Progress::new(
             &request.id,
             "Adopting installation",
@@ -2591,6 +2666,10 @@ impl Manager {
                         previous.receipt.as_ref(),
                     ))?;
                     let current = transaction.previous(old.clone(), receipt.cloned());
+                    if let Err(error) = check_cancel(cancel) {
+                        transaction.discard();
+                        return Err(error);
+                    }
                     *replaced = true;
                     previous.restore(&self.paths)?;
                     let mut record = previous.record.clone();
@@ -2628,6 +2707,28 @@ impl Manager {
             crate::apps::app_name(&request.id),
             previous.record.version
         ))
+    }
+    /// The refusals [`Self::stop_peer`] would make, without stopping anything.
+    /// It runs again after the download, since the app may get busy meanwhile.
+    fn precheck_peer(&self, id: &str, peer: Option<&Manifest>, request: &Request) -> Result<()> {
+        if peer.is_some_and(|m| !m.settings.link_enabled) && !request.app_closed {
+            return Err(Error::new("disconnected", "Arcade Link is disabled in this app. Close the app and confirm it is closed, or enable Arcade Link and retry."));
+        }
+        let Ok(mut client) = Client::connect(&self.paths.link, id, &me()) else {
+            return Ok(());
+        };
+        let Ok(status) = client.status() else {
+            return Ok(());
+        };
+        if status.get("busy").and_then(Value::as_bool) == Some(true)
+            || status.pointer("/status/busy").and_then(Value::as_bool) == Some(true)
+        {
+            return Err(Error::new(
+                "busy",
+                arcade_link::LinkError::busy().user_message(crate::apps::app_name(id)),
+            ));
+        }
+        Ok(())
     }
     fn stop_peer(
         &self,

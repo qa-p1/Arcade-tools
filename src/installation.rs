@@ -509,6 +509,10 @@ impl Transaction {
         self.entries.push(SavedEntry { path, saved });
         Ok(())
     }
+    /// Drop the snapshot without restoring it: for when nothing was changed.
+    pub fn discard(mut self) {
+        self.committed = true;
+    }
     pub fn previous(&self, record: Record, receipt: Option<Receipt>) -> PreviousInstallation {
         PreviousInstallation {
             schema: 1,
