@@ -148,7 +148,11 @@ fn conditional_catalog_preserves_last_good_copy_and_offline_snapshot() {
     assert_eq!(catalog.apps.len(), 1);
     let error = fallback.unwrap();
     assert_eq!(error.code, "network");
-    assert!(error.message.starts_with("Couldn't connect"), "{}", error.message);
+    assert!(
+        error.message.starts_with("Couldn't connect"),
+        "{}",
+        error.message
+    );
     server
         .routes
         .lock()

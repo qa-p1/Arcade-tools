@@ -45,6 +45,9 @@ struct Desktop {
     metrics: Mutex<arcade_tools_core::dashboard::Metrics>,
     update_wake: Mutex<Option<std::sync::mpsc::Sender<()>>>,
     update_running: AtomicBool,
+    /// Bumped whenever the window opens or closes; a pending lean restart
+    /// only goes ahead if nothing changed since it was scheduled.
+    window_generation: AtomicU64,
     #[cfg(debug_assertions)]
     audit: Mutex<()>,
 }
@@ -73,6 +76,7 @@ impl Desktop {
             metrics: Mutex::new(Default::default()),
             update_wake: Mutex::new(None),
             update_running: AtomicBool::new(false),
+            window_generation: AtomicU64::new(0),
             #[cfg(debug_assertions)]
             audit: Mutex::new(()),
         }
@@ -91,6 +95,7 @@ fn desktop(app: &AppHandle) -> Arc<Desktop> {
     app.state::<Arc<Desktop>>().inner().clone()
 }
 fn show(app: &AppHandle, state: &Desktop) {
+    state.window_generation.fetch_add(1, Ordering::SeqCst);
     state.background.store(false, Ordering::SeqCst);
     state.last_used.store(
         std::time::SystemTime::now()
@@ -135,6 +140,59 @@ fn show(app: &AppHandle, state: &Desktop) {
             let _ = window.show();
             let _ = window.unminimize();
             let _ = window.set_focus();
+        }
+    });
+}
+
+/// Start a successor that waits for this process, then quit. Apps keep their
+/// tray icons hidden through Link's restart grace, so the tray doesn't flicker.
+fn restart_process(app: &AppHandle, background: bool) -> std::io::Result<()> {
+    let mut args = vec!["--wait-for-process".into(), std::process::id().to_string()];
+    if background {
+        args.push("--background".into());
+    }
+    announce_restarting(app);
+    if let Err(error) =
+        arcade_link::client::spawn_detached(&arcade_link::manifest::current_executable(), &args)
+    {
+        desktop(app).restarting.store(false, Ordering::SeqCst);
+        return Err(error);
+    }
+    request_quit(app);
+    Ok(())
+}
+
+/// How long the window stays closed before Tools sheds its WebKit state.
+const LEAN_RESTART_AFTER: Duration = Duration::from_secs(20);
+
+/// Destroying the window leaves WebKit's context, its network process and
+/// memory-pressure monitor loaded: about 160 MiB, against about 70 for a
+/// Tools that started in the background and never opened its window. Once
+/// the window has stayed closed for a while, and nothing is running, restart
+/// quietly into the background. Reopening then costs one fresh webview.
+fn schedule_lean_restart(app: AppHandle) {
+    if !cfg!(target_os = "linux") || std::env::var_os("ARCADE_TOOLS_NO_LEAN_RESTART").is_some() {
+        return;
+    }
+    let state = desktop(&app);
+    let generation = state.window_generation.fetch_add(1, Ordering::SeqCst) + 1;
+    std::thread::spawn(move || {
+        std::thread::sleep(LEAN_RESTART_AFTER);
+        let idle = state.window_generation.load(Ordering::SeqCst) == generation
+            && app.get_webview_window("main").is_none()
+            && !state.active.load(Ordering::SeqCst)
+            && !state.update_running.load(Ordering::SeqCst)
+            && !state.restarting.load(Ordering::SeqCst)
+            && state
+                .resident
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .keeps_running();
+        if idle {
+            audit(&app, json!({"event":"lean-restart"}));
+            if let Err(error) = restart_process(&app, true) {
+                eprintln!("Lean restart: {error}");
+            }
         }
     });
 }
@@ -197,14 +255,11 @@ impl Handler for LinkHandler {
     }
     fn restart(&self, mode: &str) -> std::result::Result<(), LinkError> {
         self.restart_ready(mode)?;
-        let mut args = vec!["--wait-for-process".into(), std::process::id().to_string()];
-        if mode == "background" || mode == "normal" && self.state.background.load(Ordering::SeqCst)
-        {
-            args.push("--background".into());
-        }
-        announce_restarting(&self.app);
-        arcade_link::client::spawn_detached(&arcade_link::manifest::current_executable(), &args)?;
-        request_quit(&self.app);
+        restart_process(
+            &self.app,
+            mode == "background"
+                || mode == "normal" && self.state.background.load(Ordering::SeqCst),
+        )?;
         Ok(())
     }
     fn settings(&self) -> std::result::Result<(), LinkError> {
@@ -1222,6 +1277,7 @@ pub fn run(background: bool, quit: bool) {
             if let tauri::WindowEvent::Destroyed = event {
                 desktop(window.app_handle()).resident.lock().unwrap_or_else(|e| e.into_inner()).destroyed();
                 reclaim_resident_memory(window.app_handle().clone());
+                schedule_lean_restart(window.app_handle().clone());
             }
         })
         .build(tauri::generate_context!())

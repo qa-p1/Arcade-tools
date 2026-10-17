@@ -69,7 +69,12 @@ pub(crate) fn child_environment(command: &mut Command, paths: &Paths) {
     // Apps and installers get the user's environment, not the variables and
     // mount paths of Tools' own AppImage (wrong libraries, forced theme,
     // Tools' desktop files in XDG_DATA_DIRS, a working directory in the mount).
+    // Inheriting them also kept each old Tools image mounted after a
+    // self-update: the new Tools loaded its libraries from there.
     arcade_link::childenv::sanitize(command);
+    paths_environment(command, paths);
+}
+fn paths_environment(command: &mut Command, paths: &Paths) {
     command
         .env("HOME", &paths.home)
         .env("USERPROFILE", &paths.home)
@@ -87,8 +92,27 @@ pub(crate) fn child_environment(command: &mut Command, paths: &Paths) {
 /// Launch on a worker with process-scoped paths and no inherited stdio. The
 /// reaper blocks on child exit; there is no timer or idle polling.
 pub fn spawn_detached(paths: &Paths, executable: &Path, args: &[String]) -> Result<()> {
+    spawn_detached_with(paths, executable, args, true)
+}
+/// [`spawn_detached`] for a copy of this Tools executable (the update and
+/// uninstall helper): it keeps this process's environment, which points at
+/// the libraries bundled in Tools' own AppImage. The helper starts the new
+/// Tools with [`spawn_detached`], so nothing outlives it in the old image.
+pub fn spawn_helper(paths: &Paths, executable: &Path, args: &[String]) -> Result<()> {
+    spawn_detached_with(paths, executable, args, false)
+}
+fn spawn_detached_with(
+    paths: &Paths,
+    executable: &Path,
+    args: &[String],
+    clean_environment: bool,
+) -> Result<()> {
     let mut command = Command::new(executable);
-    child_environment(&mut command, paths);
+    if clean_environment {
+        child_environment(&mut command, paths);
+    } else {
+        paths_environment(&mut command, paths);
+    }
     command
         .args(args)
         .stdin(std::process::Stdio::null())
