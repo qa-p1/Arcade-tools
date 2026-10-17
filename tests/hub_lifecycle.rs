@@ -552,6 +552,156 @@ fn hub_lifecycle_adopting_or_updating_a_pre_installer_copy_installs_the_release(
     }
 }
 
+#[test]
+fn hub_lifecycle_rate_limited_checks_and_updates_use_release_downloads() {
+    let (server, manager) = fixture();
+    installed(&server, &manager, "arcade.look");
+    publish(&server, &manager, "arcade.look", "2.0.0", false);
+    let repo = arcade_tools_core::apps::releases_url("arcade.look")
+        .trim_start_matches("https://github.com/")
+        .trim_end_matches("/releases")
+        .to_string();
+    // GitHub's anonymous API limit is used up...
+    server.replies.lock().unwrap().insert(
+        format!("/repos/{repo}/releases/latest"),
+        support::HttpReply {
+            status: "403 Forbidden".into(),
+            headers: vec![
+                ("x-ratelimit-remaining".into(), "0".into()),
+                ("x-ratelimit-reset".into(), "9999999999".into()),
+            ],
+            body: b"{\"message\":\"API rate limit exceeded\"}".to_vec(),
+        },
+    );
+    // When the download host fails too, the rate limit is what's reported.
+    let fallback = format!("/{repo}/releases/latest/download/arcade-release.json");
+    server.replies.lock().unwrap().insert(
+        fallback.clone(),
+        support::HttpReply {
+            status: "502 Bad Gateway".into(),
+            headers: vec![],
+            body: vec![],
+        },
+    );
+    let check = manager.check("arcade.look");
+    assert_eq!(
+        check.as_ref().unwrap_err().code,
+        "rate_limited",
+        "{check:?}"
+    );
+    assert!(check.unwrap_err().message.contains("Try again in"));
+    server.replies.lock().unwrap().remove(&fallback);
+    // ...but release files on github.com don't count against the limit.
+    {
+        let mut routes = server.routes.lock().unwrap();
+        let prefix = "/assets/arcade-look-2.0.0-stable/";
+        let manifest = routes[&format!("{prefix}arcade-release.json")].clone();
+        let image = routes[&format!("{prefix}App_x64.AppImage")].clone();
+        routes.insert(
+            format!("/{repo}/releases/latest/download/arcade-release.json"),
+            manifest,
+        );
+        routes.insert(
+            format!("/{repo}/releases/download/v2.0.0/App_x64.AppImage"),
+            image,
+        );
+    }
+    let check = manager.check("arcade.look").unwrap();
+    assert!(check.update_available);
+    operate(&manager, "arcade.look", Operation::Update).unwrap();
+    assert_eq!(
+        manager.record("arcade.look").unwrap().unwrap().version,
+        "2.0.0"
+    );
+}
+
+#[test]
+fn hub_lifecycle_an_app_that_removed_itself_is_not_installed() {
+    let (server, manager) = fixture();
+    installed(&server, &manager, "arcade.look");
+    let receipt = manager.receipt("arcade.look").unwrap().unwrap();
+    // The app's own --uninstall removes its receipt, file and manifest.
+    fs::remove_file(&receipt.path).unwrap();
+    fs::remove_file(manager.paths.guard_receipt("arcade.look").unwrap()).unwrap();
+    let _ = arcade_link::manifest::remove_manifest(&manager.paths.link, "arcade.look");
+    assert!(manager.record("arcade.look").unwrap().is_none());
+    assert!(!manager
+        .list(false)
+        .unwrap()
+        .iter()
+        .any(|app| app.id == "arcade.look" && app.installed));
+    // Startup cleanup removes Tools' leftover record, interrupted downloads
+    // and snapshots nothing points at.
+    let downloads = manager.paths.downloads();
+    fs::create_dir_all(&downloads).unwrap();
+    fs::write(downloads.join("partial.download"), "half").unwrap();
+    let orphan = manager
+        .paths
+        .home
+        .join("Applications/Arcade/.previous/tools-arcade.look-orphan");
+    fs::create_dir_all(&orphan).unwrap();
+    fs::write(orphan.join("0-copy"), "old").unwrap();
+    assert_eq!(
+        manager.cleanup_orphan_records().unwrap(),
+        vec!["arcade.look"]
+    );
+    assert!(manager.cleanup_interrupted().unwrap() > 0);
+    assert!(!manager.paths.state().join("arcade.look.json").exists());
+    assert!(!downloads.join("partial.download").exists());
+    assert!(!orphan.exists());
+}
+
+#[test]
+fn hub_lifecycle_uninstall_all_keeps_tools_when_an_app_stays() {
+    let (server, manager) = fixture();
+    installed(&server, &manager, "arcade.look");
+    let tools = manager.paths.executable("arcade.tools", Os::Linux, false);
+    fs::write(
+        &tools,
+        fake_app(&manager.paths, "arcade.tools", "1.0.0", false),
+    )
+    .unwrap();
+    fs::set_permissions(&tools, fs::Permissions::from_mode(0o755)).unwrap();
+    arcade_tools_core::platform::CommandSpec {
+        program: tools.clone(),
+        args: vec!["--install".into(), "--silent".into(), "--no-launch".into()],
+    }
+    .run(&manager.paths)
+    .unwrap();
+    let plan = manager.plan_uninstall_all(false).unwrap();
+    assert!(plan
+        .apps
+        .iter()
+        .any(|app| app.id == "arcade.tools" && app.can_uninstall));
+    // Look can't be removed: Arcade Link is off in it, so Tools can't close it.
+    let mut manifest: Value = serde_json::from_slice(
+        &fs::read(manager.paths.link.registry.join("arcade.look.json")).unwrap(),
+    )
+    .unwrap();
+    manifest["settings"]["linkEnabled"] = json!(false);
+    fs::write(
+        manager.paths.link.registry.join("arcade.look.json"),
+        serde_json::to_vec(&manifest).unwrap(),
+    )
+    .unwrap();
+    let plan = manager.plan_uninstall_all(false).unwrap();
+    let outcome = manager
+        .uninstall_all(&plan, &AtomicBool::new(false), &mut |_| {})
+        .unwrap();
+    assert!(outcome.self_uninstall.is_none(), "Tools would be removed");
+    let kept = outcome
+        .results
+        .iter()
+        .find(|r| r.app == "arcade.tools")
+        .unwrap();
+    assert!(
+        !kept.removed && kept.reason.contains("Arcade Look"),
+        "{}",
+        kept.reason
+    );
+    assert!(tools.exists());
+}
+
 struct Time(u64);
 impl Clock for Time {
     fn now(&self) -> u64 {
