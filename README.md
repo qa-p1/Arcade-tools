@@ -29,7 +29,7 @@ Download the file for your system from [Releases](https://github.com/qa-p1/Arcad
 | Windows x64 | `Arcade-Tools_<version>_x64-setup.exe` | Run Setup (NSIS). Installs for your user without admin into `%LOCALAPPDATA%\Programs\Arcade Tools`, adds a Start menu entry and an `arcade-tools.cmd` command in `%LOCALAPPDATA%\Arcade\bin` on your user PATH. Offers **Start at login** (on by default, because Tools hosts the apps' tray icons) and an unchecked **Desktop shortcut**. |
 | macOS (universal) | `Arcade-Tools_<version>_universal.dmg` | Open the dmg and drag Arcade Tools to Applications. Started from the dmg or Downloads, it offers to move itself to Applications, records a receipt and adds an `arcade-tools` command link. |
 
-- Scripted install: `arcade-tools --install --silent --no-launch` (Linux AppImage, or from the macOS app bundle). Windows: `/S`, with `/STARTATLOGIN=0|1` and `/DESKTOPSHORTCUT=0|1`.
+- Scripted install: `arcade-tools --install --silent --no-launch` (Linux AppImage, or from the macOS app bundle). Windows: `/S`, with `/STARTATLOGIN=0|1` and `/DESKTOPSHORTCUT=0|1`. A silent install removes the AppImage it was started from only when that file is in your Downloads folder; add `--keep-download` to keep it there too. Files elsewhere are never removed.
 - Builds are unsigned. On Windows, SmartScreen may warn: choose **More info → Run anyway**. On macOS the app is not notarized: Control-click or right-click it and choose **Open** the first time. Tools never removes quarantine or changes SmartScreen settings, and never changes shell profiles.
 - If FUSE is missing on Linux, run the AppImage with `--appimage-extract-and-run`.
 
