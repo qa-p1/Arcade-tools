@@ -8,8 +8,33 @@ mod resident;
 mod shortcuts;
 mod tray;
 
+const USAGE: &str = "Usage: arcade-tools [OPTION]
+
+Without options, opens the Arcade Tools window.
+
+  --background            Start in the tray without opening the window
+  --quit                  Quit the running Arcade Tools
+  --restart               Restart the running Arcade Tools
+  --show-shortcuts        Show the shortcuts overlay
+  --install [--channel stable|nightly] [--start-at-login] [--no-launch] [--keep-download]
+                          Install this copy for the current user. An image in
+                          Downloads is removed afterwards unless --keep-download.
+  --repair                Recreate the launcher, command and autostart entries
+  --uninstall [--silent [--remove-data]]
+                          Review removing Arcade Tools (and optionally its apps)
+                          in the window; --silent removes Tools without asking
+                          and leaves the apps installed, updating themselves
+  --integration-status    Print the installation state as JSON
+  -V, --version           Print the version
+  -h, --help              Print this help
+";
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
+    if args.iter().skip(1).any(|a| a == "--help" || a == "-h") {
+        print!("{USAGE}");
+        return;
+    }
     if let Some(index) = args.iter().position(|arg| arg == "--wait-for-process") {
         let result = args
             .get(index + 1)

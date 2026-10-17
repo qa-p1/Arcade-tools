@@ -16,8 +16,14 @@ fn info() -> arcade_link::install::AppInfo {
         autostart_id: "arcade-tools".into(),
     }
 }
-pub fn install(channel: &str, start_at_login: bool) -> Result<arcade_link::receipt::Receipt> {
-    install_options(channel, start_at_login, false)
+/// The command-line install. Like the apps' own `--install`, it removes the
+/// image it ran from when that is in Downloads, unless `keep_download`.
+pub fn install(
+    channel: &str,
+    start_at_login: bool,
+    keep_download: bool,
+) -> Result<arcade_link::receipt::Receipt> {
+    install_options(channel, start_at_login, !keep_download)
 }
 // Linux installs the AppImage and macOS moves the app bundle to Applications.
 // Windows uses the per-user setup program, which writes the receipt itself.
@@ -295,6 +301,11 @@ pub fn run(args: &[String]) -> Option<Result<()>> {
             "--install" | "--uninstall" | "--repair" | "--integration-status"
         )
     })?;
+    // `--uninstall` alone (the launcher's Uninstall action) opens the review
+    // in the window; scripts pass --silent to remove without asking.
+    if command == "--uninstall" && !args.iter().any(|arg| arg == "--silent" || arg == "--yes") {
+        return None;
+    }
     Some((|| {
         let environment = Environment::discover()?;
         match command.as_str() {
@@ -308,7 +319,11 @@ pub fn run(args: &[String]) -> Option<Result<()>> {
                 if !matches!(channel, "stable" | "nightly") {
                     return Err(Error::new("usage", "Choose stable or nightly."));
                 }
-                let receipt = install(channel, args.iter().any(|arg| arg == "--start-at-login"))?;
+                let receipt = install(
+                    channel,
+                    args.iter().any(|arg| arg == "--start-at-login"),
+                    args.iter().any(|arg| arg == "--keep-download"),
+                )?;
                 println!("{}", serde_json::to_string(&receipt)?);
                 if !args.iter().any(|arg| arg == "--no-launch") {
                     arcade_link::client::spawn_detached(
@@ -320,8 +335,20 @@ pub fn run(args: &[String]) -> Option<Result<()>> {
             }
             "--repair" => println!("{}", serde_json::to_string(&repair(&environment)?)?),
             "--uninstall" => {
-                let folders = Paths::discover()?
-                    .data_folders("arcade.tools", arcade_tools_core::release::Os::current());
+                let paths = Paths::discover()?;
+                // A running Tools would keep running from a deleted file.
+                if let Err(error) = arcade_link::install::quit_running(
+                    &environment.locations,
+                    "arcade.tools",
+                    std::time::Duration::from_secs(10),
+                ) {
+                    return Err(Error::new(
+                        "busy",
+                        format!("Arcade Tools did not quit ({error}); nothing was removed."),
+                    ));
+                }
+                let folders =
+                    paths.data_folders("arcade.tools", arcade_tools_core::release::Os::current());
                 #[cfg(target_os = "macos")]
                 let cli = bundle_cli(&environment)?;
                 arcade_link::install::uninstall(
@@ -332,6 +359,17 @@ pub fn run(args: &[String]) -> Option<Result<()>> {
                         data_folders: &folders,
                     },
                 )?;
+                // Apps Tools managed stay installed and update themselves.
+                let manager = arcade_tools_core::manager::Manager::new(
+                    paths,
+                    arcade_tools_core::source::Source::github()?,
+                );
+                for id in manager.release_managed_apps()? {
+                    eprintln!(
+                        "{} stays installed and now updates itself.",
+                        arcade_tools_core::apps::app_name(&id)
+                    );
+                }
                 #[cfg(target_os = "macos")]
                 if let Some(cli) = cli {
                     match std::fs::remove_file(cli) {
@@ -472,10 +510,11 @@ pub async fn confirm_self_install(
         let receipt = install_options("stable", start_at_login, remove_download)?;
         let manager = crate::desktop::manager(&app)?;
         arcade_tools_core::installation::claim(&manager.paths, receipt.clone(), None)?;
+        // The installed copy reopens the window the user was looking at.
         arcade_link::client::spawn_detached(
             &arcade_tools_core::installation::executable(&manager.paths, &receipt)
                 .to_string_lossy(),
-            &["--background".into()],
+            &["--wait-for-process".into(), std::process::id().to_string()],
         )?;
         crate::desktop::announce_restarting(&app);
         app.exit(0);

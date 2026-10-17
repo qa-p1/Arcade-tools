@@ -453,9 +453,16 @@ fn hub_lifecycle_adopt_manual_self_and_refuse_dev() {
         } else {
             manual.clone()
         };
-        arcade_link::manifest::write_manifest(
+        // A current app's manifest says how it installs itself.
+        arcade_link::manifest::write_document(
             &manager.paths.link,
-            &Manifest::new(id, "1.0.0", exe.to_str().unwrap()),
+            &ManifestDocument {
+                manifest: Manifest::new(id, "1.0.0", exe.to_str().unwrap()),
+                additions: ManifestAdditions {
+                    install: Some(arcade_link::receipt::InstallMethod::Appimage),
+                    ..Default::default()
+                },
+            },
         )
         .unwrap();
         if self_install {
@@ -508,6 +515,41 @@ fn hub_lifecycle_adopt_manual_self_and_refuse_dev() {
         .unwrap()
         .iter()
         .all(|(route, _)| !route.contains("releases")));
+}
+
+#[test]
+fn hub_lifecycle_adopting_or_updating_a_pre_installer_copy_installs_the_release() {
+    let (server, manager) = fixture();
+    for (id, operation) in [
+        ("arcade.look", Operation::Adopt),
+        ("arcade.lens", Operation::Update),
+    ] {
+        publish(&server, &manager, id, "1.1.0", false);
+        // An app from before the Arcade installer: it ignores --install and
+        // its manifest says nothing about installing.
+        let manual = manager
+            .paths
+            .home
+            .join("Apps")
+            .join(format!("{id}.AppImage"));
+        fs::create_dir_all(manual.parent().unwrap()).unwrap();
+        fs::write(&manual, "#!/bin/sh\nexit 0\n").unwrap();
+        fs::set_permissions(&manual, fs::Permissions::from_mode(0o755)).unwrap();
+        arcade_link::manifest::write_manifest(
+            &manager.paths.link,
+            &Manifest::new(id, "0.1.1", manual.to_str().unwrap()),
+        )
+        .unwrap();
+        let message = operate(&manager, id, operation).unwrap();
+        assert!(message.contains("1.1.0"), "{message}");
+        let receipt = manager.receipt(id).unwrap().unwrap();
+        assert_eq!(receipt.managed_by, ManagedBy::Tools);
+        assert_eq!(receipt.version, "1.1.0");
+        assert_eq!(manager.record(id).unwrap().unwrap().version, "1.1.0");
+        assert!(!manager.check(id).unwrap().update_available);
+        // The user's own file is left alone.
+        assert_eq!(fs::read_to_string(&manual).unwrap(), "#!/bin/sh\nexit 0\n");
+    }
 }
 
 struct Time(u64);
@@ -647,6 +689,35 @@ fn hub_lifecycle_cancel_during_snapshot_keeps_the_old_version() {
         "1.0.0"
     );
     assert!(fs::read(&executable).unwrap() == before);
+}
+
+#[test]
+fn hub_lifecycle_removing_tools_hands_apps_back_to_themselves() {
+    let (server, manager) = fixture();
+    installed(&server, &manager, "arcade.look");
+    publish(&server, &manager, "arcade.look", "2.0.0", false);
+    operate(&manager, "arcade.look", Operation::Update).unwrap();
+    let receipt = manager.receipt("arcade.look").unwrap().unwrap();
+    assert_eq!(receipt.managed_by, ManagedBy::Tools);
+    let snapshots = manager.paths.home.join("Applications/Arcade/.previous");
+    let tools_snapshots = || {
+        fs::read_dir(&snapshots)
+            .map(|entries| {
+                entries
+                    .flatten()
+                    .filter(|e| e.file_name().to_string_lossy().starts_with("tools-"))
+                    .count()
+            })
+            .unwrap_or(0)
+    };
+    assert!(tools_snapshots() > 0);
+    assert_eq!(manager.release_managed_apps().unwrap(), vec!["arcade.look"]);
+    let released = manager.receipt("arcade.look").unwrap().unwrap();
+    assert_eq!(released.managed_by, ManagedBy::SelfManaged);
+    assert_eq!(released.version, "2.0.0");
+    assert!(released.path.exists());
+    assert_eq!(tools_snapshots(), 0);
+    assert!(released.previous.as_ref().is_none_or(|p| p.path.exists()));
 }
 
 #[test]

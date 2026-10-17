@@ -593,6 +593,24 @@ pub async fn uninstall_all(
     })
     .await
 }
+/// Remove only Tools: the apps stay installed and go back to updating
+/// themselves. A helper removes Tools after this process exits.
+#[tauri::command]
+pub async fn uninstall_tools_only(app: AppHandle, remove_data: bool) -> Result<()> {
+    let state = begin(&app)?;
+    worker(move || {
+        let _active = Active(state.clone());
+        let manager = state.manager()?;
+        let plan = manager.prepare_self_uninstall(remove_data)?;
+        let file = manager.paths.state().join("self-update/uninstall.json");
+        manager.paths.guard(&file)?;
+        arcade_link::paths::write_atomic(&file, &serde_json::to_vec_pretty(&plan)?, true)?;
+        crate::helpers::launch(&manager.paths, "--finish-self-uninstall", &file)?;
+        app.exit(0);
+        Ok(())
+    })
+    .await
+}
 #[tauri::command]
 pub async fn self_update(app: AppHandle) -> Result<()> {
     let state = begin(&app)?;
@@ -641,7 +659,8 @@ pub async fn install_tools(app: AppHandle) -> Result<()> {
     worker(move || {
         let _active = Active(state.clone());
         let manager = state.manager()?;
-        let receipt = crate::installation::install("stable", false)?;
+        // This process keeps running from its image, so the image is kept.
+        let receipt = crate::installation::install("stable", false, true)?;
         arcade_tools_core::installation::claim(&manager.paths, receipt, None)?;
         let _ = app.emit("registry-changed", ());
         Ok(())

@@ -568,6 +568,9 @@ fn initialize_desktop(app: &AppHandle) -> Result<Arc<Manager>> {
             prefs.link_enabled,
             &tray_prefs,
         );
+        if std::env::args().any(|arg| arg == "--uninstall") {
+            tray.navigate("uninstall");
+        }
         app.manage(tray);
         *state.presence.lock().unwrap_or_else(|e| e.into_inner()) = Some(presence);
         hotkey::configure(app, &tray_prefs);
@@ -1089,6 +1092,12 @@ pub fn run(background: bool, quit: bool) {
         .plugin(tauri_plugin_single_instance::init(|app, args, _| {
             if args.iter().any(|a| a == "--quit") {
                 request_quit(app);
+            } else if args.iter().any(|a| a == "--uninstall") {
+                // The launcher's Uninstall action: review it in the window.
+                if let Ok(service) = tray::service(app) {
+                    service.navigate("uninstall");
+                }
+                show(app, &desktop(app));
             } else if !args.iter().any(|a| a == "--background") {
                 show(app, &desktop(app));
             }
@@ -1180,6 +1189,7 @@ pub fn run(background: bool, quit: bool) {
             hub::install_catalog_bundle,
             hub::plan_uninstall_all,
             hub::uninstall_all,
+            hub::uninstall_tools_only,
             hub::self_update,
             hub::self_rollback,
             hub::install_tools,

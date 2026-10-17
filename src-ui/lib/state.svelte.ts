@@ -55,6 +55,8 @@ export const ui = $state({
   releaseNotesHtml: {} as Record<string, string>,
   theme: 'system' as Theme,
   tab: 'apps' as ShellTab,
+  /** Set by the launcher's Uninstall action: Settings scrolls to the review. */
+  reviewUninstall: false,
   shortcutsIndex: null as ShortcutsIndex | null,
   shortcutLabels: {} as Record<string, string>,
   shortcutsRevision: 0,

@@ -264,6 +264,7 @@ export const api = {
   selfRollback: () => invoke<void>('self_rollback'),
   installTools: () => invoke<void>('install_tools'),
   planUninstallAll: (removeData: boolean) => invoke<UninstallPlan>('plan_uninstall_all', { removeData }),
+  uninstallToolsOnly: (removeData: boolean) => invoke<void>('uninstall_tools_only', { removeData }),
   uninstallAll: (plan: UninstallPlan) => invoke<{ results: { app: string; removed: boolean; reason: string }[] }>('uninstall_all', { plan }),
   uiRendered: (report: UiRenderReport) => invoke<void>('ui_rendered', { report }),
   setAppShortcut: (id: string, shortcut: string, accelerator: string) => invoke<{ applied: boolean; via: string; hint?: string }>('set_app_shortcut', { id, shortcut, accelerator }),

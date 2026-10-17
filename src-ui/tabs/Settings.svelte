@@ -1,6 +1,7 @@
 <script lang="ts">
   import { api, type AppView, type BackupReport, type DiagnosticsReport, type RestorePlan, type RestoreResult, type UninstallPlan } from '../lib/api';
-  import { askForConfirmation, type Theme } from '../lib/state.svelte';
+  import { askForConfirmation, ui, type Theme } from '../lib/state.svelte';
+  import { tick } from 'svelte';
   import TraySettings from '../components/TraySettings.svelte';
 
   type Props = {
@@ -70,6 +71,26 @@
 
   async function installTools(): Promise<void> {
     await api.installTools();
+  }
+
+  let uninstallSection = $state<HTMLElement | null>(null);
+  $effect(() => {
+    if (!active || !ui.reviewUninstall) return;
+    ui.reviewUninstall = false;
+    void tick().then(() => {
+      uninstallSection?.scrollIntoView({ block: 'center' });
+      uninstallSection?.querySelector<HTMLButtonElement>('button')?.focus();
+    });
+  });
+
+  async function uninstallToolsOnly(): Promise<void> {
+    const choice = await askForConfirmation({
+      title: 'Uninstall Arcade Tools?',
+      copy: 'Tools closes and is removed. Your Arcade apps stay installed and keep updating themselves.'
+        + (removeData ? '\nTools settings and data are deleted too.' : '\nTools settings and data are kept.'),
+      action: 'Uninstall Tools', destructive: true, kind: null, folders: [],
+    });
+    if (choice.confirmed) await api.uninstallToolsOnly(removeData);
   }
 
   async function uninstallEverything(): Promise<void> {
@@ -211,14 +232,17 @@
     </div>
   </section>
 
-  <section class="settings-card danger-card" aria-labelledby="uninstall-heading">
+  <section class="settings-card danger-card" aria-labelledby="uninstall-heading" bind:this={uninstallSection}>
     <div>
-      <h2 id="uninstall-heading">Uninstall Arcade</h2>
-      <p class="setting-description">Remove every Arcade app Tools manages, then Tools itself. You see the full list before anything is removed.</p>
+      <h2 id="uninstall-heading">Uninstall</h2>
+      <p class="setting-description">Remove only Tools and keep your apps, or remove every Arcade app Tools manages and then Tools. You see the full list before anything is removed.</p>
     </div>
     <div class="settings-stack">
       <label><input type="checkbox" bind:checked={removeData} /> Also delete settings and data</label>
-      <div class="actions-inline"><button type="button" class="danger-button" disabled={busy} onclick={() => run(uninstallEverything)}>Uninstall Arcade…</button></div>
+      <div class="actions-inline">
+        <button type="button" class="danger-button" disabled={busy || !toolsApp?.installed} onclick={() => run(uninstallToolsOnly)}>Uninstall Tools only…</button>
+        <button type="button" class="danger-button" disabled={busy} onclick={() => run(uninstallEverything)}>Uninstall Tools and apps…</button>
+      </div>
       {#if uninstallResults.length}
         <ul class="settings-list">{#each uninstallResults as result (result.app)}<li><strong>{result.app}</strong> {result.removed ? 'removed' : 'kept'} · {result.reason}</li>{/each}</ul>
       {/if}

@@ -53,6 +53,16 @@
     ui.tab = tab;
   }
 
+  const intentTabs = ['home', 'apps', 'updates', 'shortcuts', 'learn', 'connections', 'engines', 'settings'];
+  function openIntent(page: string | null): void {
+    if (page === 'uninstall') {
+      ui.reviewUninstall = true;
+      selectTab('settings');
+    } else if (page && intentTabs.includes(page)) {
+      selectTab(page as ShellTab);
+    }
+  }
+
   function sendRenderedReport(snapshot: Omit<UiRenderReport, 'revision' | 'controls' | 'tab' | 'visiblePanel'>): void {
     const controls = [...document.querySelectorAll<HTMLElement>('button, select, input')].map((control): UiControlReport => {
       const rect = control.getBoundingClientRect();
@@ -147,7 +157,7 @@
           appEvents.managerMessage((message) => setMessage(message, true)),
           appEvents.updatesChanged((updates) => { ui.updates = updates; }),
           appEvents.shortcutsChanged(() => { void api.shortcutsIndex().then((index) => { ui.shortcutsIndex = index; setShortcutsEnabled(true); }); }),
-          appEvents.trayNavigation((page) => { if (['home', 'apps', 'updates', 'shortcuts', 'learn', 'connections', 'engines', 'settings'].includes(page)) selectTab(page as ShellTab); }),
+          appEvents.trayNavigation(openIntent),
         ]);
         if (disposed) handlers.forEach((stop) => stop());
         else unlisten = handlers;
@@ -163,7 +173,7 @@
         ui.catalogData = catalogData;
         setShortcutsEnabled(true);
         const trayIntent = await invoke<string | null>('tray_ui_intent');
-        if (trayIntent && ['home', 'apps', 'updates', 'shortcuts', 'learn', 'connections', 'engines', 'settings'].includes(trayIntent)) selectTab(trayIntent as ShellTab);
+        openIntent(trayIntent);
       } catch (error) {
         setMessage(error instanceof Error ? error.message : String(error), true);
       }
