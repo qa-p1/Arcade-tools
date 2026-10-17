@@ -154,7 +154,10 @@ impl IndexService {
     }
 
     pub fn status(&self) -> Status {
-        self.status.lock().unwrap().clone()
+        self.status
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
     }
     pub fn stop(&self) {
         let _ = self.tx.send(Event::Stop);
@@ -258,7 +261,7 @@ fn run(
         if !changed(&event.kind) {
             return;
         }
-        let roots = event_interests.lock().unwrap();
+        let roots = event_interests.lock().unwrap_or_else(|e| e.into_inner());
         if event.paths.iter().any(|p| interested(p, &roots)) {
             let _ = tx.send(Event::Changed);
         }
@@ -313,7 +316,7 @@ fn run(
                 let (mut index, files) = build(&options);
                 let mut roots = options.roots();
                 roots.extend(files.iter().map(|path| watch_path(path)));
-                *interests.lock().unwrap() = roots.clone();
+                *interests.lock().unwrap_or_else(|e| e.into_inner()) = roots.clone();
                 if let Some(w) = &mut watcher {
                     index
                         .wm
@@ -334,7 +337,7 @@ fn run(
                     .write_index(&options.output)
                     .map_err(|e| e.to_string());
                 let current = Status {
-                    generation: status.lock().unwrap().generation + 1,
+                    generation: status.lock().unwrap_or_else(|e| e.into_inner()).generation + 1,
                     path: options.output.clone(),
                     built_at: index.built_at,
                     apps: index.apps.len(),
@@ -343,7 +346,7 @@ fn run(
                     elapsed_ms: start.elapsed().as_secs_f64() * 1000.0,
                     error: result.as_ref().err().cloned(),
                 };
-                *status.lock().unwrap() = current.clone();
+                *status.lock().unwrap_or_else(|e| e.into_inner()) = current.clone();
                 for waiter in waiters.drain(..) {
                     let _ = waiter.send(
                         result

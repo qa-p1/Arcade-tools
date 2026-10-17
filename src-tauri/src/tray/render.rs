@@ -196,7 +196,7 @@ mod native {
                 app,
                 &model.items,
                 &mut |i| menu.append(i),
-                &mut actions.lock().unwrap(),
+                &mut actions.lock().unwrap_or_else(|e| e.into_inner()),
             )
             .map_err(|e| e.to_string())?;
             let event_actions = actions.clone();
@@ -248,7 +248,7 @@ mod native {
                     )
                     .is_ok()
                     {
-                        *self.actions.lock().unwrap() = actions;
+                        *self.actions.lock().unwrap_or_else(|e| e.into_inner()) = actions;
                         let _ = tray.set_menu(Some(menu));
                         let _ = tray.set_icon(Some(Image::new_owned(
                             assets::mark(model.badge),

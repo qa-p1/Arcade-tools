@@ -99,7 +99,11 @@ fn show(app: &AppHandle, state: &Desktop) {
             .as_secs(),
         Ordering::SeqCst,
     );
-    state.resident.lock().unwrap().open();
+    state
+        .resident
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .open();
     let app = app.clone();
     let handle = app.clone();
     let _ = handle.run_on_main_thread(move || {
@@ -114,11 +118,11 @@ fn show(app: &AppHandle, state: &Desktop) {
                         let _ = window.with_webview(|webview| {
                             use webkit2gtk::{SettingsExt, WebViewExt};
                             if let Some(settings) = webview.inner().settings() {
-                                // This document UI needs no GPU compositor or
-                                // retained page cache after its window closes.
-                                settings.set_hardware_acceleration_policy(
-                                    webkit2gtk::HardwareAccelerationPolicy::Never,
-                                );
+                                // No retained page cache after the window closes.
+                                // The acceleration policy stays WebKit's default:
+                                // forcing "Never" after the view exists crashed
+                                // the web process on X servers without DRI3 (VNC,
+                                // xrdp, VMs, Xvfb) and left the window blank.
                                 settings.set_enable_page_cache(false);
                             }
                         });
@@ -150,7 +154,7 @@ fn audit(app: &AppHandle, event: Value) {
     {
         use std::io::Write;
         let state = desktop(app);
-        let _audit = state.audit.lock().unwrap();
+        let _audit = state.audit.lock().unwrap_or_else(|e| e.into_inner());
         if let (Some(path), Ok(manager)) =
             (std::env::var_os("ARCADE_TOOLS_SMOKE_LOG"), state.manager())
         {
@@ -229,7 +233,11 @@ impl Handler for LinkHandler {
         if self.state.active.load(Ordering::SeqCst) {
             return Err(LinkError::busy());
         }
-        *self.state.selected.lock().unwrap() = Some(id.clone());
+        *self
+            .state
+            .selected
+            .lock()
+            .unwrap_or_else(|e| e.into_inner()) = Some(id.clone());
         show(&self.app, &self.state);
         let _ = self.app.emit("install-request", &id);
         audit(&self.app, json!({"event":"handoff", "id":id}));
@@ -400,11 +408,16 @@ fn cached_docs_index(
     state: &Desktop,
     manager: &Manager,
 ) -> Result<Arc<SearchIndex>> {
-    if let Some(index) = state.docs_index.lock().unwrap().clone() {
+    if let Some(index) = state
+        .docs_index
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone()
+    {
         return Ok(index);
     }
     let index = Arc::new(build_docs_index(app, manager)?);
-    let mut cached = state.docs_index.lock().unwrap();
+    let mut cached = state.docs_index.lock().unwrap_or_else(|e| e.into_inner());
     Ok(cached.get_or_insert_with(|| index.clone()).clone())
 }
 
@@ -416,7 +429,11 @@ async fn initialize(app: AppHandle) -> Result<Bootstrap> {
         if !state.background.load(Ordering::SeqCst) {
             show(&app, &state);
         }
-        let selected = state.selected.lock().unwrap().take();
+        let selected = state
+            .selected
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .take();
         let diagnostics = state
             .presence
             .lock()
@@ -437,7 +454,7 @@ async fn initialize(app: AppHandle) -> Result<Bootstrap> {
 }
 fn initialize_desktop(app: &AppHandle) -> Result<Arc<Manager>> {
     let state = desktop(app);
-    let _init = state.init.lock().unwrap();
+    let _init = state.init.lock().unwrap_or_else(|e| e.into_inner());
     if state.manager.get().is_none() {
         let paths = Paths::discover()?;
         #[cfg(debug_assertions)]
@@ -475,6 +492,12 @@ fn initialize_desktop(app: &AppHandle) -> Result<Arc<Manager>> {
         if let Err(error) = manager.cleanup_stale_bundles() {
             eprintln!("Stale bundle cleanup: {error}");
         }
+        if let Err(error) = manager.cleanup_orphan_records() {
+            eprintln!("Uninstalled app records: {error}");
+        }
+        if let Err(error) = manager.cleanup_interrupted() {
+            eprintln!("Interrupted operation cleanup: {error}");
+        }
         let prefs = manager.preferences()?;
         state
             .link_enabled
@@ -510,11 +533,16 @@ fn initialize_desktop(app: &AppHandle) -> Result<Arc<Manager>> {
             move |prefs| {
                 let state = desktop(&settings_handle);
                 {
-                    let mut resident = state.resident.lock().unwrap();
+                    let mut resident = state.resident.lock().unwrap_or_else(|e| e.into_inner());
                     resident.hosting = prefs.host_icons;
                     resident.shortcuts = prefs.shortcuts_enabled;
                 }
-                if let Some(presence) = state.presence.lock().unwrap().as_mut() {
+                if let Some(presence) = state
+                    .presence
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .as_mut()
+                {
                     presence.update(state.link_enabled.load(Ordering::SeqCst), &prefs);
                 };
                 hotkey::configure(&settings_handle, &prefs);
@@ -526,7 +554,7 @@ fn initialize_desktop(app: &AppHandle) -> Result<Arc<Manager>> {
         )?;
         let tray_prefs = tray.preferences();
         {
-            let mut resident = state.resident.lock().unwrap();
+            let mut resident = state.resident.lock().unwrap_or_else(|e| e.into_inner());
             resident.hosting = tray_prefs.host_icons;
             resident.shortcuts = tray_prefs.shortcuts_enabled;
         }
@@ -541,7 +569,7 @@ fn initialize_desktop(app: &AppHandle) -> Result<Arc<Manager>> {
             &tray_prefs,
         );
         app.manage(tray);
-        *state.presence.lock().unwrap() = Some(presence);
+        *state.presence.lock().unwrap_or_else(|e| e.into_inner()) = Some(presence);
         hotkey::configure(app, &tray_prefs);
         let registry = SharedRegistry::load(&manager.paths.link);
         let handle = app.clone();
@@ -553,16 +581,20 @@ fn initialize_desktop(app: &AppHandle) -> Result<Arc<Manager>> {
             // SharedRegistry also reports endpoint reads. Probing those files
             // must not trigger another probe or cost anything while idle.
             let current = watch_state(registry, &locations);
-            let mut previous = last.lock().unwrap();
+            let mut previous = last.lock().unwrap_or_else(|e| e.into_inner());
             if *previous != current {
                 *previous = current;
-                docs_state.docs_index.lock().unwrap().take();
+                docs_state
+                    .docs_index
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .take();
                 let _ = handle.emit("registry-changed", ());
             }
         }) {
             return Err(Error::new("watch", "Could not watch the Arcade registry."));
         }
-        *state.registry.lock().unwrap() = Some(registry);
+        *state.registry.lock().unwrap_or_else(|e| e.into_inner()) = Some(registry);
         hub::start_updates(app.clone(), state.clone(), manager)?;
     }
     state.manager()
@@ -790,7 +822,11 @@ async fn fetch_docs(app: AppHandle, id: String, version: String) -> Result<()> {
     let state = desktop(&app);
     worker(move || {
         state.manager()?.fetch_docs(&id, &version)?;
-        state.docs_index.lock().unwrap().take();
+        state
+            .docs_index
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .take();
         crate::tray::service(&app)?.request_index_refresh();
         Ok(())
     })
@@ -878,7 +914,12 @@ async fn set_link(app: AppHandle, enabled: bool) -> Result<()> {
         let state = desktop(&app);
         state.manager()?.set_link(enabled)?;
         state.link_enabled.store(enabled, Ordering::SeqCst);
-        if let Some(presence) = state.presence.lock().unwrap().as_mut() {
+        if let Some(presence) = state
+            .presence
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_mut()
+        {
             presence.update(enabled, &tray::service(&app)?.preferences());
         }
         Ok(())
@@ -1007,7 +1048,11 @@ fn request_quit(app: &AppHandle) {
     }
     let app = app.clone();
     std::thread::spawn(move || {
-        state.presence.lock().unwrap().take();
+        state
+            .presence
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .take();
         if let Ok(service) = tray::service(&app) {
             service.stop(state.restarting.load(Ordering::SeqCst));
         }
@@ -1021,7 +1066,12 @@ fn request_quit(app: &AppHandle) {
 /// Core self-update/restart calls this on its worker before stopping Tools.
 pub fn announce_restarting(app: &AppHandle) {
     desktop(app).restarting.store(true, Ordering::SeqCst);
-    if let Some(presence) = desktop(app).presence.lock().unwrap().as_mut() {
+    if let Some(presence) = desktop(app)
+        .presence
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .as_mut()
+    {
         presence.announce_restarting();
     }
 }
@@ -1153,7 +1203,7 @@ pub fn run(background: bool, quit: bool) {
                 request_close(window.app_handle());
             }
             if let tauri::WindowEvent::Destroyed = event {
-                desktop(window.app_handle()).resident.lock().unwrap().destroyed();
+                desktop(window.app_handle()).resident.lock().unwrap_or_else(|e| e.into_inner()).destroyed();
                 reclaim_resident_memory(window.app_handle().clone());
             }
         })
@@ -1162,7 +1212,7 @@ pub fn run(background: bool, quit: bool) {
         .run(|app, event| {
             if let tauri::RunEvent::Exit = event { hotkey::stop(); }
             if let tauri::RunEvent::ExitRequested { code: None, api, .. } = event {
-                if desktop(app).resident.lock().unwrap().keeps_running() { api.prevent_exit(); }
+                if desktop(app).resident.lock().unwrap_or_else(|e| e.into_inner()).keeps_running() { api.prevent_exit(); }
             }
         });
 }

@@ -18,7 +18,7 @@ use arcade_link::registry::Registry;
 use arcade_link::wire::PeerInfo;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -233,6 +233,24 @@ pub struct Manager {
     source: Source,
     mutation: Mutex<()>,
     scheduler: Mutex<Option<updates::Scheduler>>,
+    hashes: Mutex<HashMap<PathBuf, (Fingerprint, String)>>,
+}
+/// What changes whenever a file's bytes do: a write updates mtime and ctime
+/// (ctime can't be set back by the writer), a replacement changes the inode.
+#[derive(Clone, PartialEq, Eq)]
+struct Fingerprint(u64, Option<std::time::SystemTime>, u64, i64, i64);
+impl Fingerprint {
+    fn of(path: &Path) -> std::io::Result<Self> {
+        let meta = fs::metadata(path)?;
+        #[cfg(unix)]
+        let (ino, ctime, ctime_ns) = {
+            use std::os::unix::fs::MetadataExt;
+            (meta.ino(), meta.ctime(), meta.ctime_nsec())
+        };
+        #[cfg(not(unix))]
+        let (ino, ctime, ctime_ns) = (0, 0, 0);
+        Ok(Self(meta.len(), meta.modified().ok(), ino, ctime, ctime_ns))
+    }
 }
 impl Manager {
     /// Construct without I/O; safe on any thread. All manager I/O methods below
@@ -243,7 +261,30 @@ impl Manager {
             source,
             mutation: Mutex::new(()),
             scheduler: Mutex::new(None),
+            hashes: Mutex::new(HashMap::new()),
         }
+    }
+    fn cached_checksum(&self, path: &Path) -> Result<String> {
+        let before = Fingerprint::of(path)?;
+        if let Some((seen, hash)) = self
+            .hashes
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(path)
+        {
+            if *seen == before {
+                return Ok(hash.clone());
+            }
+        }
+        let hash = checksum(path)?;
+        // Only cache when nothing changed while hashing.
+        if Fingerprint::of(path).is_ok_and(|after| after == before) {
+            self.hashes
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .insert(path.to_path_buf(), (before, hash.clone()));
+        }
+        Ok(hash)
     }
     fn lock(&self) -> Result<std::sync::MutexGuard<'_, ()>> {
         self.mutation
@@ -871,8 +912,13 @@ impl Manager {
             if let Some(mut record) = supplemental {
                 // Keep release hashes/rollback metadata when the app rewrites
                 // only its build suffix, but never trust changed executable bytes.
+                // Build metadata (Wheel's "0.3.1+build.56" release vs its "0.3.1"
+                // receipt) reaches the hash on every list/Home refresh, so the
+                // hash is cached until the file's size, times or inode change.
                 let same_bytes = record.version == receipt.version
-                    || checksum(&executable).is_ok_and(|hash| hash == record.executable_sha256);
+                    || self
+                        .cached_checksum(&executable)
+                        .is_ok_and(|hash| hash == record.executable_sha256);
                 if !crate::release::versions_match(
                     &record.version,
                     &receipt.version,
@@ -895,7 +941,66 @@ impl Manager {
             }
             return Ok(Some(self.record_from_receipt(&receipt)?));
         }
+        // An app that installed itself and then uninstalled itself (its own
+        // menu entry or --uninstall) removed its receipt and executable: it is
+        // not installed, not "needs repair".
+        if supplemental
+            .as_ref()
+            .is_some_and(|record| self.uninstalled_by_app(record))
+        {
+            return Ok(None);
+        }
         Ok(supplemental)
+    }
+    fn uninstalled_by_app(&self, record: &Record) -> bool {
+        record.installed_by_app && !self.executable(record).exists()
+    }
+    /// Partial downloads, staged installer copies and transaction snapshots
+    /// left by a Tools that was killed mid-operation. Startup worker only.
+    pub fn cleanup_interrupted(&self) -> Result<u64> {
+        let _lock = self.lock()?;
+        let mut freed = 0;
+        let downloads = self.paths.downloads();
+        if let Ok(entries) = fs::read_dir(&downloads) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                self.paths.guard(&path)?;
+                freed += entry.metadata().map_or(0, |m| m.len());
+                platform::remove(&path)?;
+            }
+        }
+        let ids: Vec<&str> = crate::apps::APPS
+            .iter()
+            .copied()
+            .chain([ids::TOOLS])
+            .collect();
+        freed += installation::remove_orphan_snapshots(&self.paths, &ids)?;
+        Ok(freed)
+    }
+    /// Tools records left behind when an app uninstalled itself. Run on the
+    /// startup worker, like `cleanup_stale_bundles`.
+    pub fn cleanup_orphan_records(&self) -> Result<Vec<String>> {
+        let _lock = self.lock()?;
+        let mut removed = Vec::new();
+        for id in crate::apps::APPS.iter().copied() {
+            let file = self.paths.state().join(format!("{id}.json"));
+            let Ok(bytes) = fs::read(&file) else { continue };
+            let Ok(record) = serde_json::from_slice::<Record>(&bytes) else {
+                continue;
+            };
+            if record.id != id || self.receipt(id)?.is_some() || !self.uninstalled_by_app(&record) {
+                continue;
+            }
+            if let Some(previous) = PreviousInstallation::read(&self.paths, id)? {
+                previous.remove(&self.paths)?;
+            }
+            for file in [file, self.paths.state().join(format!("{id}.previous.json"))] {
+                self.paths.guard(&file)?;
+                platform::remove(&file)?;
+            }
+            removed.push(id.into());
+        }
+        Ok(removed)
     }
     /// Read a validated Link receipt on a worker; no migration or writes.
     pub fn receipt(&self, id: &str) -> Result<Option<Receipt>> {
@@ -987,7 +1092,7 @@ impl Manager {
     pub fn update_state(&self) -> Result<UpdateState> {
         let catalog = self.catalog()?;
         let (installed, peers) = self.update_inputs()?;
-        let mut guard = self.scheduler.lock().unwrap();
+        let mut guard = self.scheduler.lock().unwrap_or_else(|e| e.into_inner());
         if guard.is_none() {
             *guard = Some(updates::Scheduler::new(
                 self.paths.clone(),
@@ -1018,7 +1123,7 @@ impl Manager {
         let catalog = self.catalog()?;
         let (installed, peers) = self.update_inputs()?;
         let settings = self.preferences()?.updates;
-        let mut guard = self.scheduler.lock().unwrap();
+        let mut guard = self.scheduler.lock().unwrap_or_else(|e| e.into_inner());
         if guard.is_none() {
             *guard = Some(updates::Scheduler::new(
                 self.paths.clone(),
@@ -1105,7 +1210,9 @@ impl Manager {
         Ok(match receipt.map(|r| r.managed_by) {
             Some(ManagedBy::Tools) => InstallationClass::Managed,
             Some(ManagedBy::SelfManaged) => InstallationClass::SelfInstalled,
-            None if self.paths.state().join(format!("{id}.json")).is_file() => {
+            None if self.paths.state().join(format!("{id}.json")).is_file()
+                && self.record(id)?.is_some() =>
+            {
                 InstallationClass::LegacyManaged
             }
             None => InstallationClass::Manual,
@@ -1503,7 +1610,32 @@ impl Manager {
                 continue;
             }
             if app.requires_self_shutdown {
-                outcome.self_uninstall = Some(self.self_uninstall_plan(plan.remove_data)?);
+                // Never leave apps behind without their manager: keep Tools if
+                // any app it was asked to remove is still installed.
+                let failed: Vec<&str> = outcome
+                    .results
+                    .iter()
+                    .filter(|r| {
+                        !r.removed && plan.apps.iter().any(|a| a.id == r.app && a.can_uninstall)
+                    })
+                    .map(|r| r.app.as_str())
+                    .collect();
+                if failed.is_empty() {
+                    outcome.self_uninstall = Some(self.self_uninstall_plan(plan.remove_data)?);
+                } else {
+                    outcome.results.push(crate::removal::RemovalResult {
+                        app: app.id.clone(),
+                        removed: false,
+                        reason: format!(
+                            "Arcade Tools was kept because {} could not be removed.",
+                            failed
+                                .iter()
+                                .map(|id| crate::apps::app_name(id))
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                        ),
+                    });
+                }
                 continue;
             }
             let request = Request {

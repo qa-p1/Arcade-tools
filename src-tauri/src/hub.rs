@@ -44,7 +44,12 @@ fn notify(app: &AppHandle, manager: &Manager, message: &str) {
     }
 }
 pub(super) fn wake_updates(state: &Desktop) {
-    if let Some(sender) = state.update_wake.lock().unwrap().as_ref() {
+    if let Some(sender) = state
+        .update_wake
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .as_ref()
+    {
         let _ = sender.send(());
     }
 }
@@ -66,7 +71,7 @@ pub(super) fn start_updates(
         return Ok(());
     }
     let (tx, rx) = mpsc::channel();
-    *state.update_wake.lock().unwrap() = Some(tx);
+    *state.update_wake.lock().unwrap_or_else(|e| e.into_inner()) = Some(tx);
     std::thread::spawn(move || loop {
         let wait = manager
             .update_deadline()
@@ -259,7 +264,11 @@ pub async fn dashboard(app: AppHandle) -> Result<dashboard::Dashboard> {
     worker(move || {
         let state = desktop(&app);
         let manager = state.manager()?;
-        let result = state.metrics.lock().unwrap().sample(&manager);
+        let result = state
+            .metrics
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .sample(&manager);
         result
     })
     .await
@@ -380,7 +389,12 @@ pub async fn restore_backup(
         state
             .link_enabled
             .store(prefs.link_enabled, Ordering::SeqCst);
-        if let Some(presence) = state.presence.lock().unwrap().as_mut() {
+        if let Some(presence) = state
+            .presence
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_mut()
+        {
             let tray = crate::tray::service(&app)?;
             presence.update(prefs.link_enabled, &tray.preferences());
         }
@@ -490,7 +504,11 @@ pub async fn fetch_latest_docs(app: AppHandle, id: String) -> Result<String> {
     worker(move || {
         let state = desktop(&app);
         let version = state.manager()?.fetch_latest_docs(&id)?;
-        state.docs_index.lock().unwrap().take();
+        state
+            .docs_index
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .take();
         crate::tray::service(&app)?.request_index_refresh();
         Ok(version)
     })

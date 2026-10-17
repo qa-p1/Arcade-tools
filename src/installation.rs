@@ -573,6 +573,60 @@ pub(crate) fn target(paths: &Paths, record: &Record, receipt: Option<&Receipt>) 
     }
 }
 
+/// Snapshot folders no `<id>.previous.json` points at: left by a Tools that
+/// was killed mid-transaction. Only call while no operation runs (startup).
+pub(crate) fn remove_orphan_snapshots(paths: &Paths, ids: &[&str]) -> Result<u64> {
+    let root = snapshot_root(paths);
+    let Ok(entries) = fs::read_dir(&root) else {
+        return Ok(0);
+    };
+    let mut referenced = BTreeSet::new();
+    for id in ids {
+        if let Ok(Some(previous)) = PreviousInstallation::read(paths, id) {
+            referenced.insert(previous.directory);
+        }
+    }
+    let mut freed = 0;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let ours = entry.file_name().to_string_lossy().starts_with("tools-");
+        if ours && entry.file_type().is_ok_and(|t| t.is_dir()) && !referenced.contains(&path) {
+            paths.guard(&path)?;
+            freed += size_of(&path);
+            platform::remove(&path)?;
+        }
+    }
+    Ok(freed)
+}
+fn size_of(path: &Path) -> u64 {
+    match fs::symlink_metadata(path) {
+        Ok(meta) if meta.is_dir() => fs::read_dir(path).map_or(0, |entries| {
+            entries.flatten().map(|e| size_of(&e.path())).sum()
+        }),
+        Ok(meta) => meta.len(),
+        Err(_) => 0,
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn clone_file(source: &Path, destination: &Path) -> bool {
+    use std::os::fd::AsRawFd;
+    const FICLONE: libc::c_ulong = 0x4004_9409;
+    let (Ok(from), Ok(to)) = (fs::File::open(source), fs::File::create(destination)) else {
+        return false;
+    };
+    // SAFETY: both descriptors are open for the duration of the call.
+    let cloned = unsafe { libc::ioctl(to.as_raw_fd(), FICLONE as _, from.as_raw_fd()) } == 0;
+    if !cloned {
+        let _ = fs::remove_file(destination);
+    }
+    cloned
+}
+#[cfg(not(target_os = "linux"))]
+fn clone_file(_: &Path, _: &Path) -> bool {
+    false
+}
+
 fn snapshot_root(paths: &Paths) -> PathBuf {
     // Link's Linux installer/uninstaller validates previous within this root.
     // Keep metadata in Tools state and receipt-addressed binary backups here.
@@ -734,7 +788,12 @@ fn copy_object(source: &Path, destination: &Path) -> Result<()> {
         }
         fs::set_permissions(destination, meta.permissions())?;
     } else if meta.is_file() {
-        fs::copy(source, destination)?;
+        // A snapshot must keep its own bytes: an older installer may write
+        // the executable in place. A copy-on-write clone (btrfs, XFS) keeps
+        // them without a second full AppImage on disk; elsewhere, a copy.
+        if !clone_file(source, destination) {
+            fs::copy(source, destination)?;
+        }
         fs::set_permissions(destination, meta.permissions())?;
     } else {
         return Err(Error::new("paths", "Installation contains a special file."));

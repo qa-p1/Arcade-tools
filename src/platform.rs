@@ -66,6 +66,10 @@ impl CommandSpec {
 }
 
 pub(crate) fn child_environment(command: &mut Command, paths: &Paths) {
+    // Apps and installers get the user's environment, not the variables and
+    // mount paths of Tools' own AppImage (wrong libraries, forced theme,
+    // Tools' desktop files in XDG_DATA_DIRS, a working directory in the mount).
+    arcade_link::childenv::sanitize(command);
     command
         .env("HOME", &paths.home)
         .env("USERPROFILE", &paths.home)

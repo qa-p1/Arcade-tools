@@ -309,7 +309,13 @@ impl<C: Clock, S: ReleaseSource> Scheduler<C, S> {
             state.installed_version = Some(installed.version.clone());
             state.channel = installed.selected_channel;
             let mut transport_failed = false;
-            for channel in [Channel::Stable, Channel::Nightly] {
+            // Only the channel the user follows: checking both doubled the
+            // requests against GitHub's limit, and a missing nightly release
+            // turned every check into a failure.
+            state
+                .latest
+                .retain(|channel, _| channel == installed.selected_channel.as_str());
+            for channel in [installed.selected_channel] {
                 let latest = state.latest.entry(channel.as_str().into()).or_default();
                 match self.source.check_release(ReleaseRequest {
                     app: &app,
@@ -328,12 +334,22 @@ impl<C: Clock, S: ReleaseSource> Scheduler<C, S> {
                         latest.error = None;
                         latest.cache = Some(check.cache);
                     }
+                    Err(error) if error.code == "not_found" => {
+                        // Nothing published on this channel (e.g. no nightly
+                        // build): not a failed check, just no update.
+                        latest.latest_version = None;
+                        latest.update_available = false;
+                        latest.error = Some(format!(
+                            "No {} release is published for this app.",
+                            channel.as_str()
+                        ));
+                    }
                     Err(error) => {
                         latest.error = Some(error.to_string());
                         outcome.failure = Some(error.to_string());
                         // HTTP errors (e.g. no nightly release) don't imply offline.
                         // A transport failure stops further outbound requests.
-                        if error.code == "network" {
+                        if error.code == "network" || error.code == "rate_limited" {
                             transport_failed = true;
                             break;
                         }

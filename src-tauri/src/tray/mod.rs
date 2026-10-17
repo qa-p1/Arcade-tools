@@ -114,7 +114,7 @@ impl Service {
             }),
         )
         .map_err(|e| Error::new("tray", e))?;
-        *service.renderer.lock().unwrap() = Some(renderer);
+        *service.renderer.lock().unwrap_or_else(|e| e.into_inner()) = Some(renderer);
         let changes = service.tx.clone();
         if !service.registry.watch(move |_| {
             let _ = changes.send(Event::Refresh);
@@ -143,7 +143,7 @@ impl Service {
                             let _ = service.app.emit("app-changed", id);
                         }
                         Event::Disconnected { id, token } => {
-                            let mut peers = service.peers.lock().unwrap();
+                            let mut peers = service.peers.lock().unwrap_or_else(|e| e.into_inner());
                             if peers.get(&id).is_some_and(|peer| peer.token == token) {
                                 peers.remove(&id);
                             }
@@ -166,7 +166,7 @@ impl Service {
         self.host.clone()
     }
     pub fn preferences(&self) -> settings::Preferences {
-        self.prefs.lock().unwrap().clone()
+        self.prefs.lock().unwrap_or_else(|e| e.into_inner()).clone()
     }
 
     pub fn request_index_refresh(&self) {
@@ -180,7 +180,7 @@ impl Service {
         &self,
         mut prefs: settings::Preferences,
     ) -> Result<settings::Preferences> {
-        let mut slot = self.prefs.lock().unwrap();
+        let mut slot = self.prefs.lock().unwrap_or_else(|e| e.into_inner());
         prefs.normalize(&slot)?;
         if prefs.start_at_login != slot.start_at_login
             && settings::login_available(&self.manager.paths)
@@ -206,7 +206,7 @@ impl Service {
     }
 
     pub fn navigate(&self, page: &str) {
-        *self.navigation.lock().unwrap() = Some(page.into());
+        *self.navigation.lock().unwrap_or_else(|e| e.into_inner()) = Some(page.into());
         let _ = self.app.emit("tray-navigation", page);
     }
 
@@ -215,11 +215,19 @@ impl Service {
             self.host.shutdown();
         }
         let _ = self.tx.send(Event::Stop);
-        for peer in self.peers.lock().unwrap().values() {
+        for peer in self
+            .peers
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .values()
+        {
             peer.control.close();
         }
-        self.peers.lock().unwrap().clear();
-        self.renderer.lock().unwrap().take();
+        self.peers.lock().unwrap_or_else(|e| e.into_inner()).clear();
+        self.renderer
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .take();
     }
 
     fn refresh(&self) {
@@ -253,13 +261,18 @@ impl Service {
                         state.methods = description.methods;
                     }
                     self.watch_peer(app.id.clone(), client);
-                } else if let Some(old) = self.peers.lock().unwrap().remove(&app.id) {
+                } else if let Some(old) = self
+                    .peers
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .remove(&app.id)
+                {
                     old.control.close();
                 }
             }
             states.insert(app.id.clone(), state);
         }
-        let mut peers = self.peers.lock().unwrap();
+        let mut peers = self.peers.lock().unwrap_or_else(|e| e.into_inner());
         peers.retain(|id, peer| {
             let keep = registry.get(id).is_some();
             if !keep {
@@ -268,7 +281,7 @@ impl Service {
             keep
         });
         drop(peers);
-        *self.states.lock().unwrap() = states;
+        *self.states.lock().unwrap_or_else(|e| e.into_inner()) = states;
         self.refresh_model();
     }
 
@@ -277,7 +290,7 @@ impl Service {
             .ok()
             .map(|e| e.token)
             .unwrap_or_default();
-        let mut peers = self.peers.lock().unwrap();
+        let mut peers = self.peers.lock().unwrap_or_else(|e| e.into_inner());
         if peers.get(&id).is_some_and(|p| p.token == token) {
             return;
         }
@@ -318,12 +331,17 @@ impl Service {
             .collect();
         let model = TrayModel::build(
             &documents,
-            &self.states.lock().unwrap(),
+            &self.states.lock().unwrap_or_else(|e| e.into_inner()),
             &self.preferences(),
             self.updates.load(Ordering::Relaxed),
             crate::hotkey::overlay_path().is_some(),
         );
-        if let Some(renderer) = self.renderer.lock().unwrap().as_ref() {
+        if let Some(renderer) = self
+            .renderer
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_ref()
+        {
             renderer.update(model);
         }
     }
@@ -375,7 +393,11 @@ impl Service {
     fn quit_all(&self) -> Result<()> {
         self.refresh();
         let registry = self.registry.snapshot();
-        let states = self.states.lock().unwrap().clone();
+        let states = self
+            .states
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone();
         transport::quit_all(&self.manager.paths.link, registry.apps(), &states, |busy| {
             self.app.dialog().message(format!("{} are busy. Ask all running Arcade apps to quit? Apps that cannot quit safely will keep running.", busy.join(", "))).title("Quit Arcade apps").buttons(MessageDialogButtons::OkCancelCustom("Quit apps".into(), "Cancel".into())).blocking_show()
         }).map_err(|error| Error::new("quit_apps", error))
@@ -457,7 +479,11 @@ pub async fn tray_set_settings(
 
 #[tauri::command]
 pub fn tray_ui_intent(app: AppHandle) -> Result<Option<String>> {
-    Ok(service(&app)?.navigation.lock().unwrap().take())
+    Ok(service(&app)?
+        .navigation
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .take())
 }
 
 #[tauri::command]

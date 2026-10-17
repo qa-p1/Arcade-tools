@@ -34,6 +34,9 @@ base64 = "0.22"
 zip = { version = "2.4", default-features = false, features = ["deflate"] }
 sysinfo = { version = "0.35", default-features = false, features = ["system"] }
 
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"
+
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Threading"] }
 
