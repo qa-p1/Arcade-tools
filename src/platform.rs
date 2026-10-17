@@ -638,20 +638,16 @@ pub fn launch_agent(id: &str, executable: &Path) -> String {
         .replace('"', "&quot;");
     format!("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\"><dict><key>Label</key><string>{id}</string><key>ProgramArguments</key><array><string>{quoted}</string><string>--background</string></array><key>RunAtLoad</key><true/></dict></plist>\n")
 }
+/// Earlier versions kept a `<entry>.arcade-tools.bak` copy beside each login
+/// entry they changed, which stayed behind for good. The previous bytes are
+/// kept in memory for the rollback instead; remove an old copy.
 #[cfg(any(target_os = "linux", target_os = "macos"))]
-fn backup(path: &Path) -> Result<()> {
-    match fs::read(path) {
-        Ok(bytes) => {
-            let backup = path.with_file_name(format!(
-                "{}.arcade-tools.bak",
-                path.file_name().unwrap().to_string_lossy()
-            ));
-            arcade_link::paths::write_atomic(&backup, &bytes, true)?;
-        }
-        Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(e.into()),
-        _ => {}
-    }
-    Ok(())
+pub fn remove_stale_backup(path: &Path) -> Result<()> {
+    let backup = path.with_file_name(format!(
+        "{}.arcade-tools.bak",
+        path.file_name().unwrap_or_default().to_string_lossy()
+    ));
+    remove(&backup)
 }
 pub fn update_desktop(existing: &str, proposed: &str) -> Result<String> {
     if !existing.lines().any(|l| l.trim() == "[Desktop Entry]") {
@@ -771,7 +767,7 @@ fn set_autostart_entry(paths: &Paths, id: &str, executable: &Path, enabled: bool
         if enabled && fs::read_to_string(&path).is_ok_and(|s| s == proposed) {
             return Ok(());
         }
-        backup(&path)?;
+        remove_stale_backup(&path)?;
         if enabled {
             arcade_link::paths::write_atomic(&path, proposed.as_bytes(), true)?;
             if fs::read_to_string(&path)? != proposed {
@@ -864,13 +860,8 @@ fn set_shelf_autostart(paths: &Paths, executable: &Path, enabled: bool) -> Resul
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
         Err(e) => return Err(e.into()),
     };
-    if let Some(bytes) = &previous {
-        let backup = path.with_file_name(format!(
-            "{}.arcade-tools.bak",
-            path.file_name().unwrap().to_string_lossy()
-        ));
-        arcade_link::paths::write_atomic(&backup, bytes, true)?;
-    }
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    remove_stale_backup(&path)?;
     if !enabled {
         return remove(&path);
     }
@@ -896,6 +887,10 @@ fn set_shelf_autostart(paths: &Paths, executable: &Path, enabled: bool) -> Resul
     };
     arcade_link::paths::write_atomic(&path, proposed.as_bytes(), true)?;
     if fs::read_to_string(&path)? != proposed {
+        match &previous {
+            Some(bytes) => arcade_link::paths::write_atomic(&path, bytes, true)?,
+            None => remove(&path)?,
+        }
         return Err(Error::new(
             "autostart",
             "Could not verify Shelf's login entry.",

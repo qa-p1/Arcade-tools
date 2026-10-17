@@ -283,6 +283,9 @@ struct Bootstrap {
 struct CatalogPayload {
     catalog: Catalog,
     engines: EngineCatalog,
+    /// Set when a refresh couldn't reach the catalog and kept the saved copy.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    offline: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -941,13 +944,17 @@ async fn open_releases(app: AppHandle, id: String) -> Result<()> {
     .await
 }
 fn catalog_payload(manager: &Manager, refresh: bool) -> Result<CatalogPayload> {
-    let catalog = if refresh {
-        manager.refresh_catalog()?
+    let (catalog, offline) = if refresh {
+        manager.refresh_catalog_reporting()?
     } else {
-        manager.catalog()?
+        (manager.catalog()?, None)
     };
     let engines = manager.engines(refresh)?;
-    Ok(CatalogPayload { catalog, engines })
+    Ok(CatalogPayload {
+        catalog,
+        engines,
+        offline: offline.map(|error| error.message),
+    })
 }
 #[tauri::command]
 async fn catalog_data(app: AppHandle) -> Result<CatalogPayload> {

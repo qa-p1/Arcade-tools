@@ -49,4 +49,6 @@ export interface Engine {
 export interface CatalogData {
   catalog: Catalog;
   engines: { schema: number; engines: Engine[] };
+  /** Why a refresh kept the saved copy, when it did. */
+  offline?: string;
 }

@@ -1134,6 +1134,13 @@ impl Manager {
     pub fn refresh_catalog(&self) -> Result<Catalog> {
         Ok(CatalogClient::new(self.paths.clone(), self.source.clone())?.refresh_catalog())
     }
+    /// [`Self::refresh_catalog`], with why it fell back to the saved copy.
+    pub fn refresh_catalog_reporting(&self) -> Result<(Catalog, Option<Error>)> {
+        Ok(
+            CatalogClient::new(self.paths.clone(), self.source.clone())?
+                .refresh_catalog_reporting(),
+        )
+    }
     /// Read cached engine metadata or explicitly refresh it on a worker thread.
     pub fn engines(&self, refresh: bool) -> Result<EngineCatalog> {
         CatalogClient::new(self.paths.clone(), self.source.clone())?.engines(refresh)

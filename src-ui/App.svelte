@@ -224,7 +224,11 @@
     try {
       ui.catalogData = await api.refreshCatalog();
       await refresh();
-      setMessage(`Catalog refreshed (${ui.catalogData.catalog.updated}).`);
+      if (ui.catalogData.offline) {
+        setMessage(`Couldn't reach the catalog, so the saved copy from ${ui.catalogData.catalog.updated} is shown. ${ui.catalogData.offline}`, true);
+      } else {
+        setMessage(`Catalog refreshed (${ui.catalogData.catalog.updated}).`);
+      }
     } finally {
       ui.catalogLoading = false;
     }

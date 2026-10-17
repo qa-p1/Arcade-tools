@@ -85,7 +85,8 @@ fn appimage_install_update_repair_uninstall_keeps_then_removes_data() {
         .contains(&exe.display().to_string()));
     manager.start_at_login("arcade.look", false).unwrap();
     assert!(!login.exists());
-    assert!(login
+    // No backup copy is left in the autostart folder.
+    assert!(!login
         .with_file_name("arcade-look.desktop.arcade-tools.bak")
         .exists());
     server.publish(

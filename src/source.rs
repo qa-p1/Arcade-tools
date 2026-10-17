@@ -424,7 +424,13 @@ impl Source {
             if cancel.load(Ordering::SeqCst) {
                 return Err(Error::new("cancelled", "Cancelled."));
             }
-            let n = response.read(&mut block)?;
+            let n = response.read(&mut block).map_err(|error| {
+                eprintln!("Download: {error}");
+                Error::new(
+                    "network",
+                    "The download was interrupted. Check your internet connection and try again.",
+                )
+            })?;
             if n == 0 {
                 break;
             }

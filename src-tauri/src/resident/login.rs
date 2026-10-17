@@ -149,12 +149,15 @@ fn set_for(paths: &Paths, executable: &Path, enabled: bool, os: Os) -> Result<()
         validate(&path, &proposed, os)?;
         return arcade_tools_core::installation::record_autostart(paths, ids::TOOLS, Some(path));
     }
-    if let Some(bytes) = &previous {
-        let backup = path.with_extension(format!(
-            "{}.arcade-tools.bak",
-            path.extension().unwrap().to_string_lossy()
-        ));
-        arcade_link::paths::write_atomic(&backup, bytes, true)?;
+    // The previous entry is kept in memory to restore a failed write; no
+    // backup file is left in the autostart folder.
+    let backup = path.with_extension(format!(
+        "{}.arcade-tools.bak",
+        path.extension().unwrap_or_default().to_string_lossy()
+    ));
+    match fs::remove_file(&backup) {
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(e.into()),
+        _ => {}
     }
     if !enabled {
         if previous.is_some() {
@@ -243,7 +246,7 @@ mod tests {
                 "{}.arcade-tools.bak",
                 login.extension().unwrap().to_string_lossy()
             ));
-            assert_eq!(fs::read(&backup).unwrap(), previous);
+            assert!(!backup.exists(), "no backup copy is left beside the entry");
             set_for(&paths, &moved, false, os).unwrap();
             assert!(!login.exists());
             fs::write(&login, "unrelated entry").unwrap();
