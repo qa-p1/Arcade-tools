@@ -107,6 +107,13 @@ fn overlay_executable() -> std::path::PathBuf {
 
 /// Call on the Tools main thread (required by global-hotkey on macOS/Windows).
 /// Tools must keep its native event loop running and call unregister on quit.
+#[cfg(not(target_os = "linux"))]
+type Pressed = Box<dyn Fn() + Send + Sync>;
+#[cfg(not(target_os = "linux"))]
+static PRESSED: std::sync::Mutex<Option<(u32, Pressed)>> = std::sync::Mutex::new(None);
+#[cfg(not(target_os = "linux"))]
+static HANDLER: std::sync::Once = std::sync::Once::new();
+
 pub fn register(accelerator: &str) -> Result<Registration, String> {
     let executable = overlay_executable();
     register_with_handler(accelerator, move || {
@@ -153,12 +160,20 @@ pub fn register_with_handler(
         manager
             .register(hotkey)
             .map_err(|error| error.to_string())?;
-        let id = hotkey.id();
-        GlobalHotKeyEvent::set_event_handler(Some(move |event: GlobalHotKeyEvent| {
-            if event.id == id && event.state == HotKeyState::Pressed {
-                pressed();
-            }
-        }));
+        // global-hotkey keeps its first handler for the process: install one
+        // that calls whatever is registered now.
+        *PRESSED.lock().unwrap_or_else(|e| e.into_inner()) = Some((hotkey.id(), Box::new(pressed)));
+        HANDLER.call_once(|| {
+            GlobalHotKeyEvent::set_event_handler(Some(|event: GlobalHotKeyEvent| {
+                if event.state == HotKeyState::Pressed {
+                    if let Some((id, pressed)) = PRESSED.lock().unwrap_or_else(|e| e.into_inner()).as_ref() {
+                        if *id == event.id {
+                            pressed();
+                        }
+                    }
+                }
+            }));
+        });
         Active(manager, hotkey)
     };
     ACTIVE.with(|active| *active.borrow_mut() = Some(registration));
@@ -187,7 +202,7 @@ pub fn unregister() -> Result<(), String> {
     #[cfg(not(target_os = "linux"))]
     ACTIVE.with(|active| match active.borrow_mut().take() {
         Some(Active(manager, key)) => {
-            GlobalHotKeyEvent::set_event_handler(None::<fn(GlobalHotKeyEvent)>);
+            *PRESSED.lock().unwrap_or_else(|e| e.into_inner()) = None;
             manager.unregister(key).map_err(|error| error.to_string())
         }
         None => Ok(()),
