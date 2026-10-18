@@ -166,7 +166,9 @@ pub fn register_with_handler(
         HANDLER.call_once(|| {
             GlobalHotKeyEvent::set_event_handler(Some(|event: GlobalHotKeyEvent| {
                 if event.state == HotKeyState::Pressed {
-                    if let Some((id, pressed)) = PRESSED.lock().unwrap_or_else(|e| e.into_inner()).as_ref() {
+                    if let Some((id, pressed)) =
+                        PRESSED.lock().unwrap_or_else(|e| e.into_inner()).as_ref()
+                    {
                         if *id == event.id {
                             pressed();
                         }
