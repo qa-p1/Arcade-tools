@@ -17,7 +17,6 @@
   import Onboarding from './tabs/Onboarding.svelte';
   import Settings from './tabs/Settings.svelte';
   import Updates from './tabs/Updates.svelte';
-  import Shortcuts from './tabs/Shortcuts.svelte';
   import { ui, type Theme } from './lib/state.svelte';
   import { setShortcutsEnabled, tabs, type ShellTab } from './lib/tabs.svelte';
 
@@ -25,9 +24,11 @@
   let linkInput: HTMLInputElement;
   let LearnView = $state<typeof import('./tabs/Learn.svelte').default | null>(null);
   let ConnectionsView = $state<typeof import('./tabs/Connections.svelte').default | null>(null);
+  let ShortcutsView = $state<typeof import('./tabs/Shortcuts.svelte').default | null>(null);
   $effect(() => {
     if (ui.tab === 'learn' && !LearnView) void import('./tabs/Learn.svelte').then((module) => LearnView = module.default);
     if (ui.tab === 'connections' && !ConnectionsView) void import('./tabs/Connections.svelte').then((module) => ConnectionsView = module.default);
+    if (ui.tab === 'shortcuts' && !ShortcutsView) void import('./tabs/Shortcuts.svelte').then((module) => ShortcutsView = module.default);
   });
   let installProposal = $state<{ title: string; copy: string; installed: boolean; primary: string; secondary: string; options: boolean } | null>(null);
   let installLogin = $state(true);
@@ -360,13 +361,15 @@
         shortcuts={ui.shortcutsIndex}
         {run}
       />
-      <Shortcuts
-        active={ui.tab === 'shortcuts'}
-        index={ui.shortcutsIndex}
-        labels={ui.shortcutLabels}
-        onLabel={persistShortcutLabel}
-        onChange={shortcutsChanged}
-      />
+      {#if ShortcutsView}
+        <ShortcutsView
+          active={ui.tab === 'shortcuts'}
+          index={ui.shortcutsIndex}
+          labels={ui.shortcutLabels}
+          onLabel={persistShortcutLabel}
+          onChange={shortcutsChanged}
+        />
+      {/if}
     </main>
     <footer class="shell-footer"><span>Arcade Tools · {__TOOLS_VERSION__}</span><span>Apps stay independent; Tools makes them easier to manage.</span></footer>
   </div>
