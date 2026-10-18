@@ -628,6 +628,8 @@ fn initialize_desktop(app: &AppHandle) -> Result<Arc<Manager>> {
         );
         if std::env::args().any(|arg| arg == "--uninstall") {
             tray.navigate("uninstall");
+        } else if std::env::args().any(|arg| arg == "--settings") {
+            tray.navigate("settings");
         }
         app.manage(tray);
         *state.presence.lock().unwrap_or_else(|e| e.into_inner()) = Some(presence);
@@ -1158,6 +1160,12 @@ pub fn run(background: bool, quit: bool) {
                 // The launcher's Uninstall action: review it in the window.
                 if let Ok(service) = tray::service(app) {
                     service.navigate("uninstall");
+                }
+                show(app, &desktop(app));
+            } else if args.iter().any(|a| a == "--settings") {
+                // The launcher's Open Settings action.
+                if let Ok(service) = tray::service(app) {
+                    service.navigate("settings");
                 }
                 show(app, &desktop(app));
             } else if !args.iter().any(|a| a == "--background") {
