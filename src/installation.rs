@@ -651,6 +651,7 @@ pub(crate) fn owned_paths(paths: &Paths, receipt: &Receipt) -> Result<Vec<PathBu
         .chain(integration.cli.iter())
         .chain(integration.autostart.iter())
         .chain(integration.uninstaller.iter())
+        .chain(integration.commands.iter())
     {
         let roots = [
             paths.data.join("applications"),
