@@ -13,6 +13,7 @@ const USAGE: &str = "Usage: arcade-tools [OPTION]
 Without options, opens the Arcade Tools window.
 
   --background            Start in the tray without opening the window
+  --settings              Open the Arcade Tools window at Settings
   --quit                  Quit the running Arcade Tools
   --restart               Restart the running Arcade Tools
   --show-shortcuts        Show the shortcuts overlay
@@ -30,6 +31,7 @@ Without options, opens the Arcade Tools window.
 ";
 
 fn main() {
+    arcade_link::childenv::on_startup();
     let args: Vec<String> = std::env::args().collect();
     if args.iter().skip(1).any(|a| a == "--help" || a == "-h") {
         print!("{USAGE}");

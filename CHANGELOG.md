@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.2 — 2026-10-18
+
+- Updating or installing from your Downloads folder, closing the window (Tools
+  restarts lean in the background) and starting other Arcade apps no longer
+  leave the old AppImage mounted and its runtime (about 20 MB) running. A
+  program the app started inherited an open handle on its AppImage mount and
+  kept it busy.
+- The launcher's "Open Settings" action opens Settings instead of Home
+  (`arcade-tools --settings`).
+
 ## 0.3.1 — 2026-10-18
 
 - Same app as 0.3.0, which could not be published: the release build's
