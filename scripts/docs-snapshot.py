@@ -33,10 +33,18 @@ def trusted_url(url):
         raise ValueError(f"Untrusted docs URL: {url}")
 
 
+# CI passes its token: anonymous API calls share a small hourly limit per runner.
+TOKEN = os.environ.get("GITHUB_TOKEN", "")
+
+
 class TrustedRedirect(HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         trusted_url(newurl)
-        return super().redirect_request(req, fp, code, msg, headers, newurl)
+        redirected = super().redirect_request(req, fp, code, msg, headers, newurl)
+        # The token is for the GitHub API only, never a host it redirects to.
+        if redirected is not None and urlsplit(newurl).hostname != "api.github.com":
+            redirected.remove_header("Authorization")
+        return redirected
 
 
 OPENER = build_opener(TrustedRedirect())
@@ -44,8 +52,10 @@ OPENER = build_opener(TrustedRedirect())
 
 def fetch(url, limit):
     trusted_url(url)
-    request = Request(url, headers={"User-Agent": "Arcade-Tools-docs-snapshot/0.2.0",
-                                    "Accept": "application/vnd.github+json"})
+    headers = {"User-Agent": "Arcade-Tools-docs-snapshot/0.2.0", "Accept": "application/vnd.github+json"}
+    if TOKEN and urlsplit(url).hostname == "api.github.com":
+        headers["Authorization"] = f"Bearer {TOKEN}"
+    request = Request(url, headers=headers)
     with OPENER.open(request, timeout=20) as response:
         content = response.read(limit + 1)
     if len(content) > limit:

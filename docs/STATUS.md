@@ -1,8 +1,8 @@
-# Arcade Tools 0.3.0 status
+# Arcade Tools 0.3.1 status
 
 ## Release status (2026-10-18)
 
-- Latest release: [v0.3.0](https://github.com/qa-p1/Arcade-tools/releases/tag/v0.3.0), published 2026-10-18 (fixes from the October audit and stress test; see CHANGELOG.md). The CI and e2e notes below were recorded for the earlier v0.2.0.
+- Latest release: [v0.3.1](https://github.com/qa-p1/Arcade-tools/releases/tag/v0.3.1), published 2026-10-18 (fixes from the October audit and stress test; see CHANGELOG.md; 0.3.0 was tagged but its release build could not finish). The CI and e2e notes below were recorded for the earlier v0.2.0.
 - Previously released: [v0.2.1](https://github.com/qa-p1/Arcade-tools/releases/tag/v0.2.1), published 2026-10-16.
 - Previously released: [v0.2.0](https://github.com/qa-p1/Arcade-tools/releases/tag/v0.2.0) with a Linux self-installing AppImage, a per-user Windows installer, a macOS dmg, `arcade-release.json` and `SHA256SUMS.txt`.
 - Merged to `main` from PR #2 (9d637db (backup fix cf8f0c5)) after CI passed on Linux, Windows and macOS: [run 38601196256](https://github.com/qa-p1/Arcade-tools/actions/runs/38601196256). That covers the build, tests, clippy or analyzers, installer smoke tests on each OS, and the Linux AppImage install, repair and uninstall check in a temporary profile.

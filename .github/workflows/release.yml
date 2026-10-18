@@ -101,6 +101,8 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - name: Refresh the stable documentation snapshot
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: python3 scripts/docs-snapshot.py --keep-bundled
       - name: Build the packaged native shortcut overlay
         run: python scripts/prepare-overlay.py --target ${{ matrix.target }}
