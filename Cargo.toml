@@ -1,6 +1,6 @@
 [package]
 name = "arcade-tools-core"
-version = "0.3.2"
+version = "0.3.3"
 edition = "2021"
 rust-version = "1.88"
 license = "MIT"
@@ -16,7 +16,7 @@ resolver = "2"
 # against a local checkout instead, add to .cargo/config.toml (not committed):
 #   [patch."https://github.com/qa-p1/Arcade-Link"]
 #   arcade-link = { path = "<path to>/Arcade-link/crates/arcade-link" }
-arcade-link = { git = "https://github.com/qa-p1/Arcade-Link", rev = "85bdb0e9769cc724c0edd83c6f214b70fba33f42", features = ["watch", "install", "engines", "trayhost"] }
+arcade-link = { git = "https://github.com/qa-p1/Arcade-Link", rev = "829cc90a0628fe5c4afc87796eb900aff3fd4e50", features = ["watch", "install", "engines", "trayhost"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 reqwest = { version = "0.13", default-features = false, features = ["blocking", "rustls"] }
