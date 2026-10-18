@@ -16,8 +16,9 @@
 - Updates: cancelling during the backup works, auto-update no longer undoes a
   rollback, a busy app is detected before the download, and old Tools images are
   unmounted.
-- Uninstalling Tools asks for confirmation and removes everything it installed;
-  `--help` lists the command-line options.
+- Uninstalling Tools asks for confirmation and removes everything it installed
+  (`--uninstall --silent` removes without asking, for scripts and terminals
+  without a desktop); `--help` lists the command-line options.
 - Interface: late answers no longer overwrite newer ones; clearer messages and
   confirmations; "Open all" opens apps in the background; readable update history,
   release notes and onboarding; the shortcut editor shows clashes while you type

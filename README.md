@@ -76,7 +76,7 @@ arcade-tools --show-shortcuts
 arcade-tools --install --silent --no-launch
 arcade-tools --integration-status
 arcade-tools --repair
-arcade-tools --uninstall
+arcade-tools --uninstall --silent
 arcade-tools --quit
 ```
 
@@ -88,7 +88,7 @@ Tools reads desktop and Hyprland configuration read-only and stores shortcut lab
 
 ## Uninstall
 
-- **Linux and macOS:** `arcade-tools --uninstall`.
+- **Linux and macOS:** `arcade-tools --uninstall` (asks first; add `--silent` in scripts).
 - **Windows:** **Settings → Apps → Installed apps**.
 - **Uninstall everything** in Tools' Settings removes the apps Tools manages and then Tools.
 

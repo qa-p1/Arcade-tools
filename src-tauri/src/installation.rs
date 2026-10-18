@@ -304,6 +304,15 @@ pub fn run(args: &[String]) -> Option<Result<()>> {
     // `--uninstall` alone (the launcher's Uninstall action) opens the review
     // in the window; scripts pass --silent to remove without asking.
     if command == "--uninstall" && !args.iter().any(|arg| arg == "--silent" || arg == "--yes") {
+        // Without a desktop session (e.g. over SSH) there is no window to
+        // review in: say how to remove Tools instead of failing to open one.
+        #[cfg(target_os = "linux")]
+        if std::env::var_os("DISPLAY").is_none() && std::env::var_os("WAYLAND_DISPLAY").is_none() {
+            return Some(Err(Error::new(
+                "usage",
+                "There is no desktop session to review the uninstall in. Run `arcade-tools --uninstall --silent` to remove Arcade Tools without asking.",
+            )));
+        }
         return None;
     }
     Some((|| {
