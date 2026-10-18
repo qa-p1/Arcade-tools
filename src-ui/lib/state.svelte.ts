@@ -29,6 +29,8 @@ export interface ConfirmationResult {
 
 export const ui = $state({
   apps: [] as AppView[],
+  /** False until the first app list arrives: empty states wait for it. */
+  loaded: false,
   toolsApp: null as AppView | null,
   notificationsEnabled: true,
   learnTarget: 'arcade.ecosystem',
@@ -55,6 +57,10 @@ export const ui = $state({
   releaseNotesHtml: {} as Record<string, string>,
   theme: 'system' as Theme,
   tab: 'apps' as ShellTab,
+  /** The user picked a page; startup must not move them elsewhere. */
+  tabChosen: false,
+  /** Set by the launcher's Uninstall action: Settings scrolls to the review. */
+  reviewUninstall: false,
   shortcutsIndex: null as ShortcutsIndex | null,
   shortcutLabels: {} as Record<string, string>,
   shortcutsRevision: 0,

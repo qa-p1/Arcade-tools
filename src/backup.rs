@@ -2,14 +2,13 @@
 use crate::archive;
 use crate::catalog::relative_path;
 use crate::manager::{me, LaunchMode, Manager, Operation, Preferences, Request};
-use crate::release::{checksum, Channel};
+use crate::release::Channel;
 use crate::{Error, Result};
 use arcade_link::client::Client;
 use arcade_link::content::Content;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
-use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
@@ -90,37 +89,26 @@ pub fn export(manager: &Manager, cancel: &AtomicBool) -> Result<BackupReport> {
                     "App returned an invalid settings file count.",
                 ));
             }
-            let handoff = manager.paths.link.handoff.canonicalize()?;
             outputs
                 .into_iter()
                 .enumerate()
                 .map(|(index, output)| {
                     cancelled(cancel)?;
-                    if output.kind != "file/any"
-                        || output.owner.as_deref().is_some_and(|owner| owner != app.id)
-                    {
-                        return Err(Error::new(
-                            "backup",
-                            "App returned an invalid settings handoff.",
-                        ));
-                    }
-                    let path = PathBuf::from(
-                        output
-                            .path
-                            .ok_or_else(|| Error::new("backup", "Missing handoff path."))?,
-                    );
+                    // Apps hand over their own formats: Lens a `file/code`
+                    // JSON file, Shelf a binary `file/any` archive.
+                    let path = crate::portable_backup::handoff_source(
+                        &manager.paths.link.handoff,
+                        &output,
+                        &app.id,
+                    )
+                    .ok_or_else(|| {
+                        Error::new("backup", "App returned an invalid settings handoff.")
+                    })?;
                     manager.paths.guard(&path)?;
-                    if !path.canonicalize()?.starts_with(&handoff)
-                        || fs::symlink_metadata(&path)?.file_type().is_symlink()
-                    {
-                        return Err(Error::new(
-                            "backup",
-                            "Settings export escaped the Link handoff directory.",
-                        ));
-                    }
                     let bytes = crate::catalog::read_bounded(&path, MAX_SETTINGS)?;
-                    validate_settings(&bytes)?;
-                    Ok((format!("settings/{}/{index}.json", app.id), bytes))
+                    let opaque = settings_format(&app.id, &bytes)?;
+                    let extension = if opaque { "bin" } else { "json" };
+                    Ok((format!("settings/{}/{index}.{extension}", app.id), bytes))
                 })
                 .collect()
         })();
@@ -160,10 +148,11 @@ pub fn export(manager: &Manager, cancel: &AtomicBool) -> Result<BackupReport> {
 }
 
 pub fn plan_restore(manager: &Manager, path: &Path) -> Result<RestorePlan> {
-    let (_, manifest) = read(manager, path)?;
+    let (raw, sha256) = archive::read_raw(&manager.paths, path)?;
+    let (_, manifest) = read(manager, raw)?;
     let installed = manager.list(false)?;
     Ok(RestorePlan {
-        sha256: checksum(path)?,
+        sha256,
         apps: manifest
             .apps
             .into_iter()
@@ -186,13 +175,17 @@ pub fn restore(
     expected_sha256: &str,
     cancel: &AtomicBool,
 ) -> Result<Vec<RestoreResult>> {
-    if checksum(path)? != expected_sha256 {
+    let (raw, sha256) = archive::read_raw(&manager.paths, path)?;
+    if sha256 != expected_sha256 {
         return Err(Error::new(
             "state_changed",
             "Backup changed after review; review it again.",
         ));
     }
-    let (files, manifest) = read(manager, path)?;
+    let (files, manifest) = read(manager, raw)?;
+    // Cancelling stops the restore only before anything is written. After
+    // that, the remaining apps are reported as not restored instead of
+    // claiming the whole restore was cancelled.
     cancelled(cancel)?;
     manager.restore_preferences(&manifest.tools)?;
     if let Some(tray) = &manifest.tray {
@@ -209,8 +202,25 @@ pub fn restore(
     )?;
     let mut results = Vec::new();
     for app in manifest.apps {
-        cancelled(cancel)?;
+        if cancel.load(Ordering::SeqCst) {
+            results.push(RestoreResult {
+                app: app.id,
+                imported: false,
+                restart_required: false,
+                message: "Not restored: the restore was cancelled.".into(),
+            });
+            continue;
+        }
         let result = (|| -> Result<arcade_link::app::ImportResult> {
+            // A settings restore never installs an app it has no settings for.
+            if app.settings.is_empty() {
+                return Err(Error::new(
+                    "not_included",
+                    app.not_included
+                        .clone()
+                        .unwrap_or_else(|| "No settings were included.".into()),
+                ));
+            }
             if !manager
                 .list(false)?
                 .iter()
@@ -224,18 +234,12 @@ pub fn restore(
                         mode: Some(LaunchMode::Background),
                         remove_data: false,
                         app_closed: false,
+                        channel: None,
+                        version: None,
                     },
                     cancel,
                     &mut |_| {},
                 )?;
-            }
-            if app.settings.is_empty() {
-                return Err(Error::new(
-                    "not_included",
-                    app.not_included
-                        .clone()
-                        .unwrap_or_else(|| "No settings were included.".into()),
-                ));
             }
             let mut client = connect(manager, &app.id, cancel)?;
             if !client.describe_full()?.supports("app.settings.import") {
@@ -251,8 +255,9 @@ pub fn restore(
                 .prefix("restore-")
                 .tempdir_in(&directory)?;
             let mut inputs = Vec::new();
-            for (index, name) in app.settings.iter().enumerate() {
-                let path = staged.path().join(format!("{index}.json"));
+            for name in &app.settings {
+                let file_name = Path::new(name).file_name().unwrap_or_default();
+                let path = staged.path().join(file_name);
                 arcade_link::paths::write_atomic(&path, &files[name], true)?;
                 let mut content = Content::file(&path).with_owner("arcade.tools");
                 content.kind = "file/any".into();
@@ -272,20 +277,23 @@ pub fn restore(
                 }
                 .into(),
             }),
-            Err(error) if error.code == "cancelled" => return Err(error),
             Err(error) => results.push(RestoreResult {
                 app: app.id,
                 imported: false,
                 restart_required: false,
-                message: error.message,
+                message: if error.code == "cancelled" {
+                    "Not restored: the restore was cancelled.".into()
+                } else {
+                    error.message
+                },
             }),
         }
     }
     Ok(results)
 }
 
-fn read(manager: &Manager, path: &Path) -> Result<(BTreeMap<String, Vec<u8>>, Manifest)> {
-    let files = archive::read(&manager.paths, path)?;
+fn read(manager: &Manager, raw: Vec<u8>) -> Result<(BTreeMap<String, Vec<u8>>, Manifest)> {
+    let files = archive::parse(raw)?;
     let bytes = files
         .get("backup.json")
         .ok_or_else(|| Error::new("backup", "This is not an Arcade settings backup."))?;
@@ -325,11 +333,13 @@ fn read(manager: &Manager, path: &Path) -> Result<(BTreeMap<String, Vec<u8>>, Ma
             if !name.starts_with(&format!("settings/{}/", app.id)) || !names.insert(name.clone()) {
                 return Err(Error::new("backup", "Invalid settings file ownership."));
             }
-            validate_settings(
-                files
-                    .get(name)
-                    .ok_or_else(|| Error::new("backup", "Settings file is missing."))?,
-            )?;
+            let bytes = files
+                .get(name)
+                .ok_or_else(|| Error::new("backup", "Settings file is missing."))?;
+            let opaque = settings_format(&app.id, bytes)?;
+            if name.ends_with(".json") == opaque {
+                return Err(Error::new("backup", "Settings file has the wrong format."));
+            }
         }
     }
     if files.keys().any(|name| !names.contains(name)) {
@@ -371,44 +381,53 @@ fn connect(manager: &Manager, id: &str, cancel: &AtomicBool) -> Result<Client> {
     }
 }
 
-fn validate_settings(bytes: &[u8]) -> Result<()> {
+/// Whether an app's settings are opaque (true) or JSON (false). JSON is
+/// scanned for identity, secrets, history, index and cache data; an app's own
+/// binary format (Shelf's) is bounded and kept as is.
+fn settings_format(id: &str, bytes: &[u8]) -> Result<bool> {
     if bytes.len() as u64 > MAX_SETTINGS {
         return Err(Error::new("too_large", "Settings handoff exceeds 8 MiB."));
     }
-    let value: Value = serde_json::from_slice(bytes)?;
-    fn forbidden(value: &Value) -> bool {
-        match value {
-            Value::Object(object) => object.iter().any(|(key, value)| {
-                let key = key.to_ascii_lowercase().replace(['_', '-'], "");
-                let protected = [
-                    "token",
-                    "password",
-                    "secret",
-                    "credential",
-                    "privatekey",
-                    "deviceidentity",
-                    "devicekeys",
-                    "pairingkey",
-                ];
-                protected.iter().any(|word| key.contains(word))
-                    || matches!(
-                        key.as_str(),
-                        "history" | "index" | "cache" | "caches" | "identity" | "keys" | "devices"
-                    )
-                    || forbidden(value)
-            }),
-            Value::Array(values) => values.iter().any(forbidden),
-            Value::String(value) => crate::diagnostics_archive::has_secret_markers(value),
-            _ => false,
-        }
-    }
-    if forbidden(&value) {
-        return Err(Error::new(
+    let excluded = || {
+        Error::new(
             "privacy",
             "Settings contain excluded identity, secrets, history, index or cache fields.",
-        ));
+        )
+    };
+    let opaque = crate::portable_backup::export_is_opaque(bytes, id).ok_or_else(excluded)?;
+    if !opaque && forbidden(&serde_json::from_slice(bytes)?) {
+        return Err(excluded());
     }
-    Ok(())
+    Ok(opaque)
+}
+fn forbidden(value: &Value) -> bool {
+    match value {
+        Value::Object(object) => object.iter().any(|(key, value)| {
+            let key = key.to_ascii_lowercase().replace(['_', '-'], "");
+            let protected = [
+                "token",
+                "password",
+                "secret",
+                "credential",
+                "privatekey",
+                "deviceidentity",
+                "devicekeys",
+                "pairingkey",
+            ];
+            // A flag or number under a secret-sounding name is a preference
+            // (Lens's `privacy.guardSecrets`), not secret material.
+            let material = matches!(value, Value::String(_) | Value::Array(_) | Value::Object(_));
+            (material && protected.iter().any(|word| key.contains(word)))
+                || matches!(
+                    key.as_str(),
+                    "history" | "index" | "cache" | "caches" | "identity" | "keys" | "devices"
+                )
+                || forbidden(value)
+        }),
+        Value::Array(values) => values.iter().any(forbidden),
+        Value::String(value) => crate::diagnostics_archive::has_secret_markers(value),
+        _ => false,
+    }
 }
 fn cancelled(cancel: &AtomicBool) -> Result<()> {
     if cancel.load(Ordering::SeqCst) {

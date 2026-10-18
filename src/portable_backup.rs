@@ -317,6 +317,8 @@ pub fn apply_restore(
             mode: None,
             remove_data: false,
             app_closed: false,
+            channel: None,
+            version: None,
         };
         match manager.operate(&request, cancel, progress) {
             Ok(_) => {
@@ -652,7 +654,7 @@ fn valid_label_key(key: &str) -> bool {
 /// `app_id` is the app Tools asked for the export. Some apps (Wheel) omit
 /// `owner`; the export is then attributed to the app that answered the call.
 /// An owner naming a different app is always rejected.
-fn handoff_source(root: &Path, content: &Content, app_id: &str) -> Option<PathBuf> {
+pub(crate) fn handoff_source(root: &Path, content: &Content, app_id: &str) -> Option<PathBuf> {
     if content
         .owner
         .as_deref()
@@ -806,7 +808,7 @@ fn contains_excluded_data(value: &Value, app_id: &str) -> bool {
 /// binary export) and `None` for JSON holding excluded data. Tools cannot
 /// interpret opaque formats, so their privacy boundary is the app's own export
 /// contract; Tools only bounds, hashes and returns the bytes unchanged.
-fn export_is_opaque(bytes: &[u8], app_id: &str) -> Option<bool> {
+pub(crate) fn export_is_opaque(bytes: &[u8], app_id: &str) -> Option<bool> {
     match serde_json::from_slice::<Value>(bytes) {
         Ok(value) if contains_excluded_data(&value, app_id) => None,
         Ok(_) => Some(false),
@@ -818,7 +820,7 @@ fn holds_material(value: &Value) -> bool {
     matches!(value, Value::String(_) | Value::Array(_) | Value::Object(_))
 }
 
-fn valid_filename(name: &str) -> bool {
+pub(crate) fn valid_filename(name: &str) -> bool {
     !name.is_empty()
         && name.len() <= 128
         && name != "."

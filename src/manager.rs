@@ -18,7 +18,7 @@ use arcade_link::registry::Registry;
 use arcade_link::wire::PeerInfo;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -221,6 +221,12 @@ pub struct Request {
     pub remove_data: bool,
     #[serde(default)]
     pub app_closed: bool,
+    /// The channel and release version the user reviewed. When set, an
+    /// install or update refuses to run on anything else.
+    #[serde(default)]
+    pub channel: Option<Channel>,
+    #[serde(default)]
+    pub version: Option<String>,
 }
 #[derive(Clone, Copy)]
 struct Prior<'a> {
@@ -233,6 +239,24 @@ pub struct Manager {
     source: Source,
     mutation: Mutex<()>,
     scheduler: Mutex<Option<updates::Scheduler>>,
+    hashes: Mutex<HashMap<PathBuf, (Fingerprint, String)>>,
+}
+/// What changes whenever a file's bytes do: a write updates mtime and ctime
+/// (ctime can't be set back by the writer), a replacement changes the inode.
+#[derive(Clone, PartialEq, Eq)]
+struct Fingerprint(u64, Option<std::time::SystemTime>, u64, i64, i64);
+impl Fingerprint {
+    fn of(path: &Path) -> std::io::Result<Self> {
+        let meta = fs::metadata(path)?;
+        #[cfg(unix)]
+        let (ino, ctime, ctime_ns) = {
+            use std::os::unix::fs::MetadataExt;
+            (meta.ino(), meta.ctime(), meta.ctime_nsec())
+        };
+        #[cfg(not(unix))]
+        let (ino, ctime, ctime_ns) = (0, 0, 0);
+        Ok(Self(meta.len(), meta.modified().ok(), ino, ctime, ctime_ns))
+    }
 }
 impl Manager {
     /// Construct without I/O; safe on any thread. All manager I/O methods below
@@ -243,7 +267,30 @@ impl Manager {
             source,
             mutation: Mutex::new(()),
             scheduler: Mutex::new(None),
+            hashes: Mutex::new(HashMap::new()),
         }
+    }
+    fn cached_checksum(&self, path: &Path) -> Result<String> {
+        let before = Fingerprint::of(path)?;
+        if let Some((seen, hash)) = self
+            .hashes
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(path)
+        {
+            if *seen == before {
+                return Ok(hash.clone());
+            }
+        }
+        let hash = checksum(path)?;
+        // Only cache when nothing changed while hashing.
+        if Fingerprint::of(path).is_ok_and(|after| after == before) {
+            self.hashes
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .insert(path.to_path_buf(), (before, hash.clone()));
+        }
+        Ok(hash)
     }
     fn lock(&self) -> Result<std::sync::MutexGuard<'_, ()>> {
         self.mutation
@@ -343,7 +390,17 @@ impl Manager {
     ) -> Result<updates::AutoUpdateOutcome> {
         app_id(id)?;
         let _lock = self.lock()?;
-        let decision = self.auto_eligibility(id, last_used, clock.now())?;
+        let mut decision = self.auto_eligibility(id, last_used, clock.now())?;
+        if decision.eligible {
+            if let Some(skipped) = self.skipped_after_rollback(id)? {
+                decision = updates::AutoUpdateDecision {
+                    eligible: false,
+                    reason: format!(
+                        "You rolled back from {skipped}; auto-update waits for a newer release."
+                    ),
+                };
+            }
+        }
         if !decision.eligible {
             return Ok(updates::AutoUpdateOutcome {
                 decision,
@@ -356,6 +413,8 @@ impl Manager {
             mode: None,
             remove_data: false,
             app_closed: false,
+            channel: None,
+            version: None,
         };
         match self.operate_locked(&request, cancel, progress, clock.now()) {
             Ok(message) => Ok(updates::AutoUpdateOutcome {
@@ -383,6 +442,46 @@ impl Manager {
             }
             Err(error) => Err(error),
         }
+    }
+    /// A rollback marks the version it left so auto-update doesn't reinstall
+    /// it; a later update (by hand, or to a newer release) clears the mark.
+    fn remember_rollback(&self, id: &str, operation: Operation, from: Option<&str>) {
+        let Ok(mut prefs) = self.preferences() else {
+            return;
+        };
+        let changed = match (operation, from) {
+            (Operation::Rollback, Some(from)) => {
+                prefs.updates.rolled_back.insert(id.into(), from.into()) != Some(from.into())
+            }
+            (Operation::Rollback, None) => false,
+            _ => prefs.updates.rolled_back.remove(id).is_some(),
+        };
+        if changed {
+            if let Err(error) = self.save_preferences(&prefs) {
+                eprintln!("Rollback preference: {error}");
+            }
+        }
+    }
+    /// The rolled-back version, when the available update is not newer than it.
+    fn skipped_after_rollback(&self, id: &str) -> Result<Option<String>> {
+        let Some(skipped) = self.preferences()?.updates.rolled_back.get(id).cloned() else {
+            return Ok(None);
+        };
+        let state = self.update_state()?;
+        let latest = state.apps.get(id).and_then(|app| {
+            app.latest
+                .get(app.channel.as_str())
+                .and_then(|channel| channel.latest_version.clone())
+        });
+        let newer = match (
+            latest.as_deref().map(semver::Version::parse),
+            semver::Version::parse(&skipped),
+        ) {
+            (Some(Ok(latest)), Ok(skipped)) => latest > skipped,
+            (Some(_), _) => latest.as_deref() != Some(skipped.as_str()),
+            (None, _) => false,
+        };
+        Ok((!newer).then_some(skipped))
     }
     fn auto_eligibility(
         &self,
@@ -562,6 +661,8 @@ impl Manager {
                 mode: Some(plan.mode),
                 remove_data: false,
                 app_closed: true,
+                channel: None,
+                version: None,
             },
             cancel,
             progress,
@@ -751,6 +852,8 @@ impl Manager {
             mode: Some(plan.mode),
             remove_data: false,
             app_closed: true,
+            channel: None,
+            version: None,
         };
         let mut replaced = false;
         let result = self.install_package(
@@ -762,6 +865,7 @@ impl Manager {
                 peer: None,
             },
             Some(plan.mode),
+            cancel,
             progress,
             &mut replaced,
         );
@@ -871,8 +975,13 @@ impl Manager {
             if let Some(mut record) = supplemental {
                 // Keep release hashes/rollback metadata when the app rewrites
                 // only its build suffix, but never trust changed executable bytes.
+                // Build metadata (Wheel's "0.3.1+build.56" release vs its "0.3.1"
+                // receipt) reaches the hash on every list/Home refresh, so the
+                // hash is cached until the file's size, times or inode change.
                 let same_bytes = record.version == receipt.version
-                    || checksum(&executable).is_ok_and(|hash| hash == record.executable_sha256);
+                    || self
+                        .cached_checksum(&executable)
+                        .is_ok_and(|hash| hash == record.executable_sha256);
                 if !crate::release::versions_match(
                     &record.version,
                     &receipt.version,
@@ -895,7 +1004,66 @@ impl Manager {
             }
             return Ok(Some(self.record_from_receipt(&receipt)?));
         }
+        // An app that installed itself and then uninstalled itself (its own
+        // menu entry or --uninstall) removed its receipt and executable: it is
+        // not installed, not "needs repair".
+        if supplemental
+            .as_ref()
+            .is_some_and(|record| self.uninstalled_by_app(record))
+        {
+            return Ok(None);
+        }
         Ok(supplemental)
+    }
+    fn uninstalled_by_app(&self, record: &Record) -> bool {
+        record.installed_by_app && !self.executable(record).exists()
+    }
+    /// Partial downloads, staged installer copies and transaction snapshots
+    /// left by a Tools that was killed mid-operation. Startup worker only.
+    pub fn cleanup_interrupted(&self) -> Result<u64> {
+        let _lock = self.lock()?;
+        let mut freed = 0;
+        let downloads = self.paths.downloads();
+        if let Ok(entries) = fs::read_dir(&downloads) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                self.paths.guard(&path)?;
+                freed += entry.metadata().map_or(0, |m| m.len());
+                platform::remove(&path)?;
+            }
+        }
+        let ids: Vec<&str> = crate::apps::APPS
+            .iter()
+            .copied()
+            .chain([ids::TOOLS])
+            .collect();
+        freed += installation::remove_orphan_snapshots(&self.paths, &ids)?;
+        Ok(freed)
+    }
+    /// Tools records left behind when an app uninstalled itself. Run on the
+    /// startup worker, like `cleanup_stale_bundles`.
+    pub fn cleanup_orphan_records(&self) -> Result<Vec<String>> {
+        let _lock = self.lock()?;
+        let mut removed = Vec::new();
+        for id in crate::apps::APPS.iter().copied() {
+            let file = self.paths.state().join(format!("{id}.json"));
+            let Ok(bytes) = fs::read(&file) else { continue };
+            let Ok(record) = serde_json::from_slice::<Record>(&bytes) else {
+                continue;
+            };
+            if record.id != id || self.receipt(id)?.is_some() || !self.uninstalled_by_app(&record) {
+                continue;
+            }
+            if let Some(previous) = PreviousInstallation::read(&self.paths, id)? {
+                previous.remove(&self.paths)?;
+            }
+            for file in [file, self.paths.state().join(format!("{id}.previous.json"))] {
+                self.paths.guard(&file)?;
+                platform::remove(&file)?;
+            }
+            removed.push(id.into());
+        }
+        Ok(removed)
     }
     /// Read a validated Link receipt on a worker; no migration or writes.
     pub fn receipt(&self, id: &str) -> Result<Option<Receipt>> {
@@ -978,6 +1146,13 @@ impl Manager {
     pub fn refresh_catalog(&self) -> Result<Catalog> {
         Ok(CatalogClient::new(self.paths.clone(), self.source.clone())?.refresh_catalog())
     }
+    /// [`Self::refresh_catalog`], with why it fell back to the saved copy.
+    pub fn refresh_catalog_reporting(&self) -> Result<(Catalog, Option<Error>)> {
+        Ok(
+            CatalogClient::new(self.paths.clone(), self.source.clone())?
+                .refresh_catalog_reporting(),
+        )
+    }
     /// Read cached engine metadata or explicitly refresh it on a worker thread.
     pub fn engines(&self, refresh: bool) -> Result<EngineCatalog> {
         CatalogClient::new(self.paths.clone(), self.source.clone())?.engines(refresh)
@@ -987,7 +1162,7 @@ impl Manager {
     pub fn update_state(&self) -> Result<UpdateState> {
         let catalog = self.catalog()?;
         let (installed, peers) = self.update_inputs()?;
-        let mut guard = self.scheduler.lock().unwrap();
+        let mut guard = self.scheduler.lock().unwrap_or_else(|e| e.into_inner());
         if guard.is_none() {
             *guard = Some(updates::Scheduler::new(
                 self.paths.clone(),
@@ -1018,7 +1193,7 @@ impl Manager {
         let catalog = self.catalog()?;
         let (installed, peers) = self.update_inputs()?;
         let settings = self.preferences()?.updates;
-        let mut guard = self.scheduler.lock().unwrap();
+        let mut guard = self.scheduler.lock().unwrap_or_else(|e| e.into_inner());
         if guard.is_none() {
             *guard = Some(updates::Scheduler::new(
                 self.paths.clone(),
@@ -1105,7 +1280,9 @@ impl Manager {
         Ok(match receipt.map(|r| r.managed_by) {
             Some(ManagedBy::Tools) => InstallationClass::Managed,
             Some(ManagedBy::SelfManaged) => InstallationClass::SelfInstalled,
-            None if self.paths.state().join(format!("{id}.json")).is_file() => {
+            None if self.paths.state().join(format!("{id}.json")).is_file()
+                && self.record(id)?.is_some() =>
+            {
                 InstallationClass::LegacyManaged
             }
             None => InstallationClass::Manual,
@@ -1188,7 +1365,7 @@ impl Manager {
             let running = probe && Client::connect(&self.paths.link, id, &me()).is_ok();
             let healthy = executable.as_ref().is_some_and(|p| p.is_file());
             let reason = if class == InstallationClass::Dev { Some("Development build; launch is available, installation changes are disabled.".into()) }
-                else if id != ids::TOOLS && matches!(class, InstallationClass::Manual | InstallationClass::SelfInstalled) && (peer.is_some() || receipt.is_some()) { Some("Installed outside Arcade Tools. Choose Let Arcade Tools manage this to enable updates.".into()) }
+                else if id != ids::TOOLS && matches!(class, InstallationClass::Manual | InstallationClass::SelfInstalled) && (peer.is_some() || receipt.is_some()) { Some("Installed outside Arcade Tools. Choose “Let Tools manage it” to enable updates.".into()) }
                 else if peer.is_some_and(|m| !m.settings.link_enabled) { Some("Arcade Link is disabled in this app. Close it before changing its installation.".into()) }
                 else if record.is_some() && !healthy { Some("Installed executable is missing. Choose Repair.".into()) }
                 else { record.as_ref().and_then(first_update_rollback_notice).map(str::to_owned) };
@@ -1503,7 +1680,32 @@ impl Manager {
                 continue;
             }
             if app.requires_self_shutdown {
-                outcome.self_uninstall = Some(self.self_uninstall_plan(plan.remove_data)?);
+                // Never leave apps behind without their manager: keep Tools if
+                // any app it was asked to remove is still installed.
+                let failed: Vec<&str> = outcome
+                    .results
+                    .iter()
+                    .filter(|r| {
+                        !r.removed && plan.apps.iter().any(|a| a.id == r.app && a.can_uninstall)
+                    })
+                    .map(|r| r.app.as_str())
+                    .collect();
+                if failed.is_empty() {
+                    outcome.self_uninstall = Some(self.self_uninstall_plan(plan.remove_data)?);
+                } else {
+                    outcome.results.push(crate::removal::RemovalResult {
+                        app: app.id.clone(),
+                        removed: false,
+                        reason: format!(
+                            "Arcade Tools was kept because {} could not be removed.",
+                            failed
+                                .iter()
+                                .map(|id| crate::apps::app_name(id))
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                        ),
+                    });
+                }
                 continue;
             }
             let request = Request {
@@ -1512,6 +1714,8 @@ impl Manager {
                 mode: None,
                 remove_data: plan.remove_data,
                 app_closed: false,
+                channel: None,
+                version: None,
             };
             let result = self.operate_locked(&request, cancel, progress, SystemClock.now());
             outcome.results.push(crate::removal::RemovalResult {
@@ -1614,9 +1818,45 @@ impl Manager {
             self.paths.guard(&cache)?;
             platform::remove(&cache)?;
         }
+        if let Err(error) = self.release_managed_apps() {
+            eprintln!("Releasing apps from Tools: {error}");
+        }
         Ok(result)
     }
 
+    /// Apps that stay installed when Tools is removed go back to managing
+    /// themselves (their own update checks and installers), and Tools'
+    /// rollback snapshots for them, which nothing else can use, are removed.
+    pub fn release_managed_apps(&self) -> Result<Vec<String>> {
+        let store = Store::new(&self.paths.link);
+        let mut released = Vec::new();
+        for id in crate::apps::APPS.into_iter().filter(|id| *id != ids::TOOLS) {
+            if let Some(previous) = PreviousInstallation::read(&self.paths, id)? {
+                previous.remove(&self.paths)?;
+            }
+            platform::remove(&self.paths.state().join(format!("{id}.previous.json")))?;
+        }
+        installation::remove_orphan_snapshots(&self.paths, &[])?;
+        for id in crate::apps::APPS.into_iter().filter(|id| *id != ids::TOOLS) {
+            let Some(mut receipt) = store.read(id)? else {
+                continue;
+            };
+            if receipt.managed_by != ManagedBy::Tools {
+                continue;
+            }
+            receipt.managed_by = ManagedBy::SelfManaged;
+            if receipt
+                .previous
+                .as_ref()
+                .is_some_and(|previous| !previous.path.exists())
+            {
+                receipt.previous = None;
+            }
+            store.write(&receipt)?;
+            released.push(id.to_string());
+        }
+        Ok(released)
+    }
     /// Read Home diagnostics on a worker; no IPC/network or automatic cleanup.
     pub fn health(&self) -> Result<Vec<crate::health::HealthIssue>> {
         crate::health::inspect(&self.paths, &self.catalog()?)
@@ -1656,6 +1896,8 @@ impl Manager {
                     mode: None,
                     remove_data: false,
                     app_closed: false,
+                    channel: None,
+                    version: None,
                 };
                 self.operate_locked(&request, cancel, progress, SystemClock.now())
             }
@@ -1757,6 +1999,8 @@ impl Manager {
             mode,
             remove_data: false,
             app_closed: false,
+            channel: None,
+            version: None,
         };
         let resume = self.stop_peer(id, registry.get(id), &request, true)?;
         self.launch_inner(id, resume.or(mode).unwrap_or(LaunchMode::Foreground))
@@ -1799,6 +2043,9 @@ impl Manager {
             if result.is_ok() && request.operation == Operation::Rollback {
                 history.result = HistoryResult::RolledBack;
                 history.reason = Some("User requested rollback.".into());
+            }
+            if result.is_ok() && request.operation != Operation::Repair {
+                self.remember_rollback(&request.id, request.operation, history.from.as_deref());
             }
             if let Err(error) = &result {
                 history.result = if replaced {
@@ -1851,7 +2098,20 @@ impl Manager {
             ));
         }
         if request.operation == Operation::Adopt {
-            return self.adopt_inner(request, peer, receipt, cancel, progress);
+            return self.adopt_inner(request, peer, receipt, false, cancel, progress);
+        }
+        // Updating an app Tools doesn't manage yet adopts it with the latest
+        // release in one step, instead of asking for a separate adoption.
+        if request.operation == Operation::Update
+            && old.is_none()
+            && Os::current() == Os::Linux
+            && id != ids::TOOLS
+            && matches!(
+                class,
+                InstallationClass::SelfInstalled | InstallationClass::Manual
+            )
+        {
+            return self.adopt_inner(request, peer, receipt, true, cancel, progress);
         }
         if request.operation == Operation::Rollback {
             return self.rollback_inner(
@@ -1870,7 +2130,7 @@ impl Manager {
         if request.operation != Operation::Install && old.is_none() {
             return Err(Error::new(
                 "unmanaged",
-                "Let Arcade Tools manage this installation first.",
+                "Choose “Let Tools manage it” for this app first.",
             ));
         }
         if matches!(request.operation, Operation::Update | Operation::Repair)
@@ -1881,7 +2141,7 @@ impl Manager {
         {
             return Err(Error::new(
                 "unmanaged",
-                "Let Arcade Tools manage this installation first.",
+                "Choose “Let Tools manage it” for this app first.",
             ));
         }
         if request.operation == Operation::Install && (old.is_some() || peer.is_some()) {
@@ -1901,6 +2161,28 @@ impl Manager {
         check_cancel(cancel)?;
         let checked = self.checked(id)?;
         history.to = Some(checked.release.version.clone());
+        if request
+            .channel
+            .is_some_and(|channel| channel != checked.release.channel)
+        {
+            return Err(Error::new(
+                "state_changed",
+                "The app's release channel changed after you reviewed this; review it again.",
+            ));
+        }
+        if request
+            .version
+            .as_ref()
+            .is_some_and(|version| *version != checked.release.version)
+        {
+            return Err(Error::new(
+                "state_changed",
+                format!(
+                    "{} is now the latest release; review it again.",
+                    checked.release.version
+                ),
+            ));
+        }
         let migration = old
             .as_ref()
             .is_some_and(|r| r.kind == Kind::Tarball && checked.asset.kind == Kind::Appimage);
@@ -1921,23 +2203,9 @@ impl Manager {
                 "The install location already contains a file. Adopt it before installing.",
             ));
         }
-        progress(Progress::new(id, "Downloading", Some(0.0), true));
-        self.paths.guard(&self.paths.downloads())?;
-        let downloaded = self.source.download(
-            &checked,
-            &self.paths.downloads(),
-            cancel,
-            &mut |count, total| {
-                progress(Progress::new(
-                    id,
-                    "Downloading",
-                    total.filter(|n| *n > 0).map(|n| count as f64 / n as f64),
-                    true,
-                ))
-            },
-        )?;
-        let package = installation::retain(&self.paths, &checked, downloaded.path())?;
-        progress(Progress::new(id, "Verified SHA-256", Some(1.0), true));
+        // Refuse a busy or unreachable app before the download, not after it.
+        self.precheck_peer(id, peer, request)?;
+        let package = self.download_package(id, &checked, cancel, progress)?;
         check_cancel(cancel)?;
         self.apply_package(
             request,
@@ -1951,6 +2219,44 @@ impl Manager {
             progress,
             replaced,
         )
+    }
+
+    /// Download and verify a release, keeping the package for rollback.
+    fn download_package(
+        &self,
+        id: &str,
+        checked: &CheckedRelease,
+        cancel: &AtomicBool,
+        progress: &mut dyn FnMut(Progress),
+    ) -> Result<Package> {
+        progress(Progress::new(id, "Downloading", Some(0.0), true));
+        self.paths.guard(&self.paths.downloads())?;
+        let downloaded = self.source.download(
+            checked,
+            &self.paths.downloads(),
+            cancel,
+            &mut |count, total| {
+                progress(Progress::new(
+                    id,
+                    "Downloading",
+                    total.filter(|n| *n > 0).map(|n| count as f64 / n as f64),
+                    true,
+                ))
+            },
+        )?;
+        let package = installation::retain(&self.paths, checked, downloaded.path())?;
+        progress(Progress::new(id, "Verified SHA-256", Some(1.0), true));
+        Ok(package)
+    }
+    /// Whether the running app's copy can install itself (`--install`): it
+    /// has an install receipt, or its Link manifest says how it installs.
+    /// Copies from before the Arcade installer have neither.
+    fn installs_itself(&self, id: &str, receipt: Option<&Receipt>) -> bool {
+        receipt.is_some()
+            || fs::read(self.paths.link.registry.join(format!("{id}.json")))
+                .ok()
+                .and_then(|bytes| serde_json::from_slice::<Value>(&bytes).ok())
+                .is_some_and(|document| document.get("install").is_some_and(|v| !v.is_null()))
     }
 
     fn apply_package(
@@ -1971,7 +2277,8 @@ impl Manager {
             }
             return Err(error);
         }
-        let result = self.install_package(request, package, prior, resume, progress, replaced);
+        let result =
+            self.install_package(request, package, prior, resume, cancel, progress, replaced);
         if result.is_err() {
             if let Some(mode) = resume {
                 let _ = self.launch_inner(&request.id, mode);
@@ -1980,12 +2287,14 @@ impl Manager {
         result
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn install_package(
         &self,
         request: &Request,
         package: &Package,
         prior: Prior<'_>,
         resume: Option<LaunchMode>,
+        cancel: &AtomicBool,
         progress: &mut dyn FnMut(Progress),
         replaced: &mut bool,
     ) -> Result<String> {
@@ -2025,6 +2334,12 @@ impl Manager {
         let previous_pointer = previous
             .as_ref()
             .and_then(|previous| previous.pointer(&self.paths));
+        // Snapshotting a large app takes a while and is still cancellable:
+        // nothing has been changed yet.
+        if let Err(error) = check_cancel(cancel) {
+            transaction.discard();
+            return Err(error);
+        }
         let login = platform::autostart_enabled(&self.paths, id);
         progress(Progress::new(id, "Installing", None, false));
         *replaced = true;
@@ -2168,11 +2483,14 @@ impl Manager {
         Ok(())
     }
 
+    /// `upgrade` (an update of an unmanaged app) installs the latest release
+    /// while adopting; so does adopting a copy that can't install itself.
     fn adopt_inner(
         &self,
         request: &Request,
         peer: Option<&Manifest>,
         old_receipt: Option<Receipt>,
+        upgrade: bool,
         cancel: &AtomicBool,
         progress: &mut dyn FnMut(Progress),
     ) -> Result<String> {
@@ -2210,6 +2528,24 @@ impl Manager {
                 "Development builds are never adopted.",
             ));
         }
+        // A copy from before the Arcade installer ignores --install: adopt it
+        // by installing the current release over it instead. Downloaded before
+        // the app is closed, so a failed download leaves it running.
+        let migration = if Os::current() == Os::Linux
+            && (upgrade || !self.installs_itself(&request.id, old_receipt.as_ref()))
+        {
+            let checked = self.checked(&request.id)?;
+            if installation::install_args(&checked.asset, checked.release.channel)?.is_none() {
+                return Err(Error::new(
+                    "installer",
+                    "This app's latest release can't install itself; install it from its release page.",
+                ));
+            }
+            self.precheck_peer(&request.id, Some(peer), request)?;
+            Some(self.download_package(&request.id, &checked, cancel, progress)?)
+        } else {
+            None
+        };
         let resume = self.stop_peer(&request.id, Some(peer), request, true)?;
         let destination = self.paths.executable(&request.id, Os::current(), false);
         let target = if Os::current() == Os::Macos {
@@ -2218,7 +2554,17 @@ impl Manager {
             destination.clone()
         };
         let transaction =
-            Transaction::begin(&self.paths, &request.id, &target, old_receipt.as_ref())?;
+            match Transaction::begin(&self.paths, &request.id, &target, old_receipt.as_ref())
+                .and_then(|transaction| check_cancel(cancel).map(|()| transaction))
+            {
+                Ok(transaction) => transaction,
+                Err(error) => {
+                    if let Some(mode) = resume {
+                        let _ = self.launch_inner(&request.id, mode);
+                    }
+                    return Err(error);
+                }
+            };
         progress(Progress::new(
             &request.id,
             "Adopting installation",
@@ -2252,9 +2598,13 @@ impl Manager {
                 }
                 // Stage an explicit adoption too: self installers may remove
                 // their source; the user's current manual file stays untouched.
+                let (installer, channel) = match &migration {
+                    Some(package) => (package.path.clone(), package.release.channel),
+                    None => (source.clone(), channel),
+                };
                 installation::run_app_installer(
                     &self.paths,
-                    &source,
+                    &installer,
                     vec![
                         "--install".into(),
                         "--silent".into(),
@@ -2318,12 +2668,18 @@ impl Manager {
                 &self.paths,
                 &receipt,
                 &request.id,
-                &peer.version,
+                migration
+                    .as_ref()
+                    .map_or(&peer.version, |package| &package.release.version),
                 channel,
             )?;
             let mut record = self.record_from_receipt(&receipt)?;
             record.last_mode = resume.or(request.mode);
-            if record.kind == Kind::Appimage {
+            if let Some(package) = &migration {
+                record.package = Some(package.clone());
+                record.sha256 = package.asset.sha256.clone();
+            }
+            if record.kind == Kind::Appimage && migration.is_none() {
                 record.sha256 = record.executable_sha256.clone();
             }
             self.write(
@@ -2346,7 +2702,13 @@ impl Manager {
         }
         transaction.commit(None)?;
         progress(Progress::new(&request.id, "Done", Some(1.0), false));
-        Ok(format!("{} is now managed by Arcade Tools.", peer.name))
+        Ok(match &migration {
+            Some(package) => format!(
+                "{} {} is installed and managed by Arcade Tools.",
+                peer.name, package.release.version
+            ),
+            None => format!("{} is now managed by Arcade Tools.", peer.name),
+        })
     }
 
     fn rollback_inner(
@@ -2369,7 +2731,7 @@ impl Manager {
         if receipt.is_some_and(|r| r.managed_by != ManagedBy::Tools) && request.id != ids::TOOLS {
             return Err(Error::new(
                 "unmanaged",
-                "Let Arcade Tools manage this first.",
+                "Choose “Let Tools manage it” for this app first.",
             ));
         }
         let previous = PreviousInstallation::read(&self.paths, &request.id)?
@@ -2459,6 +2821,10 @@ impl Manager {
                         previous.receipt.as_ref(),
                     ))?;
                     let current = transaction.previous(old.clone(), receipt.cloned());
+                    if let Err(error) = check_cancel(cancel) {
+                        transaction.discard();
+                        return Err(error);
+                    }
                     *replaced = true;
                     previous.restore(&self.paths)?;
                     let mut record = previous.record.clone();
@@ -2496,6 +2862,28 @@ impl Manager {
             crate::apps::app_name(&request.id),
             previous.record.version
         ))
+    }
+    /// The refusals [`Self::stop_peer`] would make, without stopping anything.
+    /// It runs again after the download, since the app may get busy meanwhile.
+    fn precheck_peer(&self, id: &str, peer: Option<&Manifest>, request: &Request) -> Result<()> {
+        if peer.is_some_and(|m| !m.settings.link_enabled) && !request.app_closed {
+            return Err(Error::new("disconnected", "Arcade Link is disabled in this app. Close the app and confirm it is closed, or enable Arcade Link and retry."));
+        }
+        let Ok(mut client) = Client::connect(&self.paths.link, id, &me()) else {
+            return Ok(());
+        };
+        let Ok(status) = client.status() else {
+            return Ok(());
+        };
+        if status.get("busy").and_then(Value::as_bool) == Some(true)
+            || status.pointer("/status/busy").and_then(Value::as_bool) == Some(true)
+        {
+            return Err(Error::new(
+                "busy",
+                arcade_link::LinkError::busy().user_message(crate::apps::app_name(id)),
+            ));
+        }
+        Ok(())
     }
     fn stop_peer(
         &self,
@@ -2854,6 +3242,8 @@ mod native_rollback_tests {
             mode: None,
             remove_data: false,
             app_closed: true,
+            channel: None,
+            version: None,
         };
         manager
             .operate(&request, &AtomicBool::new(false), &mut |_| {})

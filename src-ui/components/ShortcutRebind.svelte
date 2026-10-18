@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { invoke } from '@tauri-apps/api/core';
   import { api } from '../lib/api';
   import type { ArcadeShortcut, ShortcutsIndex } from '../lib/shortcuts';
   import { askForConfirmation } from '../lib/state.svelte';
@@ -14,13 +15,50 @@
     const key = event.code.replace(/^Key/, '').replace(/^Digit/, '').replace(/^Arrow/, '');
     draft = [...(event.ctrlKey ? ['Ctrl'] : []), ...(event.altKey ? ['Alt'] : []), ...(event.shiftKey ? ['Shift'] : []), ...(event.metaKey ? ['Super'] : []), key].join('+');
   }
+  const aliases: Record<string, string> = { control: 'ctrl', meta: 'super', win: 'super', mod4: 'super', logo: 'super', cmd: 'super', mod1: 'alt', option: 'alt' };
+  /** Comparable form of a chord: lower-case, modifiers sorted, aliases folded. */
+  function normalize(chord: string): string {
+    const parts = chord.toLowerCase().replace(/\s+/g, '').split('+').filter(Boolean).map((part) => aliases[part] ?? part);
+    const key = parts.pop() ?? '';
+    return [...new Set(parts)].sort().concat(key).join('+');
+  }
+  // A global shortcut takes its key away from every app, so a plain or
+  // Shift-only key (Shift+S would steal capital S) needs Ctrl, Alt or Super.
+  // Function and media keys may stand alone.
+  const missingModifier = $derived.by(() => {
+    const parts = normalize(draft).split('+');
+    const key = parts.at(-1) ?? '';
+    if (!draft.trim() || /^(f([1-9]|1[0-9]|2[0-4])|print|printscreen|audio.*|media.*|volume.*)$/.test(key)) return false;
+    return !parts.slice(0, -1).some((part) => part === 'ctrl' || part === 'alt' || part === 'super');
+  });
+  // Checked while typing, so a clash shows before anything is confirmed.
+  const conflicts = $derived.by(() => {
+    const wanted = normalize(draft);
+    if (!draft.trim() || shortcut.keys.some((key) => normalize(key) === wanted)) return [];
+    const arcade = index.arcade
+      .filter((other) => !(other.app === shortcut.app && other.id === shortcut.id) && other.keys.some((key) => normalize(key) === wanted))
+      .map((other) => `${other.name}: ${other.title}`);
+    const wm = index.wm.groups.flatMap((group) => group.shortcuts)
+      .filter((binding) => normalize(binding.chord) === wanted)
+      .map((binding) => `${wmName}: ${binding.label}`);
+    return [...arcade, ...wm];
+  });
+  const wmName = $derived(index.wm.name && index.wm.name !== 'none' ? index.wm.name : 'your desktop');
   async function save(): Promise<void> {
-    const answer = await askForConfirmation({ title: `Change ${shortcut.name} shortcut?`, copy: `${shortcut.title}: ${shortcut.keys.join(' or ')} → ${draft}. The app saves this global shortcut.`, action: 'Apply', destructive: false, kind: null, folders: [] });
+    const clash = conflicts.length ? `\nAlready used by ${conflicts.join(', ')}.` : '';
+    const answer = await askForConfirmation({ title: `Change ${shortcut.name} shortcut?`, copy: `${shortcut.title}: ${shortcut.keys.join(' or ')} → ${draft}. The app saves this global shortcut.${clash}`, action: conflicts.length ? 'Apply anyway' : 'Apply', destructive: conflicts.length > 0, kind: null, folders: [] });
     if (!answer.confirmed) return;
     busy = true;
     try {
-      const result = await api.setAppShortcut(shortcut.app, shortcut.id, draft);
-      message = `${result.applied ? 'Applied' : 'Registration needs your attention'} · ${result.via}${result.hint ? `: ${result.hint}` : ''}`;
+      if (shortcut.app === 'arcade.tools') {
+        // Tools' own overlay shortcut is a tray preference (also in Settings).
+        const view = await invoke<{ preferences: Record<string, unknown> }>('tray_get_settings');
+        await invoke('tray_set_settings', { preferences: { ...view.preferences, shortcut: draft } });
+        message = 'Applied';
+      } else {
+        const result = await api.setAppShortcut(shortcut.app, shortcut.id, draft);
+        message = `${result.applied ? 'Applied' : 'Registration needs your attention'} · ${result.via}${result.hint ? `: ${result.hint}` : ''}`;
+      }
       editing = false;
     } catch (error) { message = (error as { message?: string }).message ?? String(error); }
     finally { busy = false; }
@@ -28,10 +66,12 @@
 </script>
 <div class="rebind-control">
   {#if editing}
-    <label>Record or enter a shortcut for {shortcut.title}<input aria-label="New shortcut for {shortcut.title}" bind:value={draft} onkeydown={record} /></label>
-    <button type="button" disabled={busy || !draft.trim()} onclick={() => void save()}>Apply</button>
-    <button type="button" disabled={busy} onclick={() => editing = false}>Cancel</button>
-    <small>Tools checks other Arcade globals and {index.wm.name} bindings before applying.</small>
+    <label class="rebind-label">Press or type a new shortcut for {shortcut.title}<input class="rebind-input" aria-label="New shortcut for {shortcut.title}" bind:value={draft} onkeydown={record} /></label>
+    <button type="button" class="primary-action rebind-apply" disabled={busy || !draft.trim() || missingModifier} onclick={() => void save()}>Apply</button>
+    <button type="button" class="small-button" disabled={busy} onclick={() => editing = false}>Cancel</button>
+    {#if missingModifier}<p class="status-warning" role="alert">Add Ctrl, Alt or Super: on its own, this key would stop working everywhere else.</p>{/if}
+    {#if conflicts.length}<p class="status-warning" role="alert">Already used by {conflicts.join(', ')}.</p>{/if}
+    <small>{index.wm.name && index.wm.name !== 'none' ? `Checked against other Arcade shortcuts and ${index.wm.name} bindings.` : 'Checked against other Arcade shortcuts; no window manager configuration was found to check.'}</small>
   {:else if shortcut.rebindable}
     <button type="button" class="small-button" onclick={() => { draft = shortcut.keys[0] ?? ''; editing = true; message = ''; }}>Change shortcut</button>
   {:else}
@@ -42,5 +82,10 @@
 <style>
   .rebind-control { display:flex; flex-wrap:wrap; gap:.4rem; align-items:center; }
   label, small, p { width:100%; }
-  input { margin-left:.4rem; max-width:15rem; }
+  .rebind-label { display:flex; flex-wrap:wrap; align-items:center; gap:.4rem; color:var(--muted); font-size:11px; }
+  .rebind-input { max-width:15rem; min-width:0; min-height:32px; padding:5px 9px; border:1px solid var(--border); border-radius:7px; color:var(--text); background:var(--surface); font-size:12px; }
+  .rebind-apply { min-height:32px; padding:6px 12px; }
+  small { color:var(--muted); font-size:10px; }
+  .rebind-control { min-width:0; }
+  .rebind-control button { white-space:nowrap; }
 </style>

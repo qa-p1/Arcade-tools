@@ -1,6 +1,7 @@
 <script lang="ts">
   import { api, type AppView, type BackupReport, type DiagnosticsReport, type RestorePlan, type RestoreResult, type UninstallPlan } from '../lib/api';
-  import { askForConfirmation, type Theme } from '../lib/state.svelte';
+  import { askForConfirmation, ui, type Theme } from '../lib/state.svelte';
+  import { tick } from 'svelte';
   import TraySettings from '../components/TraySettings.svelte';
 
   type Props = {
@@ -24,21 +25,22 @@
     onUpdateChecks, onOnboarding, onTheme, onLink, run,
   }: Props = $props();
 
-  let notifications = $state<boolean | null>(null);
   let supportApp = $state('arcade.tools');
   let report = $state<DiagnosticsReport | null>(null);
   let backup = $state<BackupReport | null>(null);
   let restorePath = $state('');
-  let restorePlan = $state<RestorePlan | null>(null);
+  // The plan remembers the file it reviewed: the field may change meanwhile.
+  let restorePlan = $state<(RestorePlan & { path: string }) | null>(null);
+  let restoreGeneration = 0;
   let restored = $state<RestoreResult[]>([]);
   let removeData = $state(false);
   let uninstallResults = $state<{ app: string; removed: boolean; reason: string }[]>([]);
   const installedApps = $derived(apps.filter((app) => app.installed));
-  const notificationsOn = $derived(notifications ?? notificationsEnabled);
-
+  const appName = (id: string) => id === 'arcade.tools' ? 'Arcade Tools' : apps.find((app) => app.id === id)?.name ?? id;
+  // The shared preference, so a restore or another window's change shows here.
   async function setNotifications(enabled: boolean): Promise<void> {
     await api.setNotifications(enabled);
-    notifications = enabled;
+    ui.notificationsEnabled = enabled;
   }
 
   async function createDiagnostics(): Promise<void> {
@@ -51,15 +53,22 @@
 
   async function planRestore(): Promise<void> {
     restored = [];
-    restorePlan = await api.planRestore(restorePath.trim());
+    restorePlan = null;
+    const path = restorePath.trim();
+    const generation = ++restoreGeneration;
+    const plan = await api.planRestore(path);
+    if (generation === restoreGeneration) restorePlan = { ...plan, path };
   }
 
   async function restore(): Promise<void> {
-    if (!restorePlan) return;
-    const names = restorePlan.apps.map((entry) => entry.backup.id).join(', ');
-    const choice = await askForConfirmation({ title: 'Restore settings from this backup?', copy: `Settings for ${names} will be replaced with the backed-up copies. Missing apps will be installed on their saved channels. Apps may ask to restart.`, action: 'Restore', destructive: false, kind: null, folders: [] });
+    const plan = restorePlan;
+    if (!plan) return;
+    const included = plan.apps.filter((entry) => entry.backup.settings.length);
+    const names = included.map((entry) => appName(entry.backup.id)).join(', ') || 'no apps';
+    const missing = included.filter((entry) => !entry.installed).map((entry) => appName(entry.backup.id));
+    const choice = await askForConfirmation({ title: 'Restore settings from this backup?', copy: `${plan.path}\nSettings for ${names} will be replaced with the backed-up copies.${missing.length ? `\n${missing.join(', ')} will be installed on the saved channel first.` : ''}\nApps may ask to restart.`, action: 'Restore', destructive: false, kind: null, folders: [] });
     if (!choice.confirmed) return;
-    restored = await api.restoreBackup(restorePath.trim(), restorePlan.sha256);
+    restored = await api.restoreBackup(plan.path, plan.sha256);
     restorePlan = null;
   }
 
@@ -72,17 +81,39 @@
     await api.installTools();
   }
 
+  let uninstallSection = $state<HTMLElement | null>(null);
+  $effect(() => {
+    if (!active || !ui.reviewUninstall) return;
+    ui.reviewUninstall = false;
+    void tick().then(() => {
+      uninstallSection?.scrollIntoView({ block: 'center' });
+      uninstallSection?.querySelector<HTMLButtonElement>('button')?.focus();
+    });
+  });
+
+  async function uninstallToolsOnly(): Promise<void> {
+    const choice = await askForConfirmation({
+      title: 'Uninstall Arcade Tools?',
+      copy: 'Tools closes and is removed. Your Arcade apps stay installed and keep updating themselves.'
+        + (removeData ? '\nTools settings and data are deleted too.' : '\nTools settings and data are kept.'),
+      action: 'Uninstall Tools', destructive: true, kind: null, folders: [],
+    });
+    if (choice.confirmed) await api.uninstallToolsOnly(removeData);
+  }
+
   async function uninstallEverything(): Promise<void> {
     const plan: UninstallPlan = await api.planUninstallAll(removeData);
+    // The dialog describes the plan that will run, whatever the checkbox
+    // says by the time the plan arrives.
     const removable = plan.apps.filter((entry) => entry.canUninstall);
     const kept = plan.apps.filter((entry) => !entry.canUninstall);
-    const lines = removable.map((entry) => `• ${entry.id}${entry.version ? ` ${entry.version}` : ''}`);
-    if (kept.length) lines.push('', 'Kept: ' + kept.map((entry) => `${entry.id} (${entry.reason ?? 'not managed'})`).join(', '));
+    const lines = removable.map((entry) => `• ${appName(entry.id)}${entry.version ? ` ${entry.version}` : ''}`);
+    if (kept.length) lines.push('', 'Kept: ' + kept.map((entry) => `${appName(entry.id)} (${entry.reason ?? 'not managed'})`).join(', '));
     const choice = await askForConfirmation({
       title: `Uninstall ${removable.length} Arcade ${removable.length === 1 ? 'app' : 'apps'}?`,
-      copy: lines.join('\n') + (removeData ? '\nSettings and data are deleted too.' : '\nSettings and data are kept.'),
+      copy: lines.join('\n') + (plan.removeData ? '\nSettings and data are deleted too.' : '\nSettings and data are kept.'),
       action: 'Uninstall', destructive: true, kind: null,
-      folders: removeData ? removable.flatMap((entry) => entry.dataFolders) : [],
+      folders: plan.removeData ? removable.flatMap((entry) => entry.dataFolders) : [],
     });
     if (!choice.confirmed) return;
     uninstallResults = (await api.uninstallAll(plan)).results;
@@ -119,7 +150,7 @@
     </div>
     <div class="settings-toggles">
       <label><input type="checkbox" checked={updateChecksEnabled} disabled={busy} onchange={(event) => run(() => onUpdateChecks(event.currentTarget.checked))} /> Check for updates automatically</label>
-      <label><input type="checkbox" checked={notificationsOn} disabled={busy} onchange={(event) => run(() => setNotifications(event.currentTarget.checked))} /> Show notifications</label>
+      <label><input type="checkbox" checked={notificationsEnabled} disabled={busy} onchange={(event) => run(() => setNotifications(event.currentTarget.checked))} /> Show notifications</label>
     </div>
   </section>
 
@@ -163,7 +194,7 @@
       <div class="actions-inline"><button type="button" disabled={busy} onclick={() => run(exportBackup)}>Back up settings</button></div>
       {#if backup}
         <p class="setting-description">Saved {backup.file}</p>
-        <ul class="settings-list">{#each backup.apps as app (app.id)}<li><strong>{app.id}</strong> v{app.version}{app.notIncluded ? ` · not included: ${app.notIncluded}` : ''}</li>{/each}</ul>
+        <ul class="settings-list">{#each backup.apps as app (app.id)}<li><strong>{appName(app.id)}</strong> v{app.version}{app.notIncluded ? ` · not included: ${app.notIncluded}` : ''}</li>{/each}</ul>
         <div class="actions-inline"><button type="button" onclick={() => run(() => api.revealArchive(backup!.file))}>Show file</button></div>
       {/if}
       <form class="actions-inline" onsubmit={(event) => { event.preventDefault(); run(planRestore); }}>
@@ -172,11 +203,11 @@
         <button type="submit" disabled={busy || !restorePath.trim()}>Review restore</button>
       </form>
       {#if restorePlan}
-        <ul class="settings-list">{#each restorePlan.apps as entry (entry.backup.id)}<li><strong>{entry.backup.id}</strong> v{entry.backup.version}{entry.installed ? '' : ' · will be installed after confirmation'}</li>{/each}</ul>
+        <ul class="settings-list">{#each restorePlan.apps as entry (entry.backup.id)}<li><strong>{appName(entry.backup.id)}</strong> v{entry.backup.version}{!entry.backup.settings.length ? ` · no settings in this backup${entry.backup.notIncluded ? ` (${entry.backup.notIncluded})` : ''}` : entry.installed ? '' : ' · will be installed after confirmation'}</li>{/each}</ul>
         <div class="actions-inline"><button type="button" class="primary-action" disabled={busy} onclick={() => run(restore)}>Restore</button></div>
       {/if}
       {#if restored.length}
-        <ul class="settings-list">{#each restored as result (result.app)}<li><strong>{result.app}</strong> {result.imported ? 'restored' : 'not restored'}{result.restartRequired ? ' · restart required' : ''} · {result.message}</li>{/each}</ul>
+        <ul class="settings-list">{#each restored as result (result.app)}<li><strong>{appName(result.app)}</strong> {result.imported ? 'restored' : 'not restored'}{result.restartRequired ? ' · restart required' : ''} · {result.message}</li>{/each}</ul>
       {/if}
     </div>
   </section>
@@ -196,7 +227,7 @@
       <p class="setting-description">Arcade Tools keeps the Arcade app collection installed and up to date. Every app also works on its own.</p>
     </div>
     <div class="settings-stack">
-      <p class="about-version">Arcade Tools <strong>{toolsApp?.version ?? '0.2.0'}</strong>{toolsApp?.managed ? ` · ${toolsApp.channel}` : ''}</p>
+      <p class="about-version">Arcade Tools <strong>{toolsApp?.version ?? __TOOLS_VERSION__}</strong>{toolsApp?.managed ? ` · ${toolsApp.channel}` : ''}</p>
       <p class="setting-description">Arcade Link 0.3.0 · Tools is MIT licensed. The overlay includes code from Arcade Find (MIT or Apache-2.0), and catalog guides and sheets use CC BY 4.0.</p>
       <div class="actions-inline"><a href="https://github.com/qa-p1/Arcade-tools" target="_blank" rel="noreferrer">Repository</a><a href="https://github.com/qa-p1/Arcade-tools/blob/main/VENDORED" target="_blank" rel="noreferrer">Sources and licenses</a></div>
       <div class="actions-inline">
@@ -211,16 +242,19 @@
     </div>
   </section>
 
-  <section class="settings-card danger-card" aria-labelledby="uninstall-heading">
+  <section class="settings-card danger-card" aria-labelledby="uninstall-heading" bind:this={uninstallSection}>
     <div>
-      <h2 id="uninstall-heading">Uninstall Arcade</h2>
-      <p class="setting-description">Remove every Arcade app Tools manages, then Tools itself. You see the full list before anything is removed.</p>
+      <h2 id="uninstall-heading">Uninstall</h2>
+      <p class="setting-description">Remove only Tools and keep your apps, or remove every Arcade app Tools manages and then Tools. You see the full list before anything is removed.</p>
     </div>
     <div class="settings-stack">
       <label><input type="checkbox" bind:checked={removeData} /> Also delete settings and data</label>
-      <div class="actions-inline"><button type="button" class="danger-button" disabled={busy} onclick={() => run(uninstallEverything)}>Uninstall Arcade…</button></div>
+      <div class="actions-inline">
+        <button type="button" class="danger-button" disabled={busy || !toolsApp?.installed} onclick={() => run(uninstallToolsOnly)}>Uninstall Tools only…</button>
+        <button type="button" class="danger-button" disabled={busy} onclick={() => run(uninstallEverything)}>Uninstall Tools and apps…</button>
+      </div>
       {#if uninstallResults.length}
-        <ul class="settings-list">{#each uninstallResults as result (result.app)}<li><strong>{result.app}</strong> {result.removed ? 'removed' : 'kept'} · {result.reason}</li>{/each}</ul>
+        <ul class="settings-list">{#each uninstallResults as result (result.app)}<li><strong>{appName(result.app)}</strong> {result.removed ? 'removed' : 'kept'} · {result.reason}</li>{/each}</ul>
       {/if}
     </div>
   </section>

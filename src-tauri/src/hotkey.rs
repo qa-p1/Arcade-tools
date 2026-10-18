@@ -47,7 +47,11 @@ pub fn launch_overlay() -> Result<()> {
 }
 
 pub fn status(app: &AppHandle) -> Status {
-    app.state::<Arc<Service>>().0.lock().unwrap().clone()
+    app.state::<Arc<Service>>()
+        .0
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone()
 }
 
 /// Filesystem discovery stays on the caller's worker; registration is dispatched
@@ -114,7 +118,11 @@ fn apply(handle: &AppHandle, prefs: &crate::tray::settings::Preferences) {
     if let Err(error) = result {
         status.error = Some(error);
     }
-    *handle.state::<Arc<Service>>().0.lock().unwrap() = status;
+    *handle
+        .state::<Arc<Service>>()
+        .0
+        .lock()
+        .unwrap_or_else(|e| e.into_inner()) = status;
     let _ = handle.emit("overlay-shortcut-changed", ());
 }
 

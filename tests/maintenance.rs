@@ -16,7 +16,9 @@ use std::sync::{Arc, Mutex};
 
 struct SettingsPeer {
     output: std::path::PathBuf,
+    kind: String,
     imported: Mutex<Option<Value>>,
+    raw: Mutex<Option<Vec<u8>>>,
     methods: bool,
 }
 impl Handler for SettingsPeer {
@@ -35,16 +37,16 @@ impl Handler for SettingsPeer {
     }
     fn settings_export(&self) -> Result<Vec<Content>, LinkError> {
         let mut output = Content::file(&self.output);
-        output.kind = "file/any".into();
+        output.kind = self.kind.clone();
         Ok(vec![output])
     }
     fn settings_import(
         &self,
         inputs: &[Content],
     ) -> Result<arcade_link::app::ImportResult, LinkError> {
-        *self.imported.lock().unwrap() = Some(
-            serde_json::from_slice(&fs::read(inputs[0].path.as_ref().unwrap()).unwrap()).unwrap(),
-        );
+        let bytes = fs::read(inputs[0].path.as_ref().unwrap()).unwrap();
+        *self.imported.lock().unwrap() = serde_json::from_slice(&bytes).ok();
+        *self.raw.lock().unwrap() = Some(bytes);
         Ok(arcade_link::app::ImportResult {
             imported: true,
             restart_required: true,
@@ -63,6 +65,21 @@ fn fixture(root: &std::path::Path, source: &support::FakeRelease) -> Manager {
     )
 }
 fn peer(manager: &Manager, id: &str, methods: bool, value: Value) -> (Server, Arc<SettingsPeer>) {
+    peer_with(
+        manager,
+        id,
+        methods,
+        "file/any",
+        &serde_json::to_vec(&value).unwrap(),
+    )
+}
+fn peer_with(
+    manager: &Manager,
+    id: &str,
+    methods: bool,
+    kind: &str,
+    bytes: &[u8],
+) -> (Server, Arc<SettingsPeer>) {
     let exe = manager.paths.home.join(format!("{id}.AppImage"));
     fs::create_dir_all(&manager.paths.home).unwrap();
     fs::write(&exe, "fixture").unwrap();
@@ -77,10 +94,12 @@ fn peer(manager: &Manager, id: &str, methods: bool, value: Value) -> (Server, Ar
         .link
         .handoff
         .join(format!("{id}-settings.json"));
-    fs::write(&output, serde_json::to_vec(&value).unwrap()).unwrap();
+    fs::write(&output, bytes).unwrap();
     let peer = Arc::new(SettingsPeer {
         output,
+        kind: kind.into(),
         imported: Mutex::new(None),
+        raw: Mutex::new(None),
         methods,
     });
     let server = Server::start(
@@ -154,6 +173,84 @@ fn two_profiles_backup_restore_uses_app_contract_and_reports_unsupported_apps() 
         .unwrap(),
         serde_json::from_slice::<Value>(&fs::read(labels).unwrap()).unwrap()
     );
+}
+
+#[test]
+fn backup_keeps_lens_code_handoffs_and_shelf_binary_settings() {
+    let source = support::FakeRelease::new();
+    let first = fixture(&source.root.path().join("first"), &source);
+    let second = fixture(&source.root.path().join("second"), &source);
+    // Lens hands over `file/code` JSON with a `guardSecrets` preference flag;
+    // Shelf hands over its own binary archive.
+    let lens = json!({"schema":1, "app":"arcade.lens", "privacy":{"historyEnabled":false, "guardSecrets":true}});
+    let shelf = b"\x00\x01SHELF-binary\xff\xfe".to_vec();
+    let (_a, _) = peer_with(
+        &first,
+        "arcade.lens",
+        true,
+        "file/code",
+        &serde_json::to_vec(&lens).unwrap(),
+    );
+    let (_b, _) = peer_with(&first, "arcade.shelf", true, "file/any", &shelf);
+    let (_c, lens_restored) = peer_with(&second, "arcade.lens", true, "file/code", b"{}");
+    let (_d, shelf_restored) = peer_with(&second, "arcade.shelf", true, "file/any", b"{}");
+    let cancel = AtomicBool::new(false);
+    let exported = backup::export(&first, &cancel).unwrap();
+    for app in &exported.apps {
+        assert_eq!(
+            app.settings.len(),
+            1,
+            "{} was left out: {:?}",
+            app.id,
+            app.not_included
+        );
+    }
+    let archive = second.paths.home.join("transfer.zip");
+    fs::copy(&exported.file, &archive).unwrap();
+    let plan = backup::plan_restore(&second, &archive).unwrap();
+    let results = backup::restore(&second, &archive, &plan.sha256, &cancel).unwrap();
+    assert!(results.iter().all(|result| result.imported), "{results:?}");
+    assert_eq!(*lens_restored.imported.lock().unwrap(), Some(lens));
+    assert_eq!(*shelf_restored.raw.lock().unwrap(), Some(shelf));
+}
+
+#[test]
+fn restore_skips_apps_without_settings_and_cancels_before_writing() {
+    let source = support::FakeRelease::new();
+    let first = fixture(&source.root.path().join("first"), &source);
+    let second = fixture(&source.root.path().join("second"), &source);
+    // Look is installed on the first profile but offers no settings; the
+    // second profile doesn't have it.
+    let (_a, _) = peer(&first, "arcade.look", false, json!({}));
+    first.set_theme("dark").unwrap();
+    let cancel = AtomicBool::new(false);
+    let exported = backup::export(&first, &cancel).unwrap();
+    let plan = backup::plan_restore(&second, &exported.file).unwrap();
+    assert!(plan
+        .apps
+        .iter()
+        .any(|app| app.backup.id == "arcade.look" && !app.installed));
+    // Cancelled before anything is written: an error and no changes.
+    let cancelled = AtomicBool::new(true);
+    assert_eq!(
+        backup::restore(&second, &exported.file, &plan.sha256, &cancelled)
+            .unwrap_err()
+            .code,
+        "cancelled"
+    );
+    assert_ne!(second.preferences().unwrap().theme, "dark");
+    let results = backup::restore(&second, &exported.file, &plan.sha256, &cancel).unwrap();
+    let look = results.iter().find(|r| r.app == "arcade.look").unwrap();
+    assert!(!look.imported);
+    // No install was attempted: the release server saw no Look request.
+    assert!(!source
+        .requests
+        .lock()
+        .unwrap()
+        .iter()
+        .any(|(route, _)| route.to_ascii_lowercase().contains("look")));
+    assert!(second.receipt("arcade.look").unwrap().is_none());
+    assert_eq!(second.preferences().unwrap().theme, "dark");
 }
 
 #[test]

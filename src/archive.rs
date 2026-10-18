@@ -55,6 +55,13 @@ pub fn write(paths: &Paths, name: &str, files: &BTreeMap<String, Vec<u8>>) -> Re
 }
 
 pub fn read(paths: &Paths, file: &Path) -> Result<BTreeMap<String, Vec<u8>>> {
+    parse(read_raw(paths, file)?.0)
+}
+
+/// The archive's bytes and their SHA-256, read once from one open file, so a
+/// review hash and the restored content can't come from two different files.
+/// [`parse`] the same bytes afterwards.
+pub fn read_raw(paths: &Paths, file: &Path) -> Result<(Vec<u8>, String)> {
     let _ = paths;
     if !file.is_absolute() || !std::fs::symlink_metadata(file)?.is_file() {
         return Err(Error::new(
@@ -74,10 +81,19 @@ pub fn read(paths: &Paths, file: &Path) -> Result<BTreeMap<String, Vec<u8>>> {
             ));
         }
     }
-    if fs::metadata(file)?.len() > MAX_ARCHIVE {
+    let mut raw = Vec::new();
+    fs::File::open(file)?
+        .take(MAX_ARCHIVE + 1)
+        .read_to_end(&mut raw)?;
+    if raw.len() as u64 > MAX_ARCHIVE {
         return Err(Error::new("too_large", "Archive exceeds 32 MiB."));
     }
-    let mut zip = zip::ZipArchive::new(fs::File::open(file)?).map_err(zip_error)?;
+    let sha256 = format!("{:x}", <sha2::Sha256 as sha2::Digest>::digest(&raw));
+    Ok((raw, sha256))
+}
+
+pub fn parse(raw: Vec<u8>) -> Result<BTreeMap<String, Vec<u8>>> {
+    let mut zip = zip::ZipArchive::new(std::io::Cursor::new(raw)).map_err(zip_error)?;
     if zip.len() > MAX_ENTRIES {
         return Err(Error::new("too_large", "Archive has too many files."));
     }

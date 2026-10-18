@@ -134,6 +134,31 @@ fn conditional_catalog_preserves_last_good_copy_and_offline_snapshot() {
     );
     server.routes.lock().unwrap().remove("/catalog.json");
     assert_eq!(client.refresh_catalog().apps.len(), 1);
+    // A refresh that kept the saved copy says so (m24), in plain words (m23).
+    let (catalog, fallback) = client.refresh_catalog_reporting();
+    assert_eq!(catalog.apps.len(), 1);
+    assert!(fallback.is_some());
+    let offline = CatalogClient::with_url(
+        paths.clone(),
+        Source::test_server("http://127.0.0.1:9/").unwrap(),
+        "http://127.0.0.1:9/catalog.json",
+    )
+    .unwrap();
+    let (catalog, fallback) = offline.refresh_catalog_reporting();
+    assert_eq!(catalog.apps.len(), 1);
+    let error = fallback.unwrap();
+    assert_eq!(error.code, "network");
+    assert!(
+        error.message.starts_with("Couldn't connect"),
+        "{}",
+        error.message
+    );
+    server
+        .routes
+        .lock()
+        .unwrap()
+        .insert("/catalog.json".into(), last_good_body(&last_good));
+    assert!(client.refresh_catalog_reporting().1.is_none());
     let manager = arcade_tools_core::manager::Manager::new(
         paths.clone(),
         Source::test_server(&server.url).unwrap(),
@@ -236,4 +261,9 @@ fn engines_shortcuts_limits_and_source_boundary() {
     assert!(source
         .fetch(&format!("{}redirect", server.url), None, 100)
         .is_err());
+}
+
+fn last_good_body(cached: &[u8]) -> Vec<u8> {
+    let document: serde_json::Value = serde_json::from_slice(cached).unwrap();
+    document["body"].as_str().unwrap().as_bytes().to_vec()
 }

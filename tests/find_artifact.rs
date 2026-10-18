@@ -85,6 +85,8 @@ fn real_find_install_repair_rollback_preserves_verified_cache() {
             mode: Some(LaunchMode::Background),
             remove_data: false,
             app_closed: false,
+            channel: None,
+            version: None,
         };
         manager
             .operate(&request, &AtomicBool::new(false), &mut |_| {})
@@ -107,6 +109,8 @@ fn real_find_install_repair_rollback_preserves_verified_cache() {
         mode: None,
         remove_data: false,
         app_closed: false,
+        channel: None,
+        version: None,
     };
     manager
         .operate(&request, &AtomicBool::new(false), &mut |_| {})

@@ -7,8 +7,8 @@
   import Sidebar from './components/Sidebar.svelte';
   import { api, appEvents, type AppView, type Channel, type Operation, type UiControlReport, type UiRenderReport } from './lib/api';
   import {
-    attempt, cancelOperation, changeChannel, changeLogin, checkAllUpdates, checkUpdates, checkUpdatesOnWindowOpen, confirmOperation,
-    initialize, installBundle, openLearn, updateAll, withBusy, launchAll, launchApp, openReleases, receiveInstallRequest, receiveProgress, refresh, reviewInstall, reviewUpdate, setAutoUpdate, setMessage, toggleLink,
+    attempt, cancelOperation, changeChannel, confirmSelfUpdate, changeLogin, checkAllUpdates, checkUpdates, checkUpdatesOnWindowOpen, confirmOperation,
+    initialize, installBundle, openLearn, updateAll, launchAll, launchApp, openReleases, receiveInstallRequest, receiveProgress, refresh, reviewInstall, reviewUpdate, setAutoUpdate, setMessage, toggleLink,
     setUpdateChecks,
   } from './lib/controller';
   import Apps from './tabs/Apps.svelte';
@@ -17,7 +17,6 @@
   import Onboarding from './tabs/Onboarding.svelte';
   import Settings from './tabs/Settings.svelte';
   import Updates from './tabs/Updates.svelte';
-  import Shortcuts from './tabs/Shortcuts.svelte';
   import { ui, type Theme } from './lib/state.svelte';
   import { setShortcutsEnabled, tabs, type ShellTab } from './lib/tabs.svelte';
 
@@ -25,9 +24,11 @@
   let linkInput: HTMLInputElement;
   let LearnView = $state<typeof import('./tabs/Learn.svelte').default | null>(null);
   let ConnectionsView = $state<typeof import('./tabs/Connections.svelte').default | null>(null);
+  let ShortcutsView = $state<typeof import('./tabs/Shortcuts.svelte').default | null>(null);
   $effect(() => {
     if (ui.tab === 'learn' && !LearnView) void import('./tabs/Learn.svelte').then((module) => LearnView = module.default);
     if (ui.tab === 'connections' && !ConnectionsView) void import('./tabs/Connections.svelte').then((module) => ConnectionsView = module.default);
+    if (ui.tab === 'shortcuts' && !ShortcutsView) void import('./tabs/Shortcuts.svelte').then((module) => ShortcutsView = module.default);
   });
   let installProposal = $state<{ title: string; copy: string; installed: boolean; primary: string; secondary: string; options: boolean } | null>(null);
   let installLogin = $state(true);
@@ -51,6 +52,17 @@
 
   function selectTab(tab: ShellTab): void {
     ui.tab = tab;
+    ui.tabChosen = true;
+  }
+
+  const intentTabs = ['home', 'apps', 'updates', 'shortcuts', 'learn', 'connections', 'engines', 'settings'];
+  function openIntent(page: string | null): void {
+    if (page === 'uninstall') {
+      ui.reviewUninstall = true;
+      selectTab('settings');
+    } else if (page && intentTabs.includes(page)) {
+      selectTab(page as ShellTab);
+    }
   }
 
   function sendRenderedReport(snapshot: Omit<UiRenderReport, 'revision' | 'controls' | 'tab' | 'visiblePanel'>): void {
@@ -147,7 +159,7 @@
           appEvents.managerMessage((message) => setMessage(message, true)),
           appEvents.updatesChanged((updates) => { ui.updates = updates; }),
           appEvents.shortcutsChanged(() => { void api.shortcutsIndex().then((index) => { ui.shortcutsIndex = index; setShortcutsEnabled(true); }); }),
-          appEvents.trayNavigation((page) => { if (['home', 'apps', 'updates', 'shortcuts', 'learn', 'connections', 'engines', 'settings'].includes(page)) selectTab(page as ShellTab); }),
+          appEvents.trayNavigation(openIntent),
         ]);
         if (disposed) handlers.forEach((stop) => stop());
         else unlisten = handlers;
@@ -163,7 +175,7 @@
         ui.catalogData = catalogData;
         setShortcutsEnabled(true);
         const trayIntent = await invoke<string | null>('tray_ui_intent');
-        if (trayIntent && ['home', 'apps', 'updates', 'shortcuts', 'learn', 'connections', 'engines', 'settings'].includes(trayIntent)) selectTab(trayIntent as ShellTab);
+        openIntent(trayIntent);
       } catch (error) {
         setMessage(error instanceof Error ? error.message : String(error), true);
       }
@@ -214,7 +226,11 @@
     try {
       ui.catalogData = await api.refreshCatalog();
       await refresh();
-      setMessage(`Catalog refreshed (${ui.catalogData.catalog.updated}).`);
+      if (ui.catalogData.offline) {
+        setMessage(`Couldn't reach the catalog, so the saved copy from ${ui.catalogData.catalog.updated} is shown. ${ui.catalogData.offline}`, true);
+      } else {
+        setMessage(`Catalog refreshed (${ui.catalogData.catalog.updated}).`);
+      }
     } finally {
       ui.catalogLoading = false;
     }
@@ -310,7 +326,7 @@
         checking={ui.updateChecking}
         updateChecksEnabled={ui.updateChecksEnabled}
         onCheckNow={checkAllUpdates}
-        onUpdate={(app) => app.id === 'arcade.tools' ? withBusy(api.selfUpdate, 'Updating Arcade Tools') : reviewUpdate(app)}
+        onUpdate={(app) => app.id === 'arcade.tools' ? confirmSelfUpdate() : reviewUpdate(app)}
         onUpdateAll={updateAll}
         onRollback={(app) => confirmOperation(app, 'rollback')}
         onAutoUpdate={setAutoUpdate}
@@ -345,15 +361,17 @@
         shortcuts={ui.shortcutsIndex}
         {run}
       />
-      <Shortcuts
-        active={ui.tab === 'shortcuts'}
-        index={ui.shortcutsIndex}
-        labels={ui.shortcutLabels}
-        onLabel={persistShortcutLabel}
-        onChange={shortcutsChanged}
-      />
+      {#if ShortcutsView}
+        <ShortcutsView
+          active={ui.tab === 'shortcuts'}
+          index={ui.shortcutsIndex}
+          labels={ui.shortcutLabels}
+          onLabel={persistShortcutLabel}
+          onChange={shortcutsChanged}
+        />
+      {/if}
     </main>
-    <footer class="shell-footer"><span>Arcade Tools · 0.2.1</span><span>Apps stay independent; Tools makes them easier to manage.</span></footer>
+    <footer class="shell-footer"><span>Arcade Tools · {__TOOLS_VERSION__}</span><span>Apps stay independent; Tools makes them easier to manage.</span></footer>
   </div>
 </div>
 <ProgressBar visible={ui.busy} phase={ui.phase} progress={ui.progress} cancellable={ui.cancellable} onCancel={() => run(cancelOperation)} />

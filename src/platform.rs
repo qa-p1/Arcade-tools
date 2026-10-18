@@ -66,6 +66,15 @@ impl CommandSpec {
 }
 
 pub(crate) fn child_environment(command: &mut Command, paths: &Paths) {
+    // Apps and installers get the user's environment, not the variables and
+    // mount paths of Tools' own AppImage (wrong libraries, forced theme,
+    // Tools' desktop files in XDG_DATA_DIRS, a working directory in the mount).
+    // Inheriting them also kept each old Tools image mounted after a
+    // self-update: the new Tools loaded its libraries from there.
+    arcade_link::childenv::sanitize(command);
+    paths_environment(command, paths);
+}
+fn paths_environment(command: &mut Command, paths: &Paths) {
     command
         .env("HOME", &paths.home)
         .env("USERPROFILE", &paths.home)
@@ -83,8 +92,27 @@ pub(crate) fn child_environment(command: &mut Command, paths: &Paths) {
 /// Launch on a worker with process-scoped paths and no inherited stdio. The
 /// reaper blocks on child exit; there is no timer or idle polling.
 pub fn spawn_detached(paths: &Paths, executable: &Path, args: &[String]) -> Result<()> {
+    spawn_detached_with(paths, executable, args, true)
+}
+/// [`spawn_detached`] for a copy of this Tools executable (the update and
+/// uninstall helper): it keeps this process's environment, which points at
+/// the libraries bundled in Tools' own AppImage. The helper starts the new
+/// Tools with [`spawn_detached`], so nothing outlives it in the old image.
+pub fn spawn_helper(paths: &Paths, executable: &Path, args: &[String]) -> Result<()> {
+    spawn_detached_with(paths, executable, args, false)
+}
+fn spawn_detached_with(
+    paths: &Paths,
+    executable: &Path,
+    args: &[String],
+    clean_environment: bool,
+) -> Result<()> {
     let mut command = Command::new(executable);
-    child_environment(&mut command, paths);
+    if clean_environment {
+        child_environment(&mut command, paths);
+    } else {
+        paths_environment(&mut command, paths);
+    }
     command
         .args(args)
         .stdin(std::process::Stdio::null())
@@ -634,20 +662,16 @@ pub fn launch_agent(id: &str, executable: &Path) -> String {
         .replace('"', "&quot;");
     format!("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\"><dict><key>Label</key><string>{id}</string><key>ProgramArguments</key><array><string>{quoted}</string><string>--background</string></array><key>RunAtLoad</key><true/></dict></plist>\n")
 }
+/// Earlier versions kept a `<entry>.arcade-tools.bak` copy beside each login
+/// entry they changed, which stayed behind for good. The previous bytes are
+/// kept in memory for the rollback instead; remove an old copy.
 #[cfg(any(target_os = "linux", target_os = "macos"))]
-fn backup(path: &Path) -> Result<()> {
-    match fs::read(path) {
-        Ok(bytes) => {
-            let backup = path.with_file_name(format!(
-                "{}.arcade-tools.bak",
-                path.file_name().unwrap().to_string_lossy()
-            ));
-            arcade_link::paths::write_atomic(&backup, &bytes, true)?;
-        }
-        Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(e.into()),
-        _ => {}
-    }
-    Ok(())
+pub fn remove_stale_backup(path: &Path) -> Result<()> {
+    let backup = path.with_file_name(format!(
+        "{}.arcade-tools.bak",
+        path.file_name().unwrap_or_default().to_string_lossy()
+    ));
+    remove(&backup)
 }
 pub fn update_desktop(existing: &str, proposed: &str) -> Result<String> {
     if !existing.lines().any(|l| l.trim() == "[Desktop Entry]") {
@@ -767,7 +791,7 @@ fn set_autostart_entry(paths: &Paths, id: &str, executable: &Path, enabled: bool
         if enabled && fs::read_to_string(&path).is_ok_and(|s| s == proposed) {
             return Ok(());
         }
-        backup(&path)?;
+        remove_stale_backup(&path)?;
         if enabled {
             arcade_link::paths::write_atomic(&path, proposed.as_bytes(), true)?;
             if fs::read_to_string(&path)? != proposed {
@@ -860,13 +884,8 @@ fn set_shelf_autostart(paths: &Paths, executable: &Path, enabled: bool) -> Resul
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
         Err(e) => return Err(e.into()),
     };
-    if let Some(bytes) = &previous {
-        let backup = path.with_file_name(format!(
-            "{}.arcade-tools.bak",
-            path.file_name().unwrap().to_string_lossy()
-        ));
-        arcade_link::paths::write_atomic(&backup, bytes, true)?;
-    }
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    remove_stale_backup(&path)?;
     if !enabled {
         return remove(&path);
     }
@@ -892,6 +911,10 @@ fn set_shelf_autostart(paths: &Paths, executable: &Path, enabled: bool) -> Resul
     };
     arcade_link::paths::write_atomic(&path, proposed.as_bytes(), true)?;
     if fs::read_to_string(&path)? != proposed {
+        match &previous {
+            Some(bytes) => arcade_link::paths::write_atomic(&path, bytes, true)?,
+            None => remove(&path)?,
+        }
         return Err(Error::new(
             "autostart",
             "Could not verify Shelf's login entry.",

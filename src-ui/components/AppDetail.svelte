@@ -35,7 +35,12 @@
   let peers = $state<ConnectionPeer[]>([]);
   $effect(() => { void app.id; history = []; void api.listConnections().then((view) => peers = view.peers).catch(() => peers = []); });
   const offeredActions = $derived(peers.find((peer) => peer.id === app.id)?.actions ?? []);
-  async function loadHistory(): Promise<void> { history=await api.releaseHistory(app.id); }
+  async function loadHistory(): Promise<void> {
+    const id = app.id;
+    const found = await api.releaseHistory(id);
+    // The same component shows the next app if the user moves on.
+    if (app.id === id) history = found;
+  }
   let ownIcon = $state(false);
   $effect(() => { const id=app.id; void invoke<{ preferences: { excluded: string[] } }>('tray_get_settings').then((view) => ownIcon=view.preferences.excluded.includes(id)).catch(() => {}); });
   async function setOwnIcon(enabled: boolean): Promise<void> {
@@ -45,6 +50,21 @@
     await invoke('tray_set_settings', { preferences: { ...view.preferences, excluded } });
     ownIcon = enabled;
   }
+  // Notes checked from an app card arrive without rendered HTML: render them
+  // here, and fall back to the plain text if that fails.
+  let renderedNotes = $state<{ key: string; html: string | null; error: string | null } | null>(null);
+  $effect(() => {
+    const notes = latest?.notes;
+    const key = `${app.id}@${latest?.version ?? ''}`;
+    if (!notes || releaseNotesHtml || renderedNotes?.key === key) return;
+    renderedNotes = { key, html: null, error: null };
+    api.renderMarkdown(notes)
+      .then((html) => { if (renderedNotes?.key === key) renderedNotes = { key, html, error: null }; })
+      .catch((error) => { if (renderedNotes?.key === key) renderedNotes = { key, html: null, error: error?.message ?? String(error) }; });
+  });
+  const notesHtml = $derived(releaseNotesHtml ?? (renderedNotes?.key === `${app.id}@${latest?.version ?? ''}` ? renderedNotes.html : null));
+  const notesError = $derived(!releaseNotesHtml && renderedNotes?.key === `${app.id}@${latest?.version ?? ''}` ? renderedNotes.error : null);
+  let brokenShots = $state<string[]>([]);
   let actionDialog: HTMLDialogElement;
   let pendingAction = $state<CatalogAction | null>(null);
   const installed = $derived(Boolean(installedApp?.installed || installedApp?.managed || installedApp?.version));
@@ -110,7 +130,11 @@
       <div class="detail-section-heading"><h2 id="detail-screenshots-title">Screenshots</h2><span>{screenshots.length}</span></div>
       <div class="screenshot-grid">
         {#each screenshots as source, index (`${source}-${index}`)}
-          <img src={source} alt="{app.name} screenshot {index + 1}" loading="lazy" />
+          {#if brokenShots.includes(source)}
+            <div class="screenshot-missing" role="img" aria-label="{app.name} screenshot {index + 1} unavailable">Screenshot unavailable</div>
+          {:else}
+            <img src={source} alt="{app.name} screenshot {index + 1}" loading="lazy" onerror={() => brokenShots = [...brokenShots, source]} />
+          {/if}
         {/each}
       </div>
     </section>
@@ -123,7 +147,9 @@
   {#if latest?.notes}
     <section class="detail-card release-notes" aria-labelledby="detail-release-notes-title">
       <h2 id="detail-release-notes-title">Latest release notes · {latest.version}</h2>
-      {#if releaseNotesHtml}<div class="release-markdown">{@html releaseNotesHtml}</div>{:else}<p>Preparing sanitized release notes…</p>{/if}
+      {#if notesHtml}<div class="release-markdown">{@html notesHtml}</div>
+      {:else if notesError}<p class="status-warning">The notes couldn't be formatted ({notesError}).</p><pre class="release-plain">{latest.notes}</pre>
+      {:else}<p>Preparing sanitized release notes…</p>{/if}
     </section>
   {/if}
 

@@ -183,7 +183,13 @@ impl TrayModel {
             }
             let mut title = name.to_owned();
             if !state.running {
-                title.push_str(" (not running)");
+                // With Arcade Link off, the app may well be running; Tools
+                // just can't reach it.
+                title.push_str(if document.manifest.settings.link_enabled {
+                    " (not running)"
+                } else {
+                    " (Arcade Link off)"
+                });
             }
             if prefs.excluded.iter().any(|e| e == id) {
                 title.push_str(" (own icon)");
@@ -264,6 +270,13 @@ mod tests {
         )));
         assert!(submenus[1].1.iter().any(|i| matches!(i, Item::Action { checked: Some(true), action: Action::Peer { command: PeerCommand::Extra(id), .. }, .. } if id == "private")));
         assert!(submenus[1].1.iter().any(|i| matches!(i, Item::Action { enabled: false, action: Action::Peer { command: PeerCommand::Extra(id), .. }, .. } if id == "offline")));
+        // An app with Arcade Link off is unreachable, not necessarily stopped.
+        let mut off: ManifestDocument = Manifest::new(ids::BOX, "1", "/fixture/box").into();
+        off.manifest.settings.link_enabled = false;
+        let model = TrayModel::build(&[off], &states, &prefs, 0, false);
+        assert!(model.items.iter().any(
+            |i| matches!(i, Item::Submenu { title, .. } if title == "Arcade Box (Arcade Link off)")
+        ));
         let empty = TrayModel::build(&[], &BTreeMap::new(), &prefs, 0, false);
         assert!(!empty.badge);
         assert!(!empty.items.iter().any(|i| matches!(

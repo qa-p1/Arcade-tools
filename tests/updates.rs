@@ -192,7 +192,14 @@ fn timer_window_offline_disabled_and_restart_notifications_are_deterministic() {
         .unwrap();
     assert_eq!(outcome.notifications.len(), 1);
     assert_eq!(outcome.notifications[0].version, "2.0.0");
-    assert_eq!(scheduler.state().apps["arcade.look"].latest.len(), 2);
+    // Only the followed channel is checked (m16): no nightly request is made.
+    assert_eq!(scheduler.state().apps["arcade.look"].latest.len(), 1);
+    assert!(!server
+        .requests
+        .lock()
+        .unwrap()
+        .iter()
+        .any(|(route, _)| route.contains("nightly")));
     let before = count();
     let checked_at = clock.now();
     clock.set(checked_at + WINDOW_MAX_AGE);
@@ -216,8 +223,8 @@ fn timer_window_offline_disabled_and_restart_notifications_are_deterministic() {
         .is_empty());
     assert_eq!(
         count() - before,
-        2,
-        "304 checks must skip both release manifests"
+        1,
+        "A 304 check must skip the release manifest"
     );
     let mut restarted = Scheduler::new(paths.clone(), clock.clone(), source).unwrap();
     assert_eq!(restarted.next_deadline(&settings), Some(clock.now() + 60));

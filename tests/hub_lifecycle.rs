@@ -41,6 +41,8 @@ fn request(id: &str, operation: Operation) -> Request {
         mode: Some(LaunchMode::Background),
         remove_data: false,
         app_closed: false,
+        channel: None,
+        version: None,
     }
 }
 fn operate(manager: &Manager, id: &str, operation: Operation) -> arcade_tools_core::Result<String> {
@@ -453,9 +455,16 @@ fn hub_lifecycle_adopt_manual_self_and_refuse_dev() {
         } else {
             manual.clone()
         };
-        arcade_link::manifest::write_manifest(
+        // A current app's manifest says how it installs itself.
+        arcade_link::manifest::write_document(
             &manager.paths.link,
-            &Manifest::new(id, "1.0.0", exe.to_str().unwrap()),
+            &ManifestDocument {
+                manifest: Manifest::new(id, "1.0.0", exe.to_str().unwrap()),
+                additions: ManifestAdditions {
+                    install: Some(arcade_link::receipt::InstallMethod::Appimage),
+                    ..Default::default()
+                },
+            },
         )
         .unwrap();
         if self_install {
@@ -510,6 +519,223 @@ fn hub_lifecycle_adopt_manual_self_and_refuse_dev() {
         .all(|(route, _)| !route.contains("releases")));
 }
 
+#[test]
+fn hub_lifecycle_adopting_or_updating_a_pre_installer_copy_installs_the_release() {
+    let (server, manager) = fixture();
+    for (id, operation) in [
+        ("arcade.look", Operation::Adopt),
+        ("arcade.lens", Operation::Update),
+    ] {
+        publish(&server, &manager, id, "1.1.0", false);
+        // An app from before the Arcade installer: it ignores --install and
+        // its manifest says nothing about installing.
+        let manual = manager
+            .paths
+            .home
+            .join("Apps")
+            .join(format!("{id}.AppImage"));
+        fs::create_dir_all(manual.parent().unwrap()).unwrap();
+        fs::write(&manual, "#!/bin/sh\nexit 0\n").unwrap();
+        fs::set_permissions(&manual, fs::Permissions::from_mode(0o755)).unwrap();
+        arcade_link::manifest::write_manifest(
+            &manager.paths.link,
+            &Manifest::new(id, "0.1.1", manual.to_str().unwrap()),
+        )
+        .unwrap();
+        let message = operate(&manager, id, operation).unwrap();
+        assert!(message.contains("1.1.0"), "{message}");
+        let receipt = manager.receipt(id).unwrap().unwrap();
+        assert_eq!(receipt.managed_by, ManagedBy::Tools);
+        assert_eq!(receipt.version, "1.1.0");
+        assert_eq!(manager.record(id).unwrap().unwrap().version, "1.1.0");
+        assert!(!manager.check(id).unwrap().update_available);
+        // The user's own file is left alone.
+        assert_eq!(fs::read_to_string(&manual).unwrap(), "#!/bin/sh\nexit 0\n");
+    }
+}
+
+#[test]
+fn hub_lifecycle_rate_limited_checks_and_updates_use_release_downloads() {
+    let (server, manager) = fixture();
+    installed(&server, &manager, "arcade.look");
+    publish(&server, &manager, "arcade.look", "2.0.0", false);
+    let repo = arcade_tools_core::apps::releases_url("arcade.look")
+        .trim_start_matches("https://github.com/")
+        .trim_end_matches("/releases")
+        .to_string();
+    // GitHub's anonymous API limit is used up...
+    server.replies.lock().unwrap().insert(
+        format!("/repos/{repo}/releases/latest"),
+        support::HttpReply {
+            status: "403 Forbidden".into(),
+            headers: vec![
+                ("x-ratelimit-remaining".into(), "0".into()),
+                ("x-ratelimit-reset".into(), "9999999999".into()),
+            ],
+            body: b"{\"message\":\"API rate limit exceeded\"}".to_vec(),
+        },
+    );
+    // When the download host fails too, the rate limit is what's reported.
+    let fallback = format!("/{repo}/releases/latest/download/arcade-release.json");
+    server.replies.lock().unwrap().insert(
+        fallback.clone(),
+        support::HttpReply {
+            status: "502 Bad Gateway".into(),
+            headers: vec![],
+            body: vec![],
+        },
+    );
+    let check = manager.check("arcade.look");
+    assert_eq!(
+        check.as_ref().unwrap_err().code,
+        "rate_limited",
+        "{check:?}"
+    );
+    assert!(check.unwrap_err().message.contains("Try again in"));
+    server.replies.lock().unwrap().remove(&fallback);
+    // ...but release files on github.com don't count against the limit.
+    {
+        let mut routes = server.routes.lock().unwrap();
+        let prefix = "/assets/arcade-look-2.0.0-stable/";
+        let manifest = routes[&format!("{prefix}arcade-release.json")].clone();
+        let image = routes[&format!("{prefix}App_x64.AppImage")].clone();
+        routes.insert(
+            format!("/{repo}/releases/latest/download/arcade-release.json"),
+            manifest,
+        );
+        routes.insert(
+            format!("/{repo}/releases/download/v2.0.0/App_x64.AppImage"),
+            image,
+        );
+    }
+    let check = manager.check("arcade.look").unwrap();
+    assert!(check.update_available);
+    operate(&manager, "arcade.look", Operation::Update).unwrap();
+    assert_eq!(
+        manager.record("arcade.look").unwrap().unwrap().version,
+        "2.0.0"
+    );
+}
+
+#[test]
+fn hub_lifecycle_an_app_that_removed_itself_is_not_installed() {
+    let (server, manager) = fixture();
+    installed(&server, &manager, "arcade.look");
+    let receipt = manager.receipt("arcade.look").unwrap().unwrap();
+    // The app's own --uninstall removes its receipt, file and manifest.
+    fs::remove_file(&receipt.path).unwrap();
+    fs::remove_file(manager.paths.guard_receipt("arcade.look").unwrap()).unwrap();
+    let _ = arcade_link::manifest::remove_manifest(&manager.paths.link, "arcade.look");
+    assert!(manager.record("arcade.look").unwrap().is_none());
+    assert!(!manager
+        .list(false)
+        .unwrap()
+        .iter()
+        .any(|app| app.id == "arcade.look" && app.installed));
+    // Startup cleanup removes Tools' leftover record, interrupted downloads
+    // and snapshots nothing points at.
+    let downloads = manager.paths.downloads();
+    fs::create_dir_all(&downloads).unwrap();
+    fs::write(downloads.join("partial.download"), "half").unwrap();
+    let orphan = manager
+        .paths
+        .home
+        .join("Applications/Arcade/.previous/tools-arcade.look-orphan");
+    fs::create_dir_all(&orphan).unwrap();
+    fs::write(orphan.join("0-copy"), "old").unwrap();
+    assert_eq!(
+        manager.cleanup_orphan_records().unwrap(),
+        vec!["arcade.look"]
+    );
+    assert!(manager.cleanup_interrupted().unwrap() > 0);
+    assert!(!manager.paths.state().join("arcade.look.json").exists());
+    assert!(!downloads.join("partial.download").exists());
+    assert!(!orphan.exists());
+}
+
+#[test]
+fn hub_lifecycle_uninstall_all_keeps_tools_when_an_app_stays() {
+    let (server, manager) = fixture();
+    installed(&server, &manager, "arcade.look");
+    let tools = manager.paths.executable("arcade.tools", Os::Linux, false);
+    fs::write(
+        &tools,
+        fake_app(&manager.paths, "arcade.tools", "1.0.0", false),
+    )
+    .unwrap();
+    fs::set_permissions(&tools, fs::Permissions::from_mode(0o755)).unwrap();
+    arcade_tools_core::platform::CommandSpec {
+        program: tools.clone(),
+        args: vec!["--install".into(), "--silent".into(), "--no-launch".into()],
+    }
+    .run(&manager.paths)
+    .unwrap();
+    let plan = manager.plan_uninstall_all(false).unwrap();
+    assert!(plan
+        .apps
+        .iter()
+        .any(|app| app.id == "arcade.tools" && app.can_uninstall));
+    // Look can't be removed: Arcade Link is off in it, so Tools can't close it.
+    let mut manifest: Value = serde_json::from_slice(
+        &fs::read(manager.paths.link.registry.join("arcade.look.json")).unwrap(),
+    )
+    .unwrap();
+    manifest["settings"]["linkEnabled"] = json!(false);
+    fs::write(
+        manager.paths.link.registry.join("arcade.look.json"),
+        serde_json::to_vec(&manifest).unwrap(),
+    )
+    .unwrap();
+    let plan = manager.plan_uninstall_all(false).unwrap();
+    let outcome = manager
+        .uninstall_all(&plan, &AtomicBool::new(false), &mut |_| {})
+        .unwrap();
+    assert!(outcome.self_uninstall.is_none(), "Tools would be removed");
+    let kept = outcome
+        .results
+        .iter()
+        .find(|r| r.app == "arcade.tools")
+        .unwrap();
+    assert!(
+        !kept.removed && kept.reason.contains("Arcade Look"),
+        "{}",
+        kept.reason
+    );
+    assert!(tools.exists());
+}
+
+#[test]
+fn hub_lifecycle_updates_run_only_on_the_reviewed_channel_and_version() {
+    let (server, manager) = fixture();
+    installed(&server, &manager, "arcade.look");
+    publish(&server, &manager, "arcade.look", "2.0.0", false);
+    let reviewed = |channel, version: &str| Request {
+        channel: Some(channel),
+        version: Some(version.into()),
+        ..request("arcade.look", Operation::Update)
+    };
+    let cancel = AtomicBool::new(false);
+    use arcade_tools_core::release::Channel;
+    for stale in [
+        reviewed(Channel::Nightly, "2.0.0"),
+        reviewed(Channel::Stable, "1.5.0"),
+    ] {
+        let error = manager.operate(&stale, &cancel, &mut |_| {}).unwrap_err();
+        assert_eq!(error.code, "state_changed", "{error:?}");
+    }
+    assert_eq!(
+        manager.record("arcade.look").unwrap().unwrap().version,
+        "1.0.0"
+    );
+    manager
+        .operate(&reviewed(Channel::Stable, "2.0.0"), &cancel, &mut |_| {})
+        .unwrap();
+    assert_eq!(
+        manager.record("arcade.look").unwrap().unwrap().version,
+        "2.0.0"
+    );
+}
+
 struct Time(u64);
 impl Clock for Time {
     fn now(&self) -> u64 {
@@ -558,6 +784,124 @@ fn hub_lifecycle_auto_update_executes_only_opted_in_idle_compatible_apps() {
         manager.record("arcade.look").unwrap().unwrap().version,
         "2.0.0"
     );
+}
+
+#[test]
+fn hub_lifecycle_auto_update_does_not_undo_a_rollback() {
+    let (server, manager) = fixture();
+    installed(&server, &manager, "arcade.look");
+    publish(&server, &manager, "arcade.look", "2.0.0", false);
+    manager.set_auto_update("arcade.look", true).unwrap();
+    operate(&manager, "arcade.look", Operation::Update).unwrap();
+    operate(&manager, "arcade.look", Operation::Rollback).unwrap();
+    let version = || manager.record("arcade.look").unwrap().unwrap().version;
+    assert_eq!(version(), "1.0.0");
+    let run = || {
+        manager.check_updates().unwrap();
+        manager
+            .auto_update(
+                "arcade.look",
+                Some(0),
+                &Time(1000),
+                &AtomicBool::new(false),
+                &mut |_| {},
+            )
+            .unwrap()
+    };
+    let outcome = run();
+    assert!(!outcome.decision.eligible, "{:?}", outcome.decision);
+    assert!(outcome.decision.reason.contains("rolled back from 2.0.0"));
+    assert_eq!(version(), "1.0.0");
+    // A newer release than the one rolled back from is installed again.
+    publish(&server, &manager, "arcade.look", "2.1.0", false);
+    assert!(run().decision.eligible);
+    assert_eq!(version(), "2.1.0");
+    assert!(manager
+        .preferences()
+        .unwrap()
+        .updates
+        .rolled_back
+        .is_empty());
+}
+
+#[test]
+fn hub_lifecycle_cancel_during_snapshot_keeps_the_old_version() {
+    let (server, manager) = fixture();
+    installed(&server, &manager, "arcade.look");
+    publish(&server, &manager, "arcade.look", "2.0.0", false);
+    // A large installed app widens the snapshot window (the audit used 256 MiB).
+    let executable = manager.receipt("arcade.look").unwrap().unwrap().path;
+    let mut padding = b"\n#".to_vec();
+    padding.resize(96 << 20, b'x');
+    let mut file = fs::OpenOptions::new()
+        .append(true)
+        .open(&executable)
+        .unwrap();
+    std::io::Write::write_all(&mut file, &padding).unwrap();
+    drop(file);
+    let before = fs::read(&executable).unwrap();
+    let snapshots = manager.paths.home.join("Applications/Arcade/.previous");
+    let existing: Vec<_> = fs::read_dir(&snapshots)
+        .map(|entries| entries.flatten().map(|e| e.path()).collect())
+        .unwrap_or_default();
+    let cancel = Arc::new(AtomicBool::new(false));
+    let watcher = {
+        let cancel = cancel.clone();
+        std::thread::spawn(move || {
+            let deadline = Instant::now() + Duration::from_secs(30);
+            while Instant::now() < deadline {
+                let started = fs::read_dir(&snapshots)
+                    .is_ok_and(|entries| entries.flatten().any(|e| !existing.contains(&e.path())));
+                if started {
+                    cancel.store(true, Ordering::SeqCst);
+                    return true;
+                }
+                std::thread::sleep(Duration::from_micros(200));
+            }
+            false
+        })
+    };
+    let result = manager.operate(
+        &request("arcade.look", Operation::Update),
+        &cancel,
+        &mut |_| {},
+    );
+    assert!(watcher.join().unwrap(), "the snapshot never started");
+    assert_eq!(result.unwrap_err().code, "cancelled");
+    assert_eq!(
+        manager.record("arcade.look").unwrap().unwrap().version,
+        "1.0.0"
+    );
+    assert!(fs::read(&executable).unwrap() == before);
+}
+
+#[test]
+fn hub_lifecycle_removing_tools_hands_apps_back_to_themselves() {
+    let (server, manager) = fixture();
+    installed(&server, &manager, "arcade.look");
+    publish(&server, &manager, "arcade.look", "2.0.0", false);
+    operate(&manager, "arcade.look", Operation::Update).unwrap();
+    let receipt = manager.receipt("arcade.look").unwrap().unwrap();
+    assert_eq!(receipt.managed_by, ManagedBy::Tools);
+    let snapshots = manager.paths.home.join("Applications/Arcade/.previous");
+    let tools_snapshots = || {
+        fs::read_dir(&snapshots)
+            .map(|entries| {
+                entries
+                    .flatten()
+                    .filter(|e| e.file_name().to_string_lossy().starts_with("tools-"))
+                    .count()
+            })
+            .unwrap_or(0)
+    };
+    assert!(tools_snapshots() > 0);
+    assert_eq!(manager.release_managed_apps().unwrap(), vec!["arcade.look"]);
+    let released = manager.receipt("arcade.look").unwrap().unwrap();
+    assert_eq!(released.managed_by, ManagedBy::SelfManaged);
+    assert_eq!(released.version, "2.0.0");
+    assert!(released.path.exists());
+    assert_eq!(tools_snapshots(), 0);
+    assert!(released.previous.as_ref().is_none_or(|p| p.path.exists()));
 }
 
 #[test]
@@ -838,6 +1182,17 @@ fn hub_lifecycle_busy_holds_verification_before_quit_and_same_mode_restart() {
     installed(&server, &manager, "arcade.look");
     let app = running(&manager);
     publish(&server, &manager, "arcade.look", "2.0.0", false);
+    let downloads = || {
+        server
+            .requests
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(route, _)| {
+                route.contains("/assets/arcade-look-2.0.0") && route.ends_with(".AppImage")
+            })
+            .count()
+    };
     assert_eq!(
         operate(&manager, "arcade.look", Operation::Update)
             .unwrap_err()
@@ -845,6 +1200,8 @@ fn hub_lifecycle_busy_holds_verification_before_quit_and_same_mode_restart() {
         "busy"
     );
     assert!(!app.quit.load(Ordering::SeqCst));
+    // The busy refusal comes before the download (m19).
+    assert_eq!(downloads(), 0);
     manager.set_auto_update("arcade.look", true).unwrap();
     assert!(
         !manager

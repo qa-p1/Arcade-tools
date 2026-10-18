@@ -126,7 +126,13 @@ impl Paths {
                     self.data.join("arcadebox"),
                 ],
                 ids::LENS => vec![self.config.join("arcadelens"), self.data.join("arcadelens")],
-                ids::LOOK => vec![self.config.join("arcade-look")],
+                // Look's settings, and its WebView storage and cache (Tauri
+                // keeps those under the app identifier).
+                ids::LOOK => vec![
+                    self.config.join("arcade-look"),
+                    self.data.join("app.arcadelook"),
+                    self.cache.join("app.arcadelook"),
+                ],
                 ids::WHEEL => vec![self.config.join("Arcade Wheel/Arcade Wheel")],
                 crate::apps::SHELF => vec![self.data.join("qa-p1/ArcadeShelf")],
                 crate::apps::FIND => vec![
@@ -149,7 +155,10 @@ impl Paths {
                     self.roaming.join("Arcade/Arcade Lens/config"),
                     self.roaming.join("Arcade/Arcade Lens/data"),
                 ],
-                ids::LOOK => vec![self.roaming.join("arcade-look")],
+                ids::LOOK => vec![
+                    self.roaming.join("arcade-look"),
+                    self.local.join("app.arcadelook"),
+                ],
                 ids::WHEEL => vec![self.local.join("Arcade Wheel/Arcade Wheel")],
                 crate::apps::SHELF => vec![self.local.join("qa-p1/ArcadeShelf")],
                 crate::apps::FIND => vec![
@@ -168,7 +177,11 @@ impl Paths {
                         support.join("dev.Arcade-Box.Arcade-Box"),
                     ],
                     ids::LENS => vec![support.join("dev.Arcade.Arcade-Lens")],
-                    ids::LOOK => vec![support.join("arcade-look")],
+                    ids::LOOK => vec![
+                        support.join("arcade-look"),
+                        self.home.join("Library/WebKit/app.arcadelook"),
+                        self.home.join("Library/Caches/app.arcadelook"),
+                    ],
                     ids::WHEEL => vec![self
                         .home
                         .join("Library/Preferences/Arcade Wheel/Arcade Wheel")],

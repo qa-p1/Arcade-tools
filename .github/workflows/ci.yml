@@ -47,11 +47,11 @@ jobs:
         with:
           path: Arcade-tools
       # Only for tools/e2e.py, the disposable desktop session the tests run
-      # in; the crate itself comes from the git tag in Cargo.toml.
+      # in; the crate itself comes from the commit pinned in Cargo.toml.
       - uses: actions/checkout@v4
         with:
           repository: qa-p1/Arcade-Link
-          ref: v0.3.0
+          ref: 2fc7c91b7578ca424264627b82174bedc176e511
           path: Arcade-link
       - uses: dtolnay/rust-toolchain@stable
         with:

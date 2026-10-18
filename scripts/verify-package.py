@@ -32,7 +32,7 @@ def lifecycle(executable, environment, root):
     assert Path(installed['path']).exists()
     assert json.loads(run('--integration-status').stdout)
     run('--repair')
-    run('--uninstall')
+    run('--uninstall', '--silent')
     assert not receipt_path.exists()
 
 
@@ -153,7 +153,7 @@ with tempfile.TemporaryDirectory(prefix='arcade-tools-package-') as temporary:
             for profile in (root / 'home', root / 'arcade'):
                 for name in ('.zprofile', '.bash_profile', '.profile', '.zshrc'):
                     assert not (profile / name).exists(), f'Shell profile written: {name}'
-            run('--uninstall')
+            run('--uninstall', '--silent')
             assert not receipt_path.exists() and not target.exists() and not os.path.lexists(cli)
         finally:
             subprocess.run(['hdiutil','detach',str(mount)],check=True)

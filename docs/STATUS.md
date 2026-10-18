@@ -1,14 +1,15 @@
-# Arcade Tools 0.2.0 status
+# Arcade Tools 0.3.0 status
 
-## Release status (2026-10-15)
+## Release status (2026-10-18)
 
-- Released: [v0.2.0](https://github.com/qa-p1/Arcade-tools/releases/tag/v0.2.0) with a Linux self-installing AppImage, a per-user Windows installer, a macOS dmg, `arcade-release.json` and `SHA256SUMS.txt`.
+- Latest release: [v0.3.0](https://github.com/qa-p1/Arcade-tools/releases/tag/v0.3.0), published 2026-10-18 (fixes from the October audit and stress test; see CHANGELOG.md). The CI and e2e notes below were recorded for the earlier v0.2.0.
+- Previously released: [v0.2.1](https://github.com/qa-p1/Arcade-tools/releases/tag/v0.2.1), published 2026-10-16.
+- Previously released: [v0.2.0](https://github.com/qa-p1/Arcade-tools/releases/tag/v0.2.0) with a Linux self-installing AppImage, a per-user Windows installer, a macOS dmg, `arcade-release.json` and `SHA256SUMS.txt`.
 - Merged to `main` from PR #2 (9d637db (backup fix cf8f0c5)) after CI passed on Linux, Windows and macOS: [run 38601196256](https://github.com/qa-p1/Arcade-tools/actions/runs/38601196256). That covers the build, tests, clippy or analyzers, installer smoke tests on each OS, and the Linux AppImage install, repair and uninstall check in a temporary profile.
 - Ecosystem e2e (Arcade Link `tools/e2e.py`, real CI builds of all eight apps): install, tray hosting (hosted by Tools, own icon back within 1 s after Tools is killed, no flash on restart) and shortcuts pass. Tools hosts the tray, adopts, installs, updates, rolls back and uninstalls all seven apps; the backup fix for Lens, Wheel and Shelf settings landed in cf8f0c5 before the tag.
 - Not yet verified: a real Windows or macOS desktop (CI runners only), and the owner's real-desktop checks. Builds are unsigned, so SmartScreen and Gatekeeper ask for approval.
 
-Arcade Link is pinned to the released `v0.3.0` tag, commit
-`33650a87b6999fbd553ac678cc7bde7a308cb852`.
+Arcade Link is pinned to commit `2fc7c91` on Link's main branch (after the v0.3.0 tag).
 
 Implemented scope from plan §8 and §10–§14:
 

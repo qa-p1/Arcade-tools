@@ -174,6 +174,14 @@ def main():
         children.append(process)
         return process
 
+    def endpoint_pid(app):
+        path = Path(os.environ["ARCADE_HOME"]) / "run" / f"arcade.{app}.endpoint"
+        try:
+            pid = json.loads(path.read_text())["pid"]
+        except (OSError, ValueError, KeyError):
+            return None
+        return pid if status(app) else None
+
     def status(app):
         result = subprocess.run([str(link), "status", app], capture_output=True, text=True, timeout=3)
         return json.loads(result.stdout) if result.returncode == 0 else None
@@ -302,14 +310,29 @@ def main():
         time.sleep(1)
         close_window(identifier)
         wait(lambda: window() is None)
+        # About 20 s after the window closes, Tools restarts quietly into the
+        # background to shed WebKit; the successor keeps hosting the tray.
+        assert process.wait(timeout=40) == 0, "Tools did not restart after its window closed"
+        registered = len(host.items)
+        successor = wait(lambda: endpoint_pid("tools"), timeout=10)
+        assert successor != process.pid
+        # The successor registers its own tray item.
+        item = wait(lambda: len(host.items) > registered and host.items[-1], timeout=10)
+        took_back = False
+        try:
+            receive(lines, "own", timeout=3)
+            took_back = True
+        except (queue.Empty, AssertionError):
+            pass
+        assert not took_back, "The peer took its own icon back during the restart"
         time.sleep(3)
-        before_ticks, before_rss = metrics(process.pid)
+        before_ticks, before_rss = metrics(successor)
         time.sleep(args.seconds)
-        after_ticks, after_rss = metrics(process.pid)
+        after_ticks, after_rss = metrics(successor)
         ticks = after_ticks - before_ticks
         print(f"Resident after window close: RSS={after_rss:.3f} MiB (start {before_rss:.3f}); CPU ticks={ticks} over {args.seconds}s", flush=True)
         if after_rss > 40:
-            mappings = Path(f"/proc/{process.pid}/smaps").read_text().splitlines()
+            mappings = Path(f"/proc/{successor}/smaps").read_text().splitlines()
             resident = []
             name = ""
             for line in mappings:
@@ -321,16 +344,16 @@ def main():
         started = time.monotonic()
         host.call(item, "org.kde.StatusNotifierItem", "Activate", GLib.Variant("(ii)", (0, 0)))
         identifier = wait(window)
-        print(f"PASS: warm Open recreates window in {(time.monotonic()-started)*1000:.3f} ms", flush=True)
+        print(f"PASS: Open after the lean restart creates the window in {(time.monotonic()-started)*1000:.3f} ms", flush=True)
         duplicate = start([str(tools)], stdout=subprocess.DEVNULL)
         assert duplicate.wait(timeout=5) == 0
-        assert process.poll() is None and window() == identifier
+        assert Path(f"/proc/{successor}").exists() and window() == identifier
         print("PASS: a second foreground launch activates the resident instance", flush=True)
         close_window(identifier)
         wait(lambda: window() is None)
         killed = time.monotonic()
-        process.kill()
-        process.wait()
+        os.kill(successor, 9)
+        wait(lambda: not Path(f"/proc/{successor}").exists() or "zombie" in Path(f"/proc/{successor}/status").read_text())
         own = receive(lines, "own", timeout=1)
         elapsed = own - killed
         assert elapsed < 1

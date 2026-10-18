@@ -54,6 +54,9 @@
       <button class="primary" type="button" disabled={busy} onclick={() => run(() => onLaunch(app, 'foreground'), app.name)}>Open</button>
       <button type="button" disabled={busy} onclick={() => run(() => onLaunch(app, 'background'), app.name)}>Background</button>
     {/if}
+    {#if app.installed && !app.managed && app.installationClass !== 'dev'}
+      <button class="primary" type="button" disabled={busy} onclick={() => run(() => onOperation(app, 'adopt'), app.name)}>Let Tools manage it</button>
+    {/if}
     {#if !app.installed && !app.managed}
       <button class="primary" type="button" disabled={busy} onclick={() => run(() => onInstall(app), app.name)}>Check &amp; install</button>
     {/if}

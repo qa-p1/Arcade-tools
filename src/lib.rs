@@ -58,7 +58,25 @@ impl From<serde_json::Error> for Error {
 }
 impl From<reqwest::Error> for Error {
     fn from(e: reqwest::Error) -> Self {
-        Self::new("network", e.to_string())
+        // The library's own text ("error sending request for url (…)") means
+        // nothing to a user; keep it in the log and say what happened.
+        let mut detail = e.to_string();
+        let mut source = std::error::Error::source(&e);
+        while let Some(cause) = source {
+            detail = format!("{detail}: {cause}");
+            source = cause.source();
+        }
+        eprintln!("Network: {detail}");
+        let message = if e.is_timeout() {
+            "The connection timed out. Check your internet connection and try again."
+        } else if e.is_connect() {
+            "Couldn't connect. Check your internet connection and try again."
+        } else if e.is_body() || e.is_decode() {
+            "The download was interrupted. Try again."
+        } else {
+            "A network error stopped this. Check your internet connection and try again."
+        };
+        Self::new("network", message)
     }
 }
 impl From<arcade_link::LinkError> for Error {

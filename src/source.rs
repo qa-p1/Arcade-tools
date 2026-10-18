@@ -136,10 +136,72 @@ impl Source {
         if let Some(etag) = etag {
             request = request.header("If-None-Match", etag);
         }
-        request
-            .send()?
-            .error_for_status()
-            .map_err(|error| Error::new("http", error.to_string()))
+        let response = request.send()?;
+        let status = response.status();
+        if status.is_client_error() || status.is_server_error() {
+            return Err(http_error(status, response.headers()));
+        }
+        Ok(response)
+    }
+    /// Where release files live outside the REST API (not subject to its
+    /// per-IP limit): github.com in production, the loopback server in tests.
+    fn web(&self, path: &str) -> Result<Url> {
+        let base = if self.test {
+            self.api.clone()
+        } else {
+            Url::parse("https://github.com/").unwrap()
+        };
+        base.join(path)
+            .map_err(|e| Error::new("source", e.to_string()))
+    }
+    /// The same release read through github.com download URLs, used when the
+    /// API's anonymous limit is exhausted. Release notes aren't available there.
+    fn check_without_api(
+        &self,
+        id: &str,
+        repository: &str,
+        channel: Channel,
+        os: crate::release::Os,
+        arch: crate::release::Arch,
+    ) -> Result<ReleaseCheck> {
+        let tag_path =
+            |tag: &str, file: &str| format!("{repository}/releases/download/{tag}/{file}");
+        let manifest_url = if channel == Channel::Stable {
+            self.web(&format!(
+                "{repository}/releases/latest/download/arcade-release.json"
+            ))?
+        } else {
+            self.web(&tag_path("nightly", "arcade-release.json"))?
+        };
+        let release = Release::parse(&self.json(manifest_url.as_str())?)?;
+        release.matches(id, channel)?;
+        let asset = release.select(os, arch)?;
+        safe_filename(&asset.file)?;
+        let tag = if channel == Channel::Stable {
+            format!("v{}", release.version)
+        } else {
+            "nightly".into()
+        };
+        let download_url = self.web(&tag_path(&tag, &asset.file))?.to_string();
+        self.asset_url(&download_url, repository)?;
+        let cache = ReleaseCache {
+            schema: 1,
+            api_url: manifest_url.to_string(),
+            etag: None,
+            release: release.clone(),
+            asset: asset.clone(),
+            download_url: download_url.clone(),
+            body: String::new(),
+        };
+        Ok(ReleaseCheck {
+            checked: CheckedRelease {
+                release,
+                asset,
+                url: download_url,
+            },
+            cache,
+            unchanged: false,
+        })
     }
     fn json(&self, url: &str) -> Result<Vec<u8>> {
         let mut response = self.response(url)?;
@@ -234,11 +296,27 @@ impl Source {
                     .is_ok_and(|a| a == cache.asset)
                 && self.asset_url(&cache.download_url, repository).is_ok()
         });
-        let response = self.fetch(
+        let response = match self.fetch(
             url.as_str(),
             cached.and_then(|c| c.etag.as_deref()),
             MAX_JSON,
-        )?;
+        ) {
+            Ok(response) => response,
+            // GitHub's anonymous API allows 60 requests an hour per IP, shared
+            // by everyone behind the same NAT. Release files don't count.
+            Err(error) if error.code == "rate_limited" => {
+                return self
+                    .check_without_api(id, repository, channel, os, arch)
+                    .map_err(|fallback| {
+                        if fallback.code == "not_found" {
+                            fallback
+                        } else {
+                            error
+                        }
+                    });
+            }
+            Err(error) => return Err(error),
+        };
         let (bytes, etag) = match response {
             Fetch::NotModified => {
                 let cache = cached
@@ -346,7 +424,13 @@ impl Source {
             if cancel.load(Ordering::SeqCst) {
                 return Err(Error::new("cancelled", "Cancelled."));
             }
-            let n = response.read(&mut block)?;
+            let n = response.read(&mut block).map_err(|error| {
+                eprintln!("Download: {error}");
+                Error::new(
+                    "network",
+                    "The download was interrupted. Check your internet connection and try again.",
+                )
+            })?;
             if n == 0 {
                 break;
             }
@@ -402,6 +486,44 @@ impl HttpSource for Source {
         Ok(Fetch::Modified { bytes, etag })
     }
 }
+/// A readable error for a failed GitHub response: what happened and what to do.
+fn http_error(status: StatusCode, headers: &reqwest::header::HeaderMap) -> Error {
+    let header = |name: &str| {
+        headers
+            .get(name)
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_owned)
+    };
+    let exhausted = header("x-ratelimit-remaining").as_deref() == Some("0");
+    if status == StatusCode::TOO_MANY_REQUESTS || (status == StatusCode::FORBIDDEN && exhausted) {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let minutes = header("x-ratelimit-reset")
+            .and_then(|reset| reset.parse::<u64>().ok())
+            .map(|reset| reset.saturating_sub(now).div_ceil(60).max(1));
+        let wait = minutes.map_or_else(
+            || "a while".to_owned(),
+            |m| format!("about {m} minute{}", if m == 1 { "" } else { "s" }),
+        );
+        return Error::new(
+            "rate_limited",
+            format!("GitHub's limit for update checks from this network is used up. Try again in {wait}."),
+        );
+    }
+    if status == StatusCode::NOT_FOUND {
+        return Error::new("not_found", "That release isn't published on GitHub.");
+    }
+    if status.is_server_error() {
+        return Error::new(
+            "http",
+            format!("GitHub is having trouble right now ({status}). Try again later."),
+        );
+    }
+    Error::new("http", format!("GitHub refused the request ({status})."))
+}
+
 fn unique_asset<'a>(assets: &'a [GithubAsset], name: &str) -> Result<&'a GithubAsset> {
     let matches: Vec<_> = assets.iter().filter(|a| a.name == name).collect();
     if matches.len() != 1 {

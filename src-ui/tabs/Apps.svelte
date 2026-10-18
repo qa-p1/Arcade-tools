@@ -5,6 +5,7 @@
   import type { AppView, Channel, Operation, Release } from '../lib/api';
   import type { CatalogApp, CatalogBundle, CatalogData } from '../lib/catalog';
   import type { ShortcutsIndex } from '../lib/shortcuts';
+  import { ui } from '../lib/state.svelte';
 
   type Props = {
     active: boolean;
@@ -216,8 +217,10 @@
             />{/if}
           {/each}
         </div>
-      {:else}
+      {:else if ui.loaded}
         <p class="catalog-empty-note">No Arcade apps are installed yet.</p>
+      {:else}
+        <p class="catalog-empty-note">Loading your apps…</p>
       {/if}
     </section>
 
@@ -244,7 +247,7 @@
             />{/if}
           {/each}
         </div>
-      {:else}
+      {:else if ui.loaded}
         <p class="catalog-empty-note">Every app in the catalog is installed.</p>
       {/if}
     </section>

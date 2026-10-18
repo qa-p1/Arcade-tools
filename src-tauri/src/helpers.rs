@@ -21,7 +21,7 @@ pub fn launch(paths: &Paths, operation: &str, plan: &Path) -> Result<()> {
     std::fs::copy(std::env::current_exe()?, &executable)?;
     // A separate executable is required on Windows, where a running binary
     // cannot be replaced. This helper is never used as an autostart target.
-    arcade_tools_core::platform::spawn_detached(
+    arcade_tools_core::platform::spawn_helper(
         paths,
         &executable,
         &[operation.into(), plan.to_string_lossy().into_owned()],

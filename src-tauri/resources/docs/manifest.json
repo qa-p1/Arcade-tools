@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "contentBytes": 165299,
+  "contentBytes": 165298,
   "entries": [
     {
       "id": "arcade.box",
@@ -393,8 +393,8 @@
         },
         {
           "path": "shortcuts.json",
-          "size": 856,
-          "sha256": "7992c338578c7b97566db6b1b85d5f97402bd2c81f4643149ea1f68da41860f5"
+          "size": 855,
+          "sha256": "e6d604faa750b4c7bb8223935d90569f4d629f946556141ad1e41138e24cd522"
         },
         {
           "path": "shortcuts.md",

@@ -44,7 +44,12 @@ fn notify(app: &AppHandle, manager: &Manager, message: &str) {
     }
 }
 pub(super) fn wake_updates(state: &Desktop) {
-    if let Some(sender) = state.update_wake.lock().unwrap().as_ref() {
+    if let Some(sender) = state
+        .update_wake
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .as_ref()
+    {
         let _ = sender.send(());
     }
 }
@@ -66,7 +71,7 @@ pub(super) fn start_updates(
         return Ok(());
     }
     let (tx, rx) = mpsc::channel();
-    *state.update_wake.lock().unwrap() = Some(tx);
+    *state.update_wake.lock().unwrap_or_else(|e| e.into_inner()) = Some(tx);
     std::thread::spawn(move || loop {
         let wait = manager
             .update_deadline()
@@ -259,7 +264,11 @@ pub async fn dashboard(app: AppHandle) -> Result<dashboard::Dashboard> {
     worker(move || {
         let state = desktop(&app);
         let manager = state.manager()?;
-        let result = state.metrics.lock().unwrap().sample(&manager);
+        let result = state
+            .metrics
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .sample(&manager);
         result
     })
     .await
@@ -297,7 +306,9 @@ pub async fn health(app: AppHandle) -> Result<Vec<health::HealthIssue>> {
                     path: None,
                     reason: format!(
                         "{} is unavailable or too old for {}.",
-                        engine.name, usage.purpose
+                        engine.name,
+                        // Catalog purposes are sentences of their own.
+                        usage.purpose.trim_end_matches(['.', ' '])
                     ),
                     fix_action: health::FixAction::OpenEngines,
                     can_fix: true,
@@ -380,7 +391,12 @@ pub async fn restore_backup(
         state
             .link_enabled
             .store(prefs.link_enabled, Ordering::SeqCst);
-        if let Some(presence) = state.presence.lock().unwrap().as_mut() {
+        if let Some(presence) = state
+            .presence
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_mut()
+        {
             let tray = crate::tray::service(&app)?;
             presence.update(prefs.link_enabled, &tray.preferences());
         }
@@ -490,7 +506,11 @@ pub async fn fetch_latest_docs(app: AppHandle, id: String) -> Result<String> {
     worker(move || {
         let state = desktop(&app);
         let version = state.manager()?.fetch_latest_docs(&id)?;
-        state.docs_index.lock().unwrap().take();
+        state
+            .docs_index
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .take();
         crate::tray::service(&app)?.request_index_refresh();
         Ok(version)
     })
@@ -535,6 +555,8 @@ pub async fn install_catalog_bundle(
                 mode: Some(LaunchMode::Background),
                 remove_data: false,
                 app_closed: false,
+                channel: None,
+                version: None,
             };
             results.push(
                 manager.operate(&request, &state.cancel, &mut |p| progress(&app, &state, p))?,
@@ -572,6 +594,24 @@ pub async fn uninstall_all(
         }
         let _ = app.emit("registry-changed", ());
         Ok(outcome)
+    })
+    .await
+}
+/// Remove only Tools: the apps stay installed and go back to updating
+/// themselves. A helper removes Tools after this process exits.
+#[tauri::command]
+pub async fn uninstall_tools_only(app: AppHandle, remove_data: bool) -> Result<()> {
+    let state = begin(&app)?;
+    worker(move || {
+        let _active = Active(state.clone());
+        let manager = state.manager()?;
+        let plan = manager.prepare_self_uninstall(remove_data)?;
+        let file = manager.paths.state().join("self-update/uninstall.json");
+        manager.paths.guard(&file)?;
+        arcade_link::paths::write_atomic(&file, &serde_json::to_vec_pretty(&plan)?, true)?;
+        crate::helpers::launch(&manager.paths, "--finish-self-uninstall", &file)?;
+        app.exit(0);
+        Ok(())
     })
     .await
 }
@@ -623,7 +663,8 @@ pub async fn install_tools(app: AppHandle) -> Result<()> {
     worker(move || {
         let _active = Active(state.clone());
         let manager = state.manager()?;
-        let receipt = crate::installation::install("stable", false)?;
+        // This process keeps running from its image, so the image is kept.
+        let receipt = crate::installation::install("stable", false, true)?;
         arcade_tools_core::installation::claim(&manager.paths, receipt, None)?;
         let _ = app.emit("registry-changed", ());
         Ok(())

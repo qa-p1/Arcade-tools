@@ -212,6 +212,8 @@ fn version_output(binary: &Path, args: &[String], timeout: Duration) -> Result<S
     let mut stdout = tempfile::tempfile()?;
     let mut stderr = tempfile::tempfile()?;
     let mut command = Command::new(binary);
+    // Probe the engine as the user would run it, not with Tools' AppImage libraries.
+    arcade_link::childenv::sanitize(&mut command);
     command
         .args(args)
         .stdin(Stdio::null())

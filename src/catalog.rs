@@ -269,6 +269,20 @@ impl<S: HttpSource> CatalogClient<S> {
         refresh: bool,
         parse: impl Fn(&[u8]) -> Result<T>,
     ) -> Result<T> {
+        self.document_reporting(file, url, fallback, refresh, parse)
+            .map(|(document, _)| document)
+    }
+    /// [`Self::document`], plus why a requested refresh fell back to the
+    /// last good copy (offline, a server error, an invalid response).
+    fn document_reporting<T>(
+        &self,
+        file: &str,
+        url: &Url,
+        fallback: Option<&str>,
+        refresh: bool,
+        parse: impl Fn(&[u8]) -> Result<T>,
+    ) -> Result<(T, Option<Error>)> {
+        let mut refresh_error = None;
         let cached = self
             .read(file)
             .ok()
@@ -299,12 +313,15 @@ impl<S: HttpSource> CatalogClient<S> {
                 }
             })();
             match result {
-                Ok(parsed) => return Ok(parsed),
-                Err(error) => eprintln!("Catalog {file}: {error}; using last good copy."),
+                Ok(parsed) => return Ok((parsed, None)),
+                Err(error) => {
+                    eprintln!("Catalog {file}: {error}; using last good copy.");
+                    refresh_error = Some(error);
+                }
             }
         }
         if let Some(cached) = cached {
-            return parse(cached.body.as_bytes());
+            return parse(cached.body.as_bytes()).map(|parsed| (parsed, refresh_error));
         }
         fallback
             .map(|text| parse(text.as_bytes()))
@@ -314,6 +331,7 @@ impl<S: HttpSource> CatalogClient<S> {
                     format!("No cached {file}; fetch it while online."),
                 ))
             })
+            .map(|parsed| (parsed, refresh_error))
     }
     /// Disk read only, on a worker thread. Falls back to the built-in snapshot;
     /// never connects to the network.
@@ -326,7 +344,12 @@ impl<S: HttpSource> CatalogClient<S> {
     /// Explicit network refresh and atomic cache write, on a worker thread.
     /// Offline/invalid responses preserve the last good catalog or snapshot.
     pub fn refresh_catalog(&self) -> Catalog {
-        self.document("catalog.json", &self.url, Some(SNAPSHOT), true, |bytes| {
+        self.refresh_catalog_reporting().0
+    }
+    /// [`Self::refresh_catalog`], plus the error when it kept the last good
+    /// copy instead, so the UI doesn't claim a refresh that didn't happen.
+    pub fn refresh_catalog_reporting(&self) -> (Catalog, Option<Error>) {
+        self.document_reporting("catalog.json", &self.url, Some(SNAPSHOT), true, |bytes| {
             Catalog::parse(bytes, env!("CARGO_PKG_VERSION"))
         })
         .expect("validated built-in catalog")
