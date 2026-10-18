@@ -306,7 +306,9 @@ pub async fn health(app: AppHandle) -> Result<Vec<health::HealthIssue>> {
                     path: None,
                     reason: format!(
                         "{} is unavailable or too old for {}.",
-                        engine.name, usage.purpose
+                        engine.name,
+                        // Catalog purposes are sentences of their own.
+                        usage.purpose.trim_end_matches(['.', ' '])
                     ),
                     fix_action: health::FixAction::OpenEngines,
                     can_fix: true,
@@ -553,6 +555,8 @@ pub async fn install_catalog_bundle(
                 mode: Some(LaunchMode::Background),
                 remove_data: false,
                 app_closed: false,
+                channel: None,
+                version: None,
             };
             results.push(
                 manager.operate(&request, &state.cancel, &mut |p| progress(&app, &state, p))?,

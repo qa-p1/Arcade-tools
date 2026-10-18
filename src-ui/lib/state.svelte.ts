@@ -29,6 +29,8 @@ export interface ConfirmationResult {
 
 export const ui = $state({
   apps: [] as AppView[],
+  /** False until the first app list arrives: empty states wait for it. */
+  loaded: false,
   toolsApp: null as AppView | null,
   notificationsEnabled: true,
   learnTarget: 'arcade.ecosystem',

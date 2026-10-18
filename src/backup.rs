@@ -234,6 +234,8 @@ pub fn restore(
                         mode: Some(LaunchMode::Background),
                         remove_data: false,
                         app_closed: false,
+                        channel: None,
+                        version: None,
                     },
                     cancel,
                     &mut |_| {},

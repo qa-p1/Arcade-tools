@@ -24,6 +24,8 @@ fn request(id: &str, operation: Operation) -> Request {
         mode: Some(LaunchMode::Background),
         remove_data: false,
         app_closed: false,
+        channel: None,
+        version: None,
     }
 }
 fn app(server: &FakeRelease, version: &str) -> Vec<u8> {

@@ -41,6 +41,8 @@ fn request(id: &str, operation: Operation) -> Request {
         mode: Some(LaunchMode::Background),
         remove_data: false,
         app_closed: false,
+        channel: None,
+        version: None,
     }
 }
 fn operate(manager: &Manager, id: &str, operation: Operation) -> arcade_tools_core::Result<String> {
@@ -700,6 +702,38 @@ fn hub_lifecycle_uninstall_all_keeps_tools_when_an_app_stays() {
         kept.reason
     );
     assert!(tools.exists());
+}
+
+#[test]
+fn hub_lifecycle_updates_run_only_on_the_reviewed_channel_and_version() {
+    let (server, manager) = fixture();
+    installed(&server, &manager, "arcade.look");
+    publish(&server, &manager, "arcade.look", "2.0.0", false);
+    let reviewed = |channel, version: &str| Request {
+        channel: Some(channel),
+        version: Some(version.into()),
+        ..request("arcade.look", Operation::Update)
+    };
+    let cancel = AtomicBool::new(false);
+    use arcade_tools_core::release::Channel;
+    for stale in [
+        reviewed(Channel::Nightly, "2.0.0"),
+        reviewed(Channel::Stable, "1.5.0"),
+    ] {
+        let error = manager.operate(&stale, &cancel, &mut |_| {}).unwrap_err();
+        assert_eq!(error.code, "state_changed", "{error:?}");
+    }
+    assert_eq!(
+        manager.record("arcade.look").unwrap().unwrap().version,
+        "1.0.0"
+    );
+    manager
+        .operate(&reviewed(Channel::Stable, "2.0.0"), &cancel, &mut |_| {})
+        .unwrap();
+    assert_eq!(
+        manager.record("arcade.look").unwrap().unwrap().version,
+        "2.0.0"
+    );
 }
 
 struct Time(u64);

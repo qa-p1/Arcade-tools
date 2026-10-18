@@ -167,6 +167,9 @@ export interface OperationRequest {
   mode: LaunchMode | null;
   removeData: boolean;
   appClosed: boolean;
+  /** The channel and release the user reviewed; the backend refuses others. */
+  channel?: Channel | null;
+  version?: string | null;
 }
 
 export interface Bootstrap {

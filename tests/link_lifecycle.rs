@@ -77,6 +77,8 @@ fn installed(mode: Option<bool>, refuse: bool) -> (FakeRelease, Manager, Arc<Pee
                 mode: Some(LaunchMode::Background),
                 remove_data: false,
                 app_closed: false,
+                channel: None,
+                version: None,
             },
             &AtomicBool::new(false),
             &mut |_| {},
@@ -126,6 +128,8 @@ fn update() -> Request {
         mode: None,
         remove_data: false,
         app_closed: false,
+        channel: None,
+        version: None,
     }
 }
 

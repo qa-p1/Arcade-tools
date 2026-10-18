@@ -317,6 +317,8 @@ pub fn apply_restore(
             mode: None,
             remove_data: false,
             app_closed: false,
+            channel: None,
+            version: None,
         };
         match manager.operate(&request, cancel, progress) {
             Ok(_) => {

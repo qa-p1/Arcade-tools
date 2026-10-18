@@ -221,6 +221,12 @@ pub struct Request {
     pub remove_data: bool,
     #[serde(default)]
     pub app_closed: bool,
+    /// The channel and release version the user reviewed. When set, an
+    /// install or update refuses to run on anything else.
+    #[serde(default)]
+    pub channel: Option<Channel>,
+    #[serde(default)]
+    pub version: Option<String>,
 }
 #[derive(Clone, Copy)]
 struct Prior<'a> {
@@ -407,6 +413,8 @@ impl Manager {
             mode: None,
             remove_data: false,
             app_closed: false,
+            channel: None,
+            version: None,
         };
         match self.operate_locked(&request, cancel, progress, clock.now()) {
             Ok(message) => Ok(updates::AutoUpdateOutcome {
@@ -653,6 +661,8 @@ impl Manager {
                 mode: Some(plan.mode),
                 remove_data: false,
                 app_closed: true,
+                channel: None,
+                version: None,
             },
             cancel,
             progress,
@@ -842,6 +852,8 @@ impl Manager {
             mode: Some(plan.mode),
             remove_data: false,
             app_closed: true,
+            channel: None,
+            version: None,
         };
         let mut replaced = false;
         let result = self.install_package(
@@ -1353,7 +1365,7 @@ impl Manager {
             let running = probe && Client::connect(&self.paths.link, id, &me()).is_ok();
             let healthy = executable.as_ref().is_some_and(|p| p.is_file());
             let reason = if class == InstallationClass::Dev { Some("Development build; launch is available, installation changes are disabled.".into()) }
-                else if id != ids::TOOLS && matches!(class, InstallationClass::Manual | InstallationClass::SelfInstalled) && (peer.is_some() || receipt.is_some()) { Some("Installed outside Arcade Tools. Choose Let Arcade Tools manage this to enable updates.".into()) }
+                else if id != ids::TOOLS && matches!(class, InstallationClass::Manual | InstallationClass::SelfInstalled) && (peer.is_some() || receipt.is_some()) { Some("Installed outside Arcade Tools. Choose “Let Tools manage it” to enable updates.".into()) }
                 else if peer.is_some_and(|m| !m.settings.link_enabled) { Some("Arcade Link is disabled in this app. Close it before changing its installation.".into()) }
                 else if record.is_some() && !healthy { Some("Installed executable is missing. Choose Repair.".into()) }
                 else { record.as_ref().and_then(first_update_rollback_notice).map(str::to_owned) };
@@ -1702,6 +1714,8 @@ impl Manager {
                 mode: None,
                 remove_data: plan.remove_data,
                 app_closed: false,
+                channel: None,
+                version: None,
             };
             let result = self.operate_locked(&request, cancel, progress, SystemClock.now());
             outcome.results.push(crate::removal::RemovalResult {
@@ -1882,6 +1896,8 @@ impl Manager {
                     mode: None,
                     remove_data: false,
                     app_closed: false,
+                    channel: None,
+                    version: None,
                 };
                 self.operate_locked(&request, cancel, progress, SystemClock.now())
             }
@@ -1983,6 +1999,8 @@ impl Manager {
             mode,
             remove_data: false,
             app_closed: false,
+            channel: None,
+            version: None,
         };
         let resume = self.stop_peer(id, registry.get(id), &request, true)?;
         self.launch_inner(id, resume.or(mode).unwrap_or(LaunchMode::Foreground))
@@ -2112,7 +2130,7 @@ impl Manager {
         if request.operation != Operation::Install && old.is_none() {
             return Err(Error::new(
                 "unmanaged",
-                "Let Arcade Tools manage this installation first.",
+                "Choose “Let Tools manage it” for this app first.",
             ));
         }
         if matches!(request.operation, Operation::Update | Operation::Repair)
@@ -2123,7 +2141,7 @@ impl Manager {
         {
             return Err(Error::new(
                 "unmanaged",
-                "Let Arcade Tools manage this installation first.",
+                "Choose “Let Tools manage it” for this app first.",
             ));
         }
         if request.operation == Operation::Install && (old.is_some() || peer.is_some()) {
@@ -2143,6 +2161,28 @@ impl Manager {
         check_cancel(cancel)?;
         let checked = self.checked(id)?;
         history.to = Some(checked.release.version.clone());
+        if request
+            .channel
+            .is_some_and(|channel| channel != checked.release.channel)
+        {
+            return Err(Error::new(
+                "state_changed",
+                "The app's release channel changed after you reviewed this; review it again.",
+            ));
+        }
+        if request
+            .version
+            .as_ref()
+            .is_some_and(|version| *version != checked.release.version)
+        {
+            return Err(Error::new(
+                "state_changed",
+                format!(
+                    "{} is now the latest release; review it again.",
+                    checked.release.version
+                ),
+            ));
+        }
         let migration = old
             .as_ref()
             .is_some_and(|r| r.kind == Kind::Tarball && checked.asset.kind == Kind::Appimage);
@@ -2691,7 +2731,7 @@ impl Manager {
         if receipt.is_some_and(|r| r.managed_by != ManagedBy::Tools) && request.id != ids::TOOLS {
             return Err(Error::new(
                 "unmanaged",
-                "Let Arcade Tools manage this first.",
+                "Choose “Let Tools manage it” for this app first.",
             ));
         }
         let previous = PreviousInstallation::read(&self.paths, &request.id)?
@@ -3202,6 +3242,8 @@ mod native_rollback_tests {
             mode: None,
             remove_data: false,
             app_closed: true,
+            channel: None,
+            version: None,
         };
         manager
             .operate(&request, &AtomicBool::new(false), &mut |_| {})

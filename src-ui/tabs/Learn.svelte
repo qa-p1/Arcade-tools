@@ -18,6 +18,9 @@
   let error = $state<string | null>(null);
   let fetchBusy = $state<Record<string, boolean>>({});
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
+  // Responses can arrive out of order; only the latest request may apply.
+  let searchGeneration = 0;
+  let readerGeneration = 0;
   onDestroy(() => { if (searchTimer) clearTimeout(searchTimer); });
 
   async function loadApps(): Promise<void> {
@@ -30,12 +33,16 @@
 
   async function searchDocs(): Promise<void> {
     const term = query.trim();
+    const generation = ++searchGeneration;
     if (term.length < 2) { hits = []; return; }
     loading = true;
     error = null;
-    try { hits = await api.searchDocs(term); }
-    catch (problem) { error = problem instanceof Error ? problem.message : String(problem); }
-    finally { loading = false; }
+    try {
+      const found = await api.searchDocs(term);
+      if (generation === searchGeneration) hits = found;
+    }
+    catch (problem) { if (generation === searchGeneration) error = problem instanceof Error ? problem.message : String(problem); }
+    finally { if (generation === searchGeneration) loading = false; }
   }
 
   function queueSearch(): void {
@@ -55,13 +62,20 @@
 
   async function openReader(id: string, path?: string): Promise<void> {
     readerError = null;
+    const generation = ++readerGeneration;
+    const current = () => generation === readerGeneration;
     try {
-      if (readerApp !== id) { latest = false; readerApp = id; }
-      pages = await api.docsPages(id, latest);
-      const chosen = path ?? pages[0]?.path;
-      page = chosen ? await api.readDoc(id, chosen, latest) : null;
+      if (readerApp !== id) { latest = false; readerApp = id; page = null; pages = []; }
+      const useLatest = latest;
+      const found = await api.docsPages(id, useLatest);
+      if (!current()) return;
+      pages = found;
+      const chosen = path ?? found[0]?.path;
+      const opened = chosen ? await api.readDoc(id, chosen, useLatest) : null;
+      if (!current()) return;
+      page = opened;
       if (!chosen) readerError = 'No pages are available offline for this app yet.';
-    } catch (problem) { readerError = problem instanceof Error ? problem.message : String(problem); }
+    } catch (problem) { if (current()) readerError = problem instanceof Error ? problem.message : String(problem); }
   }
 
   async function changeVersion(useLatest: boolean): Promise<void> {

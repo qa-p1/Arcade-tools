@@ -36,6 +36,7 @@ export async function refresh(): Promise<void> {
   ui.refreshing = true;
   try {
     ui.apps = await api.listApps();
+    ui.loaded = true;
     ui.updates = await api.updateState();
     ui.toolsApp = await api.toolsApp();
     const preferences = await api.preferences();
@@ -57,6 +58,7 @@ export async function refresh(): Promise<void> {
 export async function initialize(): Promise<void> {
   const bootstrap = await api.initialize();
   ui.apps = bootstrap.apps;
+  ui.loaded = true;
   ui.updates = bootstrap.updates;
   ui.selected = bootstrap.selected;
   ui.testing = bootstrap.testing;
@@ -169,11 +171,19 @@ export async function checkUpdatesOnWindowOpen(): Promise<void> {
   }
 }
 
+/** Start every stopped app in the background, like the tray's Start all. */
 export async function launchAll(): Promise<void> {
-  const installed = ui.apps.filter((app) => app.installed && !app.running);
-  for (const app of installed) await api.launchApp(app.id, 'foreground');
+  const stopped = ui.apps.filter((app) => app.installed && !app.running);
+  const failed: string[] = [];
+  for (const app of stopped) {
+    try { await api.launchApp(app.id, 'background'); }
+    catch (error) { failed.push(`${app.name}: ${asFailure(error).message}`); }
+  }
   await refresh();
-  setMessage(installed.length ? `Opened ${installed.length} app${installed.length === 1 ? '' : 's'}.` : 'All installed apps are already running.');
+  const started = stopped.length - failed.length;
+  if (!stopped.length) setMessage('All installed apps are already running.');
+  else if (failed.length) setMessage(`Started ${started} of ${stopped.length} apps.\n${failed.join('\n')}`, true);
+  else setMessage(`Started ${started} app${started === 1 ? '' : 's'} in the background.`);
 }
 
 export async function reviewInstall(app: AppView): Promise<void> {
@@ -216,15 +226,18 @@ export async function confirmOperation(app: AppView, operation: Operation): Prom
   };
   const release = ui.releases.get(app.id);
   const title = `${labels[operation]} ${app.name}${release && ['install', 'update', 'repair'].includes(operation) ? ` ${release.version}` : ''}?`;
+  // The channel the release was looked up on, which is what the backend
+  // must install: the user may change the app's channel while this is open.
+  const channel = release?.channel ?? app.channel;
   const copy = operation === 'adopt'
     ? 'Let Tools manage this installation by running the app’s own installer. Settings and data are kept. Development builds are left unchanged.'
     : operation === 'rollback'
-    ? `Reinstall the previous version (${app.rollbackVersion ?? 'saved build'}) and reopen in the same mode. Settings and data are kept.`
+    ? `Reinstall the saved version (${app.rollbackVersion ?? 'saved build'}) and reopen the app if it was running. Settings and data are kept.`
     : operation === 'uninstall'
     ? 'The app will close and its installation will be removed. Settings and data are kept unless you select the option below.'
     : operation === 'install'
-      ? `Install the ${app.channel} release for your user account and open the app.`
-      : `Download a fresh ${app.channel} release, close the app, and replace its installation. Settings and data are kept.${app.reason ? `\n${app.reason}` : ''}`;
+      ? `Install the ${channel} release for your user account and open the app.`
+      : `Download a fresh ${channel} release, close the app, and replace its installation. Settings and data are kept.${app.reason ? `\n${app.reason}` : ''}`;
   const choice = await askForConfirmation({
     title,
     copy,
@@ -239,6 +252,10 @@ export async function confirmOperation(app: AppView, operation: Operation): Prom
     return;
   }
   const request = operationRequest(app.id, operation);
+  if (['install', 'update', 'repair'].includes(operation)) {
+    request.channel = channel;
+    request.version = release?.version ?? null;
+  }
   request.mode = operation === 'install' ? (choice.background ? 'background' : 'foreground') : null;
   request.removeData = choice.removeData;
   await runOperation(request);
@@ -249,9 +266,14 @@ export async function cancelOperation(): Promise<void> {
   setMessage('Cancelling…');
 }
 
+export function appName(id: string): string {
+  if (id === 'arcade.tools') return 'Arcade Tools';
+  return ui.apps.find((app) => app.id === id)?.name ?? id;
+}
+
 export function receiveProgress(progress: OperationProgress): void {
-  const appName = ui.apps.find((app) => app.id === progress.id)?.name ?? progress.id;
-  ui.phase = `${appName} · ${progress.phase}`;
+  const name = appName(progress.id);
+  ui.phase = `${name} · ${progress.phase}`;
   ui.progress = progress.fraction;
   ui.cancellable = progress.cancellable;
 }
@@ -264,9 +286,13 @@ export async function runOperation(request: OperationRequest): Promise<void> {
     setMessage(text);
   } catch (error) {
     const problem = asFailure(error);
-    const name = ui.apps.find((app) => app.id === request.id)?.name ?? request.id;
-    setMessage(`${name}: ${problem.message}`, true);
+    const name = appName(request.id);
     ui.busy = false;
+    if (problem.code === 'cancelled') {
+      setMessage(`${name}: cancelled. Nothing was changed.`);
+    } else {
+      setMessage(`${name}: ${problem.message}`, true);
+    }
     if (problem.code === 'mode_required') {
       const choice = await askForConfirmation({
         title: 'Choose how to reopen the app',
@@ -300,6 +326,17 @@ export async function runOperation(request: OperationRequest): Promise<void> {
     void attempt(reviewHandoff);
   }
 }
+/** Tools' own update, confirmed like every app update. */
+export async function confirmSelfUpdate(): Promise<void> {
+  const tools = ui.toolsApp;
+  const latest = tools ? ui.updates?.apps[tools.id]?.latest[tools.channel]?.latestVersion : null;
+  const choice = await askForConfirmation({
+    title: `Update Arcade Tools${latest ? ` to ${latest}` : ''}?`,
+    copy: 'Tools downloads the latest release, closes, and reopens itself. Your apps keep running.' + (tools?.reason ? `\n${tools.reason}` : ''),
+    action: 'Update', destructive: false, kind: null, folders: [],
+  });
+  if (choice.confirmed) await withBusy(api.selfUpdate, 'Updating Arcade Tools');
+}
 export async function withBusy(action: () => Promise<void>, phase: string): Promise<void> {
   ui.busy = true;
   ui.phase = phase;
@@ -318,7 +355,7 @@ export function openLearn(id: string): Promise<void> {
 export async function updateAll(apps: AppView[]): Promise<void> {
   const available = apps.filter((app) => ui.updates?.apps[app.id]?.updateAvailable && !ui.updates.apps[app.id]?.heldBack && app.managed);
   if (!available.length) return;
-  const choice = await askForConfirmation({ title: `Update ${available.length} apps?`, copy: available.map((app) => `${app.name} → ${ui.updates?.apps[app.id]?.latest[app.channel]?.latestVersion ?? 'latest'}${app.reason ? `\n${app.reason}` : ''}`).join('\n') + '\nBusy apps will be left running. Settings and data are kept.', action: 'Update all', destructive: false, kind: null, folders: [] });
+  const choice = await askForConfirmation({ title: `Update ${available.length} apps?`, copy: available.map((app) => `• ${app.name} → ${ui.updates?.apps[app.id]?.latest[app.channel]?.latestVersion ?? 'latest'}${app.reason ? `\n  ${app.reason}` : ''}`).join('\n') + '\nBusy apps will be left running. Settings and data are kept.', action: 'Update all', destructive: false, kind: null, folders: [] });
   if (!choice.confirmed) return;
   for (const app of available) {
     if (app.id === 'arcade.tools') continue;

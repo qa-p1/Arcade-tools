@@ -99,10 +99,16 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 button:disabled, input:disabled, select:disabled { cursor: default; opacity: .55; }
 .refresh-button:disabled, .actions button:disabled { background: var(--raised); }
 
+/* Stays in view under the header: results and errors of actions started
+   far down a page were otherwise scrolled out of sight. */
 #message {
-  position: relative;
-  z-index: 1;
+  position: sticky;
+  top: 68px;
+  z-index: 4;
   min-height: 42px;
+  white-space: pre-line;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  backdrop-filter: blur(12px);
   padding: 13px clamp(20px, 4vw, 48px) 10px;
   color: var(--muted);
   font-size: 11px;
@@ -446,6 +452,8 @@ dialog {
 dialog::backdrop { background: #0b122066; backdrop-filter: blur(2px); }
 dialog h2 { font-size: 17px; }
 dialog p { margin: 12px 0 17px; color: var(--muted); font-size: 12px; line-height: 1.55; }
+/* Confirmation copy lists one app or step per line. */
+#confirm-copy { white-space: pre-line; }
 .dialog-option, .dialog-mode { display: flex; align-items: center; gap: 8px; margin: 11px 0; font-size: 11px; }
 .dialog-option input { width: 14px; height: 14px; margin: 0; accent-color: var(--accent-tools); }
 .dialog-mode select { margin-left: 4px; }
@@ -469,7 +477,7 @@ dialog p { margin: 12px 0 17px; color: var(--muted); font-size: 12px; line-heigh
   .utility-header { position: static; align-items: flex-start; flex-direction: column; gap: 11px; padding: 12px 16px; }
   .header-actions { width: 100%; justify-content: space-between; }
   .link-toggle { white-space: normal; }
-  #message { padding: 11px 16px 8px; }
+  #message { top: 0; padding: 11px 16px 8px; }
   .page-main { padding: 0 14px 30px; }
   .page-heading { align-items: flex-start; flex-direction: column; margin-top: 8px; }
   article { padding: 13px; }
@@ -510,3 +518,9 @@ dialog p { margin: 12px 0 17px; color: var(--muted); font-size: 12px; line-heigh
 .settings-list { display: grid; gap: 4px; margin: 0; padding-left: 16px; color: var(--muted); font-size: 11px; }
 .settings-stack input[type="text"] { min-width: 260px; flex: 1; }
 .danger-card .danger-button { border-color: color-mix(in srgb, #b42332 35%, var(--border)); color: #b42332; background: var(--surface); }
+
+.screenshot-missing { display: grid; place-items: center; min-height: 120px; border: 1px dashed var(--border); border-radius: 8px; color: var(--muted); font-size: 12px; }
+.release-plain { white-space: pre-wrap; font: inherit; font-size: 12px; color: var(--muted); }
+/* Onboarding's bundle buttons stack title, description and count; they must
+   not inherit the two-column catalog card or the inline-button layout. */
+.bundle-list .bundle-card { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; justify-content: stretch; min-width: 0; white-space: normal; overflow-wrap: anywhere; }

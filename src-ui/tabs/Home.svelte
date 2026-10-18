@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { ui } from '../lib/state.svelte';
   import { api, type AppView, type Dashboard, type HealthIssue, type Operation, type UpdateState } from '../lib/api';
   import type { ShellTab } from '../lib/tabs.svelte';
 
@@ -126,6 +127,8 @@
           </div>
         {/each}
       </div>
+    {:else if !ui.loaded}
+      <p class="setting-description">Loading your apps…</p>
     {:else}
       <div class="empty-state"><h3>Arcade starts here</h3><p>Choose an app or a bundle in Onboarding. Nothing installs until you review and confirm it.</p><button type="button" class="primary-action" onclick={() => onSelectTab('apps')}>Browse apps</button></div>
     {/if}

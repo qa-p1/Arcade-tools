@@ -30,16 +30,36 @@
   }));
   const lastChecked = $derived(updates?.lastCheck ? new Date(updates.lastCheck * 1000).toLocaleString() : 'Not checked yet');
 
-  async function revealNotes(appId: string, markdown: string): Promise<void> {
-    loadingNotes = { ...loadingNotes, [appId]: true };
-    try { renderedNotes = { ...renderedNotes, [appId]: await api.renderMarkdown(markdown) }; }
-    catch (error) { notesError = { ...notesError, [appId]: error instanceof Error ? error.message : String(error) }; }
-    finally { loadingNotes = { ...loadingNotes, [appId]: false }; }
+  // Notes are kept per release: a newer release brings its own notes.
+  const notesKey = (row: Row) => `${row.app.id}@${row.latest?.latestVersion ?? ''}`;
+  async function revealNotes(key: string, markdown: string): Promise<void> {
+    loadingNotes = { ...loadingNotes, [key]: true };
+    try { renderedNotes = { ...renderedNotes, [key]: await api.renderMarkdown(markdown) }; }
+    catch (error) { notesError = { ...notesError, [key]: error instanceof Error ? error.message : String(error) }; }
+    finally { loadingNotes = { ...loadingNotes, [key]: false }; }
   }
 
   const rollbacks = $derived(apps.filter((app) => app.managed && app.rollbackVersion));
   const managedApps = $derived(apps.filter((app) => app.managed));
-  const appName = (id: string) => apps.find((app) => app.id === id)?.name ?? id;
+  const appName = (id: string) => apps.find((app) => app.id === id)?.name ?? (id === 'arcade.tools' ? 'Arcade Tools' : id);
+  const resultLabels: Record<string, string> = { success: 'Done', failed: 'Failed', rolled_back: 'Rolled back', rollback_failed: 'Rollback failed' };
+  const resultLabel = (result: string) => resultLabels[result] ?? result;
+  function versions(entry: HistoryEntry): string | null {
+    if (!entry.from && !entry.to) return null;
+    if (!entry.to) return `from ${entry.from}`;
+    return entry.from ? `${entry.from} → ${entry.to}` : entry.to;
+  }
+  /** -1, 0 or 1 by dotted numeric parts; good enough to word a button. */
+  function compare(a: string, b: string): number {
+    const parse = (v: string) => v.split(/[.+-]/).map((part) => Number.parseInt(part, 10)).map((n) => Number.isNaN(n) ? 0 : n);
+    const [x, y] = [parse(a), parse(b)];
+    for (let i = 0; i < Math.max(x.length, y.length); i++) {
+      if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) < (y[i] ?? 0) ? -1 : 1;
+    }
+    return 0;
+  }
+  const rollbackLabel = (app: AppView) =>
+    app.version && app.rollbackVersion && compare(app.rollbackVersion, app.version) > 0 ? `Switch to v${app.rollbackVersion}` : `Roll back to v${app.rollbackVersion}`;
 
   async function loadHistory(): Promise<void> {
     history = (await api.updateHistory()).slice(-20).reverse();
@@ -66,6 +86,7 @@
       {#if rows.length > 1}<div class="update-all-row"><span>{rows.length} managed apps have updates.</span><button type="button" class="primary-action" disabled={busy || checking} onclick={() => run(() => onUpdateAll(rows.map((row) => row.app)), 'Arcade apps')}>Review all updates</button></div>{/if}
       {#each rows as row (row.app.id)}
         {@const notes = row.latest?.cache?.release.notes ?? ''}
+        {@const key = notesKey(row)}
         <section class="feature-card update-card" aria-labelledby="update-{row.app.id}">
           <div class="update-app-heading">
             <img class="app-glyph" src="/glyphs/{row.app.id}.svg" alt="" width="30" height="30" />
@@ -76,10 +97,10 @@
           {#if row.latest?.error}<p class="status-warning">Release check issue: {row.latest.error}</p>{/if}
           {#if notes}
             <div class="release-notes">
-              {#if renderedNotes[row.app.id] !== undefined}
-                <details open><summary>Release notes</summary>{#if notesError[row.app.id]}<p class="status-warning">{notesError[row.app.id]}</p>{:else}<div class="markdown-body">{@html renderedNotes[row.app.id]}</div>{/if}</details>
+              {#if renderedNotes[key] !== undefined || notesError[key]}
+                <details open><summary>Release notes</summary>{#if notesError[key]}<p class="status-warning">{notesError[key]}</p>{:else}<div class="markdown-body">{@html renderedNotes[key]}</div>{/if}</details>
               {:else}
-                <button type="button" class="text-action" disabled={loadingNotes[row.app.id]} onclick={() => run(() => revealNotes(row.app.id, notes), row.app.name)}>{loadingNotes[row.app.id] ? 'Rendering notes…' : 'Show release notes'}</button>
+                <button type="button" class="text-action" disabled={loadingNotes[key]} onclick={() => run(() => revealNotes(key, notes), row.app.name)}>{loadingNotes[key] ? 'Rendering notes…' : 'Show release notes'}</button>
               {/if}
             </div>
           {:else}<p class="setting-description">No release notes were provided for this version.</p>{/if}
@@ -87,7 +108,7 @@
       {/each}
     </div>
   {:else}
-    <div class="empty-state"><h2>{updates?.lastFailure ? 'Could not finish the last check' : 'You are up to date'}</h2><p>{updates?.lastFailure ? 'Check your connection and try again.' : 'Updates for managed, installed apps will appear here. You can check again at any time.'}</p><button type="button" disabled={busy || checking} class="primary-action" onclick={() => run(onCheckNow)}>{checking ? 'Checking…' : 'Check now'}</button><button type="button" onclick={onSelectApps}>Browse apps</button></div>
+    <div class="empty-state"><h2>{updates?.lastFailure ? 'Could not finish the last check' : updates?.lastCheck ? 'You are up to date' : 'Not checked yet'}</h2><p>{updates?.lastFailure ? 'Check your connection and try again.' : updates?.lastCheck ? 'Updates for managed, installed apps will appear here. You can check again at any time.' : 'Check now to see whether your managed apps have updates.'}</p><button type="button" disabled={busy || checking} class="primary-action" onclick={() => run(onCheckNow)}>{checking ? 'Checking…' : 'Check now'}</button><button type="button" onclick={onSelectApps}>Browse apps</button></div>
   {/if}
   {#if managedApps.length}
     <section class="feature-section" aria-labelledby="auto-update-heading">
@@ -101,7 +122,7 @@
       <div class="section-heading"><div><h2 id="rollback-heading">Previous versions</h2><p class="setting-description">Tools keeps the build an update replaced, so you can go back if something broke.</p></div></div>
       <div class="home-app-list">
         {#each rollbacks as app (app.id)}
-          <div class="home-app-row"><img class="app-glyph" src="/glyphs/{app.id}.svg" alt="" width="30" height="30" /><div class="home-app-info"><strong>{app.name}</strong><span>v{app.version ?? '?'} now · v{app.rollbackVersion} saved</span></div><button type="button" disabled={busy || checking} onclick={() => run(() => onRollback(app), app.name)}>Roll back</button></div>
+          <div class="home-app-row"><img class="app-glyph" src="/glyphs/{app.id}.svg" alt="" width="30" height="30" /><div class="home-app-info"><strong>{app.name}</strong><span>v{app.version ?? '?'} now · v{app.rollbackVersion} saved</span></div><button type="button" disabled={busy || checking} onclick={() => run(() => onRollback(app), app.name)}>{rollbackLabel(app)}</button></div>
         {/each}
       </div>
     </section>
@@ -112,7 +133,7 @@
       <div class="section-heading"><div><h2 id="history-heading">Recent activity</h2><p class="setting-description">Installs, updates and rollbacks Tools ran on this device.</p></div></div>
       <ul class="update-history">
         {#each history as entry, i (`${entry.time}:${entry.app}:${i}`)}
-          <li><span>{new Date(entry.time * 1000).toLocaleString()}</span><strong>{appName(entry.app)}</strong><span>{entry.from ?? '—'} → {entry.to ?? '—'}</span><span class="badge">{entry.result}</span>{#if entry.reason}<span class="setting-description">{entry.reason}</span>{/if}</li>
+          <li><span>{new Date(entry.time * 1000).toLocaleString()}</span><strong>{appName(entry.app)}</strong><span>{versions(entry) ?? ''}</span><span class="badge">{resultLabel(entry.result)}</span>{#if entry.reason}<span class="setting-description">{entry.reason}</span>{/if}</li>
         {/each}
       </ul>
     </section>

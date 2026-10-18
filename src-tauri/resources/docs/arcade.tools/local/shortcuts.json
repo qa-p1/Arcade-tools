@@ -15,7 +15,7 @@
             "windows": "Ctrl+Alt+Slash",
             "macos": "Ctrl+Alt+Slash"
           },
-          "rebindable": false
+          "rebindable": true
         }
       ]
     },

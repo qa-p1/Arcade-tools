@@ -7,8 +7,8 @@
   import Sidebar from './components/Sidebar.svelte';
   import { api, appEvents, type AppView, type Channel, type Operation, type UiControlReport, type UiRenderReport } from './lib/api';
   import {
-    attempt, cancelOperation, changeChannel, changeLogin, checkAllUpdates, checkUpdates, checkUpdatesOnWindowOpen, confirmOperation,
-    initialize, installBundle, openLearn, updateAll, withBusy, launchAll, launchApp, openReleases, receiveInstallRequest, receiveProgress, refresh, reviewInstall, reviewUpdate, setAutoUpdate, setMessage, toggleLink,
+    attempt, cancelOperation, changeChannel, confirmSelfUpdate, changeLogin, checkAllUpdates, checkUpdates, checkUpdatesOnWindowOpen, confirmOperation,
+    initialize, installBundle, openLearn, updateAll, launchAll, launchApp, openReleases, receiveInstallRequest, receiveProgress, refresh, reviewInstall, reviewUpdate, setAutoUpdate, setMessage, toggleLink,
     setUpdateChecks,
   } from './lib/controller';
   import Apps from './tabs/Apps.svelte';
@@ -324,7 +324,7 @@
         checking={ui.updateChecking}
         updateChecksEnabled={ui.updateChecksEnabled}
         onCheckNow={checkAllUpdates}
-        onUpdate={(app) => app.id === 'arcade.tools' ? withBusy(api.selfUpdate, 'Updating Arcade Tools') : reviewUpdate(app)}
+        onUpdate={(app) => app.id === 'arcade.tools' ? confirmSelfUpdate() : reviewUpdate(app)}
         onUpdateAll={updateAll}
         onRollback={(app) => confirmOperation(app, 'rollback')}
         onAutoUpdate={setAutoUpdate}
@@ -367,7 +367,7 @@
         onChange={shortcutsChanged}
       />
     </main>
-    <footer class="shell-footer"><span>Arcade Tools · 0.2.1</span><span>Apps stay independent; Tools makes them easier to manage.</span></footer>
+    <footer class="shell-footer"><span>Arcade Tools · {__TOOLS_VERSION__}</span><span>Apps stay independent; Tools makes them easier to manage.</span></footer>
   </div>
 </div>
 <ProgressBar visible={ui.busy} phase={ui.phase} progress={ui.progress} cancellable={ui.cancellable} onCancel={() => run(cancelOperation)} />
