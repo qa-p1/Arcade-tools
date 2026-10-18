@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.3.0 — 2026-10-18
+
+- Apps started from Tools get your own environment instead of the AppImage's, so
+  "Start all Arcade apps" starts Clipboard again.
+- The window no longer renders blank on machines without GPU acceleration.
+- Idle memory: after its window closes Tools continues in the background without
+  WebKit, about 68 MiB instead of 158 MiB.
+- Settings backups include Arcade Lens and Arcade Shelf; restore no longer races
+  a running backup or update.
+- GitHub rate limits fall back to the release files, so update checks keep working.
+- Apps installed before the shared installer can be adopted; apps that removed
+  themselves show as not installed; uninstalling an app also removes its extra
+  terminal commands (and Look's WebView storage).
+- Updates: cancelling during the backup works, auto-update no longer undoes a
+  rollback, a busy app is detected before the download, and old Tools images are
+  unmounted.
+- Uninstalling Tools asks for confirmation and removes everything it installed;
+  `--help` lists the command-line options.
+- Interface: late answers no longer overwrite newer ones; clearer messages and
+  confirmations; "Open all" opens apps in the background; readable update history,
+  release notes and onboarding; the shortcut editor shows clashes while you type
+  and requires a modifier; the page you pick during startup is kept.
+- The shortcuts overlay picks up shortcut changes live on Windows and macOS too.
+- Built against Arcade Link commit `2fc7c91`.
+
 ## 0.2.1 — 2026-10-15
 
 - Restore portable settings as `file/any` inputs, which Link 0.3 requires;
