@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.1 — 2026-10-18
+
+- Same app as 0.3.0, which could not be published: the release build's
+  documentation snapshot now uses the workflow's token, so GitHub's anonymous
+  rate limit no longer stops it.
+
 ## 0.3.0 — 2026-10-18
 
 - Apps started from Tools get your own environment instead of the AppImage's, so
