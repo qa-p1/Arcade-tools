@@ -51,6 +51,7 @@
 
   function selectTab(tab: ShellTab): void {
     ui.tab = tab;
+    ui.tabChosen = true;
   }
 
   const intentTabs = ['home', 'apps', 'updates', 'shortcuts', 'learn', 'connections', 'engines', 'settings'];

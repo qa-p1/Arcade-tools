@@ -17,11 +17,42 @@ async function shortcutsPage(page, wmName) {
   await sleep(100);
   return row;
 }
+// Tools' answer to initialize arrives late; the user picks a page meanwhile.
+async function userTabSurvivesSlowStart(page) {
+  await page.addInitScript(() => {
+    const m = window.__mock;
+    m.state.preferences.onboardingComplete = false;
+    const initialize = () => ({ apps: m.state.apps, preferences: m.state.preferences, updates: m.state.updates, selected: null, diagnostics: [], testing: false });
+    m.on('initialize', () => m.later(1500, () => { window.__initialized = true; return initialize(); }));
+  });
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.click('#tab-settings');
+  await page.waitForFunction(() => window.__initialized, null, { timeout: 10000 });
+  await sleep(300);
+  const context = await text(page, '.header-context');
+  assert(context.endsWith('Settings'), `the window switched pages by itself: ${context}`);
+}
+
 export default {
+  'A page chosen while Tools starts is kept': userTabSurvivesSlowStart,
   async 'No "none bindings" without a window manager'(page) {
     const row = await shortcutsPage(page, 'none');
     const t = await row.textContent();
     assert(!t.includes('none bindings'), t);
+  },
+  async 'A global shortcut needs Ctrl, Alt or Super'(page) {
+    const row = await shortcutsPage(page, 'hyprland');
+    const input = await row.$('input');
+    await input.focus();
+    await page.keyboard.press('Shift+KeyS');
+    await sleep(100);
+    const apply = await row.$('button.rebind-apply');
+    assert(await input.inputValue() === 'Shift+S', await input.inputValue());
+    assert(await apply.isDisabled(), 'Shift+S could be applied as a global shortcut');
+    assert(/Add Ctrl, Alt or Super/.test(await row.textContent()), 'no hint about the missing modifier');
+    await page.keyboard.press('Control+Alt+KeyS');
+    await sleep(100);
+    assert(!(await apply.isDisabled()), 'Ctrl+Alt+S could not be applied');
   },
   async 'Shortcut clash shows before confirming'(page) {
     const row = await shortcutsPage(page, 'hyprland');

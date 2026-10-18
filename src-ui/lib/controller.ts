@@ -74,7 +74,7 @@ export async function initialize(): Promise<void> {
   if (bootstrap.selected) {
     pendingInstall = bootstrap.selected;
     await reviewHandoff();
-  } else if (!bootstrap.testing) ui.tab = bootstrap.preferences.onboardingComplete ? 'home' : 'onboarding';
+  } else if (!bootstrap.testing && !ui.tabChosen) ui.tab = bootstrap.preferences.onboardingComplete ? 'home' : 'onboarding';
 }
 
 export async function changeChannel(app: AppView, channel: Channel): Promise<void> {
