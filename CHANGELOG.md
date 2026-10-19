@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.6 — 2026-10-19
+
+- Updating Tools while it runs now switches to the new version. Running a
+  newer Tools you downloaded (or `--install` from the command line) only brought
+  the running Tools forward, so the update offer never showed, and an install
+  kept the old version running until you logged out. The running Tools is now
+  asked to quit first; a busy Tools stays, and the new version starts the next
+  time Tools starts.
+
 ## 0.3.5 — 2026-10-19
 
 - Opening the Tools window, Settings or the Uninstall review no longer crashes

@@ -335,6 +335,16 @@ pub fn run(args: &[String]) -> Option<Result<()>> {
                 )?;
                 println!("{}", serde_json::to_string(&receipt)?);
                 if !args.iter().any(|arg| arg == "--no-launch") {
+                    // An older Tools still running keeps the single instance:
+                    // the new copy would only bring it forward.
+                    if let Err(error) = arcade_link::install::quit_running(
+                        &environment.locations,
+                        "arcade.tools",
+                        std::time::Duration::from_secs(10),
+                    ) {
+                        eprintln!("The running Arcade Tools did not quit ({error}); the new version starts the next time Tools starts.");
+                        return Ok(());
+                    }
                     arcade_link::client::spawn_detached(
                         &arcade_tools_core::installation::executable(&Paths::discover()?, &receipt)
                             .to_string_lossy(),
@@ -494,6 +504,30 @@ fn proposal(
         secondary: "Just run it once".into(),
         options: true,
     }))
+}
+/// When this copy would offer to install or update Tools (a newer download,
+/// say) while another Tools runs, asks that one to quit: the single instance
+/// would otherwise only bring it forward, and the offer would never show. A
+/// busy Tools refuses and stays; this launch then only brings it forward.
+pub fn make_way_for_offer() {
+    let offer = (|| -> Result<bool> {
+        let environment = Environment::discover()?;
+        let runtime = Runtime::discover()?;
+        let dismiss = Paths::discover()?
+            .state()
+            .join("install-dismissals")
+            .join(dismissal_key(&runtime));
+        Ok(proposal(&environment, &runtime, dismiss.exists())?.is_some())
+    })();
+    if matches!(offer, Ok(true)) {
+        if let Ok(environment) = Environment::discover() {
+            let _ = arcade_link::install::quit_running(
+                &environment.locations,
+                "arcade.tools",
+                std::time::Duration::from_secs(10),
+            );
+        }
+    }
 }
 #[tauri::command]
 pub async fn self_install_proposal() -> Result<Option<Proposal>> {

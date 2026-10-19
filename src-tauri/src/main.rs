@@ -119,5 +119,6 @@ fn main() {
         }
         return;
     }
+    installation::make_way_for_offer();
     desktop::run(args.iter().any(|a| a == "--background"), false);
 }
