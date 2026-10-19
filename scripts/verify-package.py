@@ -195,6 +195,13 @@ with tempfile.TemporaryDirectory(prefix='arcade-tools-package-') as temporary:
                 except ProcessLookupError:
                     pass
                 child.wait()
+                # The bus may have started the document portal for the window;
+                # killed, it leaves a dead FUSE mount in the profile.
+                fusermount = shutil.which('fusermount3') or shutil.which('fusermount')
+                for line in Path('/proc/self/mounts').read_text().splitlines():
+                    mountpoint = line.split()[1]
+                    if fusermount and mountpoint.startswith(str(root) + '/'):
+                        subprocess.run([fusermount, '-uz', mountpoint], check=False)
             log.seek(0)
             assert code is None, f'Tools exited {code} with its window open:\n{log.read().decode(errors="replace")[-4000:]}'
 print(f'PASS: {sys.platform} package contains Tools and the native overlay; isolated package smoke')
