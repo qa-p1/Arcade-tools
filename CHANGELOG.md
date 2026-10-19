@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.5 — 2026-10-19
+
+- Opening the Tools window, Settings or the Uninstall review no longer crashes
+  Tools when it runs from its AppImage (0.3.2 to 0.3.4). Since 0.3.2 Tools
+  moved to the folder you started it from, and the web view behind every Tools
+  window then could not find its helper programs, which are looked up relative
+  to the AppImage. Tools now stays in the AppImage's folder; programs it starts
+  still begin in your home folder.
+- The package check in CI now opens the Tools window from the AppImage and fails
+  if Tools quits.
+
 ## 0.3.4 — 2026-10-19
 
 - A helper an app starts from its own image (such as a settings window) keeps

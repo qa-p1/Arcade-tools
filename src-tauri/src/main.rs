@@ -32,6 +32,9 @@ Without options, opens the Arcade Tools window.
 
 fn main() {
     arcade_link::childenv::on_startup();
+    // Tools takes no file paths, and the Uninstall review, Settings and the
+    // tray all open webviews: WebKit needs the AppImage's own directory.
+    arcade_link::childenv::enter_image_dir();
     let args: Vec<String> = std::env::args().collect();
     if args.iter().skip(1).any(|a| a == "--help" || a == "-h") {
         print!("{USAGE}");

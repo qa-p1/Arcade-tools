@@ -109,7 +109,7 @@ dependencies = [
 [[package]]
 name = "arcade-link"
 version = "0.3.0"
-source = "git+https://github.com/qa-p1/Arcade-Link?rev=4c75f3a7c806ae78f96127c556708e65eaeeb476#4c75f3a7c806ae78f96127c556708e65eaeeb476"
+source = "git+https://github.com/qa-p1/Arcade-Link?rev=3bbbc5d0d7d383e18c7e7e20552e942c1a971abd#3bbbc5d0d7d383e18c7e7e20552e942c1a971abd"
 dependencies = [
  "getrandom 0.4.3",
  "interprocess",
@@ -137,7 +137,7 @@ dependencies = [
 
 [[package]]
 name = "arcade-tools"
-version = "0.3.4"
+version = "0.3.5"
 dependencies = [
  "arcade-link",
  "arcade-shortcuts",
@@ -161,7 +161,7 @@ dependencies = [
 
 [[package]]
 name = "arcade-tools-core"
-version = "0.3.4"
+version = "0.3.5"
 dependencies = [
  "ammonia",
  "arcade-link",

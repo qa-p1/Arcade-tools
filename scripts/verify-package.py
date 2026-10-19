@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -170,4 +171,30 @@ with tempfile.TemporaryDirectory(prefix='arcade-tools-package-') as temporary:
         subprocess.run([str(binaries / 'arcade-tools'),'--version'],env=environment,check=True,timeout=10)
         environment['APPIMAGE'] = str(staged_package)
         lifecycle(binaries / 'arcade-tools', environment, root)
+        # The package itself must survive its first webview, the main window.
+        # AppRun changes into $APPDIR/usr and the mounting runtime sets $OWD
+        # (extract-and-run doesn't, so it is set here); WebKit finds its
+        # helpers relative to $APPDIR/usr and aborts the whole app otherwise.
+        # The lifecycle above moved the staged copy; this one is a fresh download.
+        work = root / 'work'
+        work.mkdir()
+        download = work / package.name
+        shutil.copy2(package, download)
+        window = dict(environment, APPIMAGE_EXTRACT_AND_RUN='1', OWD=str(work))
+        window.pop('APPIMAGE')
+        with tempfile.TemporaryFile() as log:
+            child = subprocess.Popen(['dbus-run-session', '--', 'xvfb-run', '-a', str(download)], cwd=work, env=window,
+                                     stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+            try:
+                code = child.wait(timeout=20)
+            except subprocess.TimeoutExpired:
+                code = None
+            finally:
+                try:
+                    os.killpg(child.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                child.wait()
+            log.seek(0)
+            assert code is None, f'Tools exited {code} with its window open:\n{log.read().decode(errors="replace")[-4000:]}'
 print(f'PASS: {sys.platform} package contains Tools and the native overlay; isolated package smoke')
