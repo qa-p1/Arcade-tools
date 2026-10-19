@@ -1,8 +1,9 @@
-# Arcade Tools 0.3.3 status
+# Arcade Tools 0.3.4 status
 
 ## Release status (2026-10-18)
 
-- Latest release: [v0.3.3](https://github.com/qa-p1/Arcade-tools/releases/tag/v0.3.3), published 2026-10-19 (releases every descriptor an AppImage start inherits; see CHANGELOG.md; 0.3.0 was tagged but its release build could not finish). The CI and e2e notes below were recorded for the earlier v0.2.0.
+- Latest release: [v0.3.4](https://github.com/qa-p1/Arcade-tools/releases/tag/v0.3.4), published 2026-10-19 (only programs from another image drop the AppImage's descriptors; see CHANGELOG.md; 0.3.0 was tagged but its release build could not finish). The CI and e2e notes below were recorded for the earlier v0.2.0.
+- Previously released: [v0.3.3](https://github.com/qa-p1/Arcade-tools/releases/tag/v0.3.3), published 2026-10-19 (released every inherited descriptor at start, which also cut off helpers from the app's own image).
 - Previously released: [v0.3.2](https://github.com/qa-p1/Arcade-tools/releases/tag/v0.3.2), published 2026-10-18 (fixes for what verifying the release before it found).
 - Previously released: [v0.3.1](https://github.com/qa-p1/Arcade-tools/releases/tag/v0.3.1), published 2026-10-18 (fixes from the October audit and stress test).
 - Previously released: [v0.2.1](https://github.com/qa-p1/Arcade-tools/releases/tag/v0.2.1), published 2026-10-16.
@@ -11,7 +12,7 @@
 - Ecosystem e2e (Arcade Link `tools/e2e.py`, real CI builds of all eight apps): install, tray hosting (hosted by Tools, own icon back within 1 s after Tools is killed, no flash on restart) and shortcuts pass. Tools hosts the tray, adopts, installs, updates, rolls back and uninstalls all seven apps; the backup fix for Lens, Wheel and Shelf settings landed in cf8f0c5 before the tag.
 - Not yet verified: a real Windows or macOS desktop (CI runners only), and the owner's real-desktop checks. Builds are unsigned, so SmartScreen and Gatekeeper ask for approval.
 
-Arcade Link is pinned to commit `829cc90` on Link's main branch (after the v0.3.0 tag).
+Arcade Link is pinned to commit `4c75f3a` on Link's main branch (after the v0.3.0 tag).
 
 Implemented scope from plan §8 and §10–§14:
 
