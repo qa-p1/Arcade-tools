@@ -1,6 +1,6 @@
 [package]
 name = "arcade-tools"
-version = "0.3.3"
+version = "0.3.4"
 edition = "2021"
 rust-version = "1.88"
 license = "MIT"
@@ -19,7 +19,7 @@ resvg = { version = "0.45", default-features = false }
 [dependencies]
 arcade-tools-core = { path = ".." }
 # Shared tray and installer contracts are pinned to the released Link tag.
-arcade-link = { git = "https://github.com/qa-p1/Arcade-Link", rev = "829cc90a0628fe5c4afc87796eb900aff3fd4e50", features = ["watch", "install", "trayhost"] }
+arcade-link = { git = "https://github.com/qa-p1/Arcade-Link", rev = "4c75f3a7c806ae78f96127c556708e65eaeeb476", features = ["watch", "install", "trayhost"] }
 arcade-shortcuts = { path = "../crates/arcade-shortcuts" }
 arcade-tools-overlay = { path = "../crates/arcade-tools-overlay" }
 tauri = { version = "=2.11.6", features = [] }
