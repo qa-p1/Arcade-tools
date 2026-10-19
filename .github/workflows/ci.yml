@@ -51,7 +51,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: qa-p1/Arcade-Link
-          ref: 4c75f3a7c806ae78f96127c556708e65eaeeb476
+          ref: 3bbbc5d0d7d383e18c7e7e20552e942c1a971abd
           path: Arcade-link
       - uses: dtolnay/rust-toolchain@stable
         with:
