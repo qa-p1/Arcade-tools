@@ -1,8 +1,9 @@
-# Arcade Tools 0.3.6 status
+# Arcade Tools 0.3.7 status
 
 ## Release status (2026-10-18)
 
-- Latest release: [v0.3.6](https://github.com/qa-p1/Arcade-tools/releases/tag/v0.3.6), published 2026-10-19 (updating while Tools runs switches to the new version; see CHANGELOG.md; 0.3.0 was tagged but its release build could not finish). The CI and e2e notes below were recorded for the earlier v0.2.0.
+- Latest release: [v0.3.7](https://github.com/qa-p1/Arcade-tools/releases/tag/v0.3.7), published 2026-10-25 (a calmer shortcut sheet; see CHANGELOG.md; 0.3.0 was tagged but its release build could not finish). The CI and e2e notes below were recorded for the earlier v0.2.0.
+- Previously released: [v0.3.6](https://github.com/qa-p1/Arcade-tools/releases/tag/v0.3.6), published 2026-10-19 (updating while Tools runs switches to the new version).
 - Previously released: [v0.3.3](https://github.com/qa-p1/Arcade-tools/releases/tag/v0.3.3), published 2026-10-19 (released every inherited descriptor at start, which also cut off helpers from the app's own image).
 - Previously released: [v0.3.2](https://github.com/qa-p1/Arcade-tools/releases/tag/v0.3.2), published 2026-10-18 (fixes for what verifying the release before it found).
 - Previously released: [v0.3.1](https://github.com/qa-p1/Arcade-tools/releases/tag/v0.3.1), published 2026-10-18 (fixes from the October audit and stress test).

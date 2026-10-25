@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.7 — 2026-10-25
+
+- The shortcut sheet is calmer and easier to scan.
+  Each shortcut is one line with its keys on the right, so a column holds about
+  three times as many; a detail line shows only when it says something new.
+  The panel, search field and keys have rounded corners and quiet borders,
+  scopes are one segmented control, headings use a real medium weight, and a
+  conflict is a small amber dot. A single scope keeps a narrow column so its
+  keys sit beside their titles. The app glyph is now placed correctly on
+  HiDPI screens.
+
 ## 0.3.6 — 2026-10-19
 
 - Updating Tools while it runs now switches to the new version. Running a

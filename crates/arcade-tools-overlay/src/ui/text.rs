@@ -25,24 +25,47 @@ pub struct Text {
 impl Default for Text {
     fn default() -> Self {
         let mut db = fontdb::Database::new();
+        // Each regular face is paired with a medium/semibold face for headings.
         #[cfg(target_os = "linux")]
         let paths = [
-            "/usr/share/fonts/noto/NotoSans-Regular.ttf",
-            "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-            "/usr/share/fonts/TTF/DejaVuSans.ttf",
+            (
+                "/usr/share/fonts/noto/NotoSans-Regular.ttf",
+                "/usr/share/fonts/noto/NotoSans-Medium.ttf",
+            ),
+            (
+                "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
+                "/usr/share/fonts/truetype/noto/NotoSans-Medium.ttf",
+            ),
+            (
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+            ),
+            (
+                "/usr/share/fonts/TTF/DejaVuSans.ttf",
+                "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf",
+            ),
         ];
         #[cfg(windows)]
-        let paths = ["C:/Windows/Fonts/segoeui.ttf", "C:/Windows/Fonts/arial.ttf"];
+        let paths = [
+            (
+                "C:/Windows/Fonts/segoeui.ttf",
+                "C:/Windows/Fonts/segoeuisb.ttf",
+            ),
+            ("C:/Windows/Fonts/arial.ttf", "C:/Windows/Fonts/arialbd.ttf"),
+        ];
         #[cfg(target_os = "macos")]
         let paths = [
-            "/System/Library/Fonts/Supplemental/Arial.ttf",
-            "/System/Library/Fonts/Helvetica.ttc",
+            (
+                "/System/Library/Fonts/Supplemental/Arial.ttf",
+                "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+            ),
+            ("/System/Library/Fonts/Helvetica.ttc", ""),
         ];
         #[cfg(not(any(target_os = "linux", windows, target_os = "macos")))]
-        let paths: [&str; 0] = [];
-        for path in paths {
-            if db.load_font_file(path).is_ok() && !db.is_empty() {
+        let paths: [(&str, &str); 0] = [];
+        for (regular, strong) in paths {
+            if db.load_font_file(regular).is_ok() && !db.is_empty() {
+                let _ = db.load_font_file(strong);
                 break;
             }
         }
@@ -82,7 +105,7 @@ impl Text {
             buffer.set_wrap(&mut self.fonts, Wrap::None);
             buffer.set_size(&mut self.fonts, None, None);
             let attrs = Attrs::new().family(Family::SansSerif).weight(if bold {
-                Weight::BOLD
+                Weight::SEMIBOLD
             } else {
                 Weight::NORMAL
             });
