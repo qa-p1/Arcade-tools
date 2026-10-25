@@ -1,6 +1,25 @@
-# Arcade Tools 0.3.7 status
+# Arcade Tools 0.3.8 status
 
-## Release status (2026-10-18)
+## 0.3.8 verification (2026-10-25)
+
+- Release target: `v0.3.8`, with the hub UI overhaul, a dedicated Learn reader,
+  delayed window reveal and parallel engine probes. See CHANGELOG.md.
+- Local workspace tests in Link's disposable HOME/XDG/ARCADE, private D-Bus and
+  Xvfb session: **196 passed, 0 failed, 2 ignored**. The ignored tests require the
+  benchmark machine and the final Find AppImage.
+- Workspace Clippy with all targets and `--locked -- -D warnings`, and
+  `cargo fmt --all --check`: passed on Rust 1.99.1.
+- Frontend typecheck: **0 errors, 0 warnings**. Production build: **160 modules**;
+  shell **192,190 / 204,800 bytes** raw, **57,935 bytes** gzip; deferred pages
+  **46,102 bytes**.
+- Mock-backend Chromium checks: **22 passed** across request races, UI behavior
+  and layout. Dark, light and narrow-window screenshots were also checked.
+- Vendored sources, shortcut validation and all four docs snapshot tests passed.
+  Python 3.14 emitted the existing non-failing HTTP fixture ResourceWarnings.
+- Cross-platform packaging and installer checks are required in the CI and stable
+  Release workflows. Local verification does not cover real Windows/macOS desktops.
+
+## Previous release status (0.3.7 and earlier)
 
 - Latest release: [v0.3.7](https://github.com/qa-p1/Arcade-tools/releases/tag/v0.3.7), published 2026-10-25 (a calmer shortcut sheet; see CHANGELOG.md; 0.3.0 was tagged but its release build could not finish). The CI and e2e notes below were recorded for the earlier v0.2.0.
 - Previously released: [v0.3.6](https://github.com/qa-p1/Arcade-tools/releases/tag/v0.3.6), published 2026-10-19 (updating while Tools runs switches to the new version).

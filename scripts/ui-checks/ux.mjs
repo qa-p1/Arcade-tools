@@ -29,7 +29,7 @@ async function userTabSurvivesSlowStart(page) {
   await page.click('#tab-settings');
   await page.waitForFunction(() => window.__initialized, null, { timeout: 10000 });
   await sleep(300);
-  const context = await text(page, '.header-context');
+  const context = await text(page, '[role="tab"][aria-selected="true"]');
   assert(context.endsWith('Settings'), `the window switched pages by itself: ${context}`);
 }
 

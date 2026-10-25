@@ -33,7 +33,8 @@ export const ui = $state({
   loaded: false,
   toolsApp: null as AppView | null,
   notificationsEnabled: true,
-  learnTarget: 'arcade.ecosystem',
+  /** A guide another page asked Learn to open; the serial repeats a request. */
+  learnTarget: { id: '', serial: 0 },
   releases: new Map<string, Release>(),
   updates: null as UpdateState | null,
   updateChecking: false,
@@ -44,7 +45,7 @@ export const ui = $state({
   refreshing: false,
   refreshPending: false,
   testing: false,
-  message: 'Loading your apps…',
+  message: '',
   messageError: false,
   dialog: null as ConfirmationState | null,
   phase: '',

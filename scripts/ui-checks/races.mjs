@@ -42,6 +42,8 @@ export default {
     const rows = page.locator('.learn-app-row');
     await rows.filter({ hasText: 'Arcade Box' }).getByRole('button', { name: 'Read here' }).click();
     await sleep(50);
+    // The reader replaces the list: go back and open another guide while Box's pages are still loading.
+    await page.click('text=← All guides');
     await rows.filter({ hasText: 'Arcade Find' }).getByRole('button', { name: 'Read here' }).click();
     await sleep(1300);
     const heading = await page.textContent('#learn-reader-heading');

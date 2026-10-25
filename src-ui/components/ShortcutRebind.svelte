@@ -64,28 +64,27 @@
     finally { busy = false; }
   }
 </script>
-<div class="rebind-control">
+<div class="rebind-control" class:rebind-editing={editing}>
   {#if editing}
-    <label class="rebind-label">Press or type a new shortcut for {shortcut.title}<input class="rebind-input" aria-label="New shortcut for {shortcut.title}" bind:value={draft} onkeydown={record} /></label>
-    <button type="button" class="primary-action rebind-apply" disabled={busy || !draft.trim() || missingModifier} onclick={() => void save()}>Apply</button>
-    <button type="button" class="small-button" disabled={busy} onclick={() => editing = false}>Cancel</button>
+    <label class="rebind-label">New shortcut for {shortcut.title}<input class="input rebind-input" aria-label="New shortcut for {shortcut.title}" bind:value={draft} onkeydown={record} placeholder="Press keys" /></label>
+    <button type="button" class="btn sm primary primary-action rebind-apply" disabled={busy || !draft.trim() || missingModifier} onclick={() => void save()}>Apply</button>
+    <button type="button" class="btn sm ghost" disabled={busy} onclick={() => editing = false}>Cancel</button>
     {#if missingModifier}<p class="status-warning" role="alert">Add Ctrl, Alt or Super: on its own, this key would stop working everywhere else.</p>{/if}
     {#if conflicts.length}<p class="status-warning" role="alert">Already used by {conflicts.join(', ')}.</p>{/if}
     <small>{index.wm.name && index.wm.name !== 'none' ? `Checked against other Arcade shortcuts and ${index.wm.name} bindings.` : 'Checked against other Arcade shortcuts; no window manager configuration was found to check.'}</small>
   {:else if shortcut.rebindable}
-    <button type="button" class="small-button" onclick={() => { draft = shortcut.keys[0] ?? ''; editing = true; message = ''; }}>Change shortcut</button>
+    <button type="button" class="btn sm ghost" onclick={() => { draft = shortcut.keys[0] ?? ''; editing = true; message = ''; }}>Change shortcut</button>
   {:else}
-    <button type="button" class="small-button" onclick={() => void api.openAppSettings(shortcut.app).catch((error) => message = error.message ?? String(error))}>Open app settings</button>
+    <button type="button" class="btn sm ghost" onclick={() => void api.openAppSettings(shortcut.app).catch((error) => message = error.message ?? String(error))}>Open app settings</button>
   {/if}
-  {#if message}<p role="status">{message}</p>{/if}
+  {#if message}<p class="rebind-message" role="status">{message}</p>{/if}
 </div>
 <style>
-  .rebind-control { display:flex; flex-wrap:wrap; gap:.4rem; align-items:center; }
-  label, small, p { width:100%; }
-  .rebind-label { display:flex; flex-wrap:wrap; align-items:center; gap:.4rem; color:var(--muted); font-size:11px; }
-  .rebind-input { max-width:15rem; min-width:0; min-height:32px; padding:5px 9px; border:1px solid var(--border); border-radius:7px; color:var(--text); background:var(--surface); font-size:12px; }
-  .rebind-apply { min-height:32px; padding:6px 12px; }
-  small { color:var(--muted); font-size:10px; }
-  .rebind-control { min-width:0; }
-  .rebind-control button { white-space:nowrap; }
+  .rebind-control { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+  .rebind-editing { width: 100%; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--sunken); }
+  .rebind-label { display: flex; flex: 1; align-items: center; gap: 10px; color: var(--muted); font-size: 12px; }
+  .rebind-input { width: 180px; height: 28px; }
+  p, small { width: 100%; margin: 0; }
+  small { color: var(--faint); font-size: 11.5px; }
+  .rebind-message { color: var(--muted); font-size: 12px; }
 </style>

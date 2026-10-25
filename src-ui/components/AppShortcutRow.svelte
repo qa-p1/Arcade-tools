@@ -6,10 +6,10 @@
   let { shortcut, os }: Props = $props();
 </script>
 
-<li class="shortcut-row">
-  <div class="shortcut-copy">
-    <h3>{shortcut.title}</h3>
-    {#if shortcut.description}<p>{shortcut.description}</p>{/if}
+<li class="row shortcut-row">
+  <div class="row-main">
+    <div class="row-title">{shortcut.title}</div>
+    {#if shortcut.description && shortcut.description !== shortcut.title}<div class="row-sub">{shortcut.description}</div>{/if}
   </div>
   <KeyChips keys={shortcut.display} {os} />
 </li>

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { api } from '../lib/api';
   import ShortcutRebind from '../components/ShortcutRebind.svelte';
-  import TraySettings from '../components/TraySettings.svelte';
+  import Icon from '../components/Icon.svelte';
   import AppShortcutRow from '../components/AppShortcutRow.svelte';
   import KeyChips from '../components/KeyChips.svelte';
   import type {
@@ -42,6 +42,10 @@
   let sheetMessage = $state('');
   async function refreshSheets(): Promise<void> { try { sheetMessage = `${await api.refreshShortcutSheets()} catalog sheets refreshed.`; } catch (error) { sheetMessage = (error as { message?: string }).message ?? String(error); } }
   let labelError = $state('');
+  let editingLabel = $state('');
+  const wmName = $derived(index?.wm.name && index.wm.name !== 'none' ? index.wm.name.charAt(0).toUpperCase() + index.wm.name.slice(1) : '');
+  let sheetsBusy = $state(false);
+  async function refreshAllSheets(): Promise<void> { sheetsBusy = true; try { await refreshSheets(); } finally { sheetsBusy = false; } }
 
   const search = $derived(query.trim().toLocaleLowerCase());
   const selectedApp = $derived(index?.apps.find((app) => app.id === selectedAppId) ?? null);
@@ -94,6 +98,7 @@
 
   const visibleArcade = $derived((index?.arcade ?? []).filter((shortcut) => arcadeMatches(shortcut)));
   const visibleWmGroups = $derived(wmGroups());
+  const wmCount = $derived(visibleWmGroups.reduce((total, group) => total + group.shortcuts.length, 0));
   const visibleAppGroups = $derived(selectedApp ? appGroups(selectedApp) : []);
   const visibleConflicts = $derived((index?.conflicts ?? []).filter((conflict) =>
     matches(search, conflict.chord, conflict.a.kind, conflict.a.owner, conflict.a.label,
@@ -160,6 +165,7 @@
       delete next[key];
       labelDrafts = next;
       savedLabelKey = key;
+      editingLabel = '';
       onChange();
     } catch (error) {
       labelError = error instanceof Error ? error.message : String(error);
@@ -178,93 +184,92 @@
   }
 </script>
 
+{#snippet arcadeRow(shortcut: ArcadeShortcut, os: string)}
+  <li class="row shortcut-row arcade-row">
+    <div class="row-main"><div class="row-title">{shortcut.title}</div><div class="row-sub">{shortcut.name}</div></div>
+    <KeyChips keys={shortcut.display} {os} />
+    {#if index}<div class="rebind"><ShortcutRebind {shortcut} {index} /></div>{/if}
+  </li>
+{/snippet}
+
 <div id="panel-shortcuts" class="tab-panel shortcuts-panel" role="tabpanel" aria-labelledby="tab-shortcuts" tabindex="0" hidden={!active}>
-  <header class="page-heading shortcuts-heading">
+  <header class="page-head">
     <div>
-      <p class="eyebrow">ARCADE TOOLS / SHORTCUTS</p>
-      <h1>Find a shortcut.</h1>
-      <p class="intro">Search Arcade, window-manager and app shortcuts in one place.</p>
+      <h1>Shortcuts</h1>
+      <p class="sub">Every shortcut on this computer in one place.{#if index}&nbsp;Updated {new Date(index.builtAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}.{/if}</p>
     </div>
-    {#if index}<span class="app-count">Updated {new Date(index.builtAt).toLocaleString()}</span>{/if}
+    <div class="page-actions">
+      <button type="button" class="btn ghost" disabled={sheetsBusy} onclick={() => void refreshAllSheets()}><Icon name="refresh" size={14} />{sheetsBusy ? 'Refreshing…' : 'Refresh catalog shortcut sheets'}</button>
+    </div>
   </header>
+  {#if sheetMessage}<p class="section-note sheet-message" role="status">{sheetMessage}</p>{/if}
 
   {#if !index}
-    <section class="shortcut-empty" aria-labelledby="shortcuts-empty-title">
-      <span class="shortcut-empty-mark" aria-hidden="true">⌘</span>
-      <h2 id="shortcuts-empty-title">Your shortcut index is not ready yet</h2>
-      <p>Open the shortcut cheat sheet once (Super+/) or restart Arcade Tools to build the shortcut index.</p>
-    </section>
+    <div class="empty-state">
+      <Icon name="keyboard" size={24} />
+      <h2 id="shortcuts-empty-title">The shortcut list isn't ready yet</h2>
+      <p>Open the shortcut overlay once (Super + /) or restart Arcade Tools to build it.</p>
+    </div>
   {:else}
-    <label class="shortcut-search">
-      <span class="visually-hidden">Search all shortcuts</span>
-      <svg aria-hidden="true" viewBox="0 0 20 20" fill="none"><circle cx="8.8" cy="8.8" r="5.7" /><path d="m13 13 4 4" /></svg>
-      <input type="search" value={query} oninput={changeSearch} placeholder="Search all shortcuts, apps and keys" aria-label="Search all shortcuts" />
-      <kbd class="search-hint">/</kbd>
-    </label>
-
-    <div class="shortcut-view-tabs" role="tablist" aria-label="Shortcut views">
-      {#each views as item (item.id)}
-        <button id="shortcut-view-{item.id}" type="button" role="tab" aria-selected={view === item.id}
-          aria-controls="shortcut-view-panel" tabindex={view === item.id ? 0 : -1}
-          class:active={view === item.id} onclick={() => chooseView(item.id)} onkeydown={(event) => moveView(event, item.id)}>
-          {item.label}
-          {#if item.id === 'conflicts' && index.conflicts.length}<span class="view-count">{index.conflicts.length}</span>{/if}
-        </button>
-      {/each}
+    <div class="toolbar">
+      <label class="search-field">
+        <Icon name="search" />
+        <span class="visually-hidden">Search all shortcuts</span>
+        <input type="search" value={query} oninput={changeSearch} placeholder="Search shortcuts, apps or keys" aria-label="Search all shortcuts" />
+      </label>
+      {#if !search}
+        <div class="segmented" role="tablist" aria-label="Shortcut views">
+          {#each views as item (item.id)}
+            <button id="shortcut-view-{item.id}" type="button" role="tab" aria-selected={view === item.id}
+              aria-controls="shortcut-view-panel" tabindex={view === item.id ? 0 : -1}
+              class:active={view === item.id} onclick={() => chooseView(item.id)} onkeydown={(event) => moveView(event, item.id)}>
+              {item.id === 'wm' && wmName ? wmName : item.label}
+              {#if item.id === 'conflicts' && index.conflicts.length}<span class="view-count">{index.conflicts.length}</span>{/if}
+            </button>
+          {/each}
+        </div>
+      {/if}
     </div>
 
     {#if search}
-      <div id="shortcut-view-panel" class="shortcut-results" role="tabpanel" aria-labelledby="shortcut-view-{view}">
+      <div id="shortcut-view-panel" class="shortcut-results" role="tabpanel" aria-label="Search results">
         {#if !hasGlobalMatches}
-          <p class="shortcut-no-results" role="status">No shortcuts match “{query}”.</p>
+          <p class="no-results" role="status">No shortcuts match “{query}”.</p>
         {:else}
           {#if globalArcade.length}
-            <section class="shortcut-section" aria-labelledby="search-arcade-heading">
-              <div class="section-heading"><h2 id="search-arcade-heading">Arcade</h2><span>{globalArcade.length}</span></div>
-              <ul class="shortcut-list">
-                {#each globalArcade as shortcut (`${shortcut.app}-${shortcut.id}`)}
-                  <li class="shortcut-row">
-                    <div class="shortcut-copy"><h3>{shortcut.title}</h3><p>{shortcut.name}</p></div>
-                    <div class="shortcut-key-area"><KeyChips keys={shortcut.display} os={index.os} /><ShortcutRebind {shortcut} {index} /></div>
-                  </li>
-                {/each}
-              </ul>
+            <section class="group" aria-labelledby="search-arcade-heading">
+              <h3 class="group-title" id="search-arcade-heading">Arcade <span>{globalArcade.length}</span></h3>
+              <ul class="list plain">{#each globalArcade as shortcut (`${shortcut.app}-${shortcut.id}`)}{@render arcadeRow(shortcut, index.os)}{/each}</ul>
             </section>
           {/if}
           {#if globalWm.length}
-            <section class="shortcut-section" aria-labelledby="search-wm-heading">
-              <div class="section-heading"><h2 id="search-wm-heading">Window manager</h2><span>{globalWm.length}</span></div>
-              <ul class="shortcut-list">
+            <section class="group" aria-labelledby="search-wm-heading">
+              <h3 class="group-title" id="search-wm-heading">{wmName || 'Window manager'} <span>{globalWm.length}</span></h3>
+              <ul class="list plain">
                 {#each globalWm as match, itemIndex (`${match.shortcut.submap}-${match.shortcut.chord}-${itemIndex}`)}
-                  <li class="shortcut-row">
-                    <div class="shortcut-copy"><h3>{labels[labelKey(match.shortcut)] ?? match.shortcut.label}</h3><p>{match.group.title} · {match.shortcut.origin.file}:{match.shortcut.origin.line}</p></div>
-                    <KeyChips keys={[match.shortcut.display]} os={index.os} />
-                  </li>
+                  <li class="row shortcut-row"><div class="row-main"><div class="row-title">{labels[labelKey(match.shortcut)] ?? match.shortcut.label}</div><div class="row-sub">{match.group.title}</div></div><KeyChips keys={[match.shortcut.display]} os={index.os} /></li>
                 {/each}
               </ul>
             </section>
           {/if}
           {#if globalApps.length}
-            <section class="shortcut-section" aria-labelledby="search-apps-heading">
-              <div class="section-heading"><h2 id="search-apps-heading">Apps</h2><span>{globalApps.length}</span></div>
-              <ul class="shortcut-list">
+            <section class="group" aria-labelledby="search-apps-heading">
+              <h3 class="group-title" id="search-apps-heading">Apps <span>{globalApps.length}</span></h3>
+              <ul class="list plain">
                 {#each globalApps as match, itemIndex (`${match.app.id}-${match.shortcut.id}-${itemIndex}`)}
-                  <li class="shortcut-row">
-                    <div class="shortcut-copy"><h3>{match.shortcut.title}</h3><p>{match.app.name} · {match.group.title}</p></div>
-                    <KeyChips keys={match.shortcut.display} os={index.os} />
-                  </li>
+                  <li class="row shortcut-row"><div class="row-main"><div class="row-title">{match.shortcut.title}</div><div class="row-sub">{match.app.name} · {match.group.title}</div></div><KeyChips keys={match.shortcut.display} os={index.os} /></li>
                 {/each}
               </ul>
             </section>
           {/if}
           {#if globalConflicts.length}
-            <section class="shortcut-section" aria-labelledby="search-conflicts-heading">
-              <div class="section-heading"><h2 id="search-conflicts-heading">Conflicts</h2><span>{globalConflicts.length}</span></div>
-              {#each globalConflicts as conflict, itemIndex (`${conflict.chord}-${itemIndex}`)}
-                <div class="conflict-card"><KeyChips keys={[conflict.chord]} os={index.os} />
-                  <p><strong>{conflict.a.label}</strong> ({ownerName(conflict.a)}) and <strong>{conflict.b.label}</strong> ({ownerName(conflict.b)}) use the same chord. Review the two bindings before changing either one.</p>
-                </div>
-              {/each}
+            <section class="group" aria-labelledby="search-conflicts-heading">
+              <h3 class="group-title" id="search-conflicts-heading">Conflicts <span>{globalConflicts.length}</span></h3>
+              <ul class="list plain">
+                {#each globalConflicts as conflict, itemIndex (`${conflict.chord}-${itemIndex}`)}
+                  <li class="row conflict-card"><span class="dot warn"></span><div class="row-main"><div class="row-title">{conflict.a.label} <span class="faint">and</span> {conflict.b.label}</div><div class="row-sub">{ownerName(conflict.a)} · {ownerName(conflict.b)}</div></div><KeyChips keys={[conflict.chord]} os={index.os} /></li>
+                {/each}
+              </ul>
             </section>
           {/if}
         {/if}
@@ -272,98 +277,117 @@
     {:else}
       <div id="shortcut-view-panel" class="shortcut-view-panel" role="tabpanel" aria-labelledby="shortcut-view-{view}">
         {#if view === 'this-app'}
-          <section class="shortcut-section" aria-labelledby="current-app-heading">
-            <h2 id="current-app-heading">{currentApp?.name ?? 'Choose the app you are using'}</h2>
-            <label class="app-picker">App <select bind:value={currentAppId}><option value="">Choose an app</option>{#each index.apps as app (app.id)}<option value={app.id}>{app.name}</option>{/each}</select></label>
-            {#if currentApp}{#each appGroups(currentApp) as group (group.title)}<section class="shortcut-group"><h3>{group.title}</h3><ul class="shortcut-list">{#each group.shortcuts as shortcut (shortcut.id)}<AppShortcutRow {shortcut} os={index.os} />{/each}</ul></section>{/each}{:else}<p class="setting-description">Automatic focus detection is available on supported desktops. Choose an app here, or open the overlay while that app is focused.</p>{/if}
-          </section>
+          <div class="view-head">
+            <p class="muted">{currentApp ? `Shortcuts for ${currentApp.name}.` : 'Pick the app you are using. The overlay detects it automatically on supported desktops.'}</p>
+            <select class="select" aria-label="App" bind:value={currentAppId}><option value="">Choose an app</option>{#each index.apps as app (app.id)}<option value={app.id}>{app.name}</option>{/each}</select>
+          </div>
+          {#if currentApp}
+            {#each appGroups(currentApp) as group (group.title)}
+              <section class="group"><h3 class="group-title">{group.title}</h3><ul class="list plain">{#each group.shortcuts as shortcut (shortcut.id)}<AppShortcutRow {shortcut} os={index.os} />{/each}</ul></section>
+            {/each}
+          {/if}
         {:else if view === 'arcade'}
-          <section class="shortcut-section" aria-labelledby="arcade-shortcuts-heading">
-            <div class="section-heading"><div><h2 id="arcade-shortcuts-heading">Arcade shortcuts</h2><p>Global shortcuts provided by Arcade apps.</p></div><span>{visibleArcade.length}</span></div>
-            {#if visibleArcade.length}
-              <ul class="shortcut-list">
-                {#each visibleArcade as shortcut (`${shortcut.app}-${shortcut.id}`)}
-                  <li class="shortcut-row">
-                    <div class="shortcut-copy"><h3>{shortcut.title}</h3><p>{shortcut.name}</p></div>
-                    <div class="shortcut-key-area"><KeyChips keys={shortcut.display} os={index.os} /><ShortcutRebind {shortcut} {index} /></div>
-                  </li>
-                {/each}
-              </ul>
-            {:else}<p class="shortcut-no-results" role="status">No Arcade global shortcuts were found.</p>{/if}
-          </section>
+          <p class="view-note muted" id="arcade-shortcuts-heading">Shortcuts Arcade apps add to your whole desktop.</p>
+          {#if visibleArcade.length}
+            <ul class="list plain">{#each visibleArcade as shortcut (`${shortcut.app}-${shortcut.id}`)}{@render arcadeRow(shortcut, index.os)}{/each}</ul>
+          {:else}<p class="no-results" role="status">No Arcade global shortcuts were found.</p>{/if}
         {:else if view === 'wm'}
-          <section class="shortcut-section" aria-labelledby="wm-shortcuts-heading">
-            <div class="section-heading"><div><h2 id="wm-shortcuts-heading">{index.wm.name}</h2><p>Window-manager bindings from configuration and the running session.</p></div><span>{visibleWmGroups.reduce((total, group) => total + group.shortcuts.length, 0)}</span></div>
-            {#if index.wm.warnings.length}<ul class="shortcut-warnings" aria-label="Window manager warnings">{#each index.wm.warnings as warning}<li>{warning}</li>{/each}</ul>{/if}
-            {#if visibleWmGroups.length}
-              {#each visibleWmGroups as group (group.title)}
-                <section class="shortcut-group" aria-labelledby={`wm-group-${group.title}`}>
-                  <h3 id={`wm-group-${group.title}`}>{group.title}</h3>
-                  <ul class="shortcut-list">
-                    {#each group.shortcuts as shortcut, itemIndex (`${shortcut.submap}-${shortcut.chord}-${itemIndex}`)}
-                      {@const key = labelKey(shortcut)}
-                      {@const shownLabel = currentLabel(key, shortcut.label)}
-                      <li class="wm-shortcut-row">
-                        <div class="shortcut-copy">
-                          <div class="shortcut-title-line"><h4>{shownLabel}</h4><span class="state-badge" class:state-active={shortcut.state === 'active'} class:state-configured={shortcut.state === 'configuredOnly'} class:state-runtime={shortcut.state === 'runtimeOnly'}>{stateLabel(shortcut.state)}</span></div>
-                          <p>{shortcut.detail}</p>
-                          <p class="shortcut-origin">{shortcut.origin.file}:{shortcut.origin.line}</p>
-                        </div>
-                        <KeyChips keys={[shortcut.display]} os={index.os} />
-                        <div class="label-editor">
-                          <label for={`shortcut-label-${itemIndex}-${group.title}`}>Label</label>
-                          <input id={`shortcut-label-${itemIndex}-${group.title}`} value={shownLabel} oninput={(event) => changeLabel(key, event)} aria-label={`Label for ${shortcut.display}`} />
-                          <button type="button" class="small-button" aria-label={`Save label for ${shownLabel}`} onclick={() => void saveLabel(key, shortcut.label)}>Save label</button>
-                          {#if savedLabelKey === key}<span class="save-status" role="status">Saved</span>{/if}
-                        </div>
-                      </li>
-                    {/each}
-                  </ul>
+          <p class="view-note muted" id="wm-shortcuts-heading">{wmCount} bindings from your {wmName || 'window manager'} configuration. Rename any of them to make the list easier to read.</p>
+          {#if index.wm.warnings.length}<div class="notice warn wm-warnings"><Icon name="alert" /><ul class="row-main" aria-label="Window manager warnings">{#each index.wm.warnings as warning}<li>{warning}</li>{/each}</ul></div>{/if}
+          {#if visibleWmGroups.length}
+            {#each visibleWmGroups as group (group.title)}
+              <section class="group" aria-labelledby={`wm-group-${group.title}`}>
+                <h3 class="group-title" id={`wm-group-${group.title}`}>{group.title} <span>{group.shortcuts.length}</span></h3>
+                <ul class="list plain">
+                  {#each group.shortcuts as shortcut, itemIndex (`${shortcut.submap}-${shortcut.chord}-${itemIndex}`)}
+                    {@const key = labelKey(shortcut)}
+                    {@const shownLabel = currentLabel(key, shortcut.label)}
+                    <li class="row wm-shortcut-row">
+                      <div class="row-main">
+                        {#if editingLabel === key}
+                          <form class="label-editor" onsubmit={(event) => { event.preventDefault(); void saveLabel(key, shortcut.label); }}>
+                            <input id={`shortcut-label-${itemIndex}-${group.title}`} class="input" value={shownLabel} oninput={(event) => changeLabel(key, event)} aria-label={`Label for ${shortcut.display}`} />
+                            <button type="submit" class="btn sm primary" aria-label={`Save label for ${shownLabel}`}>Save</button>
+                            <button type="button" class="btn sm ghost" onclick={() => editingLabel = ''}>Cancel</button>
+                          </form>
+                        {:else}
+                          <div class="row-title">{shownLabel}{#if shortcut.state !== 'active'}<span class="badge" class:warn={shortcut.state === 'configuredOnly'}>{stateLabel(shortcut.state)}</span>{/if}{#if savedLabelKey === key}<span class="faint save-status" role="status">Saved</span>{/if}</div>
+                          {#if shortcut.detail && shortcut.detail !== shownLabel}<div class="row-sub" title="{shortcut.origin.file}:{shortcut.origin.line}">{shortcut.detail}</div>{/if}
+                        {/if}
+                      </div>
+                      <KeyChips keys={[shortcut.display]} os={index.os} />
+                      {#if editingLabel !== key}<button type="button" class="btn ghost icon-only sm edit" title="Rename" aria-label={`Rename ${shownLabel}`} onclick={() => { editingLabel = key; savedLabelKey = ''; }}><Icon name="edit" size={14} /></button>{/if}
+                    </li>
+                  {/each}
+                </ul>
+              </section>
+            {/each}
+          {:else}<p class="no-results" role="status">No window-manager shortcuts were found.</p>{/if}
+          {#if labelError}<p class="error-text" role="alert">{labelError}</p>{/if}
+        {:else if view === 'apps'}
+          <div class="view-head">
+            <p class="muted" id="app-shortcuts-heading">Shortcut sheets for {index.apps.length} apps.</p>
+            <select class="select" aria-label="Choose an app" value={selectedAppId} onchange={changeApp}>
+              {#each index.apps as app (app.id)}<option value={app.id}>{app.name}</option>{/each}
+            </select>
+          </div>
+          {#if selectedApp}
+            {#if visibleAppGroups.length}
+              {#each visibleAppGroups as group (group.title)}
+                <section class="group" aria-labelledby={`app-group-${group.title}`}>
+                  <h3 class="group-title" id={`app-group-${group.title}`}>{group.title}{#if group.context}<span>{group.context}</span>{/if}</h3>
+                  <ul class="list plain">{#each group.shortcuts as shortcut (shortcut.id)}<AppShortcutRow {shortcut} os={index.os} />{/each}</ul>
                 </section>
               {/each}
-            {:else}<p class="shortcut-no-results" role="status">No window-manager shortcuts match your search.</p>{/if}
-            {#if labelError}<p class="shortcut-error" role="alert">{labelError}</p>{/if}
-          </section>
-        {:else if view === 'apps'}
-          <section class="shortcut-section" aria-labelledby="app-shortcuts-heading">
-            <div class="section-heading"><div><h2 id="app-shortcuts-heading">App shortcuts</h2><p>Shortcut sheets grouped by app and context.</p></div><span>{index.apps.length}</span></div>
-            <label class="app-picker">Choose an app
-              <select aria-label="Choose an app" value={selectedAppId} onchange={changeApp}>
-                {#each index.apps as app (app.id)}<option value={app.id}>{app.name} · {app.source === 'catalog' ? 'Catalog' : 'Arcade'}</option>{/each}
-              </select>
-            </label>
-            {#if selectedApp}
-              <div class="app-sheet-heading"><div><h3>{selectedApp.name}</h3><p>{selectedApp.source === 'catalog' ? 'Catalog shortcut sheet' : 'Arcade app shortcut sheet'}</p></div><span class="source-badge">{selectedApp.source}</span></div>
-              {#if visibleAppGroups.length}
-                {#each visibleAppGroups as group (group.title)}
-                  <section class="shortcut-group" aria-labelledby={`app-group-${group.title}`}>
-                    <h3 id={`app-group-${group.title}`}>{group.title}{#if group.context}<span>{group.context}</span>{/if}</h3>
-                    <ul class="shortcut-list">
-                      {#each group.shortcuts as shortcut (shortcut.id)}<AppShortcutRow {shortcut} os={index.os} />{/each}
-                    </ul>
-                  </section>
-                {/each}
-              {:else}<p class="shortcut-no-results" role="status">No shortcuts match your search for this app.</p>{/if}
-            {:else}<p class="shortcut-no-results" role="status">No app shortcut sheets are available.</p>{/if}
-          </section>
+            {:else}<p class="no-results" role="status">This app has no shortcuts listed.</p>{/if}
+          {:else}<p class="no-results" role="status">No app shortcut sheets are available.</p>{/if}
         {:else}
-          <section class="shortcut-section" aria-labelledby="conflict-heading">
-            <div class="section-heading"><div><h2 id="conflict-heading">Shortcut conflicts</h2><p>Bindings that use the same normalized chord.</p></div><span>{visibleConflicts.length}</span></div>
-            {#if visibleConflicts.length}
+          <p class="view-note muted" id="conflict-heading">Two bindings on the same keys: only one of them works.</p>
+          {#if visibleConflicts.length}
+            <ul class="list plain">
               {#each visibleConflicts as conflict, itemIndex (`${conflict.chord}-${itemIndex}`)}
-                <div class="conflict-card"><KeyChips keys={[conflict.chord]} os={index.os} />
-                  <div class="conflict-owners"><p><strong>{conflict.a.label}</strong><span>{ownerName(conflict.a)} · {conflict.a.kind}</span></p><span class="conflict-vs" aria-hidden="true">↔</span><p><strong>{conflict.b.label}</strong><span>{ownerName(conflict.b)} · {conflict.b.kind}</span></p></div>
-                  {#each index.arcade.filter((shortcut) => shortcut.rebindable && shortcut.keys.includes(conflict.chord)) as shortcut (`${shortcut.app}-${shortcut.id}`)}<ShortcutRebind {shortcut} {index} />{/each}
-                  <p class="conflict-explanation">Both shortcuts claim {conflict.chord}. Review each owner’s settings to decide which binding should change.</p>
-                </div>
+                {@const fixable = index.arcade.filter((shortcut) => shortcut.rebindable && shortcut.keys.includes(conflict.chord))}
+                <li class="row conflict-card">
+                  <span class="dot warn"></span>
+                  <div class="row-main">
+                    <div class="row-title">{conflict.a.label} <span class="faint">and</span> {conflict.b.label}</div>
+                    <div class="row-sub">{ownerName(conflict.a)} · {ownerName(conflict.b)}</div>
+                  </div>
+                  <KeyChips keys={[conflict.chord]} os={index.os} />
+                  {#if fixable.length}<div class="rebind">{#each fixable as shortcut (`${shortcut.app}-${shortcut.id}`)}<ShortcutRebind {shortcut} {index} />{/each}</div>{/if}
+                </li>
               {/each}
-            {:else}<p class="shortcut-no-results" role="status">No shortcut conflicts were found.</p>{/if}
-          </section>
+            </ul>
+          {:else}<div class="empty-state"><Icon name="check" size={24} /><h2>No conflicts</h2><p>Every shortcut has its own keys.</p></div>{/if}
         {/if}
       </div>
     {/if}
+    <p class="section-note overlay-note">Press <KeyChips keys={[index.os === 'macos' ? 'Ctrl+Option+/' : index.os === 'windows' ? 'Ctrl+Alt+/' : 'Super+/']} os={index.os} /> in any app to see its shortcuts. Change the overlay shortcut in Settings.</p>
   {/if}
-<button type="button" onclick={() => void refreshSheets()}>Refresh catalog shortcut sheets</button>
-  {#if sheetMessage}<p role="status">{sheetMessage}</p>{/if}
-  <TraySettings {active} busy={false} />
 </div>
+
+<style>
+  .sheet-message { margin: -12px 0 16px; }
+  .toolbar { display: grid; gap: 12px; margin-bottom: 20px; }
+  .toolbar .segmented { justify-self: start; }
+  .view-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+  .view-note { margin-bottom: 14px; }
+  .group + .group { margin-top: 22px; }
+  .group-title { display: flex; align-items: baseline; gap: 8px; margin: 0 0 8px 2px; color: var(--faint); font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+  .group-title span { font-weight: 500; letter-spacing: 0; text-transform: none; }
+  .plain { margin: 0; padding: 0; list-style: none; }
+  .plain > :global(.row) { min-height: 46px; padding: 8px 14px; }
+  .arcade-row, .conflict-card { flex-wrap: wrap; }
+  .rebind { display: flex; justify-content: flex-end; }
+  .rebind:has(:global(.rebind-editing)) { flex-basis: 100%; justify-content: flex-start; }
+  .row-title :global(.badge) { margin-left: 4px; }
+  .save-status { font-size: 12px; font-weight: 400; }
+  .edit { opacity: 0; }
+  .wm-shortcut-row:hover .edit, .edit:focus-visible { opacity: 1; }
+  .label-editor { display: flex; gap: 6px; }
+  .label-editor .input { flex: 1; min-width: 0; height: 28px; }
+  .wm-warnings ul { margin: 0; padding-left: 16px; }
+  .wm-warnings { margin-bottom: 14px; }
+  .no-results { padding: 20px; border: 1px dashed var(--line-strong); border-radius: var(--radius); color: var(--muted); text-align: center; }
+  .overlay-note { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 28px; }
+</style>

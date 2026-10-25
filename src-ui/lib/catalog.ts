@@ -35,7 +35,8 @@ export interface Catalog {
 
 export interface EngineUse {
   app: string;
-  purpose: string;
+  /** What the app uses the engine for. */
+  for: string;
 }
 
 export interface Engine {

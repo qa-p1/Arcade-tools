@@ -18,7 +18,8 @@
   import Settings from './tabs/Settings.svelte';
   import Updates from './tabs/Updates.svelte';
   import { ui, type Theme } from './lib/state.svelte';
-  import { setShortcutsEnabled, tabs, type ShellTab } from './lib/tabs.svelte';
+  import { setShortcutsEnabled, type ShellTab } from './lib/tabs.svelte';
+  import Icon from './components/Icon.svelte';
 
   let revision = 0;
   let linkInput: HTMLInputElement;
@@ -38,7 +39,10 @@
   async function confirmSelfInstall(): Promise<void> { await invoke('confirm_self_install', { startAtLogin: installLogin, removeDownload }); }
   let initialized = false;
   let hasSeenFocus = false;
-  const activeTabLabel = $derived(tabs.find((tab) => tab.id === ui.tab)?.label ?? 'Apps');
+  const updateCount = $derived((ui.toolsApp ? [ui.toolsApp, ...ui.apps] : ui.apps)
+    .filter((app) => app.managed && ui.updates?.apps[app.id]?.updateAvailable && !ui.updates.apps[app.id]?.heldBack).length);
+  /** The window stays hidden until the page shows real content. */
+  function windowReady(): void { void invoke('window_ready').catch(() => undefined); }
 
   function run(action: () => Promise<void>, appName?: string): void {
     void attempt(action, appName);
@@ -165,6 +169,8 @@
         else unlisten = handlers;
         await initialize();
         initialized = true;
+        await tick();
+        windowReady();
         installProposal = await invoke('self_install_proposal');
         hasSeenFocus = true;
         const [index, labels, catalogData] = await Promise.all([
@@ -178,6 +184,8 @@
         openIntent(trayIntent);
       } catch (error) {
         setMessage(error instanceof Error ? error.message : String(error), true);
+      } finally {
+        windowReady();
       }
     })();
 
@@ -268,16 +276,17 @@
 </svelte:head>
 
 <div class="app-shell">
-  <Sidebar active={ui.tab} onSelect={selectTab} />
+  <Sidebar active={ui.tab} counts={{ updates: updateCount }} onSelect={selectTab}>
+    <label class="switch-row" title="Let Arcade apps find each other and work together">
+      <span>Connect apps</span>
+      <input id="link" class="switch" bind:this={linkInput} type="checkbox" aria-label="Connect with other Arcade apps" checked={ui.linkEnabled} disabled={ui.busy} onchange={(event) => run(() => setLink(event.currentTarget.checked))} />
+    </label>
+    <div class="sidebar-meta">
+      <span>Version {__TOOLS_VERSION__}</span>
+      <button id="refresh" class="btn ghost icon-only sm" type="button" aria-label="Refresh" title="Refresh" disabled={ui.busy} onclick={() => run(refresh)}><Icon name="refresh" size={15} /></button>
+    </div>
+  </Sidebar>
   <div class="shell-main">
-    <header class="utility-header">
-      <div class="header-context"><span class="context-dot"></span><span>Arcade Tools</span><span class="context-divider">/</span><span>{activeTabLabel}</span></div>
-      <div class="header-actions">
-        <label class="link-toggle"><input id="link" bind:this={linkInput} type="checkbox" checked={ui.linkEnabled} disabled={ui.busy} onchange={(event) => run(() => setLink(event.currentTarget.checked))} /> <span>Connect with other Arcade apps</span></label>
-        <button id="refresh" class="refresh-button" type="button" disabled={ui.busy} onclick={() => run(refresh)}>Refresh</button>
-      </div>
-    </header>
-    <Message text={ui.message} error={ui.messageError} />
     <main class="page-main">
       <Home
         active={ui.tab === 'home'}
@@ -371,7 +380,7 @@
         />
       {/if}
     </main>
-    <footer class="shell-footer"><span>Arcade Tools · {__TOOLS_VERSION__}</span><span>Apps stay independent; Tools makes them easier to manage.</span></footer>
+    <Message text={ui.message} error={ui.messageError} raised={ui.busy} />
   </div>
 </div>
 <ProgressBar visible={ui.busy} phase={ui.phase} progress={ui.progress} cancellable={ui.cancellable} onCancel={() => run(cancelOperation)} />
@@ -379,8 +388,12 @@
 
 <dialog bind:this={installDialog} aria-labelledby="self-install-title">
   {#if installProposal}<h2 id="self-install-title">{installProposal.title}</h2><p>{installProposal.copy}</p>
-    {#if installProposal.options}<label><input type="checkbox" bind:checked={installLogin} /> Start at login</label>
-    <label><input type="checkbox" bind:checked={removeDownload} /> Remove the downloaded file</label>{/if}
-    <div class="dialog-actions"><button type="button" onclick={() => run(confirmSelfInstall)}>{installProposal.primary}</button><button type="button" onclick={() => { installProposal=null; installDialog.close(); }}>{installProposal.secondary}</button><button type="button" onclick={() => run(async () => { await invoke('dismiss_self_install'); installProposal=null; installDialog.close(); })}>Don't ask again for this file</button></div>
+    {#if installProposal.options}<label class="dialog-option"><input type="checkbox" bind:checked={installLogin} /> Start at login</label>
+    <label class="dialog-option"><input type="checkbox" bind:checked={removeDownload} /> Remove the downloaded file</label>{/if}
+    <div class="dialog-actions">
+      <button class="btn ghost" type="button" onclick={() => run(async () => { await invoke('dismiss_self_install'); installProposal=null; installDialog.close(); })}>Don't ask again for this file</button>
+      <button class="btn" type="button" onclick={() => { installProposal=null; installDialog.close(); }}>{installProposal.secondary}</button>
+      <button class="btn primary" type="button" onclick={() => run(confirmSelfInstall)}>{installProposal.primary}</button>
+    </div>
   {/if}
 </dialog>

@@ -70,7 +70,7 @@ export async function initialize(): Promise<void> {
   ui.theme = bootstrap.preferences.theme;
   document.documentElement.dataset.theme = ui.theme;
   ui.diagnostics = bootstrap.diagnostics.map(([name, value]) => `${name}: ${value}`).join('\n');
-  setMessage(bootstrap.selected ? 'Review the selected app before installing.' : 'Choose an app to install, or check for updates.');
+  setMessage(bootstrap.selected ? 'Review the selected app before installing.' : '');
   if (bootstrap.selected) {
     pendingInstall = bootstrap.selected;
     await reviewHandoff();
@@ -348,7 +348,7 @@ export async function installBundle(bundleId: string, ids: string[]): Promise<vo
   await withBusy(async () => { const messages = await api.installCatalogBundle(bundleId, ids); setMessage(messages.join(' ')); }, 'Installing bundle');
 }
 export function openLearn(id: string): Promise<void> {
-  ui.learnTarget = id;
+  ui.learnTarget = { id, serial: ui.learnTarget.serial + 1 };
   ui.tab = 'learn';
   return Promise.resolve();
 }
