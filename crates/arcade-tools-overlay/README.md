@@ -46,7 +46,7 @@ aligned. A missing or corrupt labels file leaves the indexed labels usable.
 The header names the matched application. The focused search field searches
 titles, key displays, group names, and descriptions across all indexed apps,
 Arcade globals, and window-manager bindings. Words match substrings or ordered
-subsequences. Conflict participants receive a small `!` badge. In-app Arcade
+subsequences. Conflict participants receive a small amber dot. In-app Arcade
 shortcuts appear in **This app**; **Arcade** contains only global shortcuts.
 
 | Input | Action |

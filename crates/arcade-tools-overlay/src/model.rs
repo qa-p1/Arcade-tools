@@ -174,7 +174,10 @@ impl Model {
                             }
                             Some(Row {
                                 title: shortcut.title.clone(),
-                                detail: shortcut.description.clone(),
+                                detail: shortcut
+                                    .description
+                                    .clone()
+                                    .filter(|detail| !repeats(detail, &shortcut.title)),
                                 chips: shortcut.display.clone(),
                                 conflict: index.has_conflict(
                                     "app",
@@ -270,7 +273,11 @@ impl Model {
                             if !matches_query(&haystack, &self.query) {
                                 return None;
                             }
-                            let mut detail = shortcut.detail.clone().unwrap_or_default();
+                            let mut detail = shortcut
+                                .detail
+                                .clone()
+                                .filter(|detail| !repeats(detail, &shortcut.label))
+                                .unwrap_or_default();
                             let state = match shortcut.state {
                                 arcade_shortcuts::BindState::ConfiguredOnly => {
                                     "Configured, not active"
@@ -315,6 +322,14 @@ impl Model {
         }
         sections
     }
+}
+
+/// A detail such as "Caelestia: Close active window" adds nothing beside its
+/// own title, so the sheet keeps one line for it.
+fn repeats(detail: &str, title: &str) -> bool {
+    let detail = detail.trim().to_lowercase();
+    let title = title.trim().to_lowercase();
+    detail == title || detail.ends_with(&format!(": {title}"))
 }
 
 /// Word-wise case-insensitive substring match, then ordered subsequence for
@@ -383,6 +398,14 @@ mod tests {
                 .count(),
             2
         );
+        assert!(repeats(
+            "Caelestia: Close active window",
+            "Close active window"
+        ));
+        assert!(!repeats(
+            "Caelestia: Close all windows",
+            "Close active window"
+        ));
         assert!(matches_query("Open a new tab Ctrl+T", "NWTab"));
         assert!(!matches_query("Open a new tab", "xyz"));
         assert!(matches_query("Änderung öffnen", "Änderung"));

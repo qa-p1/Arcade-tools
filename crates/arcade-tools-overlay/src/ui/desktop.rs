@@ -105,21 +105,18 @@ impl App {
         let surface = self.surface.as_mut().ok_or("missing drawing surface")?;
         surface.resize(width, height).map_err(|e| e.to_string())?;
         let mut pixels = surface.buffer_mut().map_err(|e| e.to_string())?;
-        let background = if self.overlay.renderer.dark {
-            0x14171c
-        } else {
-            0xffffff
-        };
+        let background = super::render::Palette::new(self.overlay.renderer.dark).panel;
         for (dst, rgba) in pixels
             .iter_mut()
             .zip(frame.data().as_chunks::<4>().0.iter())
         {
-            // Desktop surface is opaque, including the thin panel margin.
-            *dst = if rgba[3] == 0 {
-                background
-            } else {
-                (u32::from(rgba[0]) << 16) | (u32::from(rgba[1]) << 8) | u32::from(rgba[2])
+            // Desktop surface is opaque: composite the premultiplied frame,
+            // including the rounded panel corners, over the panel colour.
+            let rest = 255 - u32::from(rgba[3]);
+            let channel = |value: u8, shift: u32| {
+                (u32::from(value) + ((background >> shift) & 0xff) * rest / 255).min(255) << shift
             };
+            *dst = channel(rgba[0], 16) | channel(rgba[1], 8) | channel(rgba[2], 0);
         }
         window.pre_present_notify();
         pixels.present().map_err(|e| e.to_string())?;

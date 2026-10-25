@@ -1,11 +1,19 @@
 //! Shared logical layout for both backends; all row clipping is to the viewport.
 
-use crate::model::{Model, Section};
+use crate::model::{Model, Row, Section};
 
 pub const WIDTH: u32 = 1100;
 pub const HEIGHT: u32 = 720;
-pub const ROW_HEIGHT: f32 = 78.0;
-pub const GROUP_HEIGHT: f32 = 32.0;
+/// A one-line row: title on the left, keys on the right.
+pub const ROW_HEIGHT: f32 = 32.0;
+/// Extra height for a row with a second, muted detail line.
+pub const DETAIL_HEIGHT: f32 = 16.0;
+pub const GROUP_HEIGHT: f32 = 30.0;
+pub const GROUP_GAP: f32 = 14.0;
+/// Segmented scope control, sized for each label in `Scope::ORDER`.
+const TAB_WIDTHS: [f32; 4] = [84.0, 76.0, 128.0, 52.0];
+/// A lone scope stays readable: its keys sit near their titles.
+const MAX_COLUMN_WIDTH: f32 = 520.0;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Rect {
@@ -29,6 +37,7 @@ impl Rect {
 pub struct Layout {
     pub panel: Rect,
     pub search: Rect,
+    pub track: Rect,
     pub tabs: [Rect; 4],
     pub picker: Option<Rect>,
     pub viewport: Rect,
@@ -36,11 +45,20 @@ pub struct Layout {
     pub max_scroll: f32,
 }
 
+pub fn row_height(row: &Row) -> f32 {
+    ROW_HEIGHT
+        + if row.detail.is_some() {
+            DETAIL_HEIGHT
+        } else {
+            0.0
+        }
+}
+
 pub fn content_height(section: &Section) -> f32 {
     section
         .groups
         .iter()
-        .map(|group| GROUP_HEIGHT + group.rows.len() as f32 * ROW_HEIGHT + 10.0)
+        .map(|group| GROUP_HEIGHT + group.rows.iter().map(row_height).sum::<f32>() + GROUP_GAP)
         .sum()
 }
 
@@ -58,15 +76,25 @@ impl Layout {
             x: 36.0,
             y: 68.0,
             w: width - 72.0,
-            h: 42.0,
+            h: 40.0,
         };
-        let tab_width = ((width - 72.0) / 4.0).min(172.0);
-        let tabs = std::array::from_fn(|i| Rect {
-            x: 36.0 + i as f32 * tab_width,
-            y: 120.0,
-            w: tab_width - 6.0,
-            h: 30.0,
+        let mut x = 39.0;
+        let tabs = std::array::from_fn(|i| {
+            let tab = Rect {
+                x,
+                y: 121.0,
+                w: TAB_WIDTHS[i],
+                h: 26.0,
+            };
+            x += TAB_WIDTHS[i];
+            tab
         });
+        let track = Rect {
+            x: 36.0,
+            y: 118.0,
+            w: x + 3.0 - 36.0,
+            h: 32.0,
+        };
         let picker = model.picking.then_some(Rect {
             x: 36.0,
             y: 160.0,
@@ -78,13 +106,14 @@ impl Layout {
             x: 36.0,
             y: top,
             w: width - 72.0,
-            h: (height - top - 58.0).max(0.0),
+            h: (height - top - 62.0).max(0.0),
         };
         let count = sections.len().max(1);
-        let column_width = (viewport.w - (count - 1) as f32 * 18.0) / count as f32;
+        let column_width =
+            ((viewport.w - (count - 1) as f32 * 32.0) / count as f32).min(MAX_COLUMN_WIDTH);
         let columns = (0..sections.len())
             .map(|i| Rect {
-                x: viewport.x + i as f32 * (column_width + 18.0),
+                x: viewport.x + i as f32 * (column_width + 32.0),
                 y: viewport.y,
                 w: column_width,
                 h: viewport.h,
@@ -95,6 +124,7 @@ impl Layout {
         Self {
             panel,
             search,
+            track,
             tabs,
             picker,
             viewport,
@@ -145,6 +175,20 @@ mod tests {
             let wm_height = content_height(&sections[2]);
             assert!((wm_height - layout.max_scroll - layout.viewport.h).abs() < 0.01);
         }
+    }
+
+    #[test]
+    fn a_single_scope_column_keeps_a_readable_width() {
+        let mut model = Model::new(
+            Some(Index::parse(include_bytes!("../tests/fixtures/shortcuts-index.json")).unwrap()),
+            Some(0),
+        );
+        model.scope = crate::model::Scope::WindowManager;
+        let sections = model.sections();
+        let layout = Layout::new(&model, 1100.0, 720.0, &sections);
+        assert_eq!(layout.columns.len(), 1);
+        assert_eq!(layout.columns[0].x, layout.viewport.x);
+        assert!(layout.columns[0].w <= MAX_COLUMN_WIDTH);
     }
 
     #[test]
