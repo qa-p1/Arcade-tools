@@ -48,6 +48,9 @@ struct Desktop {
     /// Bumped whenever the window opens or closes; a pending lean restart
     /// only goes ahead if nothing changed since it was scheduled.
     window_generation: AtomicU64,
+    /// A new window stays hidden until its page has drawn real content, so
+    /// opening Tools never flashes an empty window.
+    reveal_pending: AtomicBool,
     #[cfg(debug_assertions)]
     audit: Mutex<()>,
 }
@@ -77,6 +80,7 @@ impl Desktop {
             update_wake: Mutex::new(None),
             update_running: AtomicBool::new(false),
             window_generation: AtomicU64::new(0),
+            reveal_pending: AtomicBool::new(false),
             #[cfg(debug_assertions)]
             audit: Mutex::new(()),
         }
@@ -112,36 +116,70 @@ fn show(app: &AppHandle, state: &Desktop) {
     let app = app.clone();
     let handle = app.clone();
     let _ = handle.run_on_main_thread(move || {
-        let window = app.get_webview_window("main").or_else(|| {
-            app.config().app.windows.first().and_then(|config| {
-                tauri::WebviewWindowBuilder::from_config(&app, config)
-                    .ok()?
-                    .build()
-                    .ok()
-                    .inspect(|window| {
-                        #[cfg(target_os = "linux")]
-                        let _ = window.with_webview(|webview| {
-                            use webkit2gtk::{SettingsExt, WebViewExt};
-                            if let Some(settings) = webview.inner().settings() {
-                                // No retained page cache after the window closes.
-                                // The acceleration policy stays WebKit's default:
-                                // forcing "Never" after the view exists crashed
-                                // the web process on X servers without DRI3 (VNC,
-                                // xrdp, VMs, Xvfb) and left the window blank.
-                                settings.set_enable_page_cache(false);
-                            }
-                        });
-                        #[cfg(not(target_os = "linux"))]
-                        let _ = window;
-                    })
-            })
+        if let Some(window) = app.get_webview_window("main") {
+            reveal(&window);
+            return;
+        }
+        let window = app.config().app.windows.first().and_then(|config| {
+            tauri::WebviewWindowBuilder::from_config(&app, config)
+                .ok()?
+                .build()
+                .ok()
+                .inspect(|window| {
+                    #[cfg(target_os = "linux")]
+                    let _ = window.with_webview(|webview| {
+                        use webkit2gtk::{SettingsExt, WebViewExt};
+                        if let Some(settings) = webview.inner().settings() {
+                            // No retained page cache after the window closes.
+                            // The acceleration policy stays WebKit's default:
+                            // forcing "Never" after the view exists crashed
+                            // the web process on X servers without DRI3 (VNC,
+                            // xrdp, VMs, Xvfb) and left the window blank.
+                            settings.set_enable_page_cache(false);
+                        }
+                    });
+                    #[cfg(not(target_os = "linux"))]
+                    let _ = window;
+                })
         });
-        if let Some(window) = window {
-            let _ = window.show();
-            let _ = window.unminimize();
-            let _ = window.set_focus();
+        if window.is_some() {
+            // Shown by window_ready once the page has drawn; the timer only
+            // covers a page that never reports in.
+            desktop(&app).reveal_pending.store(true, Ordering::SeqCst);
+            let app = app.clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(REVEAL_FALLBACK);
+                reveal_pending_window(&app);
+            });
         }
     });
+}
+
+/// The longest a new window waits for its page before it is shown anyway.
+const REVEAL_FALLBACK: Duration = Duration::from_millis(1500);
+
+fn reveal(window: &tauri::WebviewWindow) {
+    let _ = window.show();
+    let _ = window.unminimize();
+    let _ = window.set_focus();
+}
+
+fn reveal_pending_window(app: &AppHandle) {
+    if !desktop(app).reveal_pending.swap(false, Ordering::SeqCst) {
+        return;
+    }
+    let handle = app.clone();
+    let _ = app.run_on_main_thread(move || {
+        if let Some(window) = handle.get_webview_window("main") {
+            reveal(&window);
+        }
+    });
+}
+
+/// The page has drawn its first real content.
+#[tauri::command]
+fn window_ready(app: AppHandle) {
+    reveal_pending_window(&app);
 }
 
 /// Start a successor that waits for this process, then quit. Apps keep their
@@ -719,12 +757,29 @@ async fn list_engines(app: AppHandle, refresh: bool) -> Result<Vec<EngineView>> 
         } else {
             String::new()
         };
+        // Each probe may wait on a slow version command: run them together.
+        let statuses: Vec<_> = std::thread::scope(|scope| {
+            let probes: Vec<_> = catalog
+                .engines
+                .iter()
+                .map(|engine| scope.spawn(|| engine.detect_current()))
+                .collect();
+            probes
+                .into_iter()
+                .map(|probe| {
+                    probe
+                        .join()
+                        .unwrap_or_else(|_| Err(Error::new("engine", "The engine check failed.")))
+                })
+                .collect()
+        });
+        let mut statuses = statuses.into_iter();
         catalog
             .engines
             .into_iter()
             .map(|engine| {
                 let install_hint = engine.install_hint(os, &os_release).map(str::to_owned);
-                let status = match engine.detect_current() {
+                let status = match statuses.next().expect("one status per engine") {
                     Ok(status) => serde_json::to_value(status)?,
                     Err(error) => json!({"status":"error", "message":error.message}),
                 };
@@ -1265,6 +1320,7 @@ pub fn run(background: bool, quit: bool) {
             hub::install_tools,
             hub::download_engine,
             ui_rendered,
+            window_ready,
             crate::shortcuts::shortcuts_index,
             crate::shortcuts::current_shortcut_app,
             crate::shortcuts::shortcut_labels,

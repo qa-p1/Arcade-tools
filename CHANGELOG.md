@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.8 — 2026-10-25
+
+- A calmer, consistent interface across Home, Apps, Updates, Shortcuts, Learn,
+  Connections, Engines, Settings and onboarding: quieter cards, clearer actions,
+  shared spacing and readable light and dark themes. Home keeps issues collapsed,
+  app details use a focused layout, and Connections explains each workflow.
+- Learn opens guides in a dedicated reader with bounded text, tables and images,
+  and requests from other pages reliably open the selected guide.
+- Opening Tools waits for the interface to be ready before showing the window,
+  avoiding the brief blank flash, with a fallback if loading fails.
+- Engine checks run in parallel and start quietly after launch. Engines shows
+  placeholders while checking, uses the catalog's purpose labels, and offers a
+  retry after a failed check instead of retrying forever.
+
 ## 0.3.7 — 2026-10-25
 
 - The shortcut sheet is calmer and easier to scan.

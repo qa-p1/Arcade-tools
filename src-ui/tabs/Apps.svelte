@@ -6,6 +6,7 @@
   import type { CatalogApp, CatalogBundle, CatalogData } from '../lib/catalog';
   import type { ShortcutsIndex } from '../lib/shortcuts';
   import { ui } from '../lib/state.svelte';
+  import Icon from '../components/Icon.svelte';
 
   type Props = {
     active: boolean;
@@ -161,43 +162,29 @@
       {run}
     />
   {:else}
-    <header class="page-heading">
+    <header class="page-head">
       <div>
-        <p class="eyebrow">ARCADE TOOLS / APPS</p>
-        <h1>Arcade apps</h1>
-        <p class="intro">Browse installed apps, discover what’s available, and choose a bundle to get started.</p>
+        <h1>Apps</h1>
+        <p class="sub">{catalogApps.length} apps in the catalog · {installedApps.length} installed</p>
       </div>
-      <div class="catalog-heading-actions">
-        <span class="app-count">{catalogApps.length} apps</span>
-        <button class="small-button" type="button" disabled={catalogLoading || busy} onclick={() => run(onCatalogRefresh, 'Catalog')}>
-          {catalogLoading ? 'Refreshing…' : 'Refresh catalog'}
+      <div class="page-actions">
+        <button class="btn ghost" type="button" disabled={catalogLoading || busy} onclick={() => run(onCatalogRefresh, 'Catalog')}>
+          <Icon name="refresh" size={14} />{catalogLoading ? 'Refreshing…' : 'Refresh catalog'}
         </button>
       </div>
     </header>
 
-    {#if bundles.length}
-      <section class="catalog-section bundles-section" aria-labelledby="bundles-title">
-        <div class="catalog-section-heading"><div><p class="eyebrow">START WITH A SET</p><h2 id="bundles-title">Bundles</h2></div><span>{bundles.length} bundles</span></div>
-        <div class="bundle-grid">
-          {#each bundles as bundle (bundle.id)}
-            <article class="bundle-card">
-              <div><h3>{bundle.title}</h3><p>{bundle.description}</p></div>
-              <span class="bundle-count">{bundle.apps === '*' ? catalogApps.length : bundle.apps.length} apps</span>
-              <button class="small-button" type="button" onclick={() => viewBundle(bundle)}>View bundle</button>
-            </article>
-          {/each}
-        </div>
-      </section>
+    {#if categories.length > 1}
+      <div class="segmented category-filter" role="group" aria-label="Category">
+        <button type="button" class:active={category === 'all'} aria-pressed={category === 'all'} onclick={() => category = 'all'}>All</button>
+        {#each categories as item (item)}<button type="button" class:active={category === item} aria-pressed={category === item} onclick={() => category = item}>{item}</button>{/each}
+      </div>
     {/if}
 
-    <label class="setting-control">Category
-      <select bind:value={category}><option value="all">All categories</option>{#each categories as item (item)}<option value={item}>{item}</option>{/each}</select>
-    </label>
-
-    <section class="catalog-section" aria-labelledby="installed-apps-title">
-      <div class="catalog-section-heading"><div><p class="eyebrow">YOUR ARCADE</p><h2 id="installed-apps-title">Installed</h2></div><span>{installedApps.length}</span></div>
+    <section class="section" aria-labelledby="installed-apps-title">
+      <div class="section-head"><h2 id="installed-apps-title">Installed</h2><span class="meta">{installedApps.length}</span></div>
       {#if installedApps.length}
-        <div class="app-list" aria-label="Installed Arcade apps">
+        <div class="app-grid" aria-label="Installed Arcade apps">
           {#each installedApps as entry (entry.id)}
             {@const app = appView(entry.id)}
             {#if app}<AppCard
@@ -217,17 +204,15 @@
             />{/if}
           {/each}
         </div>
-      {:else if ui.loaded}
-        <p class="catalog-empty-note">No Arcade apps are installed yet.</p>
       {:else}
-        <p class="catalog-empty-note">Loading your apps…</p>
+        <p class="empty-note">{ui.loaded ? 'No Arcade apps are installed yet.' : 'Loading your apps…'}</p>
       {/if}
     </section>
 
-    <section class="catalog-section" aria-labelledby="available-apps-title">
-      <div class="catalog-section-heading"><div><p class="eyebrow">FROM THE CATALOG</p><h2 id="available-apps-title">Available</h2></div><span>{availableApps.length}</span></div>
-      {#if availableApps.length}
-        <div class="app-list" aria-label="Available Arcade apps">
+    {#if availableApps.length}
+      <section class="section" aria-labelledby="available-apps-title">
+        <div class="section-head"><h2 id="available-apps-title">Available</h2><span class="meta">{availableApps.length}</span></div>
+        <div class="app-grid" aria-label="Available Arcade apps">
           {#each availableApps as entry (entry.id)}
             {@const app = appView(entry.id)}
             {#if app}<AppCard
@@ -247,31 +232,44 @@
             />{/if}
           {/each}
         </div>
-      {:else if ui.loaded}
-        <p class="catalog-empty-note">Every app in the catalog is installed.</p>
-      {/if}
-    </section>
+      </section>
+    {/if}
+
+    {#if bundles.length}
+      <section class="section" aria-labelledby="bundles-title">
+        <div class="section-head"><h2 id="bundles-title">Bundles</h2><span class="meta">Install a few apps that work well together</span></div>
+        <div class="bundle-grid">
+          {#each bundles as bundle (bundle.id)}
+            <button class="card bundle-card" type="button" onclick={() => viewBundle(bundle)}>
+              <span class="bundle-title">{bundle.title}<span class="faint">{bundle.apps === '*' ? catalogApps.length : bundle.apps.length} apps</span></span>
+              <span class="bundle-copy">{bundle.description}</span>
+            </button>
+          {/each}
+        </div>
+      </section>
+    {/if}
   {/if}
 </div>
 
 <dialog bind:this={bundleDialog} class="bundle-dialog" onclose={closeBundleDialog} aria-labelledby="bundle-dialog-title">
   {#if selectedBundle}
-    <p class="eyebrow">ARCADE BUNDLE</p>
     <h2 id="bundle-dialog-title">{selectedBundle.title}</h2>
     <p>{selectedBundle.description}</p>
-    <fieldset class="bundle-selection">
-      <legend>Select the apps to install</legend>
+    <fieldset class="dialog-list">
+      <legend>Choose the apps to install</legend>
       {#each bundleApps as app (app.id)}
-        <label class="bundle-choice">
+        {@const reason = app.installReason ?? appView(app.id)?.installReason}
+        <label class="row">
           <input type="checkbox" checked={selectedBundleApps.includes(app.id)} disabled={busy || !canInstallFromCatalog(app)} onchange={(event) => toggleBundleApp(app.id, event.currentTarget.checked)} />
-          <span><strong>{app.name}</strong><small>{app.pitch}{(app.installReason ?? appView(app.id)?.installReason) ? ` · ${app.installReason ?? appView(app.id)?.installReason}` : ''}</small></span>
-          {#if isInstalled(app.id)}<span class="bundle-installed">Installed</span>{/if}
+          <span class="glyph-tile sm"><img src="/glyphs/{app.id}.svg" alt="" width="15" height="15" /></span>
+          <span class="row-main"><span class="row-title">{app.name}</span><span class="row-sub">{reason ?? app.pitch}</span></span>
+          {#if isInstalled(app.id)}<span class="badge">Installed</span>{/if}
         </label>
       {/each}
     </fieldset>
     <div class="dialog-actions">
-      <button type="button" onclick={() => bundleDialog.close()}>Cancel</button>
-      <button class="primary" type="button" disabled={busy || !selectedBundleApps.length} onclick={confirmBundle}>Continue</button>
+      <button class="btn" type="button" onclick={() => bundleDialog.close()}>Cancel</button>
+      <button class="btn primary" type="button" disabled={busy || !selectedBundleApps.length} onclick={confirmBundle}>Continue</button>
     </div>
   {/if}
 </dialog>
@@ -284,8 +282,24 @@
       {#each pendingBundle.appIds as id (id)}<li>{catalogApps.find((app) => app.id === id)?.name ?? id}</li>{/each}
     </ul>
     <div class="dialog-actions">
-      <button type="button" onclick={() => bundleConfirmDialog.close()}>Cancel</button>
-      <button class="primary" type="button" onclick={installConfirmedBundle}>Confirm installation</button>
+      <button class="btn" type="button" onclick={() => bundleConfirmDialog.close()}>Cancel</button>
+      <button class="btn primary" type="button" onclick={installConfirmedBundle}>Install</button>
     </div>
   {/if}
 </dialog>
+
+<style>
+  .category-filter { margin-bottom: 4px; }
+  .category-filter button { text-transform: capitalize; }
+  .category-filter + .section { margin-top: 24px; }
+  .app-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 12px; }
+  .empty-note { padding: 16px; border: 1px dashed var(--line-strong); border-radius: var(--radius); color: var(--muted); }
+  .bundle-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+  .bundle-card { display: grid; align-content: start; gap: 4px; margin: 0; color: var(--text); text-align: left; cursor: pointer; }
+  .bundle-card:hover { border-color: var(--line-strong); background: var(--sunken); }
+  .bundle-title { display: flex; justify-content: space-between; gap: 8px; font-weight: 600; }
+  .bundle-title .faint { font-size: 12px; font-weight: 400; }
+  .bundle-copy { color: var(--muted); font-size: 12.5px; }
+  .bundle-dialog { width: min(520px, calc(100vw - 32px)); }
+  .bundle-confirm-list { margin: 12px 0 0; padding-left: 20px; color: var(--muted); }
+</style>

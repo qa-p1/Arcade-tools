@@ -3,6 +3,7 @@
   import { askForConfirmation, ui, type Theme } from '../lib/state.svelte';
   import { tick } from 'svelte';
   import TraySettings from '../components/TraySettings.svelte';
+  import Icon from '../components/Icon.svelte';
 
   type Props = {
     active: boolean;
@@ -121,141 +122,148 @@
 </script>
 
 <div id="panel-settings" class="tab-panel settings-panel" role="tabpanel" aria-labelledby="tab-settings" tabindex="0" hidden={!active}>
-  <header class="page-heading">
+  <header class="page-head">
     <div>
-      <p class="eyebrow">ARCADE TOOLS / PREFERENCES</p>
       <h1>Settings</h1>
-      <p class="intro">Choose how Arcade Tools looks, connects, and looks after your apps.</p>
+      <p class="sub">How Arcade Tools looks and looks after your apps.</p>
     </div>
   </header>
 
-  <section class="settings-card" aria-labelledby="appearance-heading">
-    <div>
-      <h2 id="appearance-heading">Appearance</h2>
-      <p class="setting-description">Follow your system or choose a theme.</p>
+  <section class="section" aria-labelledby="general-heading">
+    <div class="section-head"><h2 id="general-heading">General</h2></div>
+    <div class="list">
+      <div class="row">
+        <div class="row-main"><div class="row-title" id="appearance-heading">Appearance</div><div class="row-sub">Follow your system or pick a theme.</div></div>
+        <select class="select" aria-label="Theme" value={theme} onchange={(event) => onTheme(event.currentTarget.value as Theme)}>
+          <option value="system">System</option>
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+        </select>
+      </div>
+      <label class="row">
+        <span class="row-main"><span class="row-title">Check for updates automatically</span><span class="row-sub">A few times a day. Nothing installs without asking unless you turn on automatic updates for an app.</span></span>
+        <input class="switch" type="checkbox" aria-label="Check for updates automatically" checked={updateChecksEnabled} disabled={busy} onchange={(event) => run(() => onUpdateChecks(event.currentTarget.checked))} />
+      </label>
+      <label class="row">
+        <span class="row-main"><span class="row-title">Show notifications</span><span class="row-sub">When an update is ready or something needs you.</span></span>
+        <input class="switch" type="checkbox" aria-label="Show notifications" checked={notificationsEnabled} disabled={busy} onchange={(event) => run(() => setNotifications(event.currentTarget.checked))} />
+      </label>
+      <label class="row">
+        <span class="row-main"><span class="row-title" id="integration-heading">Connect with other Arcade apps</span><span class="row-sub">Lets apps ask Tools to install another app, always after you confirm.</span></span>
+        <input id="settings-link-toggle" class="switch" type="checkbox" aria-label="Connect with other Arcade apps" checked={linkEnabled} disabled={busy} onchange={(event) => run(() => onLink(event.currentTarget.checked))} />
+      </label>
     </div>
-    <label class="setting-control">Theme
-      <select aria-label="Theme" value={theme} onchange={(event) => onTheme(event.currentTarget.value as Theme)}>
-        <option value="system">System</option>
-        <option value="light">Light</option>
-        <option value="dark">Dark</option>
-      </select>
-    </label>
   </section>
 
-  <section class="settings-card" aria-labelledby="updates-settings-heading">
-    <div>
-      <h2 id="updates-settings-heading">Updates and notifications</h2>
-      <p class="setting-description">Tools checks for updates a few times a day and tells you when one is ready. Nothing installs without your confirmation unless you turn on automatic updates for an app.</p>
-    </div>
-    <div class="settings-toggles">
-      <label><input type="checkbox" checked={updateChecksEnabled} disabled={busy} onchange={(event) => run(() => onUpdateChecks(event.currentTarget.checked))} /> Check for updates automatically</label>
-      <label><input type="checkbox" checked={notificationsEnabled} disabled={busy} onchange={(event) => run(() => setNotifications(event.currentTarget.checked))} /> Show notifications</label>
+  <TraySettings {active} {busy} />
+
+  <section class="section" aria-labelledby="backup-heading">
+    <div class="section-head"><h2 id="backup-heading">Backup and restore</h2></div>
+    <div class="list">
+      <div class="row">
+        <div class="row-main"><div class="row-title">Back up settings</div><div class="row-sub">{backup ? `Saved to ${backup.file}` : 'Save the settings of every installed app in one file.'}</div></div>
+        {#if backup}<button type="button" class="btn sm ghost" onclick={() => run(() => api.revealArchive(backup!.file))}>Show file</button>{/if}
+        <button type="button" class="btn sm" disabled={busy} onclick={() => run(exportBackup)}>Back up</button>
+      </div>
+      {#if backup?.apps.some((app) => app.notIncluded)}
+        <div class="row-extra flush"><ul class="plain-list">{#each backup.apps.filter((app) => app.notIncluded) as app (app.id)}<li><strong>{appName(app.id)}</strong> <span class="muted">· not included: {app.notIncluded}</span></li>{/each}</ul></div>
+      {/if}
+      <div class="row">
+        <div class="row-main">
+          <div class="row-title">Restore from a backup</div>
+          <form class="restore-form" onsubmit={(event) => { event.preventDefault(); run(planRestore); }}>
+            <label class="visually-hidden" for="restore-path">Backup file</label>
+            <input id="restore-path" class="input" type="text" placeholder="Path to an Arcade backup (.zip)" bind:value={restorePath} />
+            <button class="btn sm" type="submit" disabled={busy || !restorePath.trim()}>Review restore</button>
+          </form>
+        </div>
+      </div>
+      {#if restorePlan}
+        <div class="row-extra flush">
+          <ul class="plain-list">{#each restorePlan.apps as entry (entry.backup.id)}<li><strong>{appName(entry.backup.id)}</strong> <span class="muted">v{entry.backup.version}{!entry.backup.settings.length ? ` · no settings in this backup${entry.backup.notIncluded ? ` (${entry.backup.notIncluded})` : ''}` : entry.installed ? '' : ' · will be installed first'}</span></li>{/each}</ul>
+          <button type="button" class="btn sm primary primary-action" disabled={busy} onclick={() => run(restore)}>Restore</button>
+        </div>
+      {/if}
+      {#if restored.length}
+        <div class="row-extra flush"><ul class="plain-list">{#each restored as result (result.app)}<li><strong>{appName(result.app)}</strong> <span class="muted">{result.imported ? 'restored' : 'not restored'}{result.restartRequired ? ' · restart required' : ''} · {result.message}</span></li>{/each}</ul></div>
+      {/if}
     </div>
   </section>
 
-  <section class="settings-card" aria-labelledby="integration-heading">
-    <div>
-      <h2 id="integration-heading">Connections</h2>
-      <p class="setting-description">Allow other Arcade apps to ask Tools to install an app after your confirmation.</p>
-    </div>
-    <label class="settings-link-toggle"><input id="settings-link-toggle" type="checkbox" checked={linkEnabled} disabled={busy} onchange={(event) => run(() => onLink(event.currentTarget.checked))} /> Connect with other Arcade apps</label>
-  </section>
-
-  <section class="settings-card" aria-labelledby="support-heading">
-    <div>
-      <h2 id="support-heading">Report a problem</h2>
-      <p class="setting-description">Create a diagnostics file to attach to an issue. Personal paths and secrets are removed; nothing is sent automatically.</p>
-    </div>
-    <div class="settings-stack">
-      <div class="actions-inline">
-        <select aria-label="App to diagnose" bind:value={supportApp}>
+  <section class="section" aria-labelledby="support-heading">
+    <div class="section-head"><h2 id="support-heading">Report a problem</h2></div>
+    <div class="list">
+      <div class="row">
+        <div class="row-main"><div class="row-title">Diagnostics file</div><div class="row-sub">{report ? `Saved to ${report.file}${report.omitted.length ? ` · left out: ${report.omitted.join(', ')}` : ''}` : 'Personal paths and secrets are removed. Nothing is sent automatically.'}</div></div>
+        <select class="select sm" aria-label="App to diagnose" bind:value={supportApp}>
           <option value="arcade.tools">Arcade Tools</option>
           {#each installedApps as app (app.id)}<option value={app.id}>{app.name}</option>{/each}
         </select>
-        <button type="button" disabled={busy} onclick={() => run(createDiagnostics)}>Create diagnostics file</button>
+        <button type="button" class="btn sm" disabled={busy} onclick={() => run(createDiagnostics)}>Create</button>
       </div>
       {#if report}
-        <p class="setting-description">Saved {report.file}{report.omitted.length ? ` · left out: ${report.omitted.join(', ')}` : ''}</p>
-        <div class="actions-inline">
-          <button type="button" onclick={() => run(() => api.revealArchive(report!.file))}>Show file</button>
-          <button type="button" class="primary-action" onclick={() => run(() => api.openIssue(supportApp, report!.issueUrl))}>Open an issue</button>
+        <div class="row-extra flush btn-group">
+          <button type="button" class="btn sm" onclick={() => run(() => api.revealArchive(report!.file))}>Show file</button>
+          <button type="button" class="btn sm primary" onclick={() => run(() => api.openIssue(supportApp, report!.issueUrl))}>Open an issue</button>
         </div>
       {/if}
+      <details class="tech" aria-labelledby="diagnostics-heading">
+        <summary class="row"><span class="row-main row-title" id="diagnostics-heading">Technical details</span><Icon name="chevronDown" size={15} /></summary>
+        <pre id="diagnostics">{diagnostics}</pre>
+      </details>
     </div>
   </section>
 
-  <section class="settings-card" aria-labelledby="backup-heading">
-    <div>
-      <h2 id="backup-heading">Backup and restore</h2>
-      <p class="setting-description">Save the settings of every installed Arcade app in one file, or bring them back on this or another computer.</p>
-    </div>
-    <div class="settings-stack">
-      <div class="actions-inline"><button type="button" disabled={busy} onclick={() => run(exportBackup)}>Back up settings</button></div>
-      {#if backup}
-        <p class="setting-description">Saved {backup.file}</p>
-        <ul class="settings-list">{#each backup.apps as app (app.id)}<li><strong>{appName(app.id)}</strong> v{app.version}{app.notIncluded ? ` · not included: ${app.notIncluded}` : ''}</li>{/each}</ul>
-        <div class="actions-inline"><button type="button" onclick={() => run(() => api.revealArchive(backup!.file))}>Show file</button></div>
-      {/if}
-      <form class="actions-inline" onsubmit={(event) => { event.preventDefault(); run(planRestore); }}>
-        <label class="visually-hidden" for="restore-path">Backup file</label>
-        <input id="restore-path" type="text" placeholder="Path to an Arcade backup (.zip)" bind:value={restorePath} />
-        <button type="submit" disabled={busy || !restorePath.trim()}>Review restore</button>
-      </form>
-      {#if restorePlan}
-        <ul class="settings-list">{#each restorePlan.apps as entry (entry.backup.id)}<li><strong>{appName(entry.backup.id)}</strong> v{entry.backup.version}{!entry.backup.settings.length ? ` · no settings in this backup${entry.backup.notIncluded ? ` (${entry.backup.notIncluded})` : ''}` : entry.installed ? '' : ' · will be installed after confirmation'}</li>{/each}</ul>
-        <div class="actions-inline"><button type="button" class="primary-action" disabled={busy} onclick={() => run(restore)}>Restore</button></div>
-      {/if}
-      {#if restored.length}
-        <ul class="settings-list">{#each restored as result (result.app)}<li><strong>{appName(result.app)}</strong> {result.imported ? 'restored' : 'not restored'}{result.restartRequired ? ' · restart required' : ''} · {result.message}</li>{/each}</ul>
-      {/if}
-    </div>
-  </section>
-  <TraySettings {active} {busy} />
-
-  <section class="settings-card diagnostics-card" aria-labelledby="diagnostics-heading">
-    <div>
-      <h2 id="diagnostics-heading">Diagnostics</h2>
-      <p class="setting-description">Arcade Link status and local integration details.</p>
-    </div>
-    <pre id="diagnostics">{diagnostics}</pre>
-  </section>
-
-  <section class="settings-card about-card" aria-labelledby="about-heading">
-    <div>
-      <h2 id="about-heading">About</h2>
-      <p class="setting-description">Arcade Tools keeps the Arcade app collection installed and up to date. Every app also works on its own.</p>
-    </div>
-    <div class="settings-stack">
-      <p class="about-version">Arcade Tools <strong>{toolsApp?.version ?? __TOOLS_VERSION__}</strong>{toolsApp?.managed ? ` · ${toolsApp.channel}` : ''}</p>
-      <p class="setting-description">Arcade Link 0.3.0 · Tools is MIT licensed. The overlay includes code from Arcade Find (MIT or Apache-2.0), and catalog guides and sheets use CC BY 4.0.</p>
-      <div class="actions-inline"><a href="https://github.com/qa-p1/Arcade-tools" target="_blank" rel="noreferrer">Repository</a><a href="https://github.com/qa-p1/Arcade-tools/blob/main/VENDORED" target="_blank" rel="noreferrer">Sources and licenses</a></div>
-      <div class="actions-inline">
+  <section class="section" aria-labelledby="about-heading">
+    <div class="section-head"><h2 id="about-heading">About</h2></div>
+    <div class="list">
+      <div class="row">
+        <span class="glyph-tile"><img src="/glyphs/arcade.tools.svg" alt="" width="18" height="18" /></span>
+        <div class="row-main">
+          <div class="row-title about-version">Arcade Tools {toolsApp?.version ?? __TOOLS_VERSION__}{toolsApp?.managed ? ` · ${toolsApp.channel}` : ''}</div>
+          <div class="row-sub">MIT licensed · Arcade Link 0.3.0 · <a href="https://github.com/qa-p1/Arcade-tools" target="_blank" rel="noreferrer">Repository</a> · <a href="https://github.com/qa-p1/Arcade-tools/blob/main/VENDORED" target="_blank" rel="noreferrer">Sources and licenses</a></div>
+          {#if toolsApp?.reason}<div class="row-sub">{toolsApp.reason}</div>{/if}
+        </div>
+        <button type="button" class="btn sm ghost" onclick={onOnboarding}>Run setup again</button>
         {#if toolsApp?.installed}
-          <button type="button" disabled={busy} onclick={() => run(updateTools)}>Update Arcade Tools</button>
+          <button type="button" class="btn sm" disabled={busy} onclick={() => run(updateTools)}>Update Arcade Tools</button>
         {:else}
-          <button type="button" class="primary-action" disabled={busy} onclick={() => run(installTools)}>Install Arcade Tools for this user</button>
+          <button type="button" class="btn sm primary" disabled={busy} onclick={() => run(installTools)}>Install Arcade Tools for this user</button>
         {/if}
-        <button type="button" onclick={onOnboarding}>Run setup again</button>
       </div>
-      {#if toolsApp?.reason}<p class="setting-description">{toolsApp.reason}</p>{/if}
     </div>
   </section>
 
-  <section class="settings-card danger-card" aria-labelledby="uninstall-heading" bind:this={uninstallSection}>
-    <div>
-      <h2 id="uninstall-heading">Uninstall</h2>
-      <p class="setting-description">Remove only Tools and keep your apps, or remove every Arcade app Tools manages and then Tools. You see the full list before anything is removed.</p>
-    </div>
-    <div class="settings-stack">
-      <label><input type="checkbox" bind:checked={removeData} /> Also delete settings and data</label>
-      <div class="actions-inline">
-        <button type="button" class="danger-button" disabled={busy || !toolsApp?.installed} onclick={() => run(uninstallToolsOnly)}>Uninstall Tools only…</button>
-        <button type="button" class="danger-button" disabled={busy} onclick={() => run(uninstallEverything)}>Uninstall Tools and apps…</button>
+  <section class="section" aria-labelledby="uninstall-heading" bind:this={uninstallSection}>
+    <div class="section-head"><h2 id="uninstall-heading">Uninstall</h2></div>
+    <div class="list">
+      <div class="row">
+        <div class="row-main"><div class="row-title">Remove Tools, or Tools and every app it manages</div><div class="row-sub">You see the full list before anything is removed.</div></div>
+      </div>
+      <div class="row-extra flush uninstall">
+        <label class="check-row"><input type="checkbox" bind:checked={removeData} /> Also delete settings and data</label>
+        <span class="spacer"></span>
+        <button type="button" class="btn sm danger" disabled={busy || !toolsApp?.installed} onclick={() => run(uninstallToolsOnly)}>Uninstall Tools only…</button>
+        <button type="button" class="btn sm danger" disabled={busy} onclick={() => run(uninstallEverything)}>Uninstall Tools and apps…</button>
       </div>
       {#if uninstallResults.length}
-        <ul class="settings-list">{#each uninstallResults as result (result.app)}<li><strong>{appName(result.app)}</strong> {result.removed ? 'removed' : 'kept'} · {result.reason}</li>{/each}</ul>
+        <div class="row-extra flush"><ul class="plain-list">{#each uninstallResults as result (result.app)}<li><strong>{appName(result.app)}</strong> <span class="muted">{result.removed ? 'removed' : 'kept'} · {result.reason}</span></li>{/each}</ul></div>
       {/if}
     </div>
   </section>
 </div>
+
+<style>
+  label.row .row-title, label.row .row-sub { display: block; }
+  .row-extra.flush { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0 14px 14px; }
+  .uninstall { padding-top: 2px; }
+  .spacer { flex: 1; }
+  .plain-list { display: grid; flex: 1 1 100%; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: 12.5px; }
+  .restore-form { display: flex; gap: 8px; margin-top: 8px; }
+  .restore-form .input { flex: 1; min-width: 0; }
+  .tech { border-top: 1px solid var(--line); }
+  .tech summary { min-height: 44px; cursor: pointer; list-style: none; color: var(--muted); }
+  .tech summary::-webkit-details-marker { display: none; }
+  .tech[open] summary :global(.icon) { transform: rotate(180deg); }
+  #diagnostics { margin: 0; padding: 0 14px 14px; color: var(--muted); font-size: 11.5px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+</style>

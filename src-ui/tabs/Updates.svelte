@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from '../components/Icon.svelte';
   import { api, type AppView, type AppUpdate, type ChannelUpdate, type HistoryEntry, type UpdateState } from '../lib/api';
 
   type Row = { app: AppView; state: AppUpdate; latest: ChannelUpdate | undefined };
@@ -28,7 +29,14 @@
     if (!app.managed || !state?.updateAvailable) return [];
     return [{ app, state, latest: state.latest[state.channel] }];
   }));
-  const lastChecked = $derived(updates?.lastCheck ? new Date(updates.lastCheck * 1000).toLocaleString() : 'Not checked yet');
+  const lastChecked = $derived(updates?.lastCheck ? new Date(updates.lastCheck * 1000).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : null);
+  let openNotes = $state<Record<string, boolean>>({});
+  async function toggleNotes(key: string, markdown: string): Promise<void> {
+    if (openNotes[key]) { openNotes = { ...openNotes, [key]: false }; return; }
+    openNotes = { ...openNotes, [key]: true };
+    if (renderedNotes[key] === undefined && !notesError[key]) await revealNotes(key, markdown);
+  }
+  const resultTone: Record<string, string> = { success: 'ok', failed: 'danger', rolled_back: 'warn', rollback_failed: 'danger' };
 
   // Notes are kept per release: a newer release brings its own notes.
   const notesKey = (row: Row) => `${row.app.id}@${row.latest?.latestVersion ?? ''}`;
@@ -70,72 +78,118 @@
 </script>
 
 <div id="panel-updates" class="tab-panel" role="tabpanel" aria-labelledby="tab-updates" tabindex="0" hidden={!active}>
-  <header class="page-heading">
-    <div><p class="eyebrow">ARCADE TOOLS / UPDATES</p><h1>Keep your apps current.</h1><p class="intro">Review release notes and confirm each update before it is installed.</p></div>
-    <div class="updates-heading-actions"><span class="app-count">{rows.length} available</span><button type="button" disabled={busy || checking} onclick={() => run(onCheckNow)}>{checking ? 'Checking…' : 'Check now'}</button></div>
+  <header class="page-head">
+    <div>
+      <h1>Updates</h1>
+      <p class="sub">{lastChecked ? `Last checked ${lastChecked}` : 'Not checked yet'}{updateChecksEnabled ? '' : ' · automatic checks paused'}</p>
+    </div>
+    <div class="page-actions">
+      {#if rows.length > 1}<button type="button" class="btn primary" disabled={busy || checking} onclick={() => run(() => onUpdateAll(rows.map((row) => row.app)), 'Arcade apps')}>Review all updates</button>{/if}
+      <button type="button" class="btn" disabled={busy || checking} onclick={() => run(onCheckNow)}><Icon name="refresh" size={14} />{checking ? 'Checking…' : 'Check now'}</button>
+    </div>
   </header>
 
-  <section class="feature-section update-status" aria-label="Update check status">
-    <div><strong>Last check</strong><span>{lastChecked}</span></div>
-    <div><strong>Scheduled checks</strong><span>{updateChecksEnabled ? 'On' : 'Paused'}</span></div>
-    {#if updates?.lastFailure}<p class="status-warning">Last check issue: {updates.lastFailure.reason}</p>{/if}
-  </section>
+  {#if updates?.lastFailure}<div class="notice warn"><Icon name="alert" /><span class="row-main">The last check didn't finish: {updates.lastFailure.reason}</span></div>{/if}
 
   {#if rows.length}
-    <div class="update-list">
-      {#if rows.length > 1}<div class="update-all-row"><span>{rows.length} managed apps have updates.</span><button type="button" class="primary-action" disabled={busy || checking} onclick={() => run(() => onUpdateAll(rows.map((row) => row.app)), 'Arcade apps')}>Review all updates</button></div>{/if}
+    <div class="list update-list">
       {#each rows as row (row.app.id)}
         {@const notes = row.latest?.cache?.release.notes ?? ''}
         {@const key = notesKey(row)}
-        <section class="feature-card update-card" aria-labelledby="update-{row.app.id}">
-          <div class="update-app-heading">
-            <img class="app-glyph" src="/glyphs/{row.app.id}.svg" alt="" width="30" height="30" />
-            <div><h2 id="update-{row.app.id}">{row.app.name}</h2><p class="setting-description">{row.state.installedVersion ?? row.app.version ?? 'Installed version unknown'} → {row.latest?.latestVersion ?? 'New version'} · {row.state.channel}</p></div>
-            <button class="primary-action" type="button" disabled={busy || checking || row.state.heldBack} onclick={() => run(() => onUpdate(row.app), row.app.name)}>{row.state.heldBack ? 'Blocked' : 'Review update'}</button>
-          </div>
-          {#if row.state.heldBack}<p class="status-warning">This update is held back: {row.state.reason ?? row.latest?.reason ?? 'It is not compatible with a connected app.'}</p>{/if}
-          {#if row.latest?.error}<p class="status-warning">Release check issue: {row.latest.error}</p>{/if}
-          {#if notes}
-            <div class="release-notes">
-              {#if renderedNotes[key] !== undefined || notesError[key]}
-                <details open><summary>Release notes</summary>{#if notesError[key]}<p class="status-warning">{notesError[key]}</p>{:else}<div class="markdown-body">{@html renderedNotes[key]}</div>{/if}</details>
-              {:else}
-                <button type="button" class="text-action" disabled={loadingNotes[key]} onclick={() => run(() => revealNotes(key, notes), row.app.name)}>{loadingNotes[key] ? 'Rendering notes…' : 'Show release notes'}</button>
-              {/if}
+        <section class="update-card" aria-labelledby="update-{row.app.id}">
+          <div class="row">
+            <span class="glyph-tile"><img src="/glyphs/{row.app.id}.svg" alt="" width="18" height="18" /></span>
+            <div class="row-main">
+              <h2 class="row-title" id="update-{row.app.id}">{row.app.name}</h2>
+              <div class="row-sub">{row.state.installedVersion ?? row.app.version ?? '?'} → <strong class="to-version">{row.latest?.latestVersion ?? 'new version'}</strong>{row.state.channel !== 'stable' ? ` · ${row.state.channel}` : ''}</div>
             </div>
-          {:else}<p class="setting-description">No release notes were provided for this version.</p>{/if}
+            <div class="row-end">
+              {#if notes}<button type="button" class="btn ghost sm" aria-expanded={Boolean(openNotes[key])} disabled={loadingNotes[key]} onclick={() => run(() => toggleNotes(key, notes), row.app.name)}>{loadingNotes[key] ? 'Loading…' : openNotes[key] ? 'Hide notes' : 'Show release notes'}</button>{/if}
+              <button class="btn sm primary primary-action" type="button" disabled={busy || checking || row.state.heldBack} onclick={() => run(() => onUpdate(row.app), row.app.name)}>{row.state.heldBack ? 'Blocked' : 'Review update'}</button>
+            </div>
+          </div>
+          {#if row.state.heldBack || row.latest?.error}
+            <div class="row-extra">
+              {#if row.state.heldBack}<p class="status-warning">Held back: {row.state.reason ?? row.latest?.reason ?? 'It is not compatible with a connected app.'}</p>{/if}
+              {#if row.latest?.error}<p class="status-warning">Release check issue: {row.latest.error}</p>{/if}
+            </div>
+          {/if}
+          {#if notes && openNotes[key] && (renderedNotes[key] !== undefined || notesError[key])}
+            <div class="row-extra release-notes">
+              {#if notesError[key]}<p class="status-warning">{notesError[key]}</p><pre class="release-plain">{notes}</pre>{:else}<div class="markdown-body">{@html renderedNotes[key]}</div>{/if}
+            </div>
+          {/if}
         </section>
       {/each}
     </div>
   {:else}
-    <div class="empty-state"><h2>{updates?.lastFailure ? 'Could not finish the last check' : updates?.lastCheck ? 'You are up to date' : 'Not checked yet'}</h2><p>{updates?.lastFailure ? 'Check your connection and try again.' : updates?.lastCheck ? 'Updates for managed, installed apps will appear here. You can check again at any time.' : 'Check now to see whether your managed apps have updates.'}</p><button type="button" disabled={busy || checking} class="primary-action" onclick={() => run(onCheckNow)}>{checking ? 'Checking…' : 'Check now'}</button><button type="button" onclick={onSelectApps}>Browse apps</button></div>
+    <div class="empty-state">
+      <Icon name={updates?.lastFailure ? 'alert' : updates?.lastCheck ? 'check' : 'updates'} size={24} />
+      <h2>{updates?.lastFailure ? 'Could not finish the last check' : updates?.lastCheck ? 'You are up to date' : 'Not checked yet'}</h2>
+      <p>{updates?.lastFailure ? 'Check your connection and try again.' : updates?.lastCheck ? 'New versions of your apps will show up here.' : 'Check now to see whether your apps have updates.'}</p>
+      <div class="btn-group">
+        <button type="button" class="btn primary" disabled={busy || checking} onclick={() => run(onCheckNow)}>{checking ? 'Checking…' : 'Check now'}</button>
+        <button type="button" class="btn ghost" onclick={onSelectApps}>Browse apps</button>
+      </div>
+    </div>
   {/if}
+
   {#if managedApps.length}
-    <section class="feature-section" aria-labelledby="auto-update-heading">
-      <h2 id="auto-update-heading">Automatic updates</h2>
-      <p class="setting-description">Opt in for each app. Closed apps can update. Running apps must not be busy; when they report their last-used time, Tools waits ten minutes.</p>
-      {#each managedApps as app (app.id)}<label class="auto-update-toggle"><input type="checkbox" checked={autoUpdate[app.id] ?? false} disabled={busy} onchange={(event) => run(() => onAutoUpdate(app, event.currentTarget.checked), app.name)} /> {app.name}</label>{/each}
+    <section class="section" aria-labelledby="auto-update-heading">
+      <div class="section-head"><h2 id="auto-update-heading">Install updates automatically</h2></div>
+      <div class="list">
+        {#each managedApps as app (app.id)}
+          <label class="row compact">
+            <span class="glyph-tile sm"><img src="/glyphs/{app.id}.svg" alt="" width="15" height="15" /></span>
+            <span class="row-main">{app.name}</span>
+            <input class="switch" type="checkbox" aria-label="Update {app.name} automatically" checked={autoUpdate[app.id] ?? false} disabled={busy} onchange={(event) => run(() => onAutoUpdate(app, event.currentTarget.checked), app.name)} />
+          </label>
+        {/each}
+      </div>
+      <p class="section-note">A running app updates only when it's idle; if it reports when it was last used, Tools waits ten minutes after that.</p>
     </section>
   {/if}
+
   {#if rollbacks.length}
-    <section class="feature-section" aria-labelledby="rollback-heading">
-      <div class="section-heading"><div><h2 id="rollback-heading">Previous versions</h2><p class="setting-description">Tools keeps the build an update replaced, so you can go back if something broke.</p></div></div>
-      <div class="home-app-list">
+    <section class="section" aria-labelledby="rollback-heading">
+      <div class="section-head"><h2 id="rollback-heading">Previous versions</h2><span class="meta">Go back if an update broke something</span></div>
+      <div class="list">
         {#each rollbacks as app (app.id)}
-          <div class="home-app-row"><img class="app-glyph" src="/glyphs/{app.id}.svg" alt="" width="30" height="30" /><div class="home-app-info"><strong>{app.name}</strong><span>v{app.version ?? '?'} now · v{app.rollbackVersion} saved</span></div><button type="button" disabled={busy || checking} onclick={() => run(() => onRollback(app), app.name)}>{rollbackLabel(app)}</button></div>
+          <div class="row compact">
+            <span class="glyph-tile sm"><img src="/glyphs/{app.id}.svg" alt="" width="15" height="15" /></span>
+            <div class="row-main"><div class="row-title">{app.name}</div><div class="row-sub">v{app.version ?? '?'} now · v{app.rollbackVersion} kept</div></div>
+            <button type="button" class="btn sm" disabled={busy || checking} onclick={() => run(() => onRollback(app), app.name)}>{rollbackLabel(app)}</button>
+          </div>
         {/each}
       </div>
     </section>
   {/if}
 
   {#if history.length}
-    <section class="feature-section" aria-labelledby="history-heading">
-      <div class="section-heading"><div><h2 id="history-heading">Recent activity</h2><p class="setting-description">Installs, updates and rollbacks Tools ran on this device.</p></div></div>
-      <ul class="update-history">
+    <section class="section" aria-labelledby="history-heading">
+      <div class="section-head"><h2 id="history-heading">Recent activity</h2></div>
+      <ul class="list update-history">
         {#each history as entry, i (`${entry.time}:${entry.app}:${i}`)}
-          <li><span>{new Date(entry.time * 1000).toLocaleString()}</span><strong>{appName(entry.app)}</strong><span>{versions(entry) ?? ''}</span><span class="badge">{resultLabel(entry.result)}</span>{#if entry.reason}<span class="setting-description">{entry.reason}</span>{/if}</li>
+          <li class="row compact">
+            <div class="row-main"><div class="row-title">{appName(entry.app)} <span class="faint history-versions">{versions(entry) ?? ''}</span></div>{#if entry.reason}<div class="row-sub">{entry.reason}</div>{/if}</div>
+            <span class="faint history-time">{new Date(entry.time * 1000).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</span>
+            <span class="badge {resultTone[entry.result] ?? ''}">{resultLabel(entry.result)}</span>
+          </li>
         {/each}
       </ul>
     </section>
   {/if}
 </div>
+
+<style>
+  .notice + .list, .notice + .empty-state { margin-top: 12px; }
+  .update-card + .update-card { border-top: 1px solid var(--line); }
+  h2.row-title { font-size: 13px; font-weight: 600; }
+  .to-version { color: var(--text); font-weight: 600; }
+  .release-notes { max-height: 340px; overflow: auto; }
+  .release-notes .markdown-body { color: var(--muted); }
+  .row.compact { min-height: 46px; padding: 8px 14px; }
+  .update-history { margin: 0; padding: 0; list-style: none; }
+  .history-versions { font-weight: 400; font-size: 12px; }
+  .history-time { font-size: 12px; white-space: nowrap; }
+</style>

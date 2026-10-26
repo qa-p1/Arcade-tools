@@ -105,7 +105,8 @@ export interface EngineView {
   binaries: string[];
   versionArgs: string[];
   minimumVersion: string | null;
-  usedBy: { app: string; purpose: string }[];
+  // Serialized from the catalog, where the purpose is named "for".
+  usedBy: { app: string; for: string }[];
   status: { status: string; path?: string; version?: string | null; minimum?: string; message?: string };
   installHint: string | null;
   linkDownload: boolean;

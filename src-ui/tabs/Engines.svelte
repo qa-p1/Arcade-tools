@@ -1,6 +1,7 @@
 <script lang="ts">
+  import Icon from '../components/Icon.svelte';
   import { api, type EngineView } from '../lib/api';
-  import { askForConfirmation } from '../lib/state.svelte';
+  import { askForConfirmation, ui } from '../lib/state.svelte';
 
   type Props = { active: boolean; run: (action: () => Promise<void>, label?: string) => void };
   let { active, run }: Props = $props();
@@ -11,6 +12,10 @@
   let copied = $state<string | null>(null);
   let downloading = $state<string | null>(null);
   let downloadMessage = $state('');
+  const found = $derived(engines.filter((engine) => engine.status.status === 'found'));
+  // Engines that need something from the user come first.
+  const ordered = $derived([...engines.filter((engine) => engine.status.status !== 'found'), ...found]);
+  const appName = (id: string) => ui.apps.find((app) => app.id === id)?.name.replace(/^Arcade /, '') ?? id.replace(/^arcade\./, '');
 
   async function download(engine: EngineView): Promise<void> {
     const choice = await askForConfirmation({ title: `Download ${engine.name}?`, copy: 'Arcade verifies the download before using it. On Windows, finish the installer that opens.', action: 'Download', destructive: false, kind: null, folders: [] });
@@ -30,12 +35,12 @@
     finally { loading = false; }
   }
 
-  function statusText(engine: EngineView): string {
+  function status(engine: EngineView): { text: string; tone: string } {
     switch (engine.status.status) {
-      case 'found': return `${engine.downloaded ? 'Downloaded by Arcade' : 'Found'}${engine.status.version ? ` · v${engine.status.version}` : ''}`;
-      case 'tooOld': return `Version ${engine.status.version ?? 'unknown'} is older than ${engine.status.minimum ?? engine.minimumVersion ?? 'required'}`;
-      case 'missing': return 'Not found on PATH';
-      default: return engine.status.message ?? 'Could not check this engine';
+      case 'found': return { text: engine.status.version ? `v${engine.status.version}` : 'Installed', tone: 'ok' };
+      case 'tooOld': return { text: `Needs ${engine.status.minimum ?? engine.minimumVersion ?? 'a newer version'}`, tone: 'warn' };
+      case 'missing': return { text: 'Not installed', tone: '' };
+      default: return { text: 'Check failed', tone: 'danger' };
     }
   }
 
@@ -46,27 +51,79 @@
     setTimeout(() => { if (copied === engine.id) copied = null; }, 1800);
   }
 
-  $effect(() => { if (active && !loaded && !loading) void load(); });
+  // A failed check waits for Try again instead of retrying in a loop.
+  $effect(() => { if (active && !loaded && !loading && !error) void load(); });
+  // Checked quietly soon after start, so the page is ready when opened.
+  $effect(() => {
+    if (!ui.loaded || loaded) return;
+    const timer = setTimeout(() => { if (!loaded && !loading && !error) void load(); }, 2500);
+    return () => clearTimeout(timer);
+  });
 </script>
 
 <div id="panel-engines" class="tab-panel" role="tabpanel" aria-labelledby="tab-engines" tabindex="0" hidden={!active}>
-  <header class="page-heading"><div><p class="eyebrow">ARCADE TOOLS / ENGINES</p><h1>Check the tools your apps use.</h1><p class="intro">Arcade detects optional engines and shows guidance for your platform. Tools does not install system packages.</p></div><button type="button" disabled={loading} onclick={() => run(() => load(true))}>{loading ? 'Checking…' : 'Refresh detection'}</button></header>
+  <header class="page-head">
+    <div>
+      <h1>Engines</h1>
+      <p class="sub">{loaded ? `${found.length} of ${engines.length} found · ` : ''}Optional programs that unlock extra features in some apps.</p>
+    </div>
+    <div class="page-actions">
+      <button type="button" class="btn" disabled={loading} onclick={() => run(() => load(true))}><Icon name="refresh" size={14} />{loading ? 'Checking…' : 'Check again'}</button>
+    </div>
+  </header>
 
-  {#if downloadMessage}<p role="status">{downloadMessage}</p>{/if}
+  {#if downloadMessage}<div class="notice ok" role="status"><Icon name="check" /><span class="row-main">{downloadMessage}</span></div>{/if}
 
-  {#if error}<div class="empty-state"><h2>Engine information is unavailable</h2><p>{error}</p><button type="button" onclick={() => run(() => load())}>Try again</button></div>
+  {#if error && !engines.length}
+    <div class="empty-state">
+      <Icon name="alert" size={24} />
+      <h2>Engines could not be checked</h2>
+      <p>{error}</p>
+      <div class="btn-group"><button type="button" class="btn" onclick={() => run(() => load())}>Try again</button></div>
+    </div>
   {:else if engines.length}
-    <div class="engine-list">
-      {#each engines as engine (engine.id)}
-        <section class="feature-card engine-card">
-          <div class="engine-heading"><div><h2>{engine.name}</h2><p class="setting-description">{engine.binaries.join(' or ')}{engine.minimumVersion ? ` · minimum ${engine.minimumVersion}` : ''}</p></div><span class="badge" class:engine-found={engine.status.status === 'found'} class:engine-missing={engine.status.status !== 'found'}>{statusText(engine)}</span></div>
-          {#if engine.status.path}<p class="engine-path">Detected at <code>{engine.status.path}</code></p>{/if}
-          <div class="engine-uses"><h3>Used by</h3><ul>{#each engine.usedBy as usage (`${usage.app}:${usage.purpose}`)}<li><strong>{usage.app}</strong><span>{usage.purpose}</span></li>{/each}</ul></div>
-          {#if engine.installHint}<div class="install-hint"><div><h3>Install guidance</h3><code>{engine.installHint}</code></div><button type="button" onclick={() => run(() => copyHint(engine))}>{copied === engine.id ? 'Copied' : 'Copy command'}</button></div>{/if}
-          {#if engine.linkDownload}<button type="button" disabled={Boolean(downloading)} onclick={() => run(() => download(engine), engine.name)}>{downloading === engine.id ? 'Downloading…' : 'Download with Arcade'}</button>{/if}
-          <a class="text-action" href={engine.homepage} target="_blank" rel="noreferrer">Engine project ↗</a>
+    <div class="list">
+      {#each ordered as engine (engine.id)}
+        {@const state = status(engine)}
+        <section class="engine" aria-labelledby="engine-{engine.id}">
+          <div class="row">
+            <div class="row-main">
+              <h2 class="row-title" id="engine-{engine.id}">{engine.name}</h2>
+              <div class="row-sub">{engine.usedBy.map((use) => `${appName(use.app)}: ${use.for}`).join(' · ')}</div>
+            </div>
+            <span class="badge {state.tone}" title={engine.status.path ?? engine.status.message ?? ''}>{#if state.tone === 'ok'}<span class="dot ok"></span>{/if}{state.text}</span>
+            <a class="btn ghost icon-only sm" href={engine.homepage} target="_blank" rel="noreferrer" title="Project website" aria-label="{engine.name} website"><Icon name="external" size={14} /></a>
+          </div>
+          {#if engine.status.status !== 'found' && (engine.installHint || engine.linkDownload || engine.status.message)}
+            <div class="row-extra">
+              {#if engine.status.status === 'error' && engine.status.message}<p class="status-warning">{engine.status.message}</p>{/if}
+              {#if engine.installHint}
+                <div class="hint"><code class="mono">{engine.installHint}</code><button type="button" class="btn ghost sm" onclick={() => run(() => copyHint(engine))}><Icon name={copied === engine.id ? 'check' : 'copy'} size={14} />{copied === engine.id ? 'Copied' : 'Copy'}</button></div>
+              {/if}
+              {#if engine.linkDownload}<button type="button" class="btn sm primary download" disabled={Boolean(downloading)} onclick={() => run(() => download(engine), engine.name)}>{downloading === engine.id ? 'Downloading…' : 'Download with Arcade'}</button>{/if}
+            </div>
+          {/if}
         </section>
       {/each}
     </div>
-  {:else}<div class="empty-state"><p>{loading ? 'Checking engines…' : 'No optional engines are listed.'}</p></div>{/if}
+    <p class="section-note">Tools shows the install command for your system but never installs system packages itself.</p>
+  {:else if loading || !loaded}
+    <div class="list" aria-busy="true" aria-label="Checking engines">
+      {#each [0, 1, 2, 3, 4] as item (item)}<div class="skeleton-row"><div class="row-main"><div class="skeleton line skel-a"></div><div class="skeleton line skel-b"></div></div><div class="skeleton line skel-c"></div></div>{/each}
+    </div>
+  {:else}
+    <div class="empty-state"><Icon name="engine" size={24} /><h2>No engines listed</h2><p>None of your apps need an extra program.</p></div>
+  {/if}
 </div>
+
+<style>
+  .notice { margin-bottom: 12px; }
+  .engine + .engine { border-top: 1px solid var(--line); }
+  h2.row-title { font-size: 13px; font-weight: 600; }
+  .row-extra { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-left: 14px; }
+  .hint { display: flex; flex: 1; align-items: center; gap: 8px; min-width: 0; padding: 4px 4px 4px 10px; border-radius: var(--radius-sm); background: var(--sunken); }
+  .hint code { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .skel-a { width: 30%; }
+  .skel-b { width: 55%; margin-top: 8px; }
+  .skel-c { width: 70px; }
+</style>

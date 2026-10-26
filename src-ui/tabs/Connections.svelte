@@ -1,23 +1,30 @@
 <script lang="ts">
-  import { api, type ConnectionsView } from '../lib/api';
+  import Icon from '../components/Icon.svelte';
+  import { api, type ConnectionPeer, type ConnectionsView } from '../lib/api';
 
   type Props = { active: boolean; run: (action: () => Promise<void>, label?: string) => void; onSettings: () => void; onLearn: (id: string) => Promise<void> };
   let { active, run, onSettings, onLearn }: Props = $props();
   let connections = $state<ConnectionsView | null>(null);
-  const flows = $derived((connections?.peers ?? []).flatMap((source) => (connections?.peers ?? []).filter((target) => source.id !== target.id).flatMap((target) => target.actions.filter((action) => action.accepts.some((accepted) => source.actions.some((offered) => offered.produces.some((produced) => accepted === produced || accepted === 'file/any' && produced.startsWith('file/'))))).map((action) => ({ source, target, action })))));
   let loading = $state(false);
   let loaded = $state(false);
   let error = $state<string | null>(null);
-  function position(id: string) {
-    const peers = connections?.peers ?? [];
-    const angle = peers.findIndex((peer) => peer.id === id) / Math.max(peers.length, 1) * Math.PI * 2 - Math.PI / 2;
-    return { x: 450 + Math.cos(angle) * 290, y: 210 + Math.sin(angle) * 150 };
+  let expanded = $state<string | null>(null);
+  const peers = $derived(connections?.peers ?? []);
+
+  /** Apps that can take something this app produces, with the action they offer. */
+  function sendsTo(source: ConnectionPeer): { target: ConnectionPeer; action: ConnectionPeer['actions'][number] }[] {
+    const produced = source.actions.flatMap((action) => action.produces);
+    return peers.filter((target) => target.id !== source.id).flatMap((target) => target.actions
+      .filter((action) => action.accepts.some((accepted) => produced.some((type) => accepted === type || (accepted === 'file/any' && type.startsWith('file/')))))
+      .map((action) => ({ target, action })));
   }
-  function preferences(peer: NonNullable<ConnectionsView>['peers'][number]): string[] {
+  function preferences(peer: ConnectionPeer): { name: string; allowed: boolean }[] {
     const settings = peer.connectedApps.connectedApps ?? peer.connectedApps.connections ?? peer.connectedApps;
     if (!settings || typeof settings !== 'object') return [];
-    return Object.entries(settings).filter(([key, value]) => key !== 'linkEnabled' && typeof value === 'boolean').map(([key, value]) => `${connections?.peers.find((app) => app.id === key)?.name ?? key}: ${value ? 'allowed' : 'off'}`);
+    return Object.entries(settings).filter(([key, value]) => key !== 'linkEnabled' && typeof value === 'boolean')
+      .map(([key, value]) => ({ name: peers.find((app) => app.id === key)?.name ?? key, allowed: value as boolean }));
   }
+  const reachable = $derived(peers.filter((peer) => peer.reachable).length);
 
   async function refresh(): Promise<void> {
     loading = true;
@@ -27,46 +34,103 @@
     finally { loading = false; }
   }
 
-  $effect(() => { if (active && !loaded && !loading) void refresh(); });
+  $effect(() => { if (active && !loaded && !loading && !error) void refresh(); });
 </script>
 
 <div id="panel-connections" class="tab-panel" role="tabpanel" aria-labelledby="tab-connections" tabindex="0" hidden={!active}>
-  <header class="page-heading"><div><p class="eyebrow">ARCADE TOOLS / CONNECTIONS</p><h1>See which apps can talk.</h1><p class="intro">Arcade Link lists the apps that have registered with Tools and checks whether their local endpoint responds.</p></div><button type="button" disabled={loading} onclick={() => run(refresh)}>{loading ? 'Checking…' : 'Refresh connections'}</button></header>
+  <header class="page-head">
+    <div>
+      <h1>Connections</h1>
+      <p class="sub">{connections ? `${peers.length} ${peers.length === 1 ? 'app' : 'apps'} connected · ${reachable} responding` : 'Arcade apps can pass files and text to each other.'}</p>
+    </div>
+    <div class="page-actions">
+      <button type="button" class="btn ghost" onclick={() => run(() => onLearn('arcade.ecosystem'))}><Icon name="book" size={14} />How it works</button>
+      <button type="button" class="btn" disabled={loading} onclick={() => run(refresh)}><Icon name="refresh" size={14} />{loading ? 'Checking…' : 'Refresh'}</button>
+    </div>
+  </header>
+
+  {#if connections && !connections.linkEnabled}
+    <div class="notice warn"><Icon name="alert" /><span class="row-main">Connecting is turned off in Tools. Apps keep working on their own.</span><button type="button" class="btn sm" onclick={onSettings}>Settings</button></div>
+  {/if}
 
   {#if connections}
-    <section class="feature-section connection-summary"><div><strong>Arcade Link in Tools</strong><span class:status-on={connections.linkEnabled} class:status-off={!connections.linkEnabled}>{connections.linkEnabled ? 'Enabled' : 'Disabled'}</span></div><div class="actions-inline"><button type="button" onclick={() => run(() => onLearn('arcade.ecosystem'))}>How apps connect</button><button type="button" onclick={onSettings}>Open Settings</button></div></section>
-    <section class="feature-section" aria-label="Integration map">
-      <h2>Integrations</h2>
-      {#if connections.peers.length}
-        <svg class="connection-map" viewBox="0 0 900 420" role="img" aria-labelledby="connection-map-title">
-          <title id="connection-map-title">Arcade app integrations; arrows point to the app offering an action</title>
-          <defs><marker id="connection-arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor" /></marker></defs>
-          {#each flows as flow (`${flow.source.id}:${flow.target.id}:${flow.action.id}`)}
-            {@const from = position(flow.source.id)}{@const to = position(flow.target.id)}
-            <line x1={from.x} y1={from.y} x2={to.x} y2={to.y} stroke="currentColor" marker-end="url(#connection-arrow)" opacity={flow.action.available ? 0.45 : 0.2}><title>{flow.source.name} → {flow.target.name}: {flow.action.title}</title></line>
-          {/each}
-          {#each connections.peers as peer (peer.id)}{@const point = position(peer.id)}<g><rect x={point.x - 85} y={point.y - 23} width="170" height="46" rx="10" fill="var(--surface)" stroke="currentColor" /><text x={point.x} y={point.y + 5} text-anchor="middle" fill="currentColor">{peer.name}</text></g>{/each}
-        </svg>
-      {/if}
-      <div class="integration-nodes">{#each connections.peers as peer (peer.id)}<button type="button" onclick={() => run(() => api.openAppSettings(peer.id), peer.name)}>{peer.name} · {peer.linkEnabled ? 'Link on' : 'Link off'}</button>{/each}</div>
-      <ul>{#each flows as flow (`${flow.source.id}:${flow.target.id}:${flow.action.id}`)}<li>{flow.source.name} → {flow.target.name}: {flow.action.title}</li>{/each}</ul>
-      <p class="setting-description">Connections follow the content types advertised in app manifests. Choose an app to change its connected-app preferences there.</p>
-      <button type="button" onclick={() => run(() => onLearn('arcade.ecosystem'))}>Learn the Find → Look → Box and Lens → Clipboard flows</button>
-    </section>
-    {#if connections.peers.length}
-      <div class="connection-list">
-        {#each connections.peers as peer (peer.id)}
-          <section class="feature-card connection-card">
-            <div class="connection-heading"><div><h2>{peer.name}</h2><p class="setting-description">{peer.id} · v{peer.version}</p></div><span class="badge" class:reachable={peer.reachable} class:unreachable={!peer.reachable}>{peer.reachable ? 'Reachable' : 'Not responding'}</span></div>
-            <button type="button" onclick={() => run(() => api.openAppSettings(peer.id), peer.name)}>Open {peer.name} settings</button>
-            <div class="connection-facts"><span>Link {peer.linkEnabled ? 'enabled' : 'disabled'} in this app</span><span>Protocol {peer.protocols.join(', ') || 'unknown'}</span>{#if peer.busy !== null}<span>{peer.busy ? 'Busy' : 'Idle'}</span>{/if}</div>
-            {#if preferences(peer).length}<ul aria-label="Connected-app preferences">{#each preferences(peer) as preference (preference)}<li>{preference}</li>{/each}</ul>{/if}
-            {#if peer.actions.length}<div class="connection-actions"><h3>Actions this app offers</h3><ul>{#each peer.actions as action (action.id)}<li><span>{action.title}</span><span class="badge">{action.available ? action.verb : action.reason ?? 'Unavailable'}</span></li>{/each}</ul></div>{:else}<p class="setting-description">This app has not advertised any actions to Tools.</p>{/if}
+    {#if peers.length}
+      <div class="list peer-list">
+        {#each peers as peer (peer.id)}
+          {@const targets = sendsTo(peer)}
+          {@const allowed = preferences(peer)}
+          {@const open = expanded === peer.id}
+          <section class="peer" aria-label={peer.name}>
+            <button type="button" class="row peer-row" aria-expanded={open} onclick={() => expanded = open ? null : peer.id}>
+              <span class="glyph-tile"><img src="/glyphs/{peer.id}.svg" alt="" width="18" height="18" /></span>
+              <span class="row-main">
+                <span class="row-title">{peer.name}</span>
+                <span class="row-sub">{peer.actions.length ? `Offers ${peer.actions.length} ${peer.actions.length === 1 ? 'action' : 'actions'}` : 'Offers no actions'}{targets.length ? ` · sends to ${[...new Set(targets.map((flow) => flow.target.name.replace(/^Arcade /, '')))].join(', ')}` : ''}</span>
+              </span>
+              {#if !peer.linkEnabled}<span class="badge">Connecting off</span>{/if}
+              <span class="badge" class:ok={peer.reachable}><span class="dot" class:ok={peer.reachable}></span>{peer.reachable ? (peer.busy ? 'Busy' : 'Responding') : 'Not running'}</span>
+              <span class="chevron" class:open><Icon name="chevronDown" size={15} /></span>
+            </button>
+            {#if open}
+              <div class="peer-detail">
+                <div class="detail-col">
+                  <h3>What it does for other apps</h3>
+                  {#if peer.actions.length}
+                    <ul>{#each peer.actions as action (action.id)}<li><span>{action.title}</span>{#if !action.available}<span class="faint"> — {action.reason ?? 'unavailable'}</span>{/if}</li>{/each}</ul>
+                  {:else}<p class="faint">Nothing yet.</p>{/if}
+                </div>
+                <div class="detail-col">
+                  <h3>Can send to</h3>
+                  {#if targets.length}
+                    <ul>{#each targets as flow (`${flow.target.id}:${flow.action.id}`)}<li>{flow.target.name} <span class="faint">· {flow.action.title}</span></li>{/each}</ul>
+                  {:else}<p class="faint">No other app takes what it makes.</p>{/if}
+                </div>
+                {#if allowed.length}
+                  <div class="detail-col">
+                    <h3>Allowed in its settings</h3>
+                    <ul>{#each allowed as entry (entry.name)}<li>{entry.name} <span class="faint">· {entry.allowed ? 'allowed' : 'off'}</span></li>{/each}</ul>
+                  </div>
+                {/if}
+                <div class="detail-foot">
+                  <span class="faint">Version {peer.version}{peer.protocols.length ? ` · Link protocol ${peer.protocols.join(', ')}` : ''}</span>
+                  <button type="button" class="btn sm" onclick={() => run(() => api.openAppSettings(peer.id), peer.name)}>Open {peer.name} settings</button>
+                </div>
+              </div>
+            {/if}
           </section>
         {/each}
       </div>
-    {:else}<div class="empty-state"><h2>No other Arcade apps found</h2><p>Installed apps appear here when they register with Arcade Link and have a local manifest.</p></div>{/if}
-  {:else if error}<div class="empty-state"><h2>Connections could not be checked</h2><p>{error}</p><button type="button" onclick={() => run(refresh)}>Try again</button></div>{:else}<div class="empty-state"><p>{loading ? 'Checking local Arcade Link peers…' : 'Connection details have not been loaded.'}</p></div>{/if}
+      <p class="section-note">Each app decides which others it works with, in its own Connected apps settings.</p>
+    {:else}
+      <div class="empty-state">
+        <Icon name="link" size={24} />
+        <h2>No apps to connect yet</h2>
+        <p>Arcade apps show up here once they're installed and have run once.</p>
+      </div>
+    {/if}
+  {:else if error}
+    <div class="empty-state">
+      <Icon name="alert" size={24} />
+      <h2>Connections could not be checked</h2>
+      <p>{error}</p>
+      <div class="btn-group"><button type="button" class="btn" onclick={() => run(refresh)}>Try again</button></div>
+    </div>
+  {:else}
+    <div class="list">{#each [0, 1, 2] as item (item)}<div class="skeleton-row"><span class="glyph-tile skeleton"></span><div class="row-main"><div class="skeleton line skel"></div></div></div>{/each}</div>
+  {/if}
 </div>
 
-<style>.connection-map { width: 100%; max-height: 28rem; } .connection-map text { font-size: 14px; }</style>
+<style>
+  .notice { margin-bottom: 12px; }
+  .peer + .peer { border-top: 1px solid var(--line); }
+  .peer-row { width: 100%; border: 0; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
+  .peer-row:hover { background: var(--sunken); }
+  .peer-row .row-title, .peer-row .row-sub { display: block; }
+  .chevron { display: grid; color: var(--faint); transition: transform .15s; }
+  .chevron.open { transform: rotate(180deg); }
+  .peer-detail { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px 24px; padding: 4px 14px 14px 62px; }
+  h3 { margin-bottom: 6px; color: var(--muted); font-size: 12px; font-weight: 600; }
+  ul { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: 12.5px; }
+  .detail-foot { display: flex; grid-column: 1 / -1; align-items: center; justify-content: space-between; gap: 12px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 12px; }
+  .skel { width: 40%; }
+</style>

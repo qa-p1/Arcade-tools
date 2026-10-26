@@ -86,55 +86,74 @@
   });
 </script>
 
-<section class="settings-card tray-card" aria-labelledby="tray-heading">
-  <div>
-    <h2 id="tray-heading">Tray</h2>
-    <p class="setting-description">Keep Arcade apps together in one menu. Apps restore their own icons when Tools closes or disconnects.</p>
-  </div>
+<section class="section tray-card" aria-labelledby="tray-heading">
+  <div class="section-head"><h2 id="tray-heading">Tray and shortcut overlay</h2></div>
   {#if view}
-    <div class="tray-options">
-      <label><input type="checkbox" aria-label="Host Arcade app icons" checked={view.preferences.hostIcons} disabled={busy || saving} onchange={(event) => void save({ hostIcons: event.currentTarget.checked })} /> Host Arcade app icons</label>
-      <label><input type="checkbox" aria-label="Show update badge" checked={view.preferences.showUpdateBadge} disabled={busy || saving} onchange={(event) => void save({ showUpdateBadge: event.currentTarget.checked })} /> Show update badge</label>
+    <div class="list">
+      <label class="row">
+        <span class="row-main"><span class="row-title">Host Arcade app icons</span><span class="row-sub">Keep the apps together in one tray menu. They get their own icons back when Tools closes.</span></span>
+        <input class="switch" type="checkbox" aria-label="Host Arcade app icons" checked={view.preferences.hostIcons} disabled={busy || saving} onchange={(event) => void save({ hostIcons: event.currentTarget.checked })} />
+      </label>
+      <label class="row">
+        <span class="row-main"><span class="row-title">Show update badge</span></span>
+        <input class="switch" type="checkbox" aria-label="Show update badge" checked={view.preferences.showUpdateBadge} disabled={busy || saving} onchange={(event) => void save({ showUpdateBadge: event.currentTarget.checked })} />
+      </label>
       {#if view.shortcutStatus.available}
-        <label><input type="checkbox" aria-label="Enable shortcut overlay" checked={view.preferences.shortcutsEnabled} disabled={busy || saving} onchange={(event) => void save({ shortcutsEnabled: event.currentTarget.checked })} /> Enable shortcut overlay</label>
+        <label class="row">
+          <span class="row-main"><span class="row-title">Shortcut overlay</span><span class="row-sub">A sheet of the shortcuts for the app you're using.</span></span>
+          <input class="switch" type="checkbox" aria-label="Enable shortcut overlay" checked={view.preferences.shortcutsEnabled} disabled={busy || saving} onchange={(event) => void save({ shortcutsEnabled: event.currentTarget.checked })} />
+        </label>
         {#if view.preferences.shortcutsEnabled}
-          <form class="shortcut-form" onsubmit={(event) => { event.preventDefault(); void save({ shortcut }); }}>
-            <label for="overlay-shortcut">Overlay shortcut</label>
-            <input id="overlay-shortcut" bind:value={shortcut} disabled={busy || saving} autocomplete="off" spellcheck={false} />
-            <button type="submit" disabled={busy || saving || shortcut === view.preferences.shortcut}>Apply</button>
-          </form>
-          {#if view.shortcutStatus.hint}<p class="setting-description shortcut-hint">{view.shortcutStatus.hint}</p>{/if}
-          {#if view.shortcutStatus.error}<p role="alert" class="tray-error">Could not register shortcut: {view.shortcutStatus.error}</p>{/if}
+          <div class="row">
+            <label class="row-main row-title" for="overlay-shortcut">Overlay shortcut</label>
+            <form class="shortcut-form" onsubmit={(event) => { event.preventDefault(); void save({ shortcut }); }}>
+              <input id="overlay-shortcut" class="input" bind:value={shortcut} disabled={busy || saving} autocomplete="off" spellcheck={false} />
+              <button class="btn sm" type="submit" disabled={busy || saving || shortcut === view.preferences.shortcut}>Apply</button>
+            </form>
+          </div>
+          {#if view.shortcutStatus.hint || view.shortcutStatus.error}
+            <div class="row-extra flush">
+              {#if view.shortcutStatus.hint}<p class="row-sub shortcut-hint">{view.shortcutStatus.hint}</p>{/if}
+              {#if view.shortcutStatus.error}<p role="alert" class="error-text">Could not register the shortcut: {view.shortcutStatus.error}</p>{/if}
+            </div>
+          {/if}
         {/if}
-      {:else}
-        <p class="setting-description">The shortcut overlay is available when the companion executable is installed.</p>
       {/if}
       {#if view.loginAvailable}
-        <label><input type="checkbox" aria-label="Start Arcade Tools at login" checked={view.preferences.startAtLogin} disabled={busy || saving} onchange={(event) => void save({ startAtLogin: event.currentTarget.checked })} /> Start Arcade Tools at login</label>
-      {:else}
-        <p class="setting-description">Start at login is available in installed builds.</p>
+        <label class="row">
+          <span class="row-main"><span class="row-title">Start Arcade Tools at login</span></span>
+          <input class="switch" type="checkbox" aria-label="Start Arcade Tools at login" checked={view.preferences.startAtLogin} disabled={busy || saving} onchange={(event) => void save({ startAtLogin: event.currentTarget.checked })} />
+        </label>
+      {/if}
+      {#if view.apps.length}
+        <fieldset class="tray-apps" disabled={busy || saving}>
+          <legend class="row-title">Apps that keep their own icon</legend>
+          <div class="app-checks">
+            {#each view.apps as app (app.id)}
+              <label class="check-row"><input type="checkbox" aria-label="Keep its own icon: {app.name}" checked={view.preferences.excluded.includes(app.id)} onchange={(event) => exclude(app.id, event.currentTarget.checked)} /> {app.name}</label>
+            {/each}
+          </div>
+        </fieldset>
       {/if}
     </div>
-    {#if view.apps.length}
-      <fieldset class="tray-apps" disabled={busy || saving}>
-        <legend>Keep its own icon</legend>
-        {#each view.apps as app (app.id)}
-          <label><input type="checkbox" aria-label="Keep its own icon: {app.name}" checked={view.preferences.excluded.includes(app.id)} onchange={(event) => exclude(app.id, event.currentTarget.checked)} /> {app.name}</label>
-        {/each}
-      </fieldset>
+    {#if !view.shortcutStatus.available || !view.loginAvailable}
+      <p class="section-note">{!view.shortcutStatus.available ? 'The shortcut overlay comes with installed builds of Tools. ' : ''}{!view.loginAvailable ? 'Start at login is available in installed builds.' : ''}</p>
     {/if}
+  {:else}
+    <div class="list"><div class="skeleton-row"><div class="row-main"><div class="skeleton line skel"></div></div></div></div>
   {/if}
-  {#if error}<p role="alert" class="tray-error">{error}</p>{/if}
+  {#if error}<p role="alert" class="error-text tray-error">{error}</p>{/if}
 </section>
 
 <style>
-  .tray-card { display: grid; gap: 1rem; }
-  .tray-options, .tray-apps { display: grid; gap: .75rem; }
-  label { display: flex; align-items: center; gap: .6rem; }
-  input { flex-shrink: 0; }
-  .tray-apps { margin: 0; padding: 1rem; border: 1px solid var(--border); border-radius: .5rem; }
-  legend { padding: 0 .4rem; }
-  .tray-error { color: var(--text); }
-  .shortcut-form { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
-  .shortcut-hint { white-space: pre-wrap; overflow-wrap: anywhere; }
+  label.row .row-title, label.row .row-sub { display: block; }
+  .shortcut-form { display: flex; gap: 8px; }
+  .shortcut-form .input { width: 170px; }
+  .row-extra.flush { padding: 0 14px 12px; }
+  .shortcut-hint { white-space: pre-wrap; }
+  .tray-apps { margin: 0; padding: 12px 14px 14px; border: 0; border-top: 1px solid var(--line); }
+  .tray-apps legend { float: left; width: 100%; margin-bottom: 10px; padding: 0; }
+  .app-checks { display: grid; clear: both; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px 16px; font-size: 12.5px; }
+  .tray-error { margin-top: 8px; }
+  .skel { width: 40%; }
 </style>
