@@ -137,7 +137,7 @@ dependencies = [
 
 [[package]]
 name = "arcade-tools"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "arcade-link",
  "arcade-shortcuts",
@@ -162,7 +162,7 @@ dependencies = [
 
 [[package]]
 name = "arcade-tools-core"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "ammonia",
  "arcade-link",

@@ -686,15 +686,29 @@ pub(crate) fn owned_paths(paths: &Paths, receipt: &Receipt) -> Result<Vec<PathBu
     }
     Ok(entries)
 }
+/// Generated files an install may replace: the desktop entry, CLI link,
+/// autostart entry and icons, under both the 0.3 desktop id and the
+/// `dev.arcade.<App>` id apps move to (STANDARD §10), so an app that migrated
+/// after this Tools was released is still covered.
 fn integration_candidates(paths: &Paths, id: &str) -> Vec<PathBuf> {
-    let desktop_id = match id {
-        "arcade.box" => "dev.arcadebox.app",
-        "arcade.wheel" => "com.arcadewheel.ArcadeWheel",
-        "arcade.shelf" => "arcade.shelf",
-        "arcade.clipboard" => "dev.arcade.clipboard",
-        _ => return common_integration(paths, id, &id.replace('.', "-")),
+    let legacy = match id {
+        "arcade.box" => "dev.arcadebox.app".to_owned(),
+        "arcade.wheel" => "com.arcadewheel.ArcadeWheel".to_owned(),
+        "arcade.shelf" => "arcade.shelf".to_owned(),
+        "arcade.clipboard" => "dev.arcade.clipboard".to_owned(),
+        _ => id.replace('.', "-"),
     };
-    common_integration(paths, id, desktop_id)
+    let mut candidates = common_integration(paths, id, &legacy);
+    if let Some(current) =
+        arcade_link::manifest::os_identifier(id).filter(|current| *current != legacy)
+    {
+        for path in common_integration(paths, id, &current) {
+            if !candidates.contains(&path) {
+                candidates.push(path);
+            }
+        }
+    }
+    candidates
 }
 fn common_integration(paths: &Paths, id: &str, desktop_id: &str) -> Vec<PathBuf> {
     let mut paths_out = vec![
@@ -804,4 +818,31 @@ fn copy_object(source: &Path, destination: &Path) -> Result<()> {
         return Err(Error::new("paths", "Installation contains a special file."));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn integration_candidates_cover_the_old_and_new_desktop_ids() {
+        let paths = Paths::under(Path::new("/isolated"));
+        let candidates = integration_candidates(&paths, "arcade.box");
+        let entry = |name: &str| {
+            paths
+                .data
+                .join("applications")
+                .join(format!("{name}.desktop"))
+        };
+        assert!(candidates.contains(&entry("dev.arcadebox.app")));
+        assert!(candidates.contains(&entry("dev.arcade.Box")));
+        let icon = paths
+            .data
+            .join("icons/hicolor/scalable/apps/dev.arcade.Box.svg");
+        assert!(candidates.contains(&icon));
+        let mut unique = candidates.clone();
+        unique.sort();
+        unique.dedup();
+        assert_eq!(unique.len(), candidates.len(), "no path is listed twice");
+    }
 }

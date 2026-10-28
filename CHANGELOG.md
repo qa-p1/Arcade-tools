@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.1 — 2026-10-28
+
+### Fixed
+
+- Installing, repairing, uninstalling and detecting an app also covers the desktop
+  entry and window class it uses from Arcade Link 0.4.0 on (`dev.arcade.<App>`, such
+  as `dev.arcade.Box`), as well as its earlier name. Apps released on Link 0.4.0
+  are found and removed cleanly.
+
 ## 0.4.0 — 2026-10-28
 
 Arcade design kit; one look and one set of conventions shared with every Arcade app.

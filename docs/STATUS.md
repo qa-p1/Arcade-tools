@@ -1,4 +1,11 @@
-# Arcade Tools 0.4.0 status
+# Arcade Tools 0.4.1 status
+
+## 0.4.1 verification (2026-10-28)
+
+- Release target: `v0.4.1`, a fix release: desktop entries and window classes are
+  looked up under the app's Link 0.4.0 OS identifier (`dev.arcade.<App>`) as well
+  as its earlier name. New unit test `integration_candidates_cover_the_old_and_new_desktop_ids`.
+- Core Clippy `-D warnings` clean; core tests in Link's disposable session **110 passed, 0 failed**.
 
 ## 0.4.0 verification (2026-10-28)
 
