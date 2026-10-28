@@ -51,6 +51,7 @@ fn main() {
             std::process::exit(1);
         }
     }
+    prepare_folders();
     if args.iter().any(|arg| arg == "--restart") {
         let result = arcade_link::client::Client::connect(
             &arcade_link::Locations::discover(),
@@ -121,4 +122,35 @@ fn main() {
     }
     installation::make_way_for_offer();
     desktop::run(args.iter().any(|a| a == "--background"), false);
+}
+
+/// Sends otherwise-lost stderr to the log folder, then moves Tools' 0.3
+/// folders (`arcade-tools`, `app.arcadetools`) into
+/// `arcade/tools` before anything reads them or a webview opens. The move is
+/// skipped while
+/// another Tools answers, so files never move under a running older copy; the
+/// next start does it. Nothing is lost either way: the move copies, verifies,
+/// and only then removes.
+fn prepare_folders() {
+    let Ok(paths) = arcade_tools_core::paths::Paths::discover() else {
+        return;
+    };
+    // Started from the launcher, at login or by an update, stderr would be lost.
+    let _ = arcade_link::logs::capture_stderr(&paths.logs(), "arcade-tools");
+    if arcade_link::client::Client::connect(
+        &paths.link,
+        "arcade.tools",
+        &arcade_tools_core::manager::me(),
+    )
+    .is_ok()
+    {
+        return;
+    }
+    let migration = paths.migrate_own_folders();
+    for (from, to) in &migration.moved {
+        eprintln!("Moved {} to {}", from.display(), to.display());
+    }
+    for (from, reason) in &migration.kept {
+        eprintln!("Left {} in place: {reason}", from.display());
+    }
 }

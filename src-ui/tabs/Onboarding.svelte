@@ -1,9 +1,10 @@
 <script lang="ts">
+  import { glyph } from '../lib/glyphs';
   import TraySettings from '../components/TraySettings.svelte';
   import Icon from '../components/Icon.svelte';
-  import { confirmOperation } from '../lib/controller';
+  import { asFailure, confirmOperation } from '../lib/controller';
   import { api, type AppView, type Bundle } from '../lib/api';
-  import type { ShellTab } from '../lib/tabs.svelte';
+  import { setTabEnabled, type ShellTab } from '../lib/tabs.svelte';
   import type { ShortcutsIndex } from '../lib/shortcuts';
 
   type Props = {
@@ -17,13 +18,14 @@
   };
   let { active, apps, onInstall, onComplete, onSelectTab, shortcuts, run }: Props = $props();
   let bundles = $state<Bundle[]>([]);
-  let step = $state<'welcome' | 'choose' | 'shortcuts' | 'tray' | 'review' | 'done'>('welcome');
+  let step = $state<'welcome' | 'choose' | 'setup' | 'review' | 'done'>('welcome');
   let selected = $state<Set<string>>(new Set());
   let loading = $state(false);
   let loaded = $state(false);
   let error = $state<string | null>(null);
   const selectedApps = $derived(apps.filter((app) => selected.has(app.id)));
-  const steps = ['choose', 'shortcuts', 'tray', 'review'] as const;
+  // At most three steps (STANDARD §5.1): apps, then shortcuts and tray, then review.
+  const steps = ['choose', 'setup', 'review'] as const;
   const stepIndex = $derived(steps.indexOf(step as typeof steps[number]));
 
   async function loadBundles(): Promise<void> {
@@ -31,7 +33,7 @@
     loading = true;
     error = null;
     try { bundles = await api.listBundles(); loaded = true; }
-    catch (problem) { error = problem instanceof Error ? problem.message : String(problem); }
+    catch (problem) { error = asFailure(problem).message; }
     finally { loading = false; }
   }
 
@@ -54,6 +56,7 @@
     try { localStorage.setItem('arcade-tools-onboarding-complete', 'yes'); } catch { /* finish for this session */ }
     // The preference is the durable record; the local flag only covers a failed write.
     run(() => api.completeOnboarding());
+    setTabEnabled('onboarding', false);
     step = 'done';
   }
 
@@ -61,15 +64,15 @@
 </script>
 
 {#snippet progress()}
-  <div class="steps" aria-label="Step {stepIndex + 1} of 4">{#each steps as item, i (item)}<span class:done={i <= stepIndex}></span>{/each}</div>
+  <div class="steps" aria-label="Step {stepIndex + 1} of {steps.length}">{#each steps as item, i (item)}<span class:done={i <= stepIndex}></span>{/each}</div>
 {/snippet}
 
 <div id="panel-onboarding" class="tab-panel" role="tabpanel" aria-labelledby="tab-onboarding" tabindex="0" hidden={!active}>
   {#if step === 'welcome'}
     <div class="welcome">
-      <span class="glyph-tile lg"><img src="/glyphs/arcade.tools.svg" alt="" width="26" height="26" /></span>
-      <h1>One home for your Arcade apps</h1>
-      <p class="lede">Install the apps you want, keep them up to date and see how they work together. Tools asks before every install.</p>
+      <span class="glyph-tile lg"><img src={glyph('arcade.tools')} alt="" width="26" height="26" /></span>
+      <h1>Welcome to Arcade Tools</h1>
+      <p class="lede">The optional home for the Arcade apps.</p>
       <div class="btn-group"><button type="button" class="btn primary" onclick={() => step = 'choose'}>Choose apps</button><button type="button" class="btn ghost" onclick={finish}>Skip setup</button></div>
     </div>
   {:else if step === 'choose'}
@@ -78,7 +81,7 @@
       <div><h1>What would you like to try?</h1><p class="sub">Pick a bundle or single apps. Nothing installs until you confirm.</p></div>
       <button type="button" class="btn ghost" onclick={finish}>Skip setup</button>
     </header>
-    {#if error}<p class="status-warning">Could not load bundles: {error}</p>{/if}
+    {#if error}<div class="notice warn" role="alert"><Icon name="alert" /><span class="row-main">Couldn't load the bundles. {error} You can still pick single apps below.</span><button type="button" class="btn sm" onclick={() => { loaded = false; void loadBundles(); }}>Retry</button></div>{/if}
     {#if bundles.length}
       <section class="section">
         <div class="section-head"><h2>Bundles</h2></div>
@@ -87,29 +90,31 @@
     {/if}
     <section class="section">
       <div class="section-head"><h2>Apps</h2><span class="meta">{selected.size} selected</span></div>
-      <div class="list">{#each apps as app (app.id)}<label class="row"><input type="checkbox" checked={selected.has(app.id)} onchange={(event) => toggle(app.id, event.currentTarget.checked)} /><span class="glyph-tile sm"><img src="/glyphs/{app.id}.svg" alt="" width="15" height="15" /></span><span class="row-main"><span class="row-title">{app.name}</span><span class="row-sub">{app.pitch}</span></span>{#if app.installed || app.managed}<span class="badge">Installed</span>{:else if !app.installSupported}<span class="badge">Not available</span>{/if}</label>{/each}</div>
+      <div class="list">{#each apps as app (app.id)}<label class="row"><input type="checkbox" checked={selected.has(app.id)} onchange={(event) => toggle(app.id, event.currentTarget.checked)} /><span class="glyph-tile sm"><img src={glyph(app.id)} alt="" width="15" height="15" /></span><span class="row-main"><span class="row-title">{app.name}</span><span class="row-sub">{app.tagline}</span></span>{#if app.installed || app.managed}<span class="badge">Installed</span>{:else if !app.installSupported}<span class="badge">Not available</span>{/if}</label>{/each}</div>
     </section>
-    <div class="footer"><button type="button" class="btn ghost" onclick={() => step = 'welcome'}>Back</button><button type="button" class="btn primary" disabled={selected.size === 0} onclick={() => step = 'shortcuts'}>Continue with {selected.size}</button></div>
-  {:else if step === 'shortcuts'}
+    <div class="footer"><button type="button" class="btn ghost" onclick={() => step = 'welcome'}>Back</button><button type="button" class="btn primary" disabled={selected.size === 0} onclick={() => step = 'setup'}>Continue with {selected.size}</button></div>
+  {:else if step === 'setup'}
     {@render progress()}
-    <header class="page-head"><div><h1>Shortcuts</h1><p class="sub">{shortcuts?.conflicts.length ? `${shortcuts.conflicts.length} shortcuts clash. You can sort them out now or later.` : 'No shortcuts clash on this computer.'}</p></div></header>
+    <header class="page-head">
+      <div><h1>Shortcuts and tray</h1><p class="sub">{shortcuts?.conflicts.length ? `${shortcuts.conflicts.length} shortcuts clash. You can sort them out now or later.` : 'No shortcuts clash on this computer.'}</p></div>
+      <button type="button" class="btn ghost" onclick={finish}>Skip setup</button>
+    </header>
     {#if shortcuts?.conflicts.length}<ul class="list plain">{#each shortcuts.conflicts as conflict, i (`${conflict.chord}-${i}`)}<li class="row"><span class="dot warn"></span><span class="row-main">{conflict.a.label} <span class="faint">and</span> {conflict.b.label}</span><kbd class="key-chip">{conflict.chord}</kbd></li>{/each}</ul>{/if}
-    <div class="footer"><button type="button" class="btn ghost" onclick={() => step = 'choose'}>Back</button><span class="spacer"></span><button type="button" class="btn" onclick={() => onSelectTab('shortcuts')}>Open Shortcuts</button><button type="button" class="btn primary" onclick={() => step = 'tray'}>Continue</button></div>
-  {:else if step === 'tray'}
-    {@render progress()}
-    <header class="page-head"><div><h1>Tray and overlay</h1><p class="sub">One tray menu for every app, and a shortcut sheet on demand.</p></div></header>
-    <TraySettings active={active && step === 'tray'} busy={false} />
-    <div class="footer"><button type="button" class="btn ghost" onclick={() => step = 'shortcuts'}>Back</button><button type="button" class="btn primary" onclick={() => step = 'review'}>Continue</button></div>
+    <section class="section">
+      <div class="section-head"><h2>Tray and shortcut overlay</h2><span class="meta">One tray menu for every app, and a shortcut sheet on demand.</span></div>
+      <div class="list"><TraySettings active={active && step === 'setup'} busy={false} parts={['tray', 'overlay', 'login']} /></div>
+    </section>
+    <div class="footer"><button type="button" class="btn ghost" onclick={() => step = 'choose'}>Back</button><span class="spacer"></span><button type="button" class="btn" onclick={() => onSelectTab('shortcuts')}>Open Shortcuts</button><button type="button" class="btn primary" onclick={() => step = 'review'}>Continue</button></div>
   {:else if step === 'review'}
     {@render progress()}
-    <header class="page-head"><div><h1>Review and install</h1><p class="sub">Each install opens its own confirmation.</p></div></header>
-    <div class="list">{#each selectedApps as app (app.id)}<div class="row"><span class="glyph-tile sm"><img src="/glyphs/{app.id}.svg" alt="" width="15" height="15" /></span><span class="row-main"><span class="row-title">{app.name}</span><span class="row-sub">{app.pitch}</span></span>{#if app.installed || app.managed}{#if !app.managed && app.installationClass !== 'dev'}<button type="button" class="btn sm" onclick={() => run(() => confirmOperation(app, 'adopt'), app.name)}>Let Tools manage it</button>{:else}<span class="badge">Installed</span>{/if}{:else if !app.installSupported}<span class="badge">Unavailable</span>{:else}<button type="button" class="btn sm primary" onclick={() => run(() => onInstall(app), app.name)}>Review &amp; install</button>{/if}</div>{/each}</div>
-    <div class="footer"><button type="button" class="btn ghost" onclick={() => step = 'choose'}>Change selection</button><button type="button" class="btn primary" onclick={finish}>Finish setup</button></div>
+    <header class="page-head"><div><h1>Review and install</h1><p class="sub">Each install opens its own confirmation.</p></div><button type="button" class="btn ghost" onclick={finish}>Skip setup</button></header>
+    <div class="list">{#each selectedApps as app (app.id)}<div class="row"><span class="glyph-tile sm"><img src={glyph(app.id)} alt="" width="15" height="15" /></span><span class="row-main"><span class="row-title">{app.name}</span><span class="row-sub">{app.tagline}</span></span>{#if app.installed || app.managed}{#if !app.managed && app.installationClass !== 'dev'}<button type="button" class="btn sm" onclick={() => run(() => confirmOperation(app, 'adopt'), app.name)}>Let Tools manage it</button>{:else}<span class="badge">Installed</span>{/if}{:else if !app.installSupported}<span class="badge">Unavailable</span>{:else}<button type="button" class="btn sm primary" onclick={() => run(() => onInstall(app), app.name)}>Review &amp; install</button>{/if}</div>{/each}</div>
+    <div class="footer"><button type="button" class="btn ghost" onclick={() => step = 'setup'}>Back</button><button type="button" class="btn primary" onclick={finish}>Finish setup</button></div>
   {:else}
     <div class="welcome">
       <span class="glyph-tile lg done"><Icon name="check" size={24} /></span>
       <h1>You're all set</h1>
-      <p class="lede">Your apps are in Apps. You can run this setup again from Settings.</p>
+      <p class="lede">Your apps are in Apps. You can set them up again from Settings › General.</p>
       {#if shortcuts}<p class="tip muted">Press <kbd class="key-chip">{shortcuts.os === 'windows' ? 'Ctrl+Alt+/' : shortcuts.os === 'macos' ? 'Ctrl+Option+/' : 'Super+/'}</kbd> in any app to see its shortcuts.</p>{/if}
       <div class="btn-group"><button type="button" class="btn primary" onclick={onComplete}>Go to Home</button><button type="button" class="btn ghost" onclick={() => onSelectTab('learn')}>Read the guide</button><button type="button" class="btn ghost" onclick={() => step = 'choose'}>Choose more apps</button></div>
     </div>
@@ -118,8 +123,8 @@
 
 <style>
   .welcome { display: grid; justify-items: start; gap: 12px; max-width: 520px; padding: 48px 0 24px; }
-  .welcome h1 { margin-top: 8px; font-size: 26px; font-weight: 600; letter-spacing: -.02em; }
-  .lede { color: var(--muted); font-size: 14px; line-height: 1.6; }
+  .welcome h1 { margin-top: 8px; font-size: var(--fs-display); line-height: var(--lh-display); font-weight: var(--fw-display); }
+  .lede { color: var(--muted); font-size: var(--fs-heading); line-height: 1.6; }
   .welcome .btn-group { margin-top: 12px; }
   .done { color: var(--accent); }
   .tip { display: flex; align-items: center; gap: 6px; }
@@ -130,8 +135,8 @@
   .bundle-card { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 4px; margin: 0; color: var(--text); text-align: left; white-space: normal; overflow-wrap: anywhere; cursor: pointer; }
   .bundle-card + .bundle-card { margin-top: 0; }
   .bundle-card:hover { background: var(--sunken); }
-  .bundle-card span { color: var(--muted); font-size: 12.5px; }
-  .bundle-card small { color: var(--faint); font-size: 12px; }
+  .bundle-card span { color: var(--muted); font-size: var(--fs-control); }
+  .bundle-card small { color: var(--faint); font-size: var(--fs-small); }
   label.row .row-title, label.row .row-sub { display: block; }
   .plain { margin: 0; padding: 0; list-style: none; }
   .footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 24px; }

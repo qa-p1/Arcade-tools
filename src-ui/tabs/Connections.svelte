@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { asFailure } from '../lib/controller';
+  import { glyph } from '../lib/glyphs';
   import Icon from '../components/Icon.svelte';
   import { api, type ConnectionPeer, type ConnectionsView } from '../lib/api';
 
@@ -30,7 +32,7 @@
     loading = true;
     error = null;
     try { connections = await api.listConnections(); loaded = true; }
-    catch (problem) { error = problem instanceof Error ? problem.message : String(problem); }
+    catch (problem) { error = asFailure(problem).message; }
     finally { loading = false; }
   }
 
@@ -44,13 +46,13 @@
       <p class="sub">{connections ? `${peers.length} ${peers.length === 1 ? 'app' : 'apps'} connected · ${reachable} responding` : 'Arcade apps can pass files and text to each other.'}</p>
     </div>
     <div class="page-actions">
-      <button type="button" class="btn ghost" onclick={() => run(() => onLearn('arcade.ecosystem'))}><Icon name="book" size={14} />How it works</button>
-      <button type="button" class="btn" disabled={loading} onclick={() => run(refresh)}><Icon name="refresh" size={14} />{loading ? 'Checking…' : 'Refresh'}</button>
+      <button type="button" class="btn" onclick={() => run(() => onLearn('arcade.ecosystem'))}><Icon name="book" size={14} />How it works</button>
+      <button type="button" class="btn" class:busy={loading} disabled={loading} onclick={() => run(refresh)}><Icon name="refresh" size={14} />Refresh</button>
     </div>
   </header>
 
   {#if connections && !connections.linkEnabled}
-    <div class="notice warn"><Icon name="alert" /><span class="row-main">Connecting is turned off in Tools. Apps keep working on their own.</span><button type="button" class="btn sm" onclick={onSettings}>Settings</button></div>
+    <div class="notice warn"><Icon name="alert" /><span class="row-main">Connections are off in this app. Apps keep working on their own.</span><button type="button" class="btn sm" onclick={onSettings}>Turn on in Settings</button></div>
   {/if}
 
   {#if connections}
@@ -62,7 +64,7 @@
           {@const open = expanded === peer.id}
           <section class="peer" aria-label={peer.name}>
             <button type="button" class="row peer-row" aria-expanded={open} onclick={() => expanded = open ? null : peer.id}>
-              <span class="glyph-tile"><img src="/glyphs/{peer.id}.svg" alt="" width="18" height="18" /></span>
+              <span class="glyph-tile"><img src={glyph(peer.id)} alt="" width="18" height="18" /></span>
               <span class="row-main">
                 <span class="row-title">{peer.name}</span>
                 <span class="row-sub">{peer.actions.length ? `Offers ${peer.actions.length} ${peer.actions.length === 1 ? 'action' : 'actions'}` : 'Offers no actions'}{targets.length ? ` · sends to ${[...new Set(targets.map((flow) => flow.target.name.replace(/^Arcade /, '')))].join(', ')}` : ''}</span>
@@ -109,12 +111,7 @@
       </div>
     {/if}
   {:else if error}
-    <div class="empty-state">
-      <Icon name="alert" size={24} />
-      <h2>Connections could not be checked</h2>
-      <p>{error}</p>
-      <div class="btn-group"><button type="button" class="btn" onclick={() => run(refresh)}>Try again</button></div>
-    </div>
+    <div class="notice danger" role="alert"><Icon name="alert" /><span class="row-main">Couldn't check the connections. {error}</span><button type="button" class="btn sm" onclick={() => run(refresh)}>Retry</button></div>
   {:else}
     <div class="list">{#each [0, 1, 2] as item (item)}<div class="skeleton-row"><span class="glyph-tile skeleton"></span><div class="row-main"><div class="skeleton line skel"></div></div></div>{/each}</div>
   {/if}
@@ -129,8 +126,8 @@
   .chevron { display: grid; color: var(--faint); transition: transform .15s; }
   .chevron.open { transform: rotate(180deg); }
   .peer-detail { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px 24px; padding: 4px 14px 14px 62px; }
-  h3 { margin-bottom: 6px; color: var(--muted); font-size: 12px; font-weight: 600; }
-  ul { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: 12.5px; }
-  .detail-foot { display: flex; grid-column: 1 / -1; align-items: center; justify-content: space-between; gap: 12px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 12px; }
+  h3 { margin-bottom: 6px; color: var(--muted); font-size: var(--fs-small); font-weight: 600; }
+  ul { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: var(--fs-control); }
+  .detail-foot { display: flex; grid-column: 1 / -1; align-items: center; justify-content: space-between; gap: 12px; padding-top: 12px; border-top: 1px solid var(--line); font-size: var(--fs-small); }
   .skel { width: 40%; }
 </style>

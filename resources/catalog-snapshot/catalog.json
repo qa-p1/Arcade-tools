@@ -1,12 +1,13 @@
 {
   "schema": 1,
-  "updated": "2026-10-11",
+  "updated": "2026-10-14",
   "apps": [
     {
       "id": "arcade.box",
       "name": "Arcade Box",
       "repo": "qa-p1/Arcade-box",
       "pitch": "Run quick actions on files, media, and text",
+      "tagline": "File, media, text, web and system tasks in one searchable desktop tool.",
       "description": "Arcade Box brings file, media, text, and system tasks into one searchable action surface. Choose an input, run a tool, and use or save its result.",
       "category": "toolbox",
       "icon": "icons/arcade.box.svg",
@@ -29,6 +30,7 @@
       "name": "Arcade Clipboard",
       "repo": "qa-p1/Arcade-clipboard",
       "pitch": "Keep clipboard history in sync across devices",
+      "tagline": "An encrypted copy history, synced across your own devices.",
       "description": "Arcade Clipboard stores a history of copied text, links, images, and files and syncs it between your paired devices. Pairing uses a QR code, and clips are encrypted on each device.",
       "category": "clipboard",
       "icon": "icons/arcade.clipboard.png",
@@ -51,6 +53,7 @@
       "name": "Arcade Find",
       "repo": "qa-p1/Arcade-Find",
       "pitch": "Find files by name or content",
+      "tagline": "Press a shortcut, type, and any file or folder shows up.",
       "description": "Arcade Find indexes file names and metadata so you can search without waiting for a full disk scan. When ripgrep is installed, you can also search inside files.",
       "category": "files",
       "icon": "icons/arcade.find.svg",
@@ -73,6 +76,7 @@
       "name": "Arcade Lens",
       "repo": "qa-p1/Arcade-lens",
       "pitch": "Select a screen area and act on it",
+      "tagline": "Select anything on screen and act on it.",
       "description": "Arcade Lens lets you select an area of the screen and recognizes text, QR codes, colors, and other useful details. It offers actions for the selection without making you choose a separate tool first.",
       "category": "capture",
       "icon": "icons/arcade.lens.png",
@@ -93,13 +97,14 @@
     {
       "id": "arcade.look",
       "name": "Arcade Look",
-      "repo": "qa-p1/arcade-look",
+      "repo": "qa-p1/Arcade-look",
       "pitch": "Preview files without opening another app",
+      "tagline": "Press Space, see anything.",
       "description": "Arcade Look shows a quick preview of documents, media, images, folders, archives, and other files. Press Space on a selected file to see it, then open or act on it if needed.",
       "category": "files",
       "icon": "icons/arcade.look.svg",
       "screenshots": [
-        "https://raw.githubusercontent.com/qa-p1/arcade-look/main/docs/hero.webp"
+        "https://raw.githubusercontent.com/qa-p1/Arcade-look/main/docs/hero.webp"
       ],
       "platforms": {
         "linux": "verified",
@@ -112,13 +117,14 @@
       "minTools": "0.2.0",
       "docs": "README.md",
       "resident": true,
-      "homepage": "https://github.com/qa-p1/arcade-look"
+      "homepage": "https://github.com/qa-p1/Arcade-look"
     },
     {
       "id": "arcade.shelf",
       "name": "Arcade Shelf",
       "repo": "qa-p1/Arcade-Shelf",
       "pitch": "Keep files and notes close while you work",
+      "tagline": "A floating workspace for desktop content.",
       "description": "Arcade Shelf holds references to files, folders, links, and text in a small desktop workspace. Organize items into shelves, then drag them or send them to another app.",
       "category": "files",
       "icon": "icons/arcade.shelf.svg",
@@ -143,6 +149,7 @@
       "name": "Arcade Wheel",
       "repo": "qa-p1/Arcade-wheel",
       "pitch": "Launch apps and actions with a radial menu",
+      "tagline": "A radial launcher for the desktop. Hold a key, flick toward an action, release.",
       "description": "Arcade Wheel opens a radial menu while you hold a global shortcut. Move toward an action and release, or use a center gesture to run a group.",
       "category": "launcher",
       "icon": "icons/arcade.wheel.svg",
@@ -166,7 +173,8 @@
     "name": "Arcade Tools",
     "repo": "qa-p1/Arcade-tools",
     "minTools": "0.2.0",
-    "icon": "icons/arcade.tools.svg"
+    "icon": "icons/arcade.tools.svg",
+    "tagline": "The optional home for the Arcade apps."
   },
   "bundles": [
     {

@@ -104,7 +104,16 @@ impl TrayModel {
         updates: usize,
         overlay: bool,
     ) -> Self {
+        // The sidebar's order: Home, then Updates (with its count, like the
+        // sidebar badge), then Shortcuts.
         let mut items = vec![item("tools/open", "Open Arcade Tools", Action::OpenTools)];
+        if updates > 0 {
+            items.push(item(
+                "tools/updates",
+                format!("Updates ({updates})"),
+                Action::Updates,
+            ));
+        }
         if overlay {
             items.push(item(
                 "tools/shortcuts",
@@ -114,13 +123,6 @@ impl TrayModel {
                     "Show shortcuts".into()
                 },
                 Action::Shortcuts,
-            ));
-        }
-        if updates > 0 {
-            items.push(item(
-                "tools/updates",
-                format!("{updates} updates available…"),
-                Action::Updates,
             ));
         }
         items.push(Item::Separator);
@@ -142,7 +144,7 @@ impl TrayModel {
             )];
             if state.running {
                 if state.methods.iter().any(|m| m == "app.settings") {
-                    children.push(peer(id, "Open Settings", PeerCommand::Settings));
+                    children.push(peer(id, "Settings", PeerCommand::Settings));
                 }
                 for extra in &document.additions.menu {
                     if extra.kind == MenuKind::Separator {
@@ -164,9 +166,9 @@ impl TrayModel {
                 }
                 children.push(Item::Separator);
                 if state.methods.iter().any(|m| m == "app.restart") {
-                    children.push(peer(id, "Restart", PeerCommand::Restart));
+                    children.push(peer(id, format!("Restart {name}"), PeerCommand::Restart));
                 }
-                children.push(peer(id, "Quit", PeerCommand::Quit));
+                children.push(peer(id, format!("Quit {name}"), PeerCommand::Quit));
             } else if let Some(login) = state.login {
                 let mut entry = item(
                     &format!("{id}/login"),
@@ -186,13 +188,13 @@ impl TrayModel {
                 // With Arcade Link off, the app may well be running; Tools
                 // just can't reach it.
                 title.push_str(if document.manifest.settings.link_enabled {
-                    " (not running)"
+                    " · Not running"
                 } else {
-                    " (Arcade Link off)"
+                    " · Connections off"
                 });
             }
             if prefs.excluded.iter().any(|e| e == id) {
-                title.push_str(" (own icon)");
+                title.push_str(" · Own icon");
             }
             items.push(Item::Submenu {
                 title,
@@ -204,6 +206,7 @@ impl TrayModel {
             Item::Separator,
             item("tools/start-all", "Start all Arcade apps", Action::StartAll),
             item("tools/quit-all", "Quit all Arcade apps", Action::QuitAll),
+            Item::Separator,
             item("tools/quit", "Quit Arcade Tools", Action::QuitTools),
         ]);
         Self {
@@ -258,8 +261,8 @@ mod tests {
                 _ => None,
             })
             .collect();
-        assert_eq!(submenus[0].0, "Arcade Box (not running)");
-        assert_eq!(submenus[1].0, "Arcade Find (own icon)");
+        assert_eq!(submenus[0].0, "Arcade Box · Not running");
+        assert_eq!(submenus[1].0, "Arcade Find · Own icon");
         assert!(submenus[0].1.iter().any(|i| matches!(
             i,
             Item::Action {
@@ -275,7 +278,7 @@ mod tests {
         off.manifest.settings.link_enabled = false;
         let model = TrayModel::build(&[off], &states, &prefs, 0, false);
         assert!(model.items.iter().any(
-            |i| matches!(i, Item::Submenu { title, .. } if title == "Arcade Box (Arcade Link off)")
+            |i| matches!(i, Item::Submenu { title, .. } if title == "Arcade Box · Connections off")
         ));
         let empty = TrayModel::build(&[], &BTreeMap::new(), &prefs, 0, false);
         assert!(!empty.badge);
@@ -286,6 +289,23 @@ mod tests {
                 ..
             }
         )));
+    }
+
+    #[test]
+    fn menu_follows_the_sidebar_and_quit_comes_last_after_a_separator() {
+        let model = TrayModel::build(&[], &BTreeMap::new(), &Preferences::default(), 3, true);
+        let titles: Vec<&str> = model
+            .items
+            .iter()
+            .map(|i| match i {
+                Item::Action { title, .. } => title.as_str(),
+                Item::Separator => "-",
+                Item::Submenu { title, .. } => title.as_str(),
+            })
+            .collect();
+        assert_eq!(&titles[..2], ["Open Arcade Tools", "Updates (3)"]);
+        assert!(titles[2].starts_with("Show shortcuts"));
+        assert_eq!(&titles[titles.len() - 2..], ["-", "Quit Arcade Tools"]);
     }
 
     #[test]

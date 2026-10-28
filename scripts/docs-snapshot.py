@@ -12,6 +12,7 @@ import hashlib
 import json
 import os
 from pathlib import Path, PurePosixPath
+import posixpath
 import re
 import sys
 import tempfile
@@ -24,6 +25,22 @@ CATALOG_URL = "https://raw.githubusercontent.com/qa-p1/Arcade-catalog/main/catal
 CATALOG_REPO = "qa-p1/Arcade-catalog"
 HOSTS = {"api.github.com", "raw.githubusercontent.com", "github.com"}
 EXTENSIONS = {".md", ".txt", ".json", ".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg", ".avif"}
+IMAGES = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg", ".avif"}
+# Inline links and images, reference definitions, and HTML src/href.
+LINKS = re.compile(r'(?P<pre>!?\[[^\]]*\]\()(?P<url><[^>]*>|[^)\s]+)|(?P<rpre>^\s*\[[^\]]+\]:\s*)(?P<rurl>\S+)|(?P<hpre>\b(?:src|href)=")(?P<hurl>[^"]+)', re.M)
+EXTERNAL = "_external"
+
+
+def external(target):
+    return target.startswith(("#", "//")) or re.match(r"[a-z][a-z0-9+.-]*:", target, re.I) is not None
+
+
+def links(text):
+    """Every link target in a Markdown file, with its span."""
+    for match in LINKS.finditer(text):
+        for name in ("url", "rurl", "hurl"):
+            if match.group(name):
+                yield match.span(name), match.group(name).strip("<>")
 
 
 def trusted_url(url):
@@ -121,6 +138,50 @@ class Snapshot:
                                 "sha256": hashlib.sha256(content).hexdigest()})
         self.size += len(content)
 
+    def keep_links_inside(self, entry, docs_path, read):
+        """User guides link only inside docs/user or to absolute URLs (STANDARD
+        §10): a link that leaves the folder becomes the file's GitHub URL on the
+        app's main branch, and an image it shows is copied into the snapshot.
+        `read(repo_path)` returns a repository file's bytes, or None."""
+        root = self.stage / entry["id"] / entry["version"]
+        for item in list(entry["files"]):
+            if not item["path"].endswith(".md"):
+                continue
+            path = root / item["path"]
+            text = path.read_bytes().decode("utf-8", "replace")
+            folder = posixpath.dirname(item["path"])
+            out, last = [], 0
+            for (start, end), target in links(text):
+                if external(target):
+                    continue
+                location, _, fragment = target.partition("#")
+                location = location.split("?", 1)[0]
+                if not location:
+                    continue
+                inside = posixpath.normpath(posixpath.join(folder, location))
+                if not inside.startswith("../") and inside != "..":
+                    continue
+                repo_path = posixpath.normpath(posixpath.join(docs_path, inside))
+                if repo_path.startswith(".."):
+                    new = f"https://github.com/{entry['repo']}"
+                elif PurePosixPath(repo_path).suffix.lower() in IMAGES and (content := read(repo_path)) is not None:
+                    copy = f"{EXTERNAL}/{repo_path}"
+                    if copy not in {f["path"] for f in entry["files"]}:
+                        self.add_file(entry, copy, content)
+                    new = posixpath.relpath(copy, folder or ".")
+                else:
+                    new = f"https://github.com/{entry['repo']}/blob/main/{repo_path}" + (f"#{fragment}" if fragment else "")
+                out.append(text[last:start] + new)
+                last = end
+            if not out:
+                continue
+            content = ("".join(out) + text[last:]).encode("utf-8")
+            self.size += len(content) - item["size"]
+            if self.size > self.budget:
+                raise ValueError("Docs budget exceeded")
+            path.write_bytes(content)
+            item.update(size=len(content), sha256=hashlib.sha256(content).hexdigest())
+
     def local(self, entry, repository, docs_path):
         if repository is None:
             entry["status"] = "no_checkout"
@@ -150,6 +211,13 @@ class Snapshot:
                     content = stream.read(self.budget - self.size + 1)
                 self.add_file(entry, path.relative_to(source).as_posix(), content)
         entry["status"] = "snapshotted" if entry["files"] else "no_docs"
+
+        def read(repo_path):
+            file = repository / repo_path
+            if file.is_symlink() or not file.is_file() or repository not in file.resolve().parents:
+                return None
+            return file.read_bytes() if file.stat().st_size <= self.budget - self.size else None
+        self.keep_links_inside(entry, docs_path, read)
 
     def remote(self, entry, docs_path):
         pending = [docs_path]
@@ -185,6 +253,15 @@ class Snapshot:
                     raise ValueError("Docs snapshot cannot contain symlinks/submodules")
         entry["status"] = "snapshotted" if entry["files"] else "no_docs"
 
+        def read(repo_path):
+            safe_relative(repo_path)
+            raw = f"https://raw.githubusercontent.com/{entry['repo']}/{quote(entry['ref'], safe='')}/{quote(repo_path, safe='/')}"
+            try:
+                return fetch(raw, self.budget - self.size)
+            except HTTPError:
+                return None
+        self.keep_links_inside(entry, docs_path, read)
+
     def finish(self):
         manifest = {"schema": 1, "contentBytes": self.size, "entries": self.entries}
         content = (json.dumps(manifest, indent=2, ensure_ascii=False) + "\n").encode()
@@ -192,6 +269,24 @@ class Snapshot:
             raise ValueError("Docs budget exceeded by manifest")
         (self.stage / "manifest.json").write_bytes(content)
         return self.size + len(content)
+
+
+def broken_links(root):
+    """Relative links under `root` that don't reach a file inside it."""
+    root = root.resolve()
+    found = []
+    for path in sorted(root.rglob("*.md")):
+        text = path.read_text(encoding="utf-8", errors="replace")
+        for _, target in links(text):
+            if external(target):
+                continue
+            location = target.partition("#")[0].split("?", 1)[0]
+            if not location:
+                continue
+            resolved = (path.parent / location).resolve()
+            if root not in resolved.parents or not resolved.is_file():
+                found.append(f"{path.relative_to(root)}: {target}")
+    return found
 
 
 def main(argv=None):
@@ -202,7 +297,15 @@ def main(argv=None):
     parser.add_argument("--catalog", type=Path, help="Explicit schema-1 catalog file")
     parser.add_argument("--out", type=Path, default=Path(__file__).resolve().parents[1] / "src-tauri/resources/docs")
     parser.add_argument("--budget-bytes", type=int, default=BUDGET, help="Lower test budget; cannot exceed 8 MB")
+    parser.add_argument("--check-links", type=Path, nargs="+", metavar="DIR",
+                        help="Only check: fail on any relative link that doesn't reach a file inside DIR")
     args = parser.parse_args(argv)
+    if args.check_links:
+        broken = [f"{folder}/{link}" for folder in args.check_links for link in broken_links(folder)]
+        for link in broken:
+            print(f"broken: {link}", file=sys.stderr)
+        print(f"Checked links in {', '.join(map(str, args.check_links))}: {len(broken)} broken")
+        return 1 if broken else 0
     if not 0 < args.budget_bytes <= BUDGET:
         parser.error("Budget must be positive and no greater than 8 MB")
     local = args.from_local.resolve() if args.from_local else None

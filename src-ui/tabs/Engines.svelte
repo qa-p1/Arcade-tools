@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { asFailure } from '../lib/controller';
   import Icon from '../components/Icon.svelte';
   import { api, type EngineView } from '../lib/api';
   import { askForConfirmation, ui } from '../lib/state.svelte';
@@ -31,7 +32,7 @@
     loading = true;
     error = null;
     try { engines = await api.listEngines(refresh); loaded = true; }
-    catch (problem) { error = problem instanceof Error ? problem.message : String(problem); }
+    catch (problem) { error = asFailure(problem).message; }
     finally { loading = false; }
   }
 
@@ -68,19 +69,14 @@
       <p class="sub">{loaded ? `${found.length} of ${engines.length} found · ` : ''}Optional programs that unlock extra features in some apps.</p>
     </div>
     <div class="page-actions">
-      <button type="button" class="btn" disabled={loading} onclick={() => run(() => load(true))}><Icon name="refresh" size={14} />{loading ? 'Checking…' : 'Check again'}</button>
+      <button type="button" class="btn" class:busy={loading} disabled={loading} onclick={() => run(() => load(true))}><Icon name="refresh" size={14} />Check again</button>
     </div>
   </header>
 
   {#if downloadMessage}<div class="notice ok" role="status"><Icon name="check" /><span class="row-main">{downloadMessage}</span></div>{/if}
 
   {#if error && !engines.length}
-    <div class="empty-state">
-      <Icon name="alert" size={24} />
-      <h2>Engines could not be checked</h2>
-      <p>{error}</p>
-      <div class="btn-group"><button type="button" class="btn" onclick={() => run(() => load())}>Try again</button></div>
-    </div>
+    <div class="notice danger" role="alert"><Icon name="alert" /><span class="row-main">Couldn't check the engines. {error}</span><button type="button" class="btn sm" onclick={() => run(() => load())}>Retry</button></div>
   {:else if engines.length}
     <div class="list">
       {#each ordered as engine (engine.id)}
@@ -119,7 +115,7 @@
 <style>
   .notice { margin-bottom: 12px; }
   .engine + .engine { border-top: 1px solid var(--line); }
-  h2.row-title { font-size: 13px; font-weight: 600; }
+  h2.row-title { font-size: var(--fs-body); font-weight: 600; }
   .row-extra { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-left: 14px; }
   .hint { display: flex; flex: 1; align-items: center; gap: 8px; min-width: 0; padding: 4px 4px 4px 10px; border-radius: var(--radius-sm); background: var(--sunken); }
   .hint code { flex: 1; min-width: 0; overflow-wrap: anywhere; }

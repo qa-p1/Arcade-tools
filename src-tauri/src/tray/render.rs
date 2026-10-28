@@ -38,6 +38,7 @@ mod platform {
         fn tool_tip(&self) -> ksni::ToolTip {
             ksni::ToolTip {
                 title: "Arcade Tools".into(),
+                description: arcade_link::manifest::app_pitch("arcade.tools").into(),
                 ..Default::default()
             }
         }
@@ -203,7 +204,8 @@ mod native {
             let menu_dispatch = dispatch.clone();
             TrayIconBuilder::with_id("arcade-tools")
                 .icon(Image::new_owned(assets::mark(model.badge), 32, 32))
-                .tooltip("Arcade Tools")
+                .icon_as_template(cfg!(target_os = "macos"))
+                .tooltip(assets::tooltip())
                 .menu(&menu)
                 .show_menu_on_left_click(cfg!(target_os = "macos"))
                 .on_menu_event(move |_, event| {
@@ -255,6 +257,8 @@ mod native {
                             32,
                             32,
                         )));
+                        #[cfg(target_os = "macos")]
+                        let _ = tray.set_icon_as_template(true);
                     }
                 }
             }

@@ -1,8 +1,9 @@
 use crate::apps::app_name;
 use crate::release::Os;
 use crate::{Error, Result};
+use arcade_link::accelerator::Platform;
 use arcade_link::manifest::ids;
-use arcade_link::paths::Locations;
+use arcade_link::paths::{self as link_paths, AppDirs, Locations, Migration, UserDirs};
 use std::path::{Component, Path, PathBuf};
 
 #[derive(Debug, Clone)]
@@ -60,19 +61,52 @@ impl Paths {
             isolated: true,
         }
     }
+    /// These roots as Link's user folders, for the shared `arcade/<app>` layout.
+    pub fn user_dirs(&self) -> UserDirs {
+        UserDirs {
+            home: self.home.clone(),
+            config: self.config.clone(),
+            data: self.data.clone(),
+            cache: self.cache.clone(),
+            roaming: self.roaming.clone(),
+            local: self.local.clone(),
+        }
+    }
+    /// An app's config, data and cache folders (`arcade/<app>`, STANDARD §10).
+    pub fn app_dirs(&self, id: &str, os: Os) -> AppDirs {
+        link_paths::app_dirs_in(&self.user_dirs(), platform(os), id)
+    }
+    /// Moves Tools' own folders from their 0.3 locations (`arcade-tools`,
+    /// `app.arcadetools`) into `arcade/tools`. Safe to run on every start.
+    pub fn migrate_own_folders(&self) -> Migration {
+        link_paths::migrate_app_dirs_in(&self.user_dirs(), platform(Os::current()), ids::TOOLS)
+    }
+    fn own(&self) -> AppDirs {
+        self.app_dirs(ids::TOOLS, Os::current())
+    }
+    /// Tools' state: preferences, receipts' history, tray settings.
     pub fn state(&self) -> PathBuf {
-        self.data.join("arcade-tools")
+        self.own().data
     }
     pub fn downloads(&self) -> PathBuf {
-        self.cache.join("arcade-tools/downloads")
+        self.own().cache.join("downloads")
+    }
+    /// Tools' log (stderr when nothing else receives it, via Link's logs).
+    pub fn logs(&self) -> PathBuf {
+        self.state().join("logs")
     }
     /// Path calculation only; no I/O, safe on any thread.
     pub fn catalog(&self) -> PathBuf {
-        self.cache.join("arcade/tools/catalog")
+        self.own().cache.join("catalog")
     }
     /// Path calculation only; no I/O, safe on any thread.
     pub fn docs(&self) -> PathBuf {
-        self.cache.join("arcade/tools/docs")
+        self.own().cache.join("docs")
+    }
+    /// The Tools window's webview storage (Linux and Windows; macOS keeps
+    /// WebKit's own per-bundle folders).
+    pub fn webview(&self) -> PathBuf {
+        self.own().cache.join("webview")
     }
     pub fn install_root(&self, id: &str, os: Os, tarball: bool) -> PathBuf {
         match os {
@@ -118,7 +152,28 @@ impl Paths {
             }),
         }
     }
+    /// Every folder an app's settings and data may be in: its 0.3 locations,
+    /// the shared `arcade/<app>` folders (STANDARD §10) and every older location
+    /// Link knows, so backup, diagnostics and "remove data" find them whether
+    /// or not the app has moved yet. Not every folder exists.
     pub fn data_folders(&self, id: &str, os: Os) -> Vec<PathBuf> {
+        let mut folders = self.known_data_folders(id, os);
+        if !ids::APPS.contains(&id) && id != ids::TOOLS {
+            return folders;
+        }
+        let dirs = self.app_dirs(id, os);
+        let legacy = link_paths::legacy_dirs_in(&self.user_dirs(), platform(os), id);
+        for folder in [dirs.config, dirs.data, dirs.cache]
+            .into_iter()
+            .chain(legacy.into_iter().map(|dir| dir.path))
+        {
+            if !folders.contains(&folder) {
+                folders.push(folder);
+            }
+        }
+        folders
+    }
+    fn known_data_folders(&self, id: &str, os: Os) -> Vec<PathBuf> {
         match os {
             Os::Linux => match id {
                 ids::BOX => vec![
@@ -143,7 +198,7 @@ impl Paths {
                     self.data.join("dev.arcade.clipboard"),
                     self.data.join("clipboard"),
                 ],
-                ids::TOOLS => vec![self.state()],
+                ids::TOOLS => vec![],
                 _ => vec![],
             },
             Os::Windows => match id {
@@ -166,7 +221,7 @@ impl Paths {
                     self.local.join("Arcade/Arcade Find"),
                 ],
                 ids::CLIPBOARD => vec![self.roaming.join("dev.arcade/clipboard")],
-                ids::TOOLS => vec![self.state()],
+                ids::TOOLS => vec![],
                 _ => vec![],
             },
             Os::Macos => {
@@ -188,7 +243,7 @@ impl Paths {
                     crate::apps::SHELF => vec![support.join("qa-p1/ArcadeShelf")],
                     crate::apps::FIND => vec![support.join("Arcade Find")],
                     ids::CLIPBOARD => vec![support.join("dev.arcade.clipboard")],
-                    ids::TOOLS => vec![self.state()],
+                    ids::TOOLS => vec![],
                     _ => vec![],
                 }
             }
@@ -432,5 +487,14 @@ mod tests {
             assert!(paths.guard(&directory.join("child")).is_err());
         }
         assert!(paths.guard_receipt(ids::TOOLS).is_err());
+    }
+}
+
+/// Link's name for an OS.
+fn platform(os: Os) -> Platform {
+    match os {
+        Os::Linux => Platform::Linux,
+        Os::Windows => Platform::Windows,
+        Os::Macos => Platform::Macos,
     }
 }

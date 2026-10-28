@@ -47,6 +47,11 @@ export const ui = $state({
   testing: false,
   message: '',
   messageError: false,
+  // Each message is shown afresh, even with the same text; "Copied" lasts 1.5 s.
+  messageSerial: 0,
+  // Set when the apps couldn't be listed; Home offers Retry.
+  loadError: '',
+  messageDuration: 5000,
   dialog: null as ConfirmationState | null,
   phase: '',
   progress: null as number | null,

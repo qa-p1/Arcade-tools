@@ -51,7 +51,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: qa-p1/Arcade-Link
-          ref: 3bbbc5d0d7d383e18c7e7e20552e942c1a971abd
+          ref: v0.4.0
           path: Arcade-link
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -62,7 +62,7 @@ jobs:
           workspaces: Arcade-tools
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version-file: Arcade-tools/.nvmrc
           cache: npm
           cache-dependency-path: Arcade-tools/package-lock.json
       - uses: actions/setup-python@v5
@@ -79,10 +79,17 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run build
+      - name: UI checks (races, ux, layout) against the mock backend
+        if: runner.os == 'Linux'
+        run: |
+          npx playwright install --with-deps chromium
+          npm run ui-checks
       - run: python3 scripts/ui-size.py
       - run: python3 scripts/verify-vendored.py
+      - run: python3 scripts/check-versions.py
       - run: python3 scripts/validate_shortcuts.py docs/user/shortcuts.json
       - run: python3 scripts/test-docs-snapshot.py
+      - run: python3 scripts/docs-snapshot.py --check-links docs/user
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - name: Standalone suite in a disposable desktop session
@@ -100,6 +107,24 @@ jobs:
         run: npm run tauri -- build --config src-tauri/tauri.bundle.conf.json --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
       - name: Package smoke in a disposable profile
         run: python3 scripts/verify-package.py --target ${{ matrix.target }}
+      # Link's nightly ecosystem check installs, updates, repairs and removes
+      # this exact build (it fetches tools-installer-ubuntu-* from main runs).
+      - name: Stage the Linux installer for the ecosystem check
+        if: runner.os == 'Linux' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          mkdir -p target/ci-installer
+          for image in target/${{ matrix.target }}/release/bundle/appimage/*.AppImage; do
+            cp "$image" "target/ci-installer/$(basename "$image" | tr ' ' '-')"
+          done
+          python3 scripts/arcade-release.py --id arcade.tools --version "$(python3 scripts/check-versions.py --print)" \
+            --channel nightly --notes "https://github.com/${{ github.repository }}/commit/${{ github.sha }}" target/ci-installer
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Linux' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        with:
+          name: tools-installer-ubuntu-${{ github.sha }}
+          path: Arcade-tools/target/ci-installer/*
+          retention-days: 14
+          if-no-files-found: error
 
   overlay:
     name: Overlay / ${{ matrix.os }} / Rust 1.88

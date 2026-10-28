@@ -9,8 +9,7 @@
   import {
     attempt, cancelOperation, changeChannel, confirmSelfUpdate, changeLogin, checkAllUpdates, checkUpdates, checkUpdatesOnWindowOpen, confirmOperation,
     initialize, installBundle, openLearn, updateAll, launchAll, launchApp, openReleases, receiveInstallRequest, receiveProgress, refresh, reviewInstall, reviewUpdate, setAutoUpdate, setMessage, toggleLink,
-    setUpdateChecks,
-  } from './lib/controller';
+    setUpdateChecks, asFailure } from './lib/controller';
   import Apps from './tabs/Apps.svelte';
   import Engines from './tabs/Engines.svelte';
   import Home from './tabs/Home.svelte';
@@ -20,9 +19,10 @@
   import { ui, type Theme } from './lib/state.svelte';
   import { setShortcutsEnabled, type ShellTab } from './lib/tabs.svelte';
   import Icon from './components/Icon.svelte';
+  import { tooltip } from './lib/tooltip';
+  import { sidebarCollapsed } from './lib/motion';
 
   let revision = 0;
-  let linkInput: HTMLInputElement;
   let LearnView = $state<typeof import('./tabs/Learn.svelte').default | null>(null);
   let ConnectionsView = $state<typeof import('./tabs/Connections.svelte').default | null>(null);
   let ShortcutsView = $state<typeof import('./tabs/Shortcuts.svelte').default | null>(null);
@@ -183,7 +183,8 @@
         const trayIntent = await invoke<string | null>('tray_ui_intent');
         openIntent(trayIntent);
       } catch (error) {
-        setMessage(error instanceof Error ? error.message : String(error), true);
+        ui.loadError = asFailure(error).message;
+        setMessage(ui.loadError, true);
       } finally {
         windowReady();
       }
@@ -208,7 +209,6 @@
       await toggleLink(enabled);
     } catch (error) {
       ui.linkEnabled = previous;
-      if (linkInput) linkInput.checked = previous;
       throw error;
     }
   }
@@ -277,13 +277,13 @@
 
 <div class="app-shell">
   <Sidebar active={ui.tab} counts={{ updates: updateCount }} onSelect={selectTab}>
-    <label class="switch-row" title="Let Arcade apps find each other and work together">
-      <span>Connect apps</span>
-      <input id="link" class="switch" bind:this={linkInput} type="checkbox" aria-label="Connect with other Arcade apps" checked={ui.linkEnabled} disabled={ui.busy} onchange={(event) => run(() => setLink(event.currentTarget.checked))} />
-    </label>
+    <button id="link-status" class="sidebar-status" type="button" aria-label={ui.linkEnabled ? 'Apps connected. Open Connections' : 'Not connected. Open Connections'} use:tooltip={{ text: ui.linkEnabled ? 'Apps connected' : 'Not connected', when: sidebarCollapsed }} onclick={() => selectTab('connections')}>
+      <!-- An <i>: the collapsed sidebar hides this button's spans but keeps the dot. -->
+      <i class="dot" class:ok={ui.linkEnabled}></i><span>{ui.linkEnabled ? 'Apps connected' : 'Not connected'}</span>
+    </button>
     <div class="sidebar-meta">
       <span>Version {__TOOLS_VERSION__}</span>
-      <button id="refresh" class="btn ghost icon-only sm" type="button" aria-label="Refresh" title="Refresh" disabled={ui.busy} onclick={() => run(refresh)}><Icon name="refresh" size={15} /></button>
+      <button id="refresh" class="btn ghost icon-only sm" type="button" aria-label="Refresh" use:tooltip={{ text: 'Refresh' }} disabled={ui.busy} onclick={() => run(refresh)}><Icon name="refresh" size={15} /></button>
     </div>
   </Sidebar>
   <div class="shell-main">
@@ -357,6 +357,7 @@
         notificationsEnabled={ui.notificationsEnabled}
         onUpdateChecks={setUpdateChecks}
         onOnboarding={() => selectTab('onboarding')}
+        onSelectTab={selectTab}
         onTheme={updateTheme}
         onLink={setLink}
         {run}
@@ -380,7 +381,7 @@
         />
       {/if}
     </main>
-    <Message text={ui.message} error={ui.messageError} raised={ui.busy} />
+    <Message text={ui.message} error={ui.messageError} raised={ui.busy} serial={ui.messageSerial} duration={ui.messageDuration} />
   </div>
 </div>
 <ProgressBar visible={ui.busy} phase={ui.phase} progress={ui.progress} cancellable={ui.cancellable} onCancel={() => run(cancelOperation)} />

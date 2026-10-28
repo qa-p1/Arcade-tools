@@ -10,7 +10,7 @@
   const app = (id, extra = {}) => {
     const entry = CATALOG.apps.find((a) => a.id === id);
     return {
-      id, name: entry.name, pitch: entry.pitch, releasesUrl: `https://github.com/${entry.repo}/releases`,
+      id, name: entry.name, pitch: entry.pitch, tagline: entry.tagline ?? entry.pitch, releasesUrl: `https://github.com/${entry.repo}/releases`,
       version: '1.0.0', managed: true, installed: true, running: false, channel: 'stable', healthy: true,
       startAtLogin: false, loginSupported: true, executable: `/home/u/Applications/Arcade/${id}.AppImage`,
       dataFolders: [`/home/u/.config/${id}`], reason: null, description: entry.description, category: entry.category,
@@ -34,6 +34,8 @@
     tools_app: () => ({ ...app('arcade.box'), id: 'arcade.tools', name: 'Arcade Tools', version: '0.2.1' }),
     self_install_proposal: () => null,
     shortcuts_index: () => null,
+    rebuild_shortcut_index: () => ({ error: null }),
+    set_app_shortcut: () => ({ applied: true, via: 'hyprland' }),
     shortcut_labels: () => ({}),
     catalog_data: () => ({ catalog: CATALOG, engines: ENGINES }),
     tray_ui_intent: () => null,

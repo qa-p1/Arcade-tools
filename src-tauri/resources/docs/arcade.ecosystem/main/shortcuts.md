@@ -40,6 +40,6 @@ your window manager, edit that configuration yourself; Tools only reads it.
 Arcade apps also warn when another Arcade app already uses the shortcut.
 
 To add or update a third-party shortcut sheet, follow
-[CONTRIBUTING.md](../CONTRIBUTING.md).
+[CONTRIBUTING.md](https://github.com/qa-p1/Arcade-catalog/blob/main/CONTRIBUTING.md).
 For app installation, see [Installing and updating](installing.md); for the
 shared action menu, see [One tray icon](tray.md).

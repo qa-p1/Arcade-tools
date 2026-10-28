@@ -15,11 +15,12 @@ native-tray-check = ["tauri/tray-icon"]
 [build-dependencies]
 tauri-build = { version = "=2.6.3", features = [] }
 resvg = { version = "0.45", default-features = false }
+arcade-link = { git = "https://github.com/qa-p1/Arcade-Link", tag = "v0.4.0", features = ["design"] }
 
 [dependencies]
 arcade-tools-core = { path = ".." }
 # Shared tray and installer contracts are pinned to the released Link tag.
-arcade-link = { git = "https://github.com/qa-p1/Arcade-Link", rev = "3bbbc5d0d7d383e18c7e7e20552e942c1a971abd", features = ["watch", "install", "trayhost"] }
+arcade-link = { git = "https://github.com/qa-p1/Arcade-Link", tag = "v0.4.0", features = ["watch", "install", "trayhost", "design"] }
 arcade-shortcuts = { path = "../crates/arcade-shortcuts" }
 arcade-tools-overlay = { path = "../crates/arcade-tools-overlay" }
 tauri = { version = "=2.11.6", features = [] }
@@ -39,4 +40,8 @@ webkit2gtk = { version = "2", features = ["v2_16"] }
 
 [target.'cfg(any(target_os = "windows", target_os = "macos"))'.dependencies]
 tauri = { version = "=2.11.6", features = ["tray-icon"] }
+
+[target.'cfg(windows)'.dependencies]
+# The taskbar's light/dark setting picks the tray glyph's colour.
+windows-sys = { version = "0.61", features = ["Win32_System_Registry"] }
 

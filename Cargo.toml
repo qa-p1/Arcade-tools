@@ -16,7 +16,7 @@ resolver = "2"
 # against a local checkout instead, add to .cargo/config.toml (not committed):
 #   [patch."https://github.com/qa-p1/Arcade-Link"]
 #   arcade-link = { path = "<path to>/Arcade-link/crates/arcade-link" }
-arcade-link = { git = "https://github.com/qa-p1/Arcade-Link", rev = "3bbbc5d0d7d383e18c7e7e20552e942c1a971abd", features = ["watch", "install", "engines", "trayhost"] }
+arcade-link = { git = "https://github.com/qa-p1/Arcade-Link", tag = "v0.4.0", features = ["watch", "install", "engines", "trayhost"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 reqwest = { version = "0.13", default-features = false, features = ["blocking", "rustls"] }

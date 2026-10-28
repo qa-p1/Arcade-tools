@@ -38,9 +38,10 @@ pub struct Overlay {
 }
 
 impl Overlay {
-    fn new(model: Model, dark: bool, timing: Timing) -> Self {
+    fn new(model: Model, dark: bool, follow_system: bool, timing: Timing) -> Self {
         let began = std::time::Instant::now();
-        let renderer = Renderer::new(dark);
+        let mut renderer = Renderer::new(dark);
+        renderer.follow_system = follow_system;
         timing.phase("fonts", began);
         Self {
             model,
@@ -160,8 +161,9 @@ pub fn run(
     instance: &Instance,
     timing: Timing,
     dark: bool,
+    follow_system: bool,
 ) -> Result<(), String> {
-    let overlay = Overlay::new(model, dark, timing);
+    let overlay = Overlay::new(model, dark, follow_system, timing);
     #[cfg(target_os = "linux")]
     if crate::focus::is_wayland() {
         let began = std::time::Instant::now();
@@ -172,6 +174,38 @@ pub fn run(
         }
     }
     desktop::run(overlay, focus, instance)
+}
+
+/// Tools' Appearance setting: `Some(dark)` for Light or Dark, `None` for
+/// System (or no setting yet). Read from Tools' preferences, in the new
+/// `arcade/tools` folder or the 0.3 one.
+pub fn tools_appearance() -> Option<bool> {
+    use arcade_link::paths::{self, Kind, UserDirs};
+    let user = match std::env::var_os("ARCADE_HOME").filter(|v| !v.is_empty()) {
+        Some(root) => UserDirs::under(std::path::Path::new(&root)),
+        None => UserDirs::discover(),
+    };
+    let os = paths::current_os();
+    let mut folders = vec![paths::app_dirs_in(&user, os, "arcade.tools").data];
+    folders.extend(
+        paths::legacy_dirs_in(&user, os, "arcade.tools")
+            .into_iter()
+            .filter(|dir| dir.kind == Kind::Data)
+            .map(|dir| dir.path),
+    );
+    let text = folders
+        .iter()
+        .find_map(|folder| std::fs::read_to_string(folder.join("preferences.json")).ok())?;
+    appearance(&text)
+}
+
+fn appearance(preferences: &str) -> Option<bool> {
+    let value: serde_json::Value = serde_json::from_str(preferences).ok()?;
+    match value.get("theme")?.as_str()? {
+        "dark" => Some(true),
+        "light" => Some(false),
+        _ => None,
+    }
 }
 
 /// Cheap GTK preference read, called on the startup loader worker. Native
@@ -223,6 +257,18 @@ fn gtk_dark(settings: &str) -> Option<bool> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn tools_appearance_wins_unless_it_is_system() {
+        assert_eq!(appearance(r#"{"theme":"dark"}"#), Some(true));
+        assert_eq!(
+            appearance(r#"{"theme":"light","linkEnabled":true}"#),
+            Some(false)
+        );
+        assert_eq!(appearance(r#"{"theme":"system"}"#), None);
+        assert_eq!(appearance(r#"{}"#), None);
+        assert_eq!(appearance("not json"), None);
+    }
+
     #[test]
     fn gtk_light_dark_preferences() {
         assert_eq!(

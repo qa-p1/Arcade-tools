@@ -3,6 +3,7 @@ export interface CatalogApp {
   name: string;
   repo: string;
   pitch: string;
+  tagline: string;
   description: string;
   category: string;
   icon: string;

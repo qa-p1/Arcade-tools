@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { glyph } from '../lib/glyphs';
   import { confirmOperation, changeChannel, changeLogin, launchApp } from '../lib/controller';
   import { invoke } from '@tauri-apps/api/core';
   import { tick } from 'svelte';
@@ -108,10 +109,10 @@
 <section class="catalog-detail" aria-labelledby="catalog-detail-title">
   <button class="btn ghost sm back-button" type="button" onclick={onBack}>← Back to apps</button>
   <header class="detail-head">
-    <span class="glyph-tile lg"><img src="/glyphs/{app.id}.svg" alt="" width="26" height="26" /></span>
+    <span class="glyph-tile lg"><img src={glyph(app.id)} alt="" width="26" height="26" /></span>
     <div class="row-main">
       <h1 id="catalog-detail-title">{app.name}</h1>
-      <p class="sub">{app.pitch}</p>
+      <p class="sub">{app.tagline}</p>
     </div>
     <div class="detail-actions" aria-label="Catalog app actions">
       {#if installedApp && installed}<button class="btn" type="button" disabled={busy} onclick={() => run(() => launchApp(installedApp!, 'foreground'), app.name)}>Open</button>{/if}
@@ -268,12 +269,12 @@
 <style>
   .back-button { margin: -6px 0 14px -8px; }
   .detail-head { display: flex; align-items: center; gap: 16px; margin-bottom: 28px; }
-  .detail-head h1 { font-size: 21px; font-weight: 600; letter-spacing: -.015em; }
+  .detail-head h1 { font-size: var(--fs-title); font-weight: 600; letter-spacing: -.015em; }
   .detail-head .sub { margin-top: 2px; color: var(--muted); }
   .detail-actions { display: flex; gap: 8px; }
   .detail-grid { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 28px; align-items: start; }
   .detail-block + .detail-block { margin-top: 30px; }
-  .detail-block h2 { margin-bottom: 10px; font-size: 14px; font-weight: 600; }
+  .detail-block h2 { margin-bottom: 10px; font-size: var(--fs-heading); font-weight: 600; }
   .block-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
   .block-head h2 { margin: 0; }
   .about { color: var(--muted); line-height: 1.65; }
@@ -286,22 +287,22 @@
   .history-item + .history-item { border-top: 1px solid var(--line); }
   .history-item .markdown-body { padding: 0 14px 14px; color: var(--muted); }
   .plain-list { margin: 0; padding: 0; list-style: none; }
-  .group-title { margin: 16px 0 8px; color: var(--faint); font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+  .group-title { margin: 16px 0 8px; color: var(--faint); font-size: var(--fs-caption); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
   .screenshot-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
   .screenshot-grid img { display: block; width: 100%; max-height: 260px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--sunken); object-fit: contain; }
   .screenshot-missing { display: grid; min-height: 120px; place-items: center; border: 1px dashed var(--line-strong); border-radius: var(--radius-sm); color: var(--muted); }
   .detail-side { display: grid; gap: 12px; position: sticky; top: 24px; }
   .side-card { display: grid; gap: 12px; }
   .side-card + .side-card { margin-top: 0; }
-  .side-card h3 { font-size: 12px; font-weight: 600; color: var(--muted); }
+  .side-card h3 { font-size: var(--fs-small); font-weight: 600; color: var(--muted); }
   .facts { display: grid; gap: 8px; margin: 0; }
-  .facts div { display: flex; justify-content: space-between; gap: 12px; font-size: 12.5px; }
+  .facts div { display: flex; justify-content: space-between; gap: 12px; font-size: var(--fs-control); }
   .facts dt { color: var(--muted); }
   .facts dd { margin: 0; font-weight: 500; text-align: right; }
   .cap { text-transform: capitalize; }
-  .side-card .switch-row { font-size: 12.5px; }
+  .side-card .switch-row { font-size: var(--fs-control); }
   .side-buttons { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 4px; }
-  .engine-names { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; font-size: 12.5px; }
+  .engine-names { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; font-size: var(--fs-control); }
   .side-links { display: flex; flex-wrap: wrap; gap: 2px; margin-left: -8px; }
   @media (max-width: 860px) {
     .detail-grid { grid-template-columns: 1fr; }

@@ -5,8 +5,8 @@ import { readFileSync, existsSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { extname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-// Playwright isn't a dependency of Tools: point PLAYWRIGHT_MODULES at an
-// install (its node_modules), or install it next to this script.
+// Playwright is a dev dependency (npm ci); PLAYWRIGHT_MODULES points at
+// another install (its node_modules) instead.
 const require = createRequire(process.env.PLAYWRIGHT_MODULES ? `${process.env.PLAYWRIGHT_MODULES}/` : import.meta.url);
 const { chromium } = require('playwright');
 

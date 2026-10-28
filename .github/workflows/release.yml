@@ -84,12 +84,14 @@ jobs:
         with:
           path: Arcade-tools
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: '1.88.0'
       - name: Both macOS architectures
         if: runner.os == 'macOS'
         run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version-file: Arcade-tools/.nvmrc
       - name: Linux dependencies
         if: runner.os == 'Linux'
         run: |

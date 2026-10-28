@@ -121,26 +121,29 @@ fn show(app: &AppHandle, state: &Desktop) {
             return;
         }
         let window = app.config().app.windows.first().and_then(|config| {
-            tauri::WebviewWindowBuilder::from_config(&app, config)
-                .ok()?
-                .build()
-                .ok()
-                .inspect(|window| {
-                    #[cfg(target_os = "linux")]
-                    let _ = window.with_webview(|webview| {
-                        use webkit2gtk::{SettingsExt, WebViewExt};
-                        if let Some(settings) = webview.inner().settings() {
-                            // No retained page cache after the window closes.
-                            // The acceleration policy stays WebKit's default:
-                            // forcing "Never" after the view exists crashed
-                            // the web process on X servers without DRI3 (VNC,
-                            // xrdp, VMs, Xvfb) and left the window blank.
-                            settings.set_enable_page_cache(false);
-                        }
-                    });
-                    #[cfg(not(target_os = "linux"))]
-                    let _ = window;
-                })
+            let builder = tauri::WebviewWindowBuilder::from_config(&app, config).ok()?;
+            // Webview storage lives in arcade/tools/webview (Linux, Windows);
+            // macOS keeps WebKit's per-bundle folders.
+            let builder = match Paths::discover() {
+                Ok(paths) => builder.data_directory(paths.webview()),
+                Err(_) => builder,
+            };
+            builder.build().ok().inspect(|window| {
+                #[cfg(target_os = "linux")]
+                let _ = window.with_webview(|webview| {
+                    use webkit2gtk::{SettingsExt, WebViewExt};
+                    if let Some(settings) = webview.inner().settings() {
+                        // No retained page cache after the window closes.
+                        // The acceleration policy stays WebKit's default:
+                        // forcing "Never" after the view exists crashed
+                        // the web process on X servers without DRI3 (VNC,
+                        // xrdp, VMs, Xvfb) and left the window blank.
+                        settings.set_enable_page_cache(false);
+                    }
+                });
+                #[cfg(not(target_os = "linux"))]
+                let _ = window;
+            })
         });
         if window.is_some() {
             // Shown by window_ready once the page has drawn; the timer only
@@ -1304,6 +1307,8 @@ pub fn run(background: bool, quit: bool) {
             hub::open_app_settings,
             hub::restart_app,
             hub::create_diagnostics,
+            hub::open_logs_folder,
+            hub::diagnostics_text,
             hub::export_backup,
             hub::plan_restore,
             hub::restore_backup,

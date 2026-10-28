@@ -1,3 +1,4 @@
+import { setTabEnabled } from './tabs.svelte';
 import { tick } from 'svelte';
 import { api, type AppView, type Channel, type ManagerFailure, type Operation, type OperationProgress, type OperationRequest } from './api';
 import { askForConfirmation, forgetRelease, operationRequest, rememberRelease, ui } from './state.svelte';
@@ -10,9 +11,21 @@ export function receiveInstallRequest(id: string): void {
   void attempt(reviewHandoff);
 }
 
-export function setMessage(message: string, error = false): void {
+export function setMessage(message: string, error = false, duration = 5000): void {
   ui.message = message;
   ui.messageError = error;
+  ui.messageDuration = duration;
+  ui.messageSerial += 1;
+}
+
+/** Copies text and shows the shared 1.5 s "Copied" toast (STANDARD §8.1). */
+export async function copyText(text: string, label = 'Copied'): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch (error) {
+    throw { code: 'clipboard', message: `Couldn't copy. ${asFailure(error).message}` };
+  }
+  setMessage(label, false, 1500);
 }
 
 export function asFailure(error: unknown): ManagerFailure {
@@ -37,6 +50,7 @@ export async function refresh(): Promise<void> {
   try {
     ui.apps = await api.listApps();
     ui.loaded = true;
+    ui.loadError = '';
     ui.updates = await api.updateState();
     ui.toolsApp = await api.toolsApp();
     const preferences = await api.preferences();
@@ -63,6 +77,7 @@ export async function initialize(): Promise<void> {
   ui.selected = bootstrap.selected;
   ui.testing = bootstrap.testing;
   ui.linkEnabled = bootstrap.preferences.linkEnabled;
+  setTabEnabled('onboarding', !bootstrap.preferences.onboardingComplete);
   ui.updateChecksEnabled = bootstrap.preferences.updates.enabled;
   ui.autoUpdate = bootstrap.preferences.updates.autoUpdate;
   ui.toolsApp = await api.toolsApp();

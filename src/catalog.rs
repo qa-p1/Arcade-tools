@@ -25,6 +25,10 @@ pub struct CatalogApp {
     pub name: String,
     pub repo: String,
     pub pitch: String,
+    /// The app's README one-liner (STANDARD §8), optional so older catalogs
+    /// still parse. Empty falls back to Link's copy of the same line.
+    #[serde(default)]
+    pub tagline: String,
     pub description: String,
     pub category: String,
     pub icon: String,
@@ -43,6 +47,19 @@ impl CatalogApp {
     pub fn releases_url(&self) -> String {
         format!("https://github.com/{}/releases", self.repo)
     }
+    /// The one-line summary every surface shows: the catalog tagline, else
+    /// Link's copy of it, else the older catalog pitch.
+    pub fn display_tagline(&self) -> String {
+        [
+            self.tagline.as_str(),
+            crate::apps::app_pitch(&self.id),
+            self.pitch.as_str(),
+        ]
+        .into_iter()
+        .find(|line| !line.is_empty())
+        .unwrap_or_default()
+        .to_string()
+    }
     /// Pure calculation, safe on any thread. Unknown apps can be displayed but
     /// require a compiled install contract before the manager can modify them.
     pub fn supported_install(&self) -> bool {
@@ -58,6 +75,8 @@ pub struct ToolsEntry {
     pub repo: String,
     pub min_tools: String,
     pub icon: String,
+    #[serde(default)]
+    pub tagline: String,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -112,6 +131,7 @@ impl Catalog {
             }
             relative_path(&app.icon)?;
             relative_path(&app.docs)?;
+            app.tagline = app.display_tagline();
             if version
                 .cmp_precedence(&parse_version(&app.min_tools)?)
                 .is_lt()
@@ -125,6 +145,9 @@ impl Catalog {
         parse_version(&catalog.tools.min_tools)?;
         if catalog.tools.id != "arcade.tools" {
             return Err(Error::new("catalog", "Invalid Tools catalog entry."));
+        }
+        if catalog.tools.tagline.is_empty() {
+            catalog.tools.tagline = crate::apps::app_pitch(&catalog.tools.id).into();
         }
         for bundle in &mut catalog.bundles {
             match &mut bundle.apps {
@@ -155,6 +178,7 @@ impl Catalog {
             name: self.tools.name.clone(),
             repo: self.tools.repo.clone(),
             pitch: String::new(),
+            tagline: self.tools.tagline.clone(),
             description: String::new(),
             category: "tools".into(),
             icon: self.tools.icon.clone(),
