@@ -22,11 +22,7 @@ use std::time::{Duration, Instant};
 use support::FakeRelease;
 
 fn fixture() -> (FakeRelease, Manager) {
-    assert!(
-        std::env::var("HOME").unwrap().starts_with("/tmp/")
-            && std::env::var_os("ARCADE_HOME").is_some(),
-        "Use the Link isolated runner"
-    );
+    support::require_isolated_session();
     let server = FakeRelease::new();
     let manager = Manager::new(
         Paths::under(&server.root.path().join("user")),
@@ -559,10 +555,7 @@ fn hub_lifecycle_rate_limited_checks_and_updates_use_release_downloads() {
     let (server, manager) = fixture();
     installed(&server, &manager, "arcade.look");
     publish(&server, &manager, "arcade.look", "2.0.0", false);
-    let repo = arcade_tools_core::apps::releases_url("arcade.look")
-        .trim_start_matches("https://github.com/")
-        .trim_end_matches("/releases")
-        .to_string();
+    let repo = support::catalog_repo("arcade.look");
     // GitHub's anonymous API limit is used up...
     server.replies.lock().unwrap().insert(
         format!("/repos/{repo}/releases/latest"),

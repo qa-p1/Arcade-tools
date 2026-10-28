@@ -69,7 +69,7 @@
       {#if view.preferences.shortcutsEnabled}
         <div class="row overlay-shortcut">
           <div class="row-main"><div class="row-title" id="overlay-shortcut-label">Overlay shortcut</div></div>
-          <ShortcutRecorder value={view.preferences.shortcut} label="Overlay shortcut" defaultValue="Super+Slash" disabled={locked} {conflictsFor} onApply={applyShortcut} />
+          <ShortcutRecorder value={view.preferences.shortcut} label="Overlay shortcut" defaultValue={view.defaultShortcut} disabled={locked} {conflictsFor} onApply={applyShortcut} />
         </div>
         {#if view.shortcutStatus.hint || view.shortcutStatus.error}
           <div class="row-extra flush">

@@ -10,11 +10,7 @@ use std::time::{Duration, Instant};
 use support::FakeRelease;
 
 fn require_isolated_runner() {
-    let home = std::env::var("HOME").unwrap();
-    assert!(
-        home.starts_with("/tmp/") && std::env::var_os("ARCADE_HOME").is_some(),
-        "Run lifecycle tests through Arcade-link/tools/e2e.py run -- cargo test"
-    );
+    support::require_isolated_session();
     assert!(std::env::var_os("HYPRLAND_INSTANCE_SIGNATURE").is_none());
 }
 fn request(id: &str, operation: Operation) -> Request {

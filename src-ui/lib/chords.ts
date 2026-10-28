@@ -4,13 +4,15 @@
 export const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 
 const MODIFIERS = ['Ctrl', 'Alt', 'Shift', 'Super'] as const;
-const MAC_SYMBOLS: Record<string, string> = { Ctrl: '⌃', Alt: '⌥', Shift: '⇧', Super: '⌘' };
+const MAC_SYMBOLS: Record<string, string> = { Ctrl: '⌃', Alt: '⌥', Option: '⌥', Shift: '⇧', Super: '⌘', Cmd: '⌘' };
 const KEY_SYMBOLS: Record<string, string> = {
   Slash: '/', Backslash: '\\', Period: '.', Comma: ',', Minus: '-', Equal: '=', Semicolon: ';', Quote: "'",
   Backquote: '`', BracketLeft: '[', BracketRight: ']',
 };
 const ALIASES: Record<string, string> = {
   control: 'ctrl', meta: 'super', win: 'super', mod4: 'super', logo: 'super', cmd: 'super', mod1: 'alt', option: 'alt',
+  // "Super+/" and "Super+Slash" are the same chord.
+  ...Object.fromEntries(Object.entries(KEY_SYMBOLS).map(([name, symbol]) => [symbol, name.toLowerCase()])),
 };
 
 /** The chord a key press makes, or null while only modifiers are down. */

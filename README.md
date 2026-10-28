@@ -17,7 +17,7 @@ Arcade Tools is the optional home for Box, Lens, Look, Wheel, Clipboard, Find an
 
 It runs on **Linux** (x86_64; X11 and Wayland), **Windows** (x64) and **macOS** (universal: Apple Silicon and Intel). Windows/macOS and non-Hyprland Wayland are checked in CI only, not yet on a real desktop.
 
-<p align="center"><img src="docs/user/images/apps.png" width="720" alt="Arcade Tools showing the Apps tab with the Essentials, Screen and capture and Everything bundles"></p>
+<p align="center"><img src="docs/user/images/apps.png" width="720" alt="Arcade Tools showing the Apps tab: each installed app with its one-line description, channel and actions"></p>
 
 ## Download and install
 
@@ -49,7 +49,7 @@ More in [Features](docs/user/features.md).
 
 ## Works with other Arcade apps
 
-Tools manages the other Arcade apps over peer-to-peer Arcade Link, pinned to **v0.3.0**. The apps never need Tools: each one works alone and connects to the others automatically.
+Tools manages the other Arcade apps over peer-to-peer Arcade Link, pinned to **v0.4.0**. The apps never need Tools: each one works alone and connects to the others automatically.
 
 - **Tray hosting:** Tools hosts each app's tray menu (Open, Settings, Restart, Quit and app extras) in one Arcade icon. Hosting is optional and each app can keep its own icon. Apps restore their own tray icon as soon as Tools quits, crashes or disconnects.
 - **Quit all** asks once when an app is busy.
@@ -100,29 +100,22 @@ Settings and data stay unless you choose to remove them. Removing Tools leaves y
 - **Windows:** start at login toggles the Startup shortcut the setup program created and records it in the receipt, so updates keep your choice. The first update after adopting an app has no retained installer for rollback; Tools shows this before updating.
 - Windows/macOS and non-Hyprland Wayland are verified in CI and isolated runs only. See [Status](docs/STATUS.md).
 
-## Build from source
+## Development
 
-The native desktop uses Tauri 2's system webview and a Svelte 5 interface. The shell budget is 200 KB; Markdown is rendered and sanitized in Rust, and Learn/Connections load lazily. Docs snapshots are limited to 8 MB. The bundled catalog, shortcut sheets and ecosystem guide come from Arcade-catalog `main`; [snapshot provenance](resources/catalog-snapshot/README.md) records the source commit.
+The native desktop uses Tauri 2's system webview and a Svelte 5 interface on the Arcade design kit, vendored from Arcade Link v0.4.0 into `src-ui/design/`. The shell budget is 240 KB; Markdown is rendered and sanitized in Rust, and Learn/Connections load lazily. Docs snapshots are limited to 8 MB. The bundled catalog, shortcut sheets and ecosystem guide come from Arcade-catalog `main`; [snapshot provenance](resources/catalog-snapshot/README.md) records the source commit.
 
-Use Rust **1.88** or newer, Node 24, and the Linux Tauri/Wayland/X11 libraries listed in [`.github/workflows/ci.yml`](.github/workflows/ci.yml). Keep a Link v0.3.0 checkout beside Tools for the isolated test runner. Temporary environments stay scoped to tests.
+Toolchains are pinned: Rust 1.88 (`rust-toolchain.toml`) and Node 24 (`.nvmrc`). On Linux, install the Tauri/Wayland/X11 libraries listed in [`.github/workflows/ci.yml`](.github/workflows/ci.yml) and keep an Arcade-Link v0.4.0 checkout beside Tools (`../Arcade-link`, or set `ARCADE_LINK`) for the isolated test session.
 
 ```sh
 npm ci
-npm run typecheck
-npm run build
-python3 scripts/ui-size.py
-cargo fmt --all --check
-CARGO_BUILD_JOBS=3 cargo clippy --workspace --all-targets --locked -- -D warnings
-CARGO_HOME="$HOME/.cargo" python3 ../Arcade-link-wt-core/tools/e2e.py run -- cargo test --workspace --locked
-cargo build --locked -p arcade-tools --features custom-protocol
-cargo build --locked -p arcade-tools-overlay
-CARGO_HOME="$HOME/.cargo" python3 ../Arcade-link-wt-core/tools/e2e.py run -- python3 scripts/tray-resident-e2e.py --check-budgets
-python3 ../Arcade-link-wt-core/tools/e2e.py --only tools-hub
-python3 scripts/verify-vendored.py
-python3 scripts/test-docs-snapshot.py
+scripts/dev                 # run from source (scripts/dev --ui: the UI alone on the mock backend)
+scripts/check               # exactly what CI runs on this OS
+scripts/package             # this OS's installer, then a disposable-profile smoke test
+python3 scripts/sync-design.py --link ../Arcade-link    # refresh the design kit from the pinned tag
+python3 scripts/check-versions.py --set 0.4.1           # bump every version copy
 ```
 
-CI checks the full workspace and frontend on Rust 1.88 for Linux, Windows and macOS, builds both binaries into actual installers, and runs disposable package smokes. Overlay render checks use private Xvfb. No live Arcade installation is changed by these tests.
+CI runs `scripts/check` on Rust 1.88 for Linux, Windows and macOS, builds both binaries into actual installers, and runs disposable package smokes. Overlay render checks use private Xvfb. No live Arcade installation is changed by these tests. Developer notes are in [docs/dev](docs/dev/): [architecture](docs/dev/architecture.md), [Link](docs/dev/link.md), [packaging and releases](docs/dev/packaging.md), [testing](docs/dev/testing.md) and [decisions](docs/dev/decisions.md).
 
 ## Documentation
 
@@ -133,7 +126,7 @@ CI checks the full workspace and frontend on Rust 1.88 for Linux, Windows and ma
 
 ## License
 
-MIT.
+[MIT](LICENSE).
 
 ---
 

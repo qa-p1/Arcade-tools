@@ -54,11 +54,7 @@ impl Handler for SettingsPeer {
     }
 }
 fn fixture(root: &std::path::Path, source: &support::FakeRelease) -> Manager {
-    assert!(
-        std::env::var("HOME").unwrap().starts_with("/tmp/")
-            && std::env::var_os("ARCADE_HOME").is_some(),
-        "Use the Link isolated runner"
-    );
+    support::require_isolated_session();
     Manager::new(
         Paths::under(root),
         Source::test_server(&source.url).unwrap(),

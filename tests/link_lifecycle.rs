@@ -52,10 +52,7 @@ fn fake_script(path: &std::path::Path, version: &str) -> Vec<u8> {
     .into_bytes()
 }
 fn installed(mode: Option<bool>, refuse: bool) -> (FakeRelease, Manager, Arc<Peer>) {
-    assert!(
-        std::env::var("HOME").unwrap().starts_with("/tmp/"),
-        "Use the isolated runner"
-    );
+    support::require_isolated_session();
     let server = FakeRelease::new();
     let paths = Paths::under(&server.root.path().join("user"));
     let manager = Manager::new(paths.clone(), Source::test_server(&server.url).unwrap());

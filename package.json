@@ -1,5 +1,5 @@
 {
-  "name": "arcade-tools", "private": true, "version": "0.3.8", "type": "module",
+  "name": "arcade-tools", "private": true, "version": "0.4.0", "type": "module",
   "description": "Install, update and remove the Arcade apps", "license": "MIT",
   "scripts": { "dev": "vite", "typecheck": "svelte-check --tsconfig ./tsconfig.json && tsc --noEmit", "build": "vite build", "ui-checks": "node scripts/ui-checks/run.mjs", "tauri": "tauri" },
   "dependencies": { "@tauri-apps/api": "2.11.1" },

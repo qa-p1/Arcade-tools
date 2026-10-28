@@ -8,6 +8,57 @@ use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use tempfile::TempDir;
 
+/// Panics unless the test runs in Link's isolated session
+/// (`tools/e2e.py run -- cargo test`): HOME and ARCADE_HOME must sit under the
+/// session's root, wherever the system's temporary folder is.
+pub fn require_isolated_session() -> PathBuf {
+    let root = PathBuf::from(
+        std::env::var_os("ARCADE_E2E_ROOT")
+            .expect("Run through Arcade-link/tools/e2e.py run -- cargo test"),
+    );
+    let inside = |name: &str| {
+        std::env::var_os(name).is_some_and(|value| Path::new(&value).starts_with(&root))
+    };
+    assert!(
+        inside("HOME") && inside("ARCADE_HOME"),
+        "HOME and ARCADE_HOME must be inside the isolated session at {}",
+        root.display()
+    );
+    root
+}
+
+/// Both spellings Tools may ask GitHub about: Link's compiled list and the
+/// catalog's, which can differ in case (GitHub ignores case; this server doesn't).
+pub fn repos(id: &str) -> Vec<String> {
+    let compiled = compiled_repo(id);
+    let catalog = catalog_repo(id);
+    if catalog == compiled {
+        vec![compiled]
+    } else {
+        vec![compiled, catalog]
+    }
+}
+fn compiled_repo(id: &str) -> String {
+    arcade_tools_core::apps::releases_url(id)
+        .trim_start_matches("https://github.com/")
+        .trim_end_matches("/releases")
+        .to_owned()
+}
+/// The repo as the catalog spells it, which is what the manager requests.
+pub fn catalog_repo(id: &str) -> String {
+    let catalog: serde_json::Value =
+        serde_json::from_str(arcade_tools_core::catalog::SNAPSHOT).unwrap();
+    catalog["apps"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .chain(std::iter::once(&catalog["tools"]))
+        .find(|app| app["id"] == id)
+        .and_then(|app| app["repo"].as_str())
+        .map(str::to_owned)
+        .unwrap_or_else(|| compiled_repo(id))
+}
+
 #[derive(Clone)]
 pub struct HttpReply {
     pub status: String,
@@ -184,18 +235,19 @@ impl FakeRelease {
                 "size": bytes.len(), "digest": format!("sha256:{:x}", Sha256::digest(&bytes))}));
             routes.insert(format!("/{route}"), bytes);
         }
-        let repo = arcade_tools_core::apps::releases_url(id)
-            .trim_start_matches("https://github.com/")
-            .trim_end_matches("/releases");
         let endpoint = if channel == "stable" {
             "latest"
         } else {
             "tags/nightly"
         };
-        routes.insert(format!("/repos/{repo}/releases/{endpoint}"), serde_json::to_vec(&serde_json::json!({
+        let api = serde_json::to_vec(&serde_json::json!({
             "tag_name": if channel == "stable" { format!("v{version}") } else { "nightly".into() },
             "draft": false, "prerelease": channel == "nightly", "assets": assets,
-        })).unwrap());
+        }))
+        .unwrap();
+        for repo in repos(id) {
+            routes.insert(format!("/repos/{repo}/releases/{endpoint}"), api.clone());
+        }
         drop(routes);
         // Link v0.3.0's generator adds installArgs for AppImages and DMGs. These
         // fakes are plain scripts, so they publish as pre-0.3.0 releases; the hub
@@ -224,25 +276,25 @@ impl FakeRelease {
         edit(&mut manifest);
         let bytes = serde_json::to_vec(&manifest).unwrap();
         routes.insert(route, bytes.clone());
-        let repo = arcade_tools_core::apps::releases_url(id)
-            .trim_start_matches("https://github.com/")
-            .trim_end_matches("/releases");
-        let endpoint = format!(
-            "/repos/{repo}/releases/{}",
-            if channel == "stable" {
-                "latest"
-            } else {
-                "tags/nightly"
+        for repo in repos(id) {
+            let endpoint = format!(
+                "/repos/{repo}/releases/{}",
+                if channel == "stable" {
+                    "latest"
+                } else {
+                    "tags/nightly"
+                }
+            );
+            let mut api: serde_json::Value = serde_json::from_slice(&routes[&endpoint]).unwrap();
+            for asset in api["assets"].as_array_mut().unwrap() {
+                if asset["name"] == "arcade-release.json" {
+                    asset["size"] = serde_json::json!(bytes.len());
+                    asset["digest"] =
+                        serde_json::json!(format!("sha256:{:x}", Sha256::digest(&bytes)));
+                }
             }
-        );
-        let mut api: serde_json::Value = serde_json::from_slice(&routes[&endpoint]).unwrap();
-        for asset in api["assets"].as_array_mut().unwrap() {
-            if asset["name"] == "arcade-release.json" {
-                asset["size"] = serde_json::json!(bytes.len());
-                asset["digest"] = serde_json::json!(format!("sha256:{:x}", Sha256::digest(&bytes)));
-            }
+            routes.insert(endpoint, serde_json::to_vec(&api).unwrap());
         }
-        routes.insert(endpoint, serde_json::to_vec(&api).unwrap());
     }
 }
 impl Drop for FakeRelease {

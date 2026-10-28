@@ -16,6 +16,7 @@ export type TrayView = {
   preferences: TrayPreferences;
   apps: { id: string; name: string; excluded: boolean }[];
   loginAvailable: boolean;
+  defaultShortcut: string;
   shortcutStatus: { accelerator: string; available: boolean; via: string | null; hint: string | null; error: string | null };
 };
 

@@ -447,8 +447,11 @@ pub async fn diagnostics_text(app: AppHandle) -> Result<String> {
         let channel = manager
             .tools_view()?
             .filter(|tools| tools.managed)
-            .map_or("development".to_string(), |tools| format!("{:?}", tools.channel).to_lowercase());
-        let mut header = arcade_link::diagnostics::Header::new(ids::TOOLS, env!("CARGO_PKG_VERSION"), &channel);
+            .map_or("development".to_string(), |tools| {
+                format!("{:?}", tools.channel).to_lowercase()
+            });
+        let mut header =
+            arcade_link::diagnostics::Header::new(ids::TOOLS, env!("CARGO_PKG_VERSION"), &channel);
         header.link_enabled = preferences.link_enabled;
         header.peers_from(&manager.paths.link);
         let mut text = header.render();

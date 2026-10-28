@@ -406,6 +406,15 @@ fn macos_alias_target(path: &Path, link: &Path) -> bool {
     .any(|(alias, expected)| path == Path::new(alias) && target == Path::new(expected))
 }
 
+/// Link's name for an OS.
+fn platform(os: Os) -> Platform {
+    match os {
+        Os::Linux => Platform::Linux,
+        Os::Windows => Platform::Windows,
+        Os::Macos => Platform::Macos,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -487,14 +496,5 @@ mod tests {
             assert!(paths.guard(&directory.join("child")).is_err());
         }
         assert!(paths.guard_receipt(ids::TOOLS).is_err());
-    }
-}
-
-/// Link's name for an OS.
-fn platform(os: Os) -> Platform {
-    match os {
-        Os::Linux => Platform::Linux,
-        Os::Windows => Platform::Windows,
-        Os::Macos => Platform::Macos,
     }
 }

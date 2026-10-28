@@ -38,13 +38,10 @@ jobs:
         env:
           INPUT_CHANNEL: ${{ inputs.channel }}
         run: |
+          export VERSION="$(python3 scripts/check-versions.py --print)"
           python3 - <<'PY'
-          import json, os, tomllib
-          from pathlib import Path
-          version = json.loads(Path('src-tauri/tauri.conf.json').read_text())['version']
-          for path in ['Cargo.toml', 'src-tauri/Cargo.toml']:
-              assert tomllib.loads(Path(path).read_text())['package']['version'] == version, path
-          assert json.loads(Path('package.json').read_text())['version'] == version
+          import os
+          version = os.environ['VERSION']
           channel = os.environ.get('INPUT_CHANNEL') or 'stable'
           assert channel in ['stable', 'nightly']
           if channel == 'stable':
@@ -105,7 +102,9 @@ jobs:
       - name: Refresh the stable documentation snapshot
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: python3 scripts/docs-snapshot.py --keep-bundled
+        run: |
+          python3 scripts/docs-snapshot.py --keep-bundled
+          python3 scripts/docs-snapshot.py --check-links src-tauri/resources/docs
       - name: Build the packaged native shortcut overlay
         run: python scripts/prepare-overlay.py --target ${{ matrix.target }}
       - name: Bundle using the OS webview

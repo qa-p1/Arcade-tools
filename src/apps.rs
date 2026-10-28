@@ -1,4 +1,4 @@
-//! Compiled app IDs and installation knowledge from Arcade Link v0.3.0.
+//! Compiled app IDs and installation knowledge from the pinned Arcade Link.
 //! `catalog` controls manager membership and display metadata. Keep these IDs,
 //! names (native paths), and the per-app contracts in `paths`/`platform` until
 //! release manifests can describe their installation specifics safely.

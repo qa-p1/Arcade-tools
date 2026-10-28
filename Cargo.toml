@@ -1,6 +1,6 @@
 [package]
 name = "arcade-tools-core"
-version = "0.3.8"
+version.workspace = true
 edition = "2021"
 rust-version = "1.88"
 license = "MIT"
@@ -10,6 +10,10 @@ description = "Verified per-user installation and lifecycle management for the A
 members = [".", "src-tauri", "crates/arcade-shortcuts", "crates/arcade-tools-overlay"]
 default-members = [".", "src-tauri"]
 resolver = "2"
+
+# The one version source; scripts/check-versions.py keeps npm and Tauri in step.
+[workspace.package]
+version = "0.4.0"
 
 [dependencies]
 # Released Link installer, engines and tray contracts. To build

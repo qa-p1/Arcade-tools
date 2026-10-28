@@ -39,7 +39,7 @@
     shortcut_labels: () => ({}),
     catalog_data: () => ({ catalog: CATALOG, engines: ENGINES }),
     tray_ui_intent: () => null,
-    tray_get_settings: () => ({ preferences: { hostIcons: true, excluded: [], showUpdateBadge: true, startAtLogin: true, shortcutsEnabled: true, shortcut: 'Super+Slash' }, apps: [], loginAvailable: true, shortcutStatus: { accelerator: 'Super+Slash', available: true, via: null, hint: null, error: null } }),
+    tray_get_settings: () => ({ preferences: { hostIcons: true, excluded: [], showUpdateBadge: true, startAtLogin: true, shortcutsEnabled: true, shortcut: 'Super+Slash' }, apps: [], loginAvailable: true, defaultShortcut: 'Super+/', shortcutStatus: { accelerator: 'Super+Slash', available: true, via: null, hint: null, error: null } }),
     update_history: () => [],
     list_connections: () => ({ linkEnabled: true, peers: [] }),
     dashboard: () => ({ apps: [], totalMemoryBytes: 0, totalCpuPercent: 0 }),

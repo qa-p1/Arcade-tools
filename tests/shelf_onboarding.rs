@@ -6,7 +6,10 @@ use arcade_tools_core::{
     release::{Arch, Channel, Kind, Os, Release},
     source::Source,
 };
-use std::{io::Cursor, path::Path};
+use std::{
+    io::Cursor,
+    path::{Path, PathBuf},
+};
 
 #[test]
 fn shelf_metadata_install_and_data_paths_match_native_application() {
@@ -28,11 +31,21 @@ fn shelf_metadata_install_and_data_paths_match_native_application() {
         .ends_with("Applications/Arcade Shelf.app/Contents/MacOS/arcade-shelf"));
     assert_eq!(
         paths.data_folders(apps::SHELF, Os::Linux),
-        [paths.data.join("qa-p1/ArcadeShelf")]
+        with_new_folders(
+            &paths,
+            apps::SHELF,
+            Os::Linux,
+            &[paths.data.join("qa-p1/ArcadeShelf")]
+        )
     );
     assert_eq!(
         paths.data_folders(apps::SHELF, Os::Windows),
-        [paths.local.join("qa-p1/ArcadeShelf")]
+        with_new_folders(
+            &paths,
+            apps::SHELF,
+            Os::Windows,
+            &[paths.local.join("qa-p1/ArcadeShelf")]
+        )
     );
     assert!(paths
         .autostart(apps::SHELF, Os::Linux)
@@ -172,4 +185,17 @@ fn shelf_bundle_install_replacement_rollback_and_login_ownership() {
         std::fs::read_to_string(login).unwrap(),
         "Unrelated user data"
     );
+}
+
+/// The 0.3 folders first, then the `arcade/<app>` folders from Link's paths
+/// module, which backup, restore and uninstall also cover.
+fn with_new_folders(paths: &Paths, id: &str, os: Os, old: &[PathBuf]) -> Vec<PathBuf> {
+    let dirs = paths.app_dirs(id, os);
+    let mut folders = old.to_vec();
+    for folder in [dirs.config, dirs.data, dirs.cache] {
+        if !folders.contains(&folder) {
+            folders.push(folder);
+        }
+    }
+    folders
 }

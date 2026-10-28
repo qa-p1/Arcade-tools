@@ -213,24 +213,26 @@ fn explicit_docs_fetch_is_bounded_and_preserves_cache_after_invalid_response() {
     };
     let catalog = Catalog::parse(SNAPSHOT.as_bytes(), "0.2.0").unwrap();
     let app = catalog.app("arcade.look").unwrap();
-    let route = "/api/repos/qa-p1/arcade-look/contents/docs/user?ref=v2.0.0";
+    // The catalog decides the repo name (and its casing).
+    let repo = &app.repo;
+    let route = format!("/api/repos/{repo}/contents/docs/user?ref=v2.0.0");
     let text = b"# Preview\nOffline documentation";
-    server.routes.lock().unwrap().insert(route.into(), serde_json::to_vec(&json!([{"type":"file","path":"docs/user/index.md","size":text.len()}, {"type":"dir","path":"docs/user/images"}])).unwrap());
+    server.routes.lock().unwrap().insert(route.clone(), serde_json::to_vec(&json!([{"type":"file","path":"docs/user/index.md","size":text.len()}, {"type":"dir","path":"docs/user/images"}])).unwrap());
     server.routes.lock().unwrap().insert(
-        "/api/repos/qa-p1/arcade-look/contents/docs/user/images?ref=v2.0.0".into(),
+        format!("/api/repos/{repo}/contents/docs/user/images?ref=v2.0.0"),
         serde_json::to_vec(&json!([{"type":"file","path":"docs/user/images/test.png","size":3}]))
             .unwrap(),
     );
     server.routes.lock().unwrap().insert(
-        "/raw/qa-p1/arcade-look/v2.0.0/docs/user/index.md".into(),
+        format!("/raw/{repo}/v2.0.0/docs/user/index.md"),
         text.to_vec(),
     );
     server.routes.lock().unwrap().insert(
-        "/raw/qa-p1/arcade-look/v2.0.0/docs/user/images/test.png".into(),
+        format!("/raw/{repo}/v2.0.0/docs/user/images/test.png"),
         b"png".to_vec(),
     );
     server.routes.lock().unwrap().insert(
-        "/api/repos/qa-p1/arcade-look/releases/latest".into(),
+        format!("/api/repos/{repo}/releases/latest"),
         serde_json::to_vec(&json!({"tag_name":"v2.0.0","draft":false,"prerelease":false})).unwrap(),
     );
     let location = resolver.fetch_latest(app, &source).unwrap();
@@ -248,7 +250,7 @@ fn explicit_docs_fetch_is_bounded_and_preserves_cache_after_invalid_response() {
     );
     let previous = std::fs::read(location.root.join("index.md")).unwrap();
     server.routes.lock().unwrap().insert(
-        route.into(),
+        route.clone(),
         serde_json::to_vec(&json!([{"type":"file","path":"docs/user/../escape.md","size":1}]))
             .unwrap(),
     );
@@ -258,7 +260,7 @@ fn explicit_docs_fetch_is_bounded_and_preserves_cache_after_invalid_response() {
         previous
     );
     server.routes.lock().unwrap().insert(
-        route.into(),
+        route.clone(),
         serde_json::to_vec(
             &json!([{"type":"file","path":"docs/user/index.md","size":MAX_SNAPSHOT+1}]),
         )
@@ -271,7 +273,7 @@ fn explicit_docs_fetch_is_bounded_and_preserves_cache_after_invalid_response() {
             .code,
         "too_large"
     );
-    server.routes.lock().unwrap().remove(route);
+    server.routes.lock().unwrap().remove(&route);
     assert!(resolver.fetch_version(app, "2.0.0", &source).is_err());
     assert_eq!(
         resolver
