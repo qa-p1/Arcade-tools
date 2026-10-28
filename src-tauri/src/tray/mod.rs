@@ -417,6 +417,8 @@ pub struct View {
     pub apps: Vec<AppPreference>,
     pub login_available: bool,
     pub shortcut_status: crate::hotkey::Status,
+    /// This OS's default overlay shortcut, for "Reset to default".
+    pub default_shortcut: &'static str,
 }
 #[derive(Serialize)]
 pub struct AppPreference {
@@ -445,6 +447,7 @@ pub async fn tray_get_settings(app: AppHandle) -> Result<View> {
             apps,
             login_available: settings::login_available(&service.manager.paths),
             shortcut_status: crate::hotkey::status(&service.app),
+            default_shortcut: arcade_tools_overlay::registration::default_accelerator(),
         })
     })
     .await

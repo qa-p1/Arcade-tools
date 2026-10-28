@@ -44,10 +44,7 @@ impl Drop for QuitOnDrop<'_> {
 #[test]
 #[ignore = "requires the final Find AppImage and Link isolated runner"]
 fn real_find_install_repair_rollback_preserves_verified_cache() {
-    assert!(
-        std::env::var("HOME").unwrap().starts_with("/tmp/")
-            && std::env::var_os("ARCADE_HOME").is_some()
-    );
+    let session = support::require_isolated_session();
     let artifact = PathBuf::from(
         std::env::var_os("ARCADE_TOOLS_FIND_APPIMAGE").expect("Provide final Find AppImage path"),
     );
@@ -58,7 +55,7 @@ fn real_find_install_repair_rollback_preserves_verified_cache() {
     );
     let _cleanup = QuitOnDrop(&manager);
     let find_home = PathBuf::from(std::env::var_os("ARCADE_FIND_HOME").unwrap());
-    assert!(find_home.starts_with("/tmp/"));
+    assert!(find_home.starts_with(&session));
     let roots = server.root.path().join("files");
     fs::create_dir_all(&roots).unwrap();
     fs::create_dir_all(find_home.join("config")).unwrap();

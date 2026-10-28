@@ -1,6 +1,9 @@
 <script lang="ts">
+  import { glyph } from '../lib/glyphs';
   import { api, type AppView, type BackupReport, type DiagnosticsReport, type RestorePlan, type RestoreResult, type UninstallPlan } from '../lib/api';
   import { askForConfirmation, ui, type Theme } from '../lib/state.svelte';
+  import { checkAllUpdates, copyText, openLearn } from '../lib/controller';
+  import type { ShellTab } from '../lib/tabs.svelte';
   import { tick } from 'svelte';
   import TraySettings from '../components/TraySettings.svelte';
   import Icon from '../components/Icon.svelte';
@@ -17,14 +20,21 @@
     notificationsEnabled: boolean;
     onUpdateChecks: (enabled: boolean) => Promise<void>;
     onOnboarding: () => void;
+    onSelectTab: (tab: ShellTab) => void;
     onTheme: (theme: Theme) => void;
     onLink: (enabled: boolean) => Promise<void>;
     run: (action: () => Promise<void>) => void;
   };
   let {
     active, theme, linkEnabled, diagnostics, busy, toolsApp, apps, updateChecksEnabled, notificationsEnabled,
-    onUpdateChecks, onOnboarding, onTheme, onLink, run,
+    onUpdateChecks, onOnboarding, onSelectTab, onTheme, onLink, run,
   }: Props = $props();
+  const themes: { id: Theme; label: string }[] = [{ id: 'system', label: 'System' }, { id: 'light', label: 'Light' }, { id: 'dark', label: 'Dark' }];
+  const channelName = $derived(toolsApp?.managed ? (toolsApp.channel === 'nightly' ? 'Nightly' : 'Stable') : 'Development build');
+
+  async function copyDiagnostics(): Promise<void> {
+    await copyText(await api.diagnosticsText());
+  }
 
   let supportApp = $state('arcade.tools');
   let report = $state<DiagnosticsReport | null>(null);
@@ -71,11 +81,6 @@
     if (!choice.confirmed) return;
     restored = await api.restoreBackup(plan.path, plan.sha256);
     restorePlan = null;
-  }
-
-  async function updateTools(): Promise<void> {
-    const choice = await askForConfirmation({ title: 'Update Arcade Tools?', copy: 'Tools downloads the latest release, closes, and reopens itself. Your apps keep running.' + (toolsApp?.reason ? `\n${toolsApp.reason}` : ''), action: 'Update', destructive: false, kind: null, folders: [] });
-    if (choice.confirmed) await api.selfUpdate();
   }
 
   async function installTools(): Promise<void> {
@@ -134,12 +139,13 @@
     <div class="list">
       <div class="row">
         <div class="row-main"><div class="row-title" id="appearance-heading">Appearance</div><div class="row-sub">Follow your system or pick a theme.</div></div>
-        <select class="select" aria-label="Theme" value={theme} onchange={(event) => onTheme(event.currentTarget.value as Theme)}>
-          <option value="system">System</option>
-          <option value="light">Light</option>
-          <option value="dark">Dark</option>
-        </select>
+        <div class="segmented" role="radiogroup" aria-labelledby="appearance-heading">
+          {#each themes as option (option.id)}
+            <button type="button" role="radio" aria-checked={theme === option.id} class:active={theme === option.id} onclick={() => onTheme(option.id)}>{option.label}</button>
+          {/each}
+        </div>
       </div>
+      <TraySettings {active} {busy} parts={['login']} />
       <label class="row">
         <span class="row-main"><span class="row-title">Check for updates automatically</span><span class="row-sub">A few times a day. Nothing installs without asking unless you turn on automatic updates for an app.</span></span>
         <input class="switch" type="checkbox" aria-label="Check for updates automatically" checked={updateChecksEnabled} disabled={busy} onchange={(event) => run(() => onUpdateChecks(event.currentTarget.checked))} />
@@ -148,14 +154,28 @@
         <span class="row-main"><span class="row-title">Show notifications</span><span class="row-sub">When an update is ready or something needs you.</span></span>
         <input class="switch" type="checkbox" aria-label="Show notifications" checked={notificationsEnabled} disabled={busy} onchange={(event) => run(() => setNotifications(event.currentTarget.checked))} />
       </label>
-      <label class="row">
-        <span class="row-main"><span class="row-title" id="integration-heading">Connect with other Arcade apps</span><span class="row-sub">Lets apps ask Tools to install another app, always after you confirm.</span></span>
-        <input id="settings-link-toggle" class="switch" type="checkbox" aria-label="Connect with other Arcade apps" checked={linkEnabled} disabled={busy} onchange={(event) => run(() => onLink(event.currentTarget.checked))} />
-      </label>
+      <div class="row">
+        <div class="row-main"><div class="row-title">Set up apps again</div><div class="row-sub">Choose apps, sort out shortcuts and the tray, step by step.</div></div>
+        <button type="button" class="btn sm" onclick={onOnboarding}>Set up apps again</button>
+      </div>
     </div>
   </section>
 
-  <TraySettings {active} {busy} />
+  <section class="section" aria-labelledby="shortcuts-settings-heading">
+    <div class="section-head"><h2 id="shortcuts-settings-heading">Shortcuts</h2></div>
+    <div class="list">
+      <TraySettings {active} {busy} parts={['overlay']} />
+      <div class="row">
+        <div class="row-main"><div class="row-title">App shortcuts</div><div class="row-sub">Every Arcade app's shortcuts, with clashes, in one list.</div></div>
+        <button type="button" class="btn sm" onclick={() => onSelectTab('shortcuts')}>Open Shortcuts</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="tray-heading">
+    <div class="section-head"><h2 id="tray-heading">Tray</h2></div>
+    <div class="list"><TraySettings {active} {busy} parts={['tray']} /></div>
+  </section>
 
   <section class="section" aria-labelledby="backup-heading">
     <div class="section-head"><h2 id="backup-heading">Backup and restore</h2></div>
@@ -190,27 +210,17 @@
     </div>
   </section>
 
-  <section class="section" aria-labelledby="support-heading">
-    <div class="section-head"><h2 id="support-heading">Report a problem</h2></div>
+  <section class="section" aria-labelledby="integration-heading">
+    <div class="section-head"><h2 id="integration-heading">Connected apps</h2></div>
     <div class="list">
+      <label class="row">
+        <span class="row-main"><span class="row-title">Connect with other Arcade apps</span><span class="row-sub">Arcade apps can pass files and text to each other, and ask Tools to install another app after you confirm.</span></span>
+        <input id="settings-link-toggle" class="switch" type="checkbox" aria-label="Connect with other Arcade apps" checked={linkEnabled} disabled={busy} onchange={(event) => run(() => onLink(event.currentTarget.checked))} />
+      </label>
       <div class="row">
-        <div class="row-main"><div class="row-title">Diagnostics file</div><div class="row-sub">{report ? `Saved to ${report.file}${report.omitted.length ? ` · left out: ${report.omitted.join(', ')}` : ''}` : 'Personal paths and secrets are removed. Nothing is sent automatically.'}</div></div>
-        <select class="select sm" aria-label="App to diagnose" bind:value={supportApp}>
-          <option value="arcade.tools">Arcade Tools</option>
-          {#each installedApps as app (app.id)}<option value={app.id}>{app.name}</option>{/each}
-        </select>
-        <button type="button" class="btn sm" disabled={busy} onclick={() => run(createDiagnostics)}>Create</button>
+        <div class="row-main"><div class="row-title">Connected apps</div><div class="row-sub">Which apps are running and what they do together.</div></div>
+        <button type="button" class="btn sm" onclick={() => onSelectTab('connections')}>Open Connections</button>
       </div>
-      {#if report}
-        <div class="row-extra flush btn-group">
-          <button type="button" class="btn sm" onclick={() => run(() => api.revealArchive(report!.file))}>Show file</button>
-          <button type="button" class="btn sm primary" onclick={() => run(() => api.openIssue(supportApp, report!.issueUrl))}>Open an issue</button>
-        </div>
-      {/if}
-      <details class="tech" aria-labelledby="diagnostics-heading">
-        <summary class="row"><span class="row-main row-title" id="diagnostics-heading">Technical details</span><Icon name="chevronDown" size={15} /></summary>
-        <pre id="diagnostics">{diagnostics}</pre>
-      </details>
     </div>
   </section>
 
@@ -218,19 +228,52 @@
     <div class="section-head"><h2 id="about-heading">About</h2></div>
     <div class="list">
       <div class="row">
-        <span class="glyph-tile"><img src="/glyphs/arcade.tools.svg" alt="" width="18" height="18" /></span>
+        <span class="glyph-tile"><img src={glyph('arcade.tools')} alt="" width="18" height="18" /></span>
         <div class="row-main">
-          <div class="row-title about-version">Arcade Tools {toolsApp?.version ?? __TOOLS_VERSION__}{toolsApp?.managed ? ` · ${toolsApp.channel}` : ''}</div>
-          <div class="row-sub">MIT licensed · Arcade Link 0.3.0 · <a href="https://github.com/qa-p1/Arcade-tools" target="_blank" rel="noreferrer">Repository</a> · <a href="https://github.com/qa-p1/Arcade-tools/blob/main/VENDORED" target="_blank" rel="noreferrer">Sources and licenses</a></div>
+          <div class="row-title about-version selectable">Version {toolsApp?.version ?? __TOOLS_VERSION__}</div>
+          <div class="row-sub">{channelName} · The optional home for the Arcade apps.</div>
           {#if toolsApp?.reason}<div class="row-sub">{toolsApp.reason}</div>{/if}
         </div>
-        <button type="button" class="btn sm ghost" onclick={onOnboarding}>Run setup again</button>
         {#if toolsApp?.installed}
-          <button type="button" class="btn sm" disabled={busy} onclick={() => run(updateTools)}>Update Arcade Tools</button>
+          <button type="button" class="btn sm" disabled={busy} onclick={() => { onSelectTab('updates'); run(checkAllUpdates); }}>Check for updates</button>
         {:else}
-          <button type="button" class="btn sm primary" disabled={busy} onclick={() => run(installTools)}>Install Arcade Tools for this user</button>
+          <button type="button" class="btn sm primary" disabled={busy} onclick={() => run(installTools)}>Install Arcade Tools</button>
         {/if}
       </div>
+      <div class="row">
+        <div class="row-main"><div class="row-title">User guide</div><div class="row-sub">How Tools installs, updates and connects your apps.</div></div>
+        <button type="button" class="btn sm" onclick={() => run(() => openLearn('arcade.tools'))}>Open user guide</button>
+      </div>
+      <div class="row">
+        <div class="row-main"><div class="row-title">Logs</div><div class="row-sub">Warnings and errors from Tools.</div></div>
+        <button type="button" class="btn sm" onclick={() => run(api.openLogsFolder)}>Open logs folder</button>
+      </div>
+      <div class="row">
+        <div class="row-main"><div class="row-title">Diagnostics</div><div class="row-sub">Version, system and connection details for a bug report. No personal files or secrets.</div></div>
+        <button type="button" class="btn sm" onclick={() => run(copyDiagnostics)}>Copy diagnostics</button>
+      </div>
+      <div class="row" id="support-heading">
+        <div class="row-main"><div class="row-title">Report a problem</div><div class="row-sub">{report ? `Saved to ${report.file}${report.omitted.length ? ` · left out: ${report.omitted.join(', ')}` : ''}` : 'Collects the logs and settings of one app in a file. Personal paths and secrets are removed; nothing is sent automatically.'}</div></div>
+        <select class="select sm" aria-label="App to diagnose" bind:value={supportApp}>
+          <option value="arcade.tools">Arcade Tools</option>
+          {#each installedApps as app (app.id)}<option value={app.id}>{app.name}</option>{/each}
+        </select>
+        <button type="button" class="btn sm" disabled={busy} onclick={() => run(createDiagnostics)}>Create file</button>
+      </div>
+      {#if report}
+        <div class="row-extra flush btn-group">
+          <button type="button" class="btn sm" onclick={() => run(() => api.revealArchive(report!.file))}>Show in folder</button>
+          <button type="button" class="btn sm primary" onclick={() => run(() => api.openIssue(supportApp, report!.issueUrl))}>Open an issue</button>
+        </div>
+      {/if}
+      <div class="row">
+        <div class="row-main"><div class="row-title">Licences</div><div class="row-sub">Arcade Tools is MIT licensed. It includes Inter (SIL Open Font License) and other open-source parts.</div></div>
+        <a class="btn sm" href="https://github.com/qa-p1/Arcade-tools/blob/main/VENDORED" target="_blank" rel="noreferrer">Show licences</a>
+      </div>
+      <details class="tech" aria-labelledby="diagnostics-heading">
+        <summary class="row"><span class="row-main row-title" id="diagnostics-heading">Technical details</span><Icon name="chevronDown" size={15} /></summary>
+        <pre id="diagnostics" class="selectable">{diagnostics}</pre>
+      </details>
     </div>
   </section>
 
@@ -258,12 +301,12 @@
   .row-extra.flush { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0 14px 14px; }
   .uninstall { padding-top: 2px; }
   .spacer { flex: 1; }
-  .plain-list { display: grid; flex: 1 1 100%; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: 12.5px; }
+  .plain-list { display: grid; flex: 1 1 100%; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: var(--fs-control); }
   .restore-form { display: flex; gap: 8px; margin-top: 8px; }
   .restore-form .input { flex: 1; min-width: 0; }
   .tech { border-top: 1px solid var(--line); }
   .tech summary { min-height: 44px; cursor: pointer; list-style: none; color: var(--muted); }
   .tech summary::-webkit-details-marker { display: none; }
   .tech[open] summary :global(.icon) { transform: rotate(180deg); }
-  #diagnostics { margin: 0; padding: 0 14px 14px; color: var(--muted); font-size: 11.5px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+  #diagnostics { margin: 0; padding: 0 14px 14px; color: var(--muted); font-size: var(--fs-caption); line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
 </style>

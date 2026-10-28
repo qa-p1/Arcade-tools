@@ -1,4 +1,22 @@
-# Arcade Tools 0.3.8 status
+# Arcade Tools 0.4.0 status
+
+## 0.4.0 verification (2026-10-28)
+
+- Release target: `v0.4.0`, on the Arcade design kit from Arcade Link v0.4.0. See CHANGELOG.md.
+- `scripts/check` (what CI runs) on Linux: typecheck and svelte-check **0 errors, 0 warnings**;
+  mock-backend Chromium UI checks **22 passed** (races, ux, layout); vendored files (39),
+  versions, shortcut sheets, docs snapshot tests and the docs link check (**0 broken**, down
+  from 20) passed; `cargo fmt --check` and workspace Clippy `-D warnings` clean.
+- Workspace tests in Link's disposable HOME/XDG/ARCADE session with private D-Bus and Xvfb:
+  **198 passed, 0 failed, 2 ignored** (the released-Find package test and the benchmark).
+  The isolation checks now compare against the session's root, not `/tmp`.
+- UI shell **230,463 / 245,760 bytes** raw (192,190 in 0.3.8; the budget now covers the vendored kit),
+  **67,346 bytes** gzip; deferred guides and map **44,852 bytes**.
+- Shortcut overlay, headless Xvfb render: Template B in both themes with Inter; window
+  ready in a median **36 ms**, p95 **45 ms** (warm).
+- Not verified here (needs a real desktop): the global shortcut opening the overlay on
+  Hyprland, tray behaviour and icon colour on real panels, the Windows taskbar theme
+  detection, moving a real 0.3.8 profile's folders, and self-update from 0.3.8 to 0.4.0.
 
 ## 0.3.8 verification (2026-10-25)
 

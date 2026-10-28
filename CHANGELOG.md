@@ -1,5 +1,51 @@
 # Changelog
 
+## 0.4.0 — 2026-10-28
+
+Arcade design kit; one look and one set of conventions shared with every Arcade app.
+
+### Changed
+
+- The interface uses the Arcade design kit from Arcade Link 0.4.0: its colours,
+  type scale, icons and the Inter typeface, with a new app icon and a
+  monochrome tray icon (white or black to suit the panel).
+- Settings follow the shared order: General, Shortcuts, Tray, Backup and
+  restore, Connected apps, About (version, channel, logs folder, diagnostics and
+  "Report a problem") and Uninstall last.
+- Shortcuts are set by pressing the keys. A clash with another app or the desktop
+  is shown before it applies, and "Reset to default" restores this system's default.
+- Onboarding has three steps, can be skipped at any step, and leaves the sidebar
+  once it is done; Settings › General › "Set up apps again" brings it back.
+- The sidebar footer shows whether apps are connected; the "Connect apps" switch
+  lives in Settings › Connected apps.
+- App cards, onboarding and the tray describe each app by its one-line tagline.
+- Every page shows a placeholder while loading, an empty state, and a message
+  with Retry when loading fails. Messages and buttons use the same wording as
+  the other apps.
+- The shortcut sheet uses the kit's palette and Inter, follows Tools' Appearance
+  setting, and has a hint bar (Esc Close, ↑ ↓ Move, Tab Scope, Type to filter).
+- The tray menu follows the sidebar's order, in sentence case, with "Quit Arcade
+  Tools" last after a separator.
+- Tools' data moves to `arcade/tools` in the system's data and cache folders.
+  The 0.3 folders (`arcade-tools`, `app.arcadetools`) move on first start and are
+  only removed once the copy is verified.
+
+### Added
+
+- Settings › About: "Open logs folder" and "Copy diagnostics" with the shared
+  Arcade header. Errors that would otherwise be lost go to the log folder.
+- `scripts/dev`, `scripts/check` and `scripts/package` for development, and a
+  single version source checked in CI.
+
+### Fixed
+
+- Links in the bundled guides that pointed outside the guide now open on
+  GitHub, and their images are bundled; Learn has no dead links offline.
+- The Shortcuts tab builds the shortcut list when it opens, instead of asking
+  you to open the overlay or restart first.
+- Every push to main publishes the Linux installer that Arcade Link's nightly
+  ecosystem check installs, updates, repairs and removes.
+
 ## 0.3.8 — 2026-10-25
 
 - A calmer, consistent interface across Home, Apps, Updates, Shortcuts, Learn,

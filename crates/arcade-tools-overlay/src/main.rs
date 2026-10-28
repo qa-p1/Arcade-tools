@@ -84,20 +84,28 @@ fn run(timing: Timing) -> Result<(), String> {
                     None
                 }
             };
-            let dark = ui::dark_preference();
+            let explicit = ui::tools_appearance();
+            let dark = explicit.unwrap_or_else(ui::dark_preference);
             load_timing.phase("index-theme", began);
-            (index, dark)
+            (index, dark, explicit.is_none())
         })
         .map_err(|e| e.to_string())?;
     let began = Instant::now();
     let focus = focus::detect();
     timing.phase("focus", began);
-    let (index, dark) = loader.join().map_err(|_| "index loader failed")?;
+    let (index, dark, follow_system) = loader.join().map_err(|_| "index loader failed")?;
     let app = index.as_ref().and_then(|index| {
         focus
             .identity
             .as_ref()
             .and_then(|identity| index.match_app(identity, focus.kind))
     });
-    ui::run(Model::new(index, app), focus, &instance, timing, dark)
+    ui::run(
+        Model::new(index, app),
+        focus,
+        &instance,
+        timing,
+        dark,
+        follow_system,
+    )
 }

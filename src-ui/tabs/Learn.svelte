@@ -1,7 +1,9 @@
 <script lang="ts">
+  import { glyph } from '../lib/glyphs';
   import { api, type DocPage, type DocsSearchHit, type LearnApp } from '../lib/api';
   import { onDestroy } from 'svelte';
   import Icon from '../components/Icon.svelte';
+  import { asFailure } from '../lib/controller';
 
   type Props = { active: boolean; target: { id: string; serial: number }; run: (action: () => Promise<void>, label?: string) => void };
   let { active, target, run }: Props = $props();
@@ -28,7 +30,7 @@
     loading = true;
     error = null;
     try { apps = await api.listLearnApps(); loaded = true; }
-    catch (problem) { error = problem instanceof Error ? problem.message : String(problem); }
+    catch (problem) { error = asFailure(problem).message; }
     finally { loading = false; }
   }
 
@@ -42,7 +44,7 @@
       const found = await api.searchDocs(term);
       if (generation === searchGeneration) hits = found;
     }
-    catch (problem) { if (generation === searchGeneration) error = problem instanceof Error ? problem.message : String(problem); }
+    catch (problem) { if (generation === searchGeneration) error = asFailure(problem).message; }
     finally { if (generation === searchGeneration) loading = false; }
   }
 
@@ -76,7 +78,7 @@
       if (!current()) return;
       page = opened;
       if (!chosen) readerError = 'No pages are available offline for this app yet.';
-    } catch (problem) { if (current()) readerError = problem instanceof Error ? problem.message : String(problem); }
+    } catch (problem) { if (current()) readerError = asFailure(problem).message; }
   }
 
   async function changeVersion(useLatest: boolean): Promise<void> {
@@ -136,7 +138,7 @@
         {#if readerApp !== 'arcade.ecosystem'}
           <div class="page-actions">
             <select class="select sm" aria-label="Documentation version" value={latest ? 'latest' : 'installed'} onchange={(event) => run(() => changeVersion(event.currentTarget.value === 'latest'))}><option value="installed">Your version</option><option value="latest">Latest saved</option></select>
-            <button class="btn sm" type="button" disabled={fetchBusy[readerApp]} onclick={() => run(fetchLatest)}>{fetchBusy[readerApp] ? 'Downloading…' : 'Download latest'}</button>
+            <button class="btn sm" class:busy={fetchBusy[readerApp]} type="button" disabled={fetchBusy[readerApp]} onclick={() => run(fetchLatest)}><Icon name="updates" size={15} />Download latest</button>
           </div>
         {/if}
       </header>
@@ -167,7 +169,7 @@
         {#if loading && searching}<span class="faint searching">Searching…</span>{/if}
       </label>
     </form>
-    {#if error}<p class="error-text form-error">{error}</p>{/if}
+    {#if error && apps.length}<p class="error-text form-error" role="alert">Couldn't search the guides. {error}</p>{/if}
 
     {#if searching}
       <section class="section" aria-label="Documentation search results">
@@ -175,7 +177,7 @@
           <ul class="list docs-results">
             {#each hits as hit (`${hit.app}:${hit.version}:${hit.path}`)}
               <li><button type="button" class="row docs-hit" onclick={() => run(() => openReader(hit.app, hit.path))}>
-                <span class="glyph-tile sm"><img src="/glyphs/{hit.app}.svg" alt="" width="15" height="15" /></span>
+                <span class="glyph-tile sm"><img src={glyph(hit.app)} alt="" width="15" height="15" /></span>
                 <span class="row-main"><span class="row-title">{hit.title}</span>{#if hit.snippet}<span class="row-sub">{hit.snippet}</span>{/if}</span>
                 <span class="faint">{apps.find((app) => app.id === hit.app)?.name ?? hit.app}</span>
                 <Icon name="chevronRight" />
@@ -190,24 +192,26 @@
 
     <section class="section" aria-labelledby="learn-apps-heading">
       <div class="section-head"><h2 id="learn-apps-heading">Guides</h2><button type="button" class="btn ghost sm" disabled={loading} onclick={() => run(loadApps)}>{loading ? 'Loading…' : 'Refresh'}</button></div>
-      {#if apps.length}
-        <div class="guide-grid">
-          <div class="card learn-app-row guide featured">
-            <span class="glyph-tile"><img src="/glyphs/arcade.tools.svg" alt="" width="18" height="18" /></span>
+      {#if error && !apps.length}
+        <div class="notice danger" role="alert"><Icon name="alert" /><span class="row-main">Couldn't load the guides. {error}</span><button type="button" class="btn sm" onclick={() => run(loadApps)}>Retry</button></div>
+      {:else if apps.length}
+        <div class="card-grid">
+          <div class="card learn-app-row guide">
+            <span class="glyph-tile"><img src={glyph('arcade.tools')} alt="" width="18" height="18" /></span>
             <div class="row-main"><div class="row-title">Getting started with Arcade</div><div class="row-sub">What the apps do and how they work together</div></div>
-            <button type="button" class="btn sm primary" onclick={() => run(() => openReader('arcade.ecosystem'))}>Read</button>
+            <div class="row-end"><button type="button" class="btn sm" onclick={() => run(() => openReader('arcade.ecosystem'))}>Read</button></div>
           </div>
           {#each apps as app (app.id)}
             <div class="card learn-app-row guide">
-              <span class="glyph-tile"><img src="/glyphs/{app.id}.svg" alt="" width="18" height="18" /></span>
+              <span class="glyph-tile"><img src={glyph(app.id)} alt="" width="18" height="18" /></span>
               <div class="row-main">
                 <div class="row-title">{app.name}</div>
                 <div class="row-sub">{app.available ? `Offline${app.docsVersion ? ` · v${app.docsVersion}` : ''}` : 'Online only'}{app.installedVersion && app.needsFetch ? ' · older than your version' : ''}</div>
               </div>
               <div class="row-end">
                 {#if app.installedVersion && app.needsFetch}<button type="button" class="btn ghost icon-only sm" title="Download the docs for v{app.installedVersion}" aria-label="Download installed-version docs" disabled={fetchBusy[app.id]} onclick={() => run(() => fetchInstalledDocs(app), app.name)}><Icon name="updates" size={15} /></button>{/if}
-                {#if app.available}<button type="button" class="btn sm" onclick={() => run(() => openReader(app.id), app.name)}>Read here</button>{/if}
-                <button type="button" class="btn ghost icon-only sm" title="Open the guide online" aria-label="Open guide online" onclick={() => run(() => api.openDocs(app.id), app.name)}><Icon name="external" size={15} /></button>
+                {#if app.available}<button type="button" class="btn sm" onclick={() => run(() => openReader(app.id), app.name)}>Read</button>{/if}
+                <button type="button" class="btn ghost icon-only sm" title="Open on GitHub" aria-label="Open on GitHub" onclick={() => run(() => api.openDocs(app.id), app.name)}><Icon name="external" size={15} /></button>
               </div>
             </div>
           {/each}
@@ -215,7 +219,7 @@
       {:else if loading}
         <div class="list">{#each [0, 1, 2] as item (item)}<div class="skeleton-row"><span class="glyph-tile skeleton"></span><div class="row-main"><div class="skeleton line skel"></div></div></div>{/each}</div>
       {:else}
-        <p class="muted">No guides are available yet.</p>
+        <div class="empty-state"><Icon name="book" size={24} /><h3>No guides yet</h3><p>Refresh to look for the guides again.</p><div class="btn-group"><button type="button" class="btn" onclick={() => run(loadApps)}>Refresh</button></div></div>
       {/if}
     </section>
   {/if}
@@ -229,12 +233,12 @@
   .reader-body { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 32px; align-items: start; padding-top: 8px; border-top: 1px solid var(--line); }
   nav { position: sticky; top: 16px; padding-top: 12px; }
   nav ul { display: grid; gap: 1px; margin: 0; padding: 0; list-style: none; }
-  nav button { width: 100%; padding: 6px 10px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font-size: 12.5px; text-align: left; cursor: pointer; }
+  nav button { width: 100%; padding: 6px 10px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font-size: var(--fs-control); text-align: left; cursor: pointer; }
   nav button:hover { background: var(--hover); color: var(--text); }
   nav button.current { background: var(--sunken); color: var(--text); font-weight: 500; box-shadow: inset 2px 0 0 var(--accent); }
   .reader-page { max-width: 68ch; padding-top: 12px; }
   .search-form { margin-bottom: 4px; }
-  .searching { font-size: 12px; }
+  .searching { font-size: var(--fs-small); }
   .form-error { margin-top: 8px; }
   .docs-results { margin: 0; padding: 0; list-style: none; }
   .docs-results li + li { border-top: 1px solid var(--line); }
@@ -244,10 +248,8 @@
   .docs-hit .row-sub { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
   .docs-hit > :global(.icon) { color: var(--faint); }
   .no-results { padding: 8px 2px; }
-  .guide-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
   .guide { display: flex; align-items: center; gap: 12px; padding: 12px 12px 12px 14px; }
   .guide + .guide { margin-top: 0; }
-  .guide.featured { grid-column: 1 / -1; background: var(--sunken); }
   .skel { width: 40%; }
   @media (max-width: 760px) { .reader-body { grid-template-columns: 1fr; } nav { position: static; } }
 </style>

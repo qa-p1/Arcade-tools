@@ -129,6 +129,7 @@ pub struct AppView {
     pub id: String,
     pub name: String,
     pub pitch: String,
+    pub tagline: String,
     pub releases_url: String,
     pub version: Option<String>,
     pub managed: bool,
@@ -1369,7 +1370,7 @@ impl Manager {
                 else if peer.is_some_and(|m| !m.settings.link_enabled) { Some("Arcade Link is disabled in this app. Close it before changing its installation.".into()) }
                 else if record.is_some() && !healthy { Some("Installed executable is missing. Choose Repair.".into()) }
                 else { record.as_ref().and_then(first_update_rollback_notice).map(str::to_owned) };
-            Ok(AppView { id: id.to_string(), name: app.name.clone(), pitch: app.pitch.clone(), releases_url: app.releases_url(),
+            Ok(AppView { id: id.to_string(), name: app.name.clone(), pitch: app.pitch.clone(), tagline: app.display_tagline(), releases_url: app.releases_url(),
                 version: record.as_ref().map(|r| r.version.clone()).or_else(|| peer.map(|m| m.version.clone())), managed: matches!(class, InstallationClass::Managed | InstallationClass::LegacyManaged), installed: healthy,
                 running, channel: prefs.channels.get(id).copied().or(record.as_ref().map(|r| r.channel)).unwrap_or_default(), healthy,
                 start_at_login: platform::autostart_enabled(&self.paths, id), login_supported: app.supported_install() && platform::login_supported(id, Os::current()), executable: executable.map(|p| p.display().to_string()),
@@ -1584,10 +1585,7 @@ impl Manager {
                 }
             }
             folders.push(self.paths.link.registry.join(format!("{id}.json")));
-            let mut data_folders = self.paths.data_folders(&id, Os::current());
-            if id == ids::TOOLS {
-                data_folders.push(self.paths.cache.join("arcade/tools"));
-            }
+            let data_folders = self.paths.data_folders(&id, Os::current());
             let can_uninstall = known && class != InstallationClass::Dev && record.is_some();
             if can_uninstall {
                 for path in folders.iter().chain(if remove_data {

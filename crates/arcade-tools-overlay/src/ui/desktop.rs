@@ -162,7 +162,10 @@ impl ApplicationHandler<Command> for App {
                     .map_err(|e| e.to_string())?,
             );
             #[cfg(any(windows, target_os = "macos"))]
-            if let Some(theme) = window.theme() {
+            if let Some(theme) = window
+                .theme()
+                .filter(|_| self.overlay.renderer.follow_system)
+            {
                 self.overlay.renderer.dark = theme == winit::window::Theme::Dark;
             }
             if let Some(monitor) = window
@@ -224,7 +227,7 @@ impl ApplicationHandler<Command> for App {
             }
             WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged { .. } => self.redraw(),
             WindowEvent::ModifiersChanged(mods) => self.mods = mods.state(),
-            WindowEvent::ThemeChanged(theme) => {
+            WindowEvent::ThemeChanged(theme) if self.overlay.renderer.follow_system => {
                 self.overlay.renderer.dark = theme == winit::window::Theme::Dark;
                 self.redraw();
             }

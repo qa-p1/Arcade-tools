@@ -1,5 +1,8 @@
 <script lang="ts">
+  import { relativeInSentence } from '../lib/format';
   import { api } from '../lib/api';
+  import { asFailure } from '../lib/controller';
+  import { ui } from '../lib/state.svelte';
   import ShortcutRebind from '../components/ShortcutRebind.svelte';
   import Icon from '../components/Icon.svelte';
   import AppShortcutRow from '../components/AppShortcutRow.svelte';
@@ -40,12 +43,41 @@
   let labelDrafts = $state<Record<string, string>>({});
   let savedLabelKey = $state('');
   let sheetMessage = $state('');
-  async function refreshSheets(): Promise<void> { try { sheetMessage = `${await api.refreshShortcutSheets()} catalog sheets refreshed.`; } catch (error) { sheetMessage = (error as { message?: string }).message ?? String(error); } }
+  async function refreshSheets(): Promise<void> { try { const count = await api.refreshShortcutSheets(); sheetMessage = `Refreshed ${count} catalog shortcut ${count === 1 ? 'sheet' : 'sheets'}.`; } catch (error) { sheetMessage = `Couldn't refresh the catalog shortcut sheets. ${asFailure(error).message}`; } }
   let labelError = $state('');
   let editingLabel = $state('');
   const wmName = $derived(index?.wm.name && index.wm.name !== 'none' ? index.wm.name.charAt(0).toUpperCase() + index.wm.name.slice(1) : '');
   let sheetsBusy = $state(false);
   async function refreshAllSheets(): Promise<void> { sheetsBusy = true; try { await refreshSheets(); } finally { sheetsBusy = false; } }
+
+  // Opening the page builds the list when there is none yet.
+  let building = $state(false);
+  let buildError = $state('');
+  async function buildIndex(): Promise<void> {
+    building = true;
+    buildError = '';
+    try {
+      for (let attempt = 0; ; attempt += 1) {
+        try {
+          const status = await api.rebuildShortcutIndex();
+          if (status.error) throw { code: 'shortcut_index', message: status.error };
+          break;
+        } catch (error) {
+          // The worker starts with Tools; wait for it rather than fail.
+          if (asFailure(error).code !== 'initializing' || attempt >= 20) throw error;
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        }
+      }
+      const built = await api.shortcutsIndex();
+      if (!built) throw { code: 'shortcut_index', message: 'The list came back empty.' };
+      ui.shortcutsIndex = built;
+    } catch (error) {
+      buildError = asFailure(error).message;
+    } finally {
+      building = false;
+    }
+  }
+  $effect(() => { if (active && !index && !building && !buildError) void buildIndex(); });
 
   const search = $derived(query.trim().toLocaleLowerCase());
   const selectedApp = $derived(index?.apps.find((app) => app.id === selectedAppId) ?? null);
@@ -168,7 +200,7 @@
       editingLabel = '';
       onChange();
     } catch (error) {
-      labelError = error instanceof Error ? error.message : String(error);
+      labelError = asFailure(error).message;
       onChange();
     }
   }
@@ -187,7 +219,7 @@
 {#snippet arcadeRow(shortcut: ArcadeShortcut, os: string)}
   <li class="row shortcut-row arcade-row">
     <div class="row-main"><div class="row-title">{shortcut.title}</div><div class="row-sub">{shortcut.name}</div></div>
-    <KeyChips keys={shortcut.display} {os} />
+    {#if !index || !shortcut.rebindable}<KeyChips keys={shortcut.display} {os} />{/if}
     {#if index}<div class="rebind"><ShortcutRebind {shortcut} {index} /></div>{/if}
   </li>
 {/snippet}
@@ -196,19 +228,23 @@
   <header class="page-head">
     <div>
       <h1>Shortcuts</h1>
-      <p class="sub">Every shortcut on this computer in one place.{#if index}&nbsp;Updated {new Date(index.builtAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}.{/if}</p>
+      <p class="sub">Every shortcut on this computer in one place.{#if index}&nbsp;Updated {relativeInSentence(new Date(index.builtAt).getTime())}.{/if}</p>
     </div>
     <div class="page-actions">
-      <button type="button" class="btn ghost" disabled={sheetsBusy} onclick={() => void refreshAllSheets()}><Icon name="refresh" size={14} />{sheetsBusy ? 'Refreshing…' : 'Refresh catalog shortcut sheets'}</button>
+      <button type="button" class="btn" class:busy={sheetsBusy} disabled={sheetsBusy} onclick={() => void refreshAllSheets()}><Icon name="refresh" size={14} />Refresh catalog shortcut sheets</button>
     </div>
   </header>
   {#if sheetMessage}<p class="section-note sheet-message" role="status">{sheetMessage}</p>{/if}
 
-  {#if !index}
-    <div class="empty-state">
-      <Icon name="keyboard" size={24} />
-      <h2 id="shortcuts-empty-title">The shortcut list isn't ready yet</h2>
-      <p>Open the shortcut overlay once (Super + /) or restart Arcade Tools to build it.</p>
+  {#if !index && buildError}
+    <div class="notice danger" role="alert">
+      <Icon name="alert" />
+      <span class="row-main">Couldn't build the shortcut list. {buildError} Try again, or restart Arcade Tools if it keeps failing.</span>
+      <button type="button" class="btn sm" onclick={() => void buildIndex()}>Retry</button>
+    </div>
+  {:else if !index}
+    <div class="list" aria-busy="true" aria-label="Building the shortcut list">
+      {#each [0, 1, 2, 3, 4] as row (row)}<div class="skeleton-row"><div class="row-main"><div class="skeleton line" style:width="{40 + row * 9}%"></div></div><div class="skeleton line chip-skeleton"></div></div>{/each}
     </div>
   {:else}
     <div class="toolbar">
@@ -287,7 +323,7 @@
             {/each}
           {/if}
         {:else if view === 'arcade'}
-          <p class="view-note muted" id="arcade-shortcuts-heading">Shortcuts Arcade apps add to your whole desktop.</p>
+          <p class="view-note muted" id="arcade-shortcuts-heading">Shortcuts Arcade apps add to your whole desktop. A new shortcut is checked against the other Arcade apps{wmName ? ` and ${wmName}` : ''} first.</p>
           {#if visibleArcade.length}
             <ul class="list plain">{#each visibleArcade as shortcut (`${shortcut.app}-${shortcut.id}`)}{@render arcadeRow(shortcut, index.os)}{/each}</ul>
           {:else}<p class="no-results" role="status">No Arcade global shortcuts were found.</p>{/if}
@@ -373,15 +409,15 @@
   .view-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
   .view-note { margin-bottom: 14px; }
   .group + .group { margin-top: 22px; }
-  .group-title { display: flex; align-items: baseline; gap: 8px; margin: 0 0 8px 2px; color: var(--faint); font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+  .group-title { display: flex; align-items: baseline; gap: 8px; margin: 0 0 8px 2px; color: var(--faint); font-size: var(--fs-caption); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
   .group-title span { font-weight: 500; letter-spacing: 0; text-transform: none; }
   .plain { margin: 0; padding: 0; list-style: none; }
   .plain > :global(.row) { min-height: 46px; padding: 8px 14px; }
   .arcade-row, .conflict-card { flex-wrap: wrap; }
   .rebind { display: flex; justify-content: flex-end; }
-  .rebind:has(:global(.rebind-editing)) { flex-basis: 100%; justify-content: flex-start; }
+  .chip-skeleton { width: 72px; height: 22px; }
   .row-title :global(.badge) { margin-left: 4px; }
-  .save-status { font-size: 12px; font-weight: 400; }
+  .save-status { font-size: var(--fs-small); font-weight: 400; }
   .edit { opacity: 0; }
   .wm-shortcut-row:hover .edit, .edit:focus-visible { opacity: 1; }
   .label-editor { display: flex; gap: 6px; }

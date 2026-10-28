@@ -423,6 +423,52 @@ pub async fn reveal_archive(app: AppHandle, path: PathBuf) -> Result<()> {
     })
     .await
 }
+/// Opens Tools' log folder (stderr goes there when it would be lost).
+#[tauri::command]
+pub async fn open_logs_folder(app: AppHandle) -> Result<()> {
+    worker(move || {
+        use tauri_plugin_opener::OpenerExt;
+        let folder = desktop(&app).manager()?.paths.logs();
+        std::fs::create_dir_all(&folder).map_err(|e| Error::new("open", e.to_string()))?;
+        app.opener()
+            .open_path(folder.display().to_string(), None::<&str>)
+            .map_err(|e| Error::new("open", e.to_string()))
+    })
+    .await
+}
+/// "Copy diagnostics": Link's shared header (STANDARD §10), then Tools' own
+/// lines. No paths inside the user's documents, no secrets.
+#[tauri::command]
+pub async fn diagnostics_text(app: AppHandle) -> Result<String> {
+    worker(move || {
+        let state = desktop(&app);
+        let manager = state.manager()?;
+        let preferences = manager.preferences()?;
+        let channel = manager
+            .tools_view()?
+            .filter(|tools| tools.managed)
+            .map_or("development".to_string(), |tools| {
+                format!("{:?}", tools.channel).to_lowercase()
+            });
+        let mut header =
+            arcade_link::diagnostics::Header::new(ids::TOOLS, env!("CARGO_PKG_VERSION"), &channel);
+        header.link_enabled = preferences.link_enabled;
+        header.peers_from(&manager.paths.link);
+        let mut text = header.render();
+        let lines = state
+            .presence
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_ref()
+            .map(|presence| presence.diagnostics())
+            .unwrap_or_default();
+        for (name, value) in lines {
+            text += &format!("{name}: {value}\n");
+        }
+        Ok(text)
+    })
+    .await
+}
 #[tauri::command]
 pub async fn open_issue(app: AppHandle, id: String, issue_url: Option<String>) -> Result<()> {
     worker(move || {

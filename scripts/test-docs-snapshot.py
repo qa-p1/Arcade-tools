@@ -21,6 +21,41 @@ class SnapshotTests(unittest.TestCase):
         with contextlib.redirect_stdout(io.StringIO()):
             return SNAPSHOT.main(args)
 
+    def test_links_leaving_the_guide_become_urls_and_images_are_copied(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            catalog = root / "Arcade-catalog"
+            (catalog / "docs").mkdir(parents=True)
+            (catalog / "catalog.json").write_text(json.dumps(CATALOG))
+            (catalog / "docs/index.md").write_text("# Arcade")
+            repo = root / "Arcade-look"
+            (repo / "docs/user").mkdir(parents=True)
+            (repo / "docs/hero.webp").write_bytes(b"webp")
+            (repo / "docs/user/index.md").write_text(
+                "![Hero](../hero.webp)\nSee [status](../STATUS.md#now), [FAQ](faq.md) and [site](https://example.com).\n"
+                '<img src="../hero.webp" alt="">\n[ref]: ../PLUGINS.md\n')
+            (repo / "docs/user/faq.md").write_text("# FAQ")
+            out = root / "output"
+            self.assertEqual(self.run_snapshot(["--from-local", str(root), "--out", str(out)]), 0)
+            page = (out / "arcade.look/local/index.md").read_text()
+            repo_url = "https://github.com/" + next(app["repo"] for app in CATALOG["apps"] if app["id"] == "arcade.look")
+            self.assertIn("![Hero](_external/docs/hero.webp)", page)
+            self.assertIn('<img src="_external/docs/hero.webp"', page)
+            self.assertIn(f"[status]({repo_url}/blob/main/docs/STATUS.md#now)", page)
+            self.assertIn(f"[ref]: {repo_url}/blob/main/docs/PLUGINS.md", page)
+            self.assertIn("[FAQ](faq.md)", page)
+            self.assertIn("(https://example.com)", page)
+            self.assertEqual((out / "arcade.look/local/_external/docs/hero.webp").read_bytes(), b"webp")
+            manifest = json.loads((out / "manifest.json").read_bytes())
+            look = next(entry for entry in manifest["entries"] if entry["id"] == "arcade.look")
+            index = next(item for item in look["files"] if item["path"] == "index.md")
+            # The rewritten page's bytes, whatever newlines this OS wrote the fixture with.
+            self.assertEqual(index["size"], len((out / "arcade.look/local/index.md").read_bytes()))
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(SNAPSHOT.main(["--check-links", str(out)]), 0)
+                (out / "arcade.look/local/faq.md").write_text("[gone](../elsewhere.md)")
+                self.assertEqual(SNAPSHOT.main(["--check-links", str(out)]), 1)
+
     def test_local_text_images_missing_docs_and_atomic_budget(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

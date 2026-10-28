@@ -9,7 +9,7 @@ use arcade_tools_core::{
     release::{Arch, Channel, Kind, Os},
     source::Source,
 };
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[test]
 fn find_metadata_install_data_and_login_paths_match_the_app() {
@@ -34,21 +34,36 @@ fn find_metadata_install_data_and_login_paths_match_the_app() {
         .ends_with("Applications/Arcade Find.app/Contents/MacOS/arcade-find"));
     assert_eq!(
         paths.data_folders(apps::FIND, Os::Linux),
-        [
-            paths.config.join("arcade-find"),
-            paths.data.join("arcade-find")
-        ]
+        with_new_folders(
+            &paths,
+            apps::FIND,
+            Os::Linux,
+            &[
+                paths.config.join("arcade-find"),
+                paths.data.join("arcade-find")
+            ]
+        )
     );
     assert_eq!(
         paths.data_folders(apps::FIND, Os::Windows),
-        [
-            paths.roaming.join("Arcade/Arcade Find"),
-            paths.local.join("Arcade/Arcade Find")
-        ]
+        with_new_folders(
+            &paths,
+            apps::FIND,
+            Os::Windows,
+            &[
+                paths.roaming.join("Arcade/Arcade Find"),
+                paths.local.join("Arcade/Arcade Find")
+            ]
+        )
     );
     assert_eq!(
         paths.data_folders(apps::FIND, Os::Macos),
-        [paths.home.join("Library/Application Support/Arcade Find")]
+        with_new_folders(
+            &paths,
+            apps::FIND,
+            Os::Macos,
+            &[paths.home.join("Library/Application Support/Arcade Find")]
+        )
     );
     // The same entries Find's own Settings toggle writes.
     assert!(paths
@@ -125,4 +140,17 @@ fn find_login_entry_matches_finds_own() {
     assert!(entry.contains("Icon=arcade-find"), "{entry}");
     platform::set_autostart(&paths, apps::FIND, &exe, false).unwrap();
     assert!(!platform::autostart_enabled(&paths, apps::FIND));
+}
+
+/// The 0.3 folders first, then the `arcade/<app>` folders from Link's paths
+/// module, which backup, restore and uninstall also cover.
+fn with_new_folders(paths: &Paths, id: &str, os: Os, old: &[PathBuf]) -> Vec<PathBuf> {
+    let dirs = paths.app_dirs(id, os);
+    let mut folders = old.to_vec();
+    for folder in [dirs.config, dirs.data, dirs.cache] {
+        if !folders.contains(&folder) {
+            folders.push(folder);
+        }
+    }
+    folders
 }

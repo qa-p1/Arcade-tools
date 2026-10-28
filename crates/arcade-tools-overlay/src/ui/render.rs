@@ -5,53 +5,48 @@ use tiny_skia::{
     FillRule, FilterQuality, Mask, Paint, Path, PathBuilder, Pixmap, PixmapPaint, Stroke, Transform,
 };
 
-use crate::layout::{row_height, Layout, Rect, GROUP_GAP, GROUP_HEIGHT, HEIGHT, WIDTH};
+use crate::layout::{row_height, Layout, Rect, GROUP_GAP, GROUP_HEIGHT, HEIGHT, PICKER_ROW, WIDTH};
 use crate::model::{Model, Scope};
 
 use super::text::Text;
+use arcade_link::design::{self, radius, size, text as ty, Theme};
 
 type Clip = (i32, i32, i32, i32);
 
-const KEY_TEXT: f32 = 11.5;
+const REGULAR: u16 = 400;
+const MEDIUM: u16 = 500;
+const SEMIBOLD: u16 = 600;
 
+/// The kit palette (`arcade_link::design`) with Tools' accent, named for
+/// what the sheet draws with it.
 #[derive(Clone, Copy)]
 pub struct Palette {
     pub panel: u32,
     border: u32,
+    strong: u32,
     surface: u32,
-    selected: u32,
     text: u32,
     muted: u32,
     faint: u32,
     accent: u32,
+    accent_soft: u32,
     warning: u32,
 }
 impl Palette {
     pub fn new(dark: bool) -> Self {
-        if dark {
-            Self {
-                panel: 0x16181d,
-                border: 0x2a2e36,
-                surface: 0x1d2026,
-                selected: 0x2b2f38,
-                text: 0xe6e8ec,
-                muted: 0x8d939e,
-                faint: 0x646a75,
-                accent: 0x5fd08f,
-                warning: 0xe8b04b,
-            }
-        } else {
-            Self {
-                panel: 0xffffff,
-                border: 0xe2e4e8,
-                surface: 0xf5f6f8,
-                selected: 0xe8eaee,
-                text: 0x1b1e23,
-                muted: 0x666c77,
-                faint: 0x9399a3,
-                accent: 0x168a4c,
-                warning: 0xb7791f,
-            }
+        let theme = if dark { Theme::Dark } else { Theme::Light };
+        let kit = design::palette(theme, "arcade.tools");
+        Self {
+            panel: kit.panel,
+            border: kit.line,
+            strong: kit.line_strong,
+            surface: kit.sunken,
+            text: kit.text,
+            muted: kit.muted,
+            faint: kit.faint,
+            accent: kit.accent,
+            accent_soft: kit.accent_soft,
+            warning: kit.warn,
         }
     }
 }
@@ -59,12 +54,15 @@ impl Palette {
 pub struct Renderer {
     text: Text,
     pub dark: bool,
+    /// Tools' Appearance is System: system theme changes apply live.
+    pub follow_system: bool,
 }
 impl Renderer {
     pub fn new(dark: bool) -> Self {
         Self {
             text: Text::default(),
             dark,
+            follow_system: true,
         }
     }
 
@@ -101,7 +99,7 @@ impl Renderer {
         // Only the click-catcher outside the rounded panel stays transparent.
         canvas.round(
             layout.panel,
-            14.0,
+            radius::LG,
             Some(palette.panel),
             Some(palette.border),
             None,
@@ -113,10 +111,12 @@ impl Renderer {
             .index
             .as_ref()
             .and_then(|index| model.app.and_then(|app| index.apps.get(app)));
+        // The app mark at 16 px in the text colour (STANDARD §7, §2).
         canvas.glyph(
             app.map_or("arcade.tools", |app| app.id.as_str()),
-            36.0,
-            30.0,
+            42.0,
+            34.0,
+            palette.text,
         )?;
         let keys_x = layout.panel.right() - 20.0 - keycap_width(text, "Ctrl P", scale);
         keycap(
@@ -130,12 +130,12 @@ impl Renderer {
             None,
         );
         let hint = "Choose app";
-        let hint_x = keys_x - 8.0 - text.width(hint, 12.0 * scale, false) / scale;
+        let hint_x = keys_x - 8.0 - text.width(hint, ty::SMALL.size * scale, REGULAR) / scale;
         canvas.text(
             text,
             hint,
-            12.0,
-            false,
+            ty::SMALL.size,
+            REGULAR,
             palette.muted,
             hint_x,
             42.0,
@@ -145,8 +145,8 @@ impl Renderer {
         canvas.text(
             text,
             model.title(),
-            17.0,
-            true,
+            ty::TITLE_SM.size,
+            SEMIBOLD,
             palette.text,
             70.0,
             42.0,
@@ -159,9 +159,9 @@ impl Renderer {
         let cy = search.y + search.h / 2.0;
         canvas.round(
             search,
-            10.0,
+            radius::SM,
             Some(palette.surface),
-            Some(palette.border),
+            Some(palette.strong),
             None,
         );
         canvas.magnifier(search.x + 19.0, cy - 1.0, palette.muted);
@@ -174,8 +174,8 @@ impl Renderer {
             canvas.text(
                 text,
                 placeholder,
-                14.0,
-                false,
+                ty::HEADING.size,
+                REGULAR,
                 palette.faint,
                 search.x + 42.0,
                 cy,
@@ -187,8 +187,8 @@ impl Renderer {
             canvas.text(
                 text,
                 &model.query,
-                14.0,
-                false,
+                ty::HEADING.size,
+                REGULAR,
                 palette.text,
                 search.x + 38.0,
                 cy,
@@ -212,7 +212,7 @@ impl Renderer {
         // Scope control: one segmented track, the active scope raised.
         canvas.round(
             layout.track,
-            8.0,
+            radius::TILE,
             Some(palette.surface),
             Some(palette.border),
             None,
@@ -220,14 +220,14 @@ impl Renderer {
         for (scope, tab) in Scope::ORDER.iter().zip(layout.tabs) {
             let active = model.scope == *scope && !model.picking;
             if active {
-                canvas.round(tab, 6.0, Some(palette.selected), None, None);
+                canvas.round(tab, 6.0, Some(palette.panel), Some(palette.border), None);
             }
-            let width = text.width(scope.name(), 12.0 * scale, active) / scale;
+            let width = text.width(scope.name(), ty::CONTROL.size * scale, MEDIUM) / scale;
             canvas.text(
                 text,
                 scope.name(),
-                12.0,
-                active,
+                ty::CONTROL.size,
+                MEDIUM,
                 if active { palette.text } else { palette.muted },
                 tab.x + (tab.w - width) / 2.0,
                 tab.y + tab.h / 2.0,
@@ -239,8 +239,8 @@ impl Renderer {
         if let Some(picker) = layout.picker {
             canvas.round(
                 picker,
-                10.0,
-                Some(palette.surface),
+                radius::MD,
+                Some(palette.panel),
                 Some(palette.border),
                 None,
             );
@@ -250,14 +250,27 @@ impl Renderer {
             if let Some(index) = &model.index {
                 for (row, candidate) in candidates.iter().enumerate().skip(start).take(rows) {
                     let line = Rect {
-                        x: picker.x + 6.0,
-                        y: picker.y + 8.0 + (row - start) as f32 * 34.0,
-                        w: picker.w - 12.0,
-                        h: 30.0,
+                        x: picker.x + 4.0,
+                        y: picker.y + 4.0 + (row - start) as f32 * PICKER_ROW,
+                        w: picker.w - 8.0,
+                        h: PICKER_ROW,
                     };
                     let cy = line.y + line.h / 2.0;
                     if row == model.picker_selected {
-                        canvas.round(line, 6.0, Some(palette.selected), None, None);
+                        // Template B: accent-soft fill and a 2 px accent bar.
+                        canvas.round(line, radius::SM, Some(palette.accent_soft), None, None);
+                        canvas.round(
+                            Rect {
+                                x: line.x,
+                                y: line.y + 8.0,
+                                w: size::SELECTION_BAR,
+                                h: line.h - 16.0,
+                            },
+                            1.0,
+                            Some(palette.accent),
+                            None,
+                            None,
+                        );
                         let enter = keycap_width(text, "Enter", scale);
                         keycap(
                             &mut canvas,
@@ -273,8 +286,8 @@ impl Renderer {
                     canvas.text(
                         text,
                         &index.apps[*candidate].name,
-                        13.5,
-                        false,
+                        ty::BODY.size,
+                        MEDIUM,
                         palette.text,
                         line.x + 10.0,
                         cy,
@@ -287,8 +300,8 @@ impl Renderer {
                 canvas.text(
                     text,
                     "No matching app. Shortcut results are below.",
-                    13.0,
-                    false,
+                    ty::BODY.size,
+                    REGULAR,
                     palette.muted,
                     picker.x + 16.0,
                     picker.y + 23.0,
@@ -300,12 +313,13 @@ impl Renderer {
 
         if let Some(message) = model.message() {
             let max_width = layout.viewport.w;
-            let width = (text.width(message, 14.0 * scale, false) / scale).min(max_width);
+            let width =
+                (text.width(message, ty::BODY.size * scale, REGULAR) / scale).min(max_width);
             canvas.text(
                 text,
                 message,
-                14.0,
-                false,
+                ty::BODY.size,
+                REGULAR,
                 palette.muted,
                 layout.viewport.x + (max_width - width) / 2.0,
                 layout.viewport.y + layout.viewport.h / 2.0,
@@ -320,8 +334,8 @@ impl Renderer {
             let heading = canvas.text(
                 text,
                 &section.title,
-                13.0,
-                true,
+                ty::HEADING.size,
+                SEMIBOLD,
                 palette.text,
                 column.x,
                 column.y - 22.0,
@@ -331,8 +345,8 @@ impl Renderer {
             canvas.text(
                 text,
                 &count.to_string(),
-                12.0,
-                false,
+                ty::SMALL.size,
+                REGULAR,
                 palette.faint,
                 column.x + heading + 8.0,
                 column.y - 22.0,
@@ -359,8 +373,8 @@ impl Renderer {
                 canvas.text(
                     text,
                     &group.title.to_uppercase(),
-                    10.5,
-                    true,
+                    ty::CAPTION.size,
+                    SEMIBOLD,
                     palette.faint,
                     column.x,
                     y + 18.0,
@@ -372,7 +386,7 @@ impl Renderer {
                     let height = row_height(row);
                     conflicts |= row.conflict;
                     if y + height > column.y && y < column.bottom() {
-                        let cy = y + 16.0;
+                        let cy = y + size::ROW_OVERLAY / 2.0;
                         // Keys sit flush right; extra alternatives drop before the title does.
                         let widths: Vec<f32> = row
                             .chips
@@ -401,7 +415,7 @@ impl Renderer {
                                 x,
                                 cy,
                                 width,
-                                22.0,
+                                size::KEY_CHIP,
                                 clip,
                                 mask,
                             );
@@ -415,8 +429,8 @@ impl Renderer {
                         canvas.text(
                             text,
                             &row.title,
-                            13.0,
-                            false,
+                            ty::BODY.size,
+                            MEDIUM,
                             palette.text,
                             column.x,
                             cy,
@@ -427,11 +441,11 @@ impl Renderer {
                             canvas.text(
                                 text,
                                 detail,
-                                11.5,
-                                false,
+                                ty::SMALL.size,
+                                REGULAR,
                                 palette.muted,
                                 column.x,
-                                cy + 19.0,
+                                cy + 17.0,
                                 column.w,
                                 clip,
                             );
@@ -445,8 +459,8 @@ impl Renderer {
                 canvas.text(
                     text,
                     "No matching shortcuts",
-                    12.5,
-                    false,
+                    ty::BODY.size,
+                    REGULAR,
                     palette.faint,
                     column.x,
                     column.y + 18.0,
@@ -467,17 +481,17 @@ impl Renderer {
                     h: thumb,
                 },
                 2.0,
-                Some(palette.selected),
+                Some(palette.strong),
                 None,
                 None,
             );
         }
 
-        // Footer: a quiet key legend.
+        // Footer: the Template B hint bar.
         canvas.round(
             Rect {
                 x: layout.panel.x,
-                y: layout.panel.bottom() - 40.0,
+                y: layout.panel.bottom() - size::HINT_BAR,
                 w: layout.panel.w,
                 h: 1.0,
             },
@@ -486,9 +500,9 @@ impl Renderer {
             None,
             None,
         );
-        let cy = layout.panel.bottom() - 20.0;
-        let mut x = 36.0;
-        for (key, action) in [("Tab", "Scope"), ("PgUp PgDn", "Scroll"), ("Esc", "Close")] {
+        let cy = layout.panel.bottom() - size::HINT_BAR / 2.0;
+        let mut x = layout.panel.x + 20.0;
+        for (key, action) in [("Esc", "Close"), ("↑ ↓", "Move"), ("Tab", "Scope")] {
             let width = keycap_width(text, key, scale);
             keycap_sized(
                 &mut canvas,
@@ -498,23 +512,44 @@ impl Renderer {
                 x,
                 cy,
                 width,
-                20.0,
+                18.0,
                 full,
                 None,
             );
-            x += width + 7.0;
-            x += canvas.text(text, action, 12.0, false, palette.muted, x, cy, 120.0, full) + 20.0;
+            x += width + 6.0;
+            x += canvas.text(
+                text,
+                action,
+                ty::CAPTION.size,
+                MEDIUM,
+                palette.faint,
+                x,
+                cy,
+                120.0,
+                full,
+            ) + 14.0;
         }
+        canvas.text(
+            text,
+            "Type to filter",
+            ty::CAPTION.size,
+            MEDIUM,
+            palette.faint,
+            x,
+            cy,
+            160.0,
+            full,
+        );
         if conflicts {
             let legend = "Shortcut conflict";
-            let width = text.width(legend, 12.0 * scale, false) / scale;
+            let width = text.width(legend, ty::CAPTION.size * scale, MEDIUM) / scale;
             let x = layout.panel.right() - 20.0 - width;
             canvas.text(
                 text,
                 legend,
-                12.0,
-                false,
-                palette.muted,
+                ty::CAPTION.size,
+                MEDIUM,
+                palette.faint,
                 x,
                 cy,
                 width + 4.0,
@@ -631,15 +666,17 @@ impl Canvas {
         }
     }
 
-    fn glyph(&mut self, id: &str, x: f32, y: f32) -> Result<(), String> {
+    fn glyph(&mut self, id: &str, x: f32, y: f32, color: u32) -> Result<(), String> {
         let mut icon = Pixmap::new(32, 32).ok_or("cannot allocate app glyph")?;
         icon.data_mut().copy_from_slice(glyph(id));
+        // Only the glyph's coverage is used: it takes the given colour.
+        let rgb = [(color >> 16) as u8, (color >> 8) as u8, color as u8];
         for pixel in icon.data_mut().as_chunks_mut::<4>().0 {
             for channel in 0..3 {
-                pixel[channel] = (pixel[channel] as u32 * pixel[3] as u32 / 255) as u8;
+                pixel[channel] = (rgb[channel] as u32 * pixel[3] as u32 / 255) as u8;
             }
         }
-        let size = 24.0 / 32.0 * self.scale;
+        let size = 16.0 / 32.0 * self.scale;
         self.pixmap.draw_pixmap(
             0,
             0,
@@ -662,7 +699,7 @@ impl Canvas {
         text: &mut Text,
         value: &str,
         size: f32,
-        bold: bool,
+        weight: u16,
         color: u32,
         x: f32,
         cy: f32,
@@ -670,7 +707,7 @@ impl Canvas {
         clip: Clip,
     ) -> f32 {
         let device = size * self.scale;
-        let fitted = text.fit(value, device, bold, max_width.max(0.0) * self.scale);
+        let fitted = text.fit(value, device, weight, max_width.max(0.0) * self.scale);
         let top = (cy - size * 0.65 + self.oy) * self.scale;
         if top <= clip.3 as f32 && top + device * 1.3 >= clip.1 as f32 {
             let left = (x + self.ox) * self.scale;
@@ -678,19 +715,19 @@ impl Canvas {
                 &mut self.pixmap,
                 &fitted,
                 device,
-                bold,
+                weight,
                 color,
                 left,
                 top,
                 clip,
             );
         }
-        text.width(&fitted, device, bold) / self.scale
+        text.width(&fitted, device, weight) / self.scale
     }
 }
 
 fn keycap_width(text: &mut Text, label: &str, scale: f32) -> f32 {
-    text.width(label, KEY_TEXT * scale, false) / scale + 14.0
+    text.width(label, ty::CAPTION.size * scale, MEDIUM) / scale + 14.0
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -705,7 +742,18 @@ fn keycap(
     mask: Option<&Mask>,
 ) {
     let width = keycap_width(text, label, canvas.scale);
-    keycap_sized(canvas, text, palette, label, x, cy, width, 22.0, clip, mask);
+    keycap_sized(
+        canvas,
+        text,
+        palette,
+        label,
+        x,
+        cy,
+        width,
+        size::KEY_CHIP,
+        clip,
+        mask,
+    );
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -728,16 +776,16 @@ fn keycap_sized(
             w: width,
             h: height,
         },
-        5.0,
+        radius::XS,
         Some(palette.surface),
-        Some(palette.border),
+        Some(palette.strong),
         mask,
     );
     canvas.text(
         text,
         label,
-        KEY_TEXT,
-        false,
+        ty::CAPTION.size,
+        MEDIUM,
         palette.text,
         x + 7.0,
         cy,

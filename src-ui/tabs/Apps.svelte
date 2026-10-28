@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { glyph } from '../lib/glyphs';
   import { tick } from 'svelte';
   import AppCard from '../components/AppCard.svelte';
   import AppDetail from '../components/AppDetail.svelte';
@@ -55,6 +56,7 @@
     name: app.name,
     repo: app.releasesUrl.replace(/^https:\/\/github\.com\//, '').replace(/\/releases$/, ''),
     pitch: app.pitch,
+    tagline: app.tagline,
     description: app.description,
     category: app.category,
     icon: app.icon,
@@ -168,12 +170,15 @@
         <p class="sub">{catalogApps.length} apps in the catalog · {installedApps.length} installed</p>
       </div>
       <div class="page-actions">
-        <button class="btn ghost" type="button" disabled={catalogLoading || busy} onclick={() => run(onCatalogRefresh, 'Catalog')}>
-          <Icon name="refresh" size={14} />{catalogLoading ? 'Refreshing…' : 'Refresh catalog'}
+        <button class="btn" class:busy={catalogLoading} type="button" disabled={catalogLoading || busy} onclick={() => run(onCatalogRefresh, 'Catalog')}>
+          <Icon name="refresh" size={14} />Refresh catalog
         </button>
       </div>
     </header>
 
+    {#if catalogData?.offline}
+      <div class="notice warn" role="status"><Icon name="alert" /><span class="row-main">Couldn't reach the catalog, so the copy saved on {catalogData.catalog.updated} is shown.</span><button type="button" class="btn sm" disabled={catalogLoading || busy} onclick={() => run(onCatalogRefresh, 'Catalog')}>Retry</button></div>
+    {/if}
     {#if categories.length > 1}
       <div class="segmented category-filter" role="group" aria-label="Category">
         <button type="button" class:active={category === 'all'} aria-pressed={category === 'all'} onclick={() => category = 'all'}>All</button>
@@ -204,8 +209,10 @@
             />{/if}
           {/each}
         </div>
+      {:else if !ui.loaded}
+        <div class="app-grid" aria-busy="true" aria-label="Loading your apps">{#each [0, 1, 2] as item (item)}<div class="card skeleton-card"><span class="glyph-tile skeleton"></span><div class="skeleton line"></div><div class="skeleton line short"></div></div>{/each}</div>
       {:else}
-        <p class="empty-note">{ui.loaded ? 'No Arcade apps are installed yet.' : 'Loading your apps…'}</p>
+        <div class="empty-state"><Icon name="apps" size={24} /><h3>No Arcade apps installed yet</h3><p>Pick one below or install a bundle. Nothing installs until you review it.</p></div>
       {/if}
     </section>
 
@@ -261,8 +268,8 @@
         {@const reason = app.installReason ?? appView(app.id)?.installReason}
         <label class="row">
           <input type="checkbox" checked={selectedBundleApps.includes(app.id)} disabled={busy || !canInstallFromCatalog(app)} onchange={(event) => toggleBundleApp(app.id, event.currentTarget.checked)} />
-          <span class="glyph-tile sm"><img src="/glyphs/{app.id}.svg" alt="" width="15" height="15" /></span>
-          <span class="row-main"><span class="row-title">{app.name}</span><span class="row-sub">{reason ?? app.pitch}</span></span>
+          <span class="glyph-tile sm"><img src={glyph(app.id)} alt="" width="15" height="15" /></span>
+          <span class="row-main"><span class="row-title">{app.name}</span><span class="row-sub">{reason ?? app.tagline}</span></span>
           {#if isInstalled(app.id)}<span class="badge">Installed</span>{/if}
         </label>
       {/each}
@@ -289,17 +296,18 @@
 </dialog>
 
 <style>
+  .skeleton-card { display: grid; gap: 10px; }
+  .skeleton-card .short { width: 60%; }
   .category-filter { margin-bottom: 4px; }
   .category-filter button { text-transform: capitalize; }
   .category-filter + .section { margin-top: 24px; }
   .app-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 12px; }
-  .empty-note { padding: 16px; border: 1px dashed var(--line-strong); border-radius: var(--radius); color: var(--muted); }
   .bundle-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
   .bundle-card { display: grid; align-content: start; gap: 4px; margin: 0; color: var(--text); text-align: left; cursor: pointer; }
   .bundle-card:hover { border-color: var(--line-strong); background: var(--sunken); }
   .bundle-title { display: flex; justify-content: space-between; gap: 8px; font-weight: 600; }
-  .bundle-title .faint { font-size: 12px; font-weight: 400; }
-  .bundle-copy { color: var(--muted); font-size: 12.5px; }
+  .bundle-title .faint { font-size: var(--fs-small); font-weight: 400; }
+  .bundle-copy { color: var(--muted); font-size: var(--fs-control); }
   .bundle-dialog { width: min(520px, calc(100vw - 32px)); }
   .bundle-confirm-list { margin: 12px 0 0; padding-left: 20px; color: var(--muted); }
 </style>

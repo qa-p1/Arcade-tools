@@ -4,8 +4,10 @@ export default {
     await page.evaluate(() => window.__mock.on('list_bundles', () => [
       { id: 'b1', title: 'Everyday desktop helpers', description: 'Find files fast, capture text from the screen and keep a clipboard history for the whole week.', apps: ['arcade.find', 'arcade.lens', 'arcade.clipboard'] },
       { id: 'b2', title: 'Everything', description: 'All seven Arcade apps.', apps: '*' }]));
-    await page.click('#tab-onboarding');
-    await page.click('text=Choose apps');
+    // Onboarding is reached from Settings once setup is done.
+    await page.click('#tab-settings');
+    await page.getByRole('button', { name: 'Set up apps again' }).click();
+    await page.getByRole('button', { name: 'Choose apps' }).click();
     await page.waitForSelector('.bundle-list .bundle-card');
     await page.setViewportSize({ width: 760, height: 900 });
     await sleep(200);

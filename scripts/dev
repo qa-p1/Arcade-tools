@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Run Arcade Tools from source with the Vite dev server and live reload.
+#   scripts/dev            # the desktop app (npm run tauri dev)
+#   scripts/dev --ui       # the UI alone in a browser, on the mock backend
+set -euo pipefail
+cd "$(dirname "$0")/.."
+[ -d node_modules ] || npm ci
+if [ "${1:-}" = --ui ]; then exec npm run dev; fi
+exec npm run tauri -- dev "$@"

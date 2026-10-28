@@ -1,5 +1,9 @@
 <script lang="ts">
+  import { formatSize } from '../design/format';
+  import { relativeInSentence } from '../lib/format';
+  import { glyph } from '../lib/glyphs';
   import { ui } from '../lib/state.svelte';
+  import { refresh } from '../lib/controller';
   import { api, type AppView, type Dashboard, type HealthIssue, type Operation, type UpdateState } from '../lib/api';
   import type { ShellTab } from '../lib/tabs.svelte';
   import Icon from '../components/Icon.svelte';
@@ -22,19 +26,10 @@
   const installed = $derived(apps.filter((app) => app.installed));
   const running = $derived(installed.filter((app) => app.running));
   const updatesAvailable = $derived(apps.filter((app) => app.managed && updates?.apps[app.id]?.updateAvailable && !updates.apps[app.id]?.heldBack));
-  const lastChecked = $derived(updates?.lastCheck ? relative(updates.lastCheck) : null);
+  const lastChecked = $derived(updates?.lastCheck ? relativeInSentence(updates.lastCheck * 1000) : null);
   const stopped = $derived(installed.filter((app) => !app.running));
   let showIssues = $state(false);
-  function relative(seconds: number): string {
-    const minutes = Math.round((Date.now() / 1000 - seconds) / 60);
-    if (minutes < 1) return 'just now';
-    if (minutes < 60) return `${minutes} min ago`;
-    const hours = Math.round(minutes / 60);
-    if (hours < 24) return `${hours} h ago`;
-    return new Date(seconds * 1000).toLocaleDateString();
-  }
   const appName = (id: string) => apps.find((app) => app.id === id)?.name ?? id;
-  const megabytes = (bytes: number | null) => bytes === null ? '—' : `${Math.round(bytes / (1024 * 1024))} MB`;
   const fixLabels: Record<HealthIssue['fixAction'], string> = {
     repair: 'Repair', adopt: 'Let Tools manage it', remove_stale_registry: 'Remove entry', remove_stale_receipt: 'Remove record',
     open_settings: 'Open settings', check_updates: 'Check for updates', open_engines: 'Open Engines', open_shortcuts: 'Open Shortcuts',
@@ -78,7 +73,7 @@
     <div>
       <h1>Home</h1>
       <p class="sub">
-        {ui.loaded ? `${installed.length} installed · ${running.length} running${dashboard?.totalMemoryBytes ? ` · ${megabytes(dashboard.totalMemoryBytes)} in use` : ''}` : 'Loading your apps…'}
+        {ui.loaded ? `${installed.length} installed · ${running.length} running${dashboard?.totalMemoryBytes ? ` · ${formatSize(dashboard.totalMemoryBytes)} in use` : ''}` : 'Loading your apps…'}
       </p>
     </div>
     <div class="page-actions">
@@ -124,10 +119,10 @@
           {@const usage = dashboard?.apps.find((entry) => entry.id === app.id)}
           <div class="card home-tile">
             <div class="home-tile-top">
-              <span class="glyph-tile"><img src="/glyphs/{app.id}.svg" alt="" width="18" height="18" /></span>
+              <span class="glyph-tile"><img src={glyph(app.id)} alt="" width="18" height="18" /></span>
               <div class="row-main">
                 <div class="row-title">{app.name}</div>
-                <div class="row-sub"><span class="dot" class:ok={app.running}></span> {app.running ? 'Running' : 'Not running'}{app.running && usage?.memoryBytes ? ` · ${megabytes(usage.memoryBytes)}` : ''}</div>
+                <div class="row-sub"><span class="dot" class:ok={app.running}></span> {app.running ? 'Running' : 'Not running'}{app.running && usage?.memoryBytes ? ` · ${formatSize(usage.memoryBytes)}` : ''}</div>
               </div>
             </div>
             <div class="home-tile-actions">
@@ -139,6 +134,8 @@
           </div>
         {/each}
       </div>
+    {:else if !ui.loaded && ui.loadError}
+      <div class="notice danger" role="alert"><Icon name="alert" /><span class="row-main">Couldn't list your apps. {ui.loadError}</span><button type="button" class="btn sm" onclick={() => run(refresh)}>Retry</button></div>
     {:else if !ui.loaded}
       <div class="home-grid">{#each [0, 1, 2] as item (item)}<div class="card home-tile"><div class="home-tile-top"><span class="glyph-tile skeleton"></span><div class="row-main"><div class="skeleton line home-skel-a"></div><div class="skeleton line home-skel-b"></div></div></div></div>{/each}</div>
     {:else}

@@ -12,8 +12,9 @@ async function shortcutsPage(page, wmName) {
   }, [INDEX, wmName]);
   await sleep(200);
   await tab(page, 'shortcuts');
-  const row = await page.locator('.rebind-control').filter({ has: page.getByRole('button', { name: 'Change shortcut' }) }).first().elementHandle();
-  await (await row.$('button')).click();
+  // The first rebindable Arcade shortcut; clicking its recorder starts recording.
+  const row = await page.locator('.rebind-control').filter({ has: page.locator('.shortcut-recorder') }).first().elementHandle();
+  await (await row.$('.shortcut-recorder')).click();
   await sleep(100);
   return row;
 }
@@ -42,24 +43,22 @@ export default {
   },
   async 'A global shortcut needs Ctrl, Alt or Super'(page) {
     const row = await shortcutsPage(page, 'hyprland');
-    const input = await row.$('input');
-    await input.focus();
     await page.keyboard.press('Shift+KeyS');
     await sleep(100);
-    const apply = await row.$('button.rebind-apply');
-    assert(await input.inputValue() === 'Shift+S', await input.inputValue());
-    assert(await apply.isDisabled(), 'Shift+S could be applied as a global shortcut');
+    const recorder = await row.$('.shortcut-recorder');
     assert(/Add Ctrl, Alt or Super/.test(await row.textContent()), 'no hint about the missing modifier');
+    assert(/Press keys/.test(await recorder.textContent()), 'Shift+S ended recording as if it were a valid shortcut');
     await page.keyboard.press('Control+Alt+KeyS');
-    await sleep(100);
-    assert(!(await apply.isDisabled()), 'Ctrl+Alt+S could not be applied');
+    await sleep(200);
+    const keys = await recorder.$$eval('.key-chip', (chips) => chips.map((chip) => chip.textContent).join(' '));
+    assert(keys === 'Ctrl Alt S', `Ctrl+Alt+S was not applied: "${keys}"`);
   },
-  async 'Shortcut clash shows before confirming'(page) {
+  async 'Shortcut clash shows before applying'(page) {
     const row = await shortcutsPage(page, 'hyprland');
-    await (await row.$('input')).fill('Super+Q');
+    await page.keyboard.press('Meta+KeyQ');
     await sleep(100);
-    const t = await row.textContent();
-    assert(/Already used by/.test(t), `no warning: ${t.replace(/\s+/g, ' ')}`);
+    const t = (await row.textContent()).replace(/\s+/g, ' ');
+    assert(/is used by/.test(t) && /Use anyway/.test(t) && /Choose another/.test(t), `no warning: ${t}`);
   },
   async 'Card offers adoption for an app Tools does not manage'(page) {
     await page.evaluate(() => {
@@ -102,7 +101,7 @@ export default {
       m.on('check_release', ({ id }) => ({ id, version: '2.0.0', channel: 'stable', file: 'x', notes: 'PLAIN NOTES', updateAvailable: true }));
     });
     await tab(page, 'apps');
-    await page.locator('article#arcade\\.shelf').getByRole('button', { name: 'Check updates' }).click();
+    await page.locator('article#arcade\\.shelf').getByRole('button', { name: 'Check for updates' }).click();
     await sleep(200);
     await page.locator('article#arcade\\.shelf').getByRole('button', { name: 'Details' }).click();
     await sleep(400);
@@ -124,7 +123,7 @@ export default {
       m.on('operate', () => new Promise((_, reject) => setTimeout(() => reject({ code: 'cancelled', message: 'Cancelled.' }), 300)));
     });
     await tab(page, 'apps');
-    await page.locator('article#arcade\\.look').getByRole('button', { name: 'Check updates' }).click();
+    await page.locator('article#arcade\\.look').getByRole('button', { name: 'Check for updates' }).click();
     await sleep(200);
     await page.locator('article#arcade\\.look').getByRole('button', { name: 'Update', exact: true }).click();
     await page.click('#confirm-action');

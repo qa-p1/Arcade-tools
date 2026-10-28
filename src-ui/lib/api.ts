@@ -12,6 +12,7 @@ export interface AppView {
   id: string;
   name: string;
   pitch: string;
+  tagline: string;
   releasesUrl: string;
   version: string | null;
   managed: boolean;
@@ -256,6 +257,8 @@ export const api = {
   refreshShortcutSheets: () => invoke<number>('refresh_shortcut_sheets'),
   updateHistory: () => invoke<HistoryEntry[]>('update_history'),
   createDiagnostics: (id: string) => invoke<DiagnosticsReport>('create_diagnostics', { id }),
+  diagnosticsText: () => invoke<string>('diagnostics_text'),
+  openLogsFolder: () => invoke<void>('open_logs_folder'),
   exportBackup: () => invoke<BackupReport>('export_backup'),
   planRestore: (path: string) => invoke<RestorePlan>('plan_restore', { path }),
   restoreBackup: (path: string, sha256: string) => invoke<RestoreResult[]>('restore_backup', { path, sha256 }),
@@ -273,6 +276,7 @@ export const api = {
   uiRendered: (report: UiRenderReport) => invoke<void>('ui_rendered', { report }),
   setAppShortcut: (id: string, shortcut: string, accelerator: string) => invoke<{ applied: boolean; via: string; hint?: string }>('set_app_shortcut', { id, shortcut, accelerator }),
   shortcutsIndex: () => invoke<ShortcutsIndex | null>('shortcuts_index'),
+  rebuildShortcutIndex: () => invoke<{ error: string | null }>('rebuild_shortcut_index'),
   currentShortcutApp: () => invoke<string | null>('current_shortcut_app'),
   shortcutLabels: () => invoke<Record<string, string>>('shortcut_labels'),
   setShortcutLabel: (key: string, label: string | null) =>

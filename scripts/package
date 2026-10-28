@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Build this OS's installer the way CI does, then smoke-test it in a
+# disposable profile.
+#   scripts/package [rust-target]
+# The default target is the host's; on macOS it is universal-apple-darwin
+# (rustup target add aarch64-apple-darwin x86_64-apple-darwin).
+set -euo pipefail
+cd "$(dirname "$0")/.."
+case "$(uname -s)" in
+  Linux) target="${1:-x86_64-unknown-linux-gnu}"; bundles=appimage ;;
+  Darwin) target="${1:-universal-apple-darwin}"; bundles=dmg ;;
+  *) target="${1:-x86_64-pc-windows-msvc}"; bundles=nsis ;;
+esac
+[ -d node_modules ] || npm ci
+python3 scripts/prepare-overlay.py --target "$target"
+# Use the host libwayland-client; Ubuntu's copy breaks EGL on newer distributions.
+LINUXDEPLOY_EXCLUDED_LIBRARIES="${LINUXDEPLOY_EXCLUDED_LIBRARIES:-libwayland-client.so*}" \
+  npm run tauri -- build --config src-tauri/tauri.bundle.conf.json --target "$target" --bundles "$bundles"
+python3 scripts/verify-package.py --target "$target"

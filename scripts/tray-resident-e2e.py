@@ -262,7 +262,7 @@ def main():
 
         mock.kill()
         mock.wait()
-        wait(lambda: any("(not running)" in p.get("label", "") for _, p in host.menu(item)[1]))
+        wait(lambda: any("· Not running" in p.get("label", "") for _, p in host.menu(item)[1]))
         host.click(item, "Start Arcade Find")
         wait(lambda: status("find"))
         print("PASS: Start launches stopped peer in background and activates it", flush=True)

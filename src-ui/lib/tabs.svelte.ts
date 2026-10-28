@@ -9,7 +9,7 @@ export const tabs: ShellTabModel[] = $state([
   { id: 'home', label: 'Home', enabled: true },
   { id: 'apps', label: 'Apps', enabled: true },
   { id: 'updates', label: 'Updates', enabled: true },
-  { id: 'shortcuts', label: 'Shortcuts', enabled: false },
+  { id: 'shortcuts', label: 'Shortcuts', enabled: true },
   { id: 'learn', label: 'Learn', enabled: true },
   { id: 'connections', label: 'Connections', enabled: true },
   { id: 'engines', label: 'Engines', enabled: true },
@@ -20,4 +20,10 @@ export const tabs: ShellTabModel[] = $state([
 export function setShortcutsEnabled(enabled: boolean): void {
   const shortcuts = tabs.find((tab) => tab.id === 'shortcuts');
   if (shortcuts) shortcuts.enabled = enabled;
+}
+
+/** Shows or hides a sidebar entry (Onboarding hides once setup is done). */
+export function setTabEnabled(id: ShellTab, enabled: boolean): void {
+  const tab = tabs.find((candidate) => candidate.id === id);
+  if (tab) tab.enabled = enabled;
 }

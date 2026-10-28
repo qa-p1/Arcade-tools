@@ -51,7 +51,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: qa-p1/Arcade-Link
-          ref: 3bbbc5d0d7d383e18c7e7e20552e942c1a971abd
+          ref: v0.4.0
           path: Arcade-link
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -62,7 +62,7 @@ jobs:
           workspaces: Arcade-tools
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version-file: Arcade-tools/.nvmrc
           cache: npm
           cache-dependency-path: Arcade-tools/package-lock.json
       - uses: actions/setup-python@v5
@@ -77,20 +77,13 @@ jobs:
         if: runner.os == 'macOS'
         run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
       - run: npm ci
-      - run: npm run typecheck
-      - run: npm run build
-      - run: python3 scripts/ui-size.py
-      - run: python3 scripts/verify-vendored.py
-      - run: python3 scripts/validate_shortcuts.py docs/user/shortcuts.json
-      - run: python3 scripts/test-docs-snapshot.py
-      - run: cargo fmt --all --check
-      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
-      - name: Standalone suite in a disposable desktop session
+      - name: Playwright's Chromium for the UI checks
         if: runner.os == 'Linux'
-        run: CARGO_HOME="$HOME/.cargo" RUSTUP_HOME="$HOME/.rustup" python3 ../Arcade-link/tools/e2e.py run -- cargo test --workspace --locked
-      - name: Platform and release logic (CI only)
-        if: runner.os != 'Linux'
-        run: cargo test --workspace --locked
+        run: npx playwright install --with-deps chromium
+      # The same list a contributor runs: typecheck, build, UI checks (Linux),
+      # vendored files, versions, docs links, fmt, clippy and the tests (on
+      # Linux in Link's disposable desktop session).
+      - run: ARCADE_LINK=../Arcade-link scripts/check
       - name: Build both packaged binaries
         run: python3 scripts/prepare-overlay.py --target ${{ matrix.target }}
       - name: Bundle the actual per-platform installer
@@ -100,6 +93,24 @@ jobs:
         run: npm run tauri -- build --config src-tauri/tauri.bundle.conf.json --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
       - name: Package smoke in a disposable profile
         run: python3 scripts/verify-package.py --target ${{ matrix.target }}
+      # Link's nightly ecosystem check installs, updates, repairs and removes
+      # this exact build (it fetches tools-installer-ubuntu-* from main runs).
+      - name: Stage the Linux installer for the ecosystem check
+        if: runner.os == 'Linux' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          mkdir -p target/ci-installer
+          for image in target/${{ matrix.target }}/release/bundle/appimage/*.AppImage; do
+            cp "$image" "target/ci-installer/$(basename "$image" | tr ' ' '-')"
+          done
+          python3 scripts/arcade-release.py --id arcade.tools --version "$(python3 scripts/check-versions.py --print)" \
+            --channel nightly --notes "https://github.com/${{ github.repository }}/commit/${{ github.sha }}" target/ci-installer
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Linux' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        with:
+          name: tools-installer-ubuntu-${{ github.sha }}
+          path: Arcade-tools/target/ci-installer/*
+          retention-days: 14
+          if-no-files-found: error
 
   overlay:
     name: Overlay / ${{ matrix.os }} / Rust 1.88

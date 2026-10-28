@@ -1,4 +1,8 @@
 <script lang="ts">
+  import { asFailure } from '../lib/controller';
+  import { formatRelative } from '../design/format';
+  import { relativeInSentence } from '../lib/format';
+  import { glyph } from '../lib/glyphs';
   import Icon from '../components/Icon.svelte';
   import { api, type AppView, type AppUpdate, type ChannelUpdate, type HistoryEntry, type UpdateState } from '../lib/api';
 
@@ -29,7 +33,7 @@
     if (!app.managed || !state?.updateAvailable) return [];
     return [{ app, state, latest: state.latest[state.channel] }];
   }));
-  const lastChecked = $derived(updates?.lastCheck ? new Date(updates.lastCheck * 1000).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : null);
+  const lastChecked = $derived(updates?.lastCheck ? relativeInSentence(updates.lastCheck * 1000) : null);
   let openNotes = $state<Record<string, boolean>>({});
   async function toggleNotes(key: string, markdown: string): Promise<void> {
     if (openNotes[key]) { openNotes = { ...openNotes, [key]: false }; return; }
@@ -43,7 +47,7 @@
   async function revealNotes(key: string, markdown: string): Promise<void> {
     loadingNotes = { ...loadingNotes, [key]: true };
     try { renderedNotes = { ...renderedNotes, [key]: await api.renderMarkdown(markdown) }; }
-    catch (error) { notesError = { ...notesError, [key]: error instanceof Error ? error.message : String(error) }; }
+    catch (error) { notesError = { ...notesError, [key]: asFailure(error).message }; }
     finally { loadingNotes = { ...loadingNotes, [key]: false }; }
   }
 
@@ -85,7 +89,7 @@
     </div>
     <div class="page-actions">
       {#if rows.length > 1}<button type="button" class="btn primary" disabled={busy || checking} onclick={() => run(() => onUpdateAll(rows.map((row) => row.app)), 'Arcade apps')}>Review all updates</button>{/if}
-      <button type="button" class="btn" disabled={busy || checking} onclick={() => run(onCheckNow)}><Icon name="refresh" size={14} />{checking ? 'Checking…' : 'Check now'}</button>
+      <button type="button" class="btn" class:busy={checking} disabled={busy || checking} onclick={() => run(onCheckNow)}><Icon name="refresh" size={14} />Check for updates</button>
     </div>
   </header>
 
@@ -98,7 +102,7 @@
         {@const key = notesKey(row)}
         <section class="update-card" aria-labelledby="update-{row.app.id}">
           <div class="row">
-            <span class="glyph-tile"><img src="/glyphs/{row.app.id}.svg" alt="" width="18" height="18" /></span>
+            <span class="glyph-tile"><img src={glyph(row.app.id)} alt="" width="18" height="18" /></span>
             <div class="row-main">
               <h2 class="row-title" id="update-{row.app.id}">{row.app.name}</h2>
               <div class="row-sub">{row.state.installedVersion ?? row.app.version ?? '?'} → <strong class="to-version">{row.latest?.latestVersion ?? 'new version'}</strong>{row.state.channel !== 'stable' ? ` · ${row.state.channel}` : ''}</div>
@@ -125,10 +129,10 @@
   {:else}
     <div class="empty-state">
       <Icon name={updates?.lastFailure ? 'alert' : updates?.lastCheck ? 'check' : 'updates'} size={24} />
-      <h2>{updates?.lastFailure ? 'Could not finish the last check' : updates?.lastCheck ? 'You are up to date' : 'Not checked yet'}</h2>
-      <p>{updates?.lastFailure ? 'Check your connection and try again.' : updates?.lastCheck ? 'New versions of your apps will show up here.' : 'Check now to see whether your apps have updates.'}</p>
+      <h2>{updates?.lastFailure ? "Couldn't finish the last check" : updates?.lastCheck ? "You're up to date" : 'Not checked yet'}</h2>
+      <p>{updates?.lastFailure ? 'Check your connection and try again.' : updates?.lastCheck ? 'New versions of your apps will show up here.' : 'Check for updates to see whether your apps have new versions.'}</p>
       <div class="btn-group">
-        <button type="button" class="btn primary" disabled={busy || checking} onclick={() => run(onCheckNow)}>{checking ? 'Checking…' : 'Check now'}</button>
+        <button type="button" class="btn primary" class:busy={checking} disabled={busy || checking} onclick={() => run(onCheckNow)}>Check for updates</button>
         <button type="button" class="btn ghost" onclick={onSelectApps}>Browse apps</button>
       </div>
     </div>
@@ -140,7 +144,7 @@
       <div class="list">
         {#each managedApps as app (app.id)}
           <label class="row compact">
-            <span class="glyph-tile sm"><img src="/glyphs/{app.id}.svg" alt="" width="15" height="15" /></span>
+            <span class="glyph-tile sm"><img src={glyph(app.id)} alt="" width="15" height="15" /></span>
             <span class="row-main">{app.name}</span>
             <input class="switch" type="checkbox" aria-label="Update {app.name} automatically" checked={autoUpdate[app.id] ?? false} disabled={busy} onchange={(event) => run(() => onAutoUpdate(app, event.currentTarget.checked), app.name)} />
           </label>
@@ -156,7 +160,7 @@
       <div class="list">
         {#each rollbacks as app (app.id)}
           <div class="row compact">
-            <span class="glyph-tile sm"><img src="/glyphs/{app.id}.svg" alt="" width="15" height="15" /></span>
+            <span class="glyph-tile sm"><img src={glyph(app.id)} alt="" width="15" height="15" /></span>
             <div class="row-main"><div class="row-title">{app.name}</div><div class="row-sub">v{app.version ?? '?'} now · v{app.rollbackVersion} kept</div></div>
             <button type="button" class="btn sm" disabled={busy || checking} onclick={() => run(() => onRollback(app), app.name)}>{rollbackLabel(app)}</button>
           </div>
@@ -172,7 +176,7 @@
         {#each history as entry, i (`${entry.time}:${entry.app}:${i}`)}
           <li class="row compact">
             <div class="row-main"><div class="row-title">{appName(entry.app)} <span class="faint history-versions">{versions(entry) ?? ''}</span></div>{#if entry.reason}<div class="row-sub">{entry.reason}</div>{/if}</div>
-            <span class="faint history-time">{new Date(entry.time * 1000).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</span>
+            <span class="faint history-time">{formatRelative(entry.time * 1000)}</span>
             <span class="badge {resultTone[entry.result] ?? ''}">{resultLabel(entry.result)}</span>
           </li>
         {/each}
@@ -184,12 +188,12 @@
 <style>
   .notice + .list, .notice + .empty-state { margin-top: 12px; }
   .update-card + .update-card { border-top: 1px solid var(--line); }
-  h2.row-title { font-size: 13px; font-weight: 600; }
+  h2.row-title { font-size: var(--fs-body); font-weight: 600; }
   .to-version { color: var(--text); font-weight: 600; }
   .release-notes { max-height: 340px; overflow: auto; }
   .release-notes .markdown-body { color: var(--muted); }
   .row.compact { min-height: 46px; padding: 8px 14px; }
   .update-history { margin: 0; padding: 0; list-style: none; }
-  .history-versions { font-weight: 400; font-size: 12px; }
-  .history-time { font-size: 12px; white-space: nowrap; }
+  .history-versions { font-weight: 400; font-size: var(--fs-small); }
+  .history-time { font-size: var(--fs-small); white-space: nowrap; }
 </style>

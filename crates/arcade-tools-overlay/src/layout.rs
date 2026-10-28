@@ -4,10 +4,14 @@ use crate::model::{Model, Row, Section};
 
 pub const WIDTH: u32 = 1100;
 pub const HEIGHT: u32 = 720;
-/// A one-line row: title on the left, keys on the right.
-pub const ROW_HEIGHT: f32 = 32.0;
-/// Extra height for a row with a second, muted detail line.
-pub const DETAIL_HEIGHT: f32 = 16.0;
+/// A one-line row: title on the left, keys on the right (Template B).
+pub const ROW_HEIGHT: f32 = arcade_link::design::size::ROW_OVERLAY;
+/// Extra height for a row with a second, muted detail line (52 px in all).
+pub const DETAIL_HEIGHT: f32 = arcade_link::design::size::ROW_OVERLAY_2 - ROW_HEIGHT;
+/// One app in the app picker.
+pub const PICKER_ROW: f32 = arcade_link::design::size::ROW_OVERLAY;
+/// The footer hint bar, plus a little air above it.
+const FOOTER: f32 = arcade_link::design::size::HINT_BAR + 6.0;
 pub const GROUP_HEIGHT: f32 = 30.0;
 pub const GROUP_GAP: f32 = 14.0;
 /// Segmented scope control, sized for each label in `Scope::ORDER`.
@@ -76,13 +80,13 @@ impl Layout {
             x: 36.0,
             y: 68.0,
             w: width - 72.0,
-            h: 40.0,
+            h: arcade_link::design::size::OVERLAY_SEARCH,
         };
         let mut x = 39.0;
         let tabs = std::array::from_fn(|i| {
             let tab = Rect {
                 x,
-                y: 121.0,
+                y: search.bottom() + 13.0,
                 w: TAB_WIDTHS[i],
                 h: 26.0,
             };
@@ -91,22 +95,22 @@ impl Layout {
         });
         let track = Rect {
             x: 36.0,
-            y: 118.0,
+            y: search.bottom() + 10.0,
             w: x + 3.0 - 36.0,
             h: 32.0,
         };
         let picker = model.picking.then_some(Rect {
             x: 36.0,
-            y: 160.0,
+            y: track.bottom() + 10.0,
             w: width - 72.0,
-            h: (height - 242.0).clamp(34.0, 118.0),
+            h: (height - 250.0).clamp(PICKER_ROW + 8.0, 3.0 * PICKER_ROW + 8.0),
         });
-        let top = picker.map_or(190.0, |picker| picker.bottom() + 38.0);
+        let top = picker.map_or(track.bottom() + 40.0, |picker| picker.bottom() + 38.0);
         let viewport = Rect {
             x: 36.0,
             y: top,
             w: width - 72.0,
-            h: (height - top - 62.0).max(0.0),
+            h: (height - top - 16.0 - FOOTER).max(0.0),
         };
         let count = sections.len().max(1);
         let column_width =
@@ -139,7 +143,7 @@ impl Layout {
 
     pub fn picker_visible_rows(&self) -> usize {
         self.picker.map_or(0, |picker| {
-            (((picker.h - 4.0).max(0.0) / 34.0).floor() as usize).min(3)
+            (((picker.h - 8.0).max(0.0) / PICKER_ROW).floor() as usize).min(3)
         })
     }
 }
@@ -203,8 +207,7 @@ mod tests {
             let picker = layout.picker.unwrap();
             assert!(picker.bottom() < layout.viewport.y);
             assert!(layout.picker_visible_rows() > 0);
-            let last_row_bottom =
-                picker.y + 8.0 + (layout.picker_visible_rows() - 1) as f32 * 34.0 + 30.0;
+            let last_row_bottom = picker.y + 4.0 + layout.picker_visible_rows() as f32 * PICKER_ROW;
             assert!(last_row_bottom <= picker.bottom());
         }
     }

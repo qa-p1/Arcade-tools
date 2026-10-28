@@ -8,8 +8,11 @@ description = "An on-demand native shortcut sheet for Arcade Tools"
 
 [build-dependencies]
 resvg = { version = "0.45", default-features = false }
+arcade-link = { git = "https://github.com/qa-p1/Arcade-Link", tag = "v0.4.0", features = ["design"] }
 
 [dependencies]
+# The design kit: palette, type and size tokens, Inter.
+arcade-link = { git = "https://github.com/qa-p1/Arcade-Link", tag = "v0.4.0", features = ["design"] }
 arcade-shortcuts = { path = "../arcade-shortcuts", default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
