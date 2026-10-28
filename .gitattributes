@@ -8,3 +8,6 @@ packaging/windows/installer.nsi -text
 packaging/windows/LICENSE-TAURI-* -text
 resources/catalog-snapshot/** -text
 src-tauri/resources/** -text
+src-ui/design/** -text
+src-tauri/icons/** -text
+assets/icon.svg -text

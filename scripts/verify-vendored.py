@@ -4,20 +4,30 @@ kit (scripts/sync-design.py) and the adapted Tauri NSIS template."""
 from pathlib import Path
 import hashlib
 import re
+import subprocess
 
 root = Path(__file__).resolve().parents[1]
 text = (root / "VENDORED").read_text()
 checked = 0
+paths = []
 for line in text.splitlines():
     fields = line.split()
     if len(fields) >= 2 and fields[1].startswith("sha256:"):
         path, expected = fields[0], fields[1].removeprefix("sha256:")
+        paths.append(path)
         if not (root / path).is_file():
             raise SystemExit(f"Vendored file missing: {path}")
         actual = hashlib.sha256((root / path).read_bytes()).hexdigest()
         if actual != expected:
             raise SystemExit(f"Vendored file changed: {path} (refresh it with its sync step, never by hand)")
         checked += 1
+# A text checkout would turn LF into CRLF on Windows and change the bytes, so
+# every recorded file must be marked -text in .gitattributes.
+attributes = subprocess.run(["git", "check-attr", "text", "--", *paths], cwd=root,
+                            capture_output=True, text=True, check=True).stdout
+converted = [line.split(": ")[0] for line in attributes.splitlines() if not line.endswith(": unset")]
+if converted:
+    raise SystemExit(f"Mark these -text in .gitattributes: {', '.join(converted)}")
 # Every Link copy comes from the tag Cargo.toml pins.
 pinned = re.search(r'arcade-link = \{[^}]*tag = "([^"]+)"', (root / "Cargo.toml").read_text()).group(1)
 tags = set(re.findall(r"^Tag: (\S+)$", text, re.M))
