@@ -49,7 +49,8 @@ class SnapshotTests(unittest.TestCase):
             manifest = json.loads((out / "manifest.json").read_bytes())
             look = next(entry for entry in manifest["entries"] if entry["id"] == "arcade.look")
             index = next(item for item in look["files"] if item["path"] == "index.md")
-            self.assertEqual(index["size"], len(page.encode()))
+            # The rewritten page's bytes, whatever newlines this OS wrote the fixture with.
+            self.assertEqual(index["size"], len((out / "arcade.look/local/index.md").read_bytes()))
             with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
                 self.assertEqual(SNAPSHOT.main(["--check-links", str(out)]), 0)
                 (out / "arcade.look/local/faq.md").write_text("[gone](../elsewhere.md)")
