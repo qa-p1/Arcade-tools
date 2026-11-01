@@ -1,4 +1,23 @@
-# Arcade Tools 0.4.2 status
+# Arcade Tools 0.4.3 status
+
+## 0.4.3 verification (2026-11-01)
+
+- Release target: `v0.4.3`, a patch release:
+  - start at login for Arcade Wheel 0.5.0 and later uses `dev.arcade.Wheel.desktop`
+    (`autostart_rename`), the earlier `arcade-wheel.desktop` before; the Find onboarding
+    test asserts both;
+  - Arcade Link v0.4.15 (was v0.4.0) and its design kit, whose small text, badges and links
+    use the readable inks (4.5:1 in both themes); the vendored release and installer files
+    are byte-identical between the two tags;
+  - group titles and the onboarding card captions use `muted` instead of `faint`;
+  - `.editorconfig`.
+- `scripts/check` on Linux: typecheck, build, UI checks, 39 vendored files, versions,
+  shortcut sheet, docs snapshot, **0 broken** doc links, fmt, Clippy `-D warnings`, and the
+  workspace tests in Link's disposable session **200 passed, 0 failed, 2 ignored**.
+- Tools' update code fed the real published releases (temporary test, not committed):
+  Box 0.3.5 → 0.4.0, Clipboard 0.2.5 → 0.3.1 and Look 0.3.5 → 0.4.0 are offered as updates,
+  and every installer for Linux, Windows and both Mac architectures verifies against its
+  manifest.
 
 ## 0.4.2 verification (2026-11-01)
 

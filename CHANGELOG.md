@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.3 — 2026-11-01
+
+### Fixed
+
+- Start at login for Arcade Wheel 0.5.0 and later uses `dev.arcade.Wheel.desktop`,
+  the entry Wheel itself reads from 0.5.0, and `arcade-wheel.desktop` for older
+  versions, so Tools and Wheel's own Settings agree on whether it starts at login.
+
 ## 0.4.2 — 2026-11-01
 
 ### Fixed

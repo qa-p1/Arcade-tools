@@ -287,7 +287,7 @@
   .history-item + .history-item { border-top: 1px solid var(--line); }
   .history-item .markdown-body { padding: 0 14px 14px; color: var(--muted); }
   .plain-list { margin: 0; padding: 0; list-style: none; }
-  .group-title { margin: 16px 0 8px; color: var(--faint); font-size: var(--fs-caption); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+  .group-title { margin: 16px 0 8px; color: var(--muted); font-size: var(--fs-caption); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
   .screenshot-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
   .screenshot-grid img { display: block; width: 100%; max-height: 260px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--sunken); object-fit: contain; }
   .screenshot-missing { display: grid; min-height: 120px; place-items: center; border: 1px dashed var(--line-strong); border-radius: var(--radius-sm); color: var(--muted); }

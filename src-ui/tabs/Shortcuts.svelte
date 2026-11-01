@@ -409,7 +409,7 @@
   .view-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
   .view-note { margin-bottom: 14px; }
   .group + .group { margin-top: 22px; }
-  .group-title { display: flex; align-items: baseline; gap: 8px; margin: 0 0 8px 2px; color: var(--faint); font-size: var(--fs-caption); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+  .group-title { display: flex; align-items: baseline; gap: 8px; margin: 0 0 8px 2px; color: var(--muted); font-size: var(--fs-caption); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
   .group-title span { font-weight: 500; letter-spacing: 0; text-transform: none; }
   .plain { margin: 0; padding: 0; list-style: none; }
   .plain > :global(.row) { min-height: 46px; padding: 8px 14px; }

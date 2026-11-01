@@ -136,7 +136,7 @@
   .bundle-card + .bundle-card { margin-top: 0; }
   .bundle-card:hover { background: var(--sunken); }
   .bundle-card span { color: var(--muted); font-size: var(--fs-control); }
-  .bundle-card small { color: var(--faint); font-size: var(--fs-small); }
+  .bundle-card small { color: var(--muted); font-size: var(--fs-small); }
   label.row .row-title, label.row .row-sub { display: block; }
   .plain { margin: 0; padding: 0; list-style: none; }
   .footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 24px; }

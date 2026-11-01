@@ -85,6 +85,30 @@ fn find_metadata_install_data_and_login_paths_match_the_app() {
         paths.autostart(apps::FIND, Os::Linux)
     );
     assert_eq!(platform::windows_run_name(apps::FIND), "ArcadeFind");
+    // Wheel moved to dev.arcade.Wheel in 0.5.0 (Linux; Tools leaves Wheel's
+    // macOS login item to Wheel).
+    assert!(paths
+        .autostart(arcade_link::ids::WHEEL, Os::Linux)
+        .ends_with("autostart/dev.arcade.Wheel.desktop"));
+    assert!(paths
+        .autostart_for(
+            arcade_link::ids::WHEEL,
+            Os::Linux,
+            Some(&semver::Version::new(0, 4, 5))
+        )
+        .ends_with("autostart/arcade-wheel.desktop"));
+    assert_eq!(
+        paths.autostart_for(
+            arcade_link::ids::WHEEL,
+            Os::Linux,
+            Some(&semver::Version::new(0, 5, 0))
+        ),
+        paths.autostart(arcade_link::ids::WHEEL, Os::Linux)
+    );
+    assert!(!platform::login_supported(
+        arcade_link::ids::WHEEL,
+        Os::Macos
+    ));
     assert!(platform::login_supported(apps::FIND, Os::Macos));
     let request = arcade_link::InvokeRequest::new("tools.install", "arcade.find")
         .options(serde_json::json!({"app": apps::FIND}));
