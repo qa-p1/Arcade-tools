@@ -47,15 +47,24 @@ fn shelf_metadata_install_and_data_paths_match_native_application() {
             &[paths.local.join("qa-p1/ArcadeShelf")]
         )
     );
+    // Shelf 0.4 names its entry dev.arcade.Shelf and moves the 0.3 one.
     assert!(paths
         .autostart(apps::SHELF, Os::Linux)
-        .ends_with("autostart/arcade.shelf.desktop"));
+        .ends_with("autostart/dev.arcade.Shelf.desktop"));
     assert!(paths
         .autostart(apps::SHELF, Os::Windows)
         .ends_with("Startup/Arcade Shelf.vbs"));
     assert!(paths
         .autostart(apps::SHELF, Os::Macos)
+        .ends_with("LaunchAgents/dev.arcade.Shelf.plist"));
+    let before = semver::Version::new(0, 3, 3);
+    assert!(paths
+        .autostart_for(apps::SHELF, Os::Linux, Some(&before))
+        .ends_with("autostart/arcade.shelf.desktop"));
+    assert!(paths
+        .autostart_for(apps::SHELF, Os::Macos, Some(&before))
         .ends_with("LaunchAgents/arcade.shelf.plist"));
+    assert_eq!(paths.autostart_entries(apps::SHELF, Os::Windows).len(), 1);
     let request = arcade_link::InvokeRequest::new("tools.install", "arcade.shelf")
         .options(serde_json::json!({"app":apps::SHELF}));
     assert_eq!(

@@ -108,7 +108,10 @@ fn app_login_writers_accept_link_entries_and_update_receipts() {
     fs::write(&receipt.path, "fixture").unwrap();
     let store = Store::new(&paths.link);
     store.write(&receipt).unwrap();
-    let path = paths.autostart(&receipt.id, Os::current());
+    // Look 0.2 reads its entry under the name it had before dev.arcade.Look.
+    let version = semver::Version::parse(&receipt.version).unwrap();
+    let path = paths.autostart_for(&receipt.id, Os::current(), Some(&version));
+    assert_ne!(path, paths.autostart(&receipt.id, Os::current()));
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     let text = if Os::current() == Os::Linux {
         platform::desktop_entry(&receipt.id, &receipt.path).unwrap()
@@ -207,4 +210,56 @@ fn startup_cleanup_for_trashed_bundles_forgets_tools_records_but_keeps_data() {
     assert_eq!(store.read(&present.id).unwrap(), Some(present));
     assert_eq!(fs::read_to_string(data).unwrap(), "user data");
     assert!(manager.cleanup_stale_bundles().unwrap().is_empty());
+}
+
+/// A login entry under the name Look used before 0.4 (Tools 0.4.1 still
+/// wrote it) moves to `dev.arcade.Look` once Look 0.4 is installed, so Look's
+/// own toggle sees it and the app starts once. An unrelated file under the
+/// old name stays.
+#[cfg(unix)]
+#[test]
+fn login_entries_move_to_the_name_the_installed_version_reads() {
+    use arcade_tools_core::{platform, release::Os};
+    let root = tempfile::tempdir().unwrap();
+    let paths = Paths::under(root.path());
+    let mut receipt = receipt(&paths, InstallMethod::Appimage);
+    receipt.version = "0.4.0".into();
+    receipt.path = paths.home.join("Applications/Look.AppImage");
+    fs::create_dir_all(receipt.path.parent().unwrap()).unwrap();
+    fs::write(&receipt.path, "fixture").unwrap();
+    let store = Store::new(&paths.link);
+    store.write(&receipt).unwrap();
+    let entries = paths.autostart_entries(&receipt.id, Os::current());
+    let (current, old) = (entries[0].clone(), entries[1].clone());
+    fs::create_dir_all(old.parent().unwrap()).unwrap();
+    let old_text = if Os::current() == Os::Linux {
+        platform::desktop_entry(&receipt.id, &receipt.path).unwrap()
+    } else {
+        platform::launch_agent(old.file_stem().unwrap().to_str().unwrap(), &receipt.path)
+    };
+    fs::write(&old, &old_text).unwrap();
+    assert!(platform::autostart_enabled(&paths, &receipt.id));
+    platform::set_autostart(&paths, &receipt.id, &receipt.path, true).unwrap();
+    assert!(current.is_file());
+    assert!(!old.exists());
+    if Os::current() == Os::Macos {
+        assert!(fs::read_to_string(&current)
+            .unwrap()
+            .contains("<string>dev.arcade.Look</string>"));
+    }
+    assert_eq!(
+        store
+            .read(&receipt.id)
+            .unwrap()
+            .unwrap()
+            .integration
+            .autostart,
+        Some(current.clone())
+    );
+    platform::set_autostart(&paths, &receipt.id, &receipt.path, false).unwrap();
+    assert!(!current.exists());
+    assert!(!platform::autostart_enabled(&paths, &receipt.id));
+    fs::write(&old, "Unrelated user data").unwrap();
+    platform::set_autostart(&paths, &receipt.id, &receipt.path, true).unwrap();
+    assert_eq!(fs::read_to_string(&old).unwrap(), "Unrelated user data");
 }

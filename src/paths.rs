@@ -249,7 +249,49 @@ impl Paths {
             }
         }
     }
+    /// The app's start-at-login entry under the name its current release
+    /// uses: `dev.arcade.<App>` on Linux and macOS for the apps that moved to
+    /// that id (STANDARD §10), the earlier name for the others.
     pub fn autostart(&self, id: &str, os: Os) -> PathBuf {
+        self.autostart_entries(id, os).remove(0)
+    }
+    /// Every name the app's login entry has had, current first. An app that
+    /// moved to `dev.arcade.<App>` reads only one of them, so Tools looks at
+    /// both and writes the one the installed version reads.
+    pub fn autostart_entries(&self, id: &str, os: Os) -> Vec<PathBuf> {
+        let legacy = self.legacy_autostart(id, os);
+        match (autostart_rename(id), os) {
+            (Some(_), Os::Linux | Os::Macos) => {
+                let current =
+                    arcade_link::manifest::os_identifier(id).unwrap_or_else(|| id.to_owned());
+                let current = match os {
+                    Os::Linux => self
+                        .config
+                        .join("autostart")
+                        .join(format!("{current}.desktop")),
+                    _ => self
+                        .home
+                        .join("Library/LaunchAgents")
+                        .join(format!("{current}.plist")),
+                };
+                vec![current, legacy]
+            }
+            _ => vec![legacy],
+        }
+    }
+    /// The login entry the installed `version` reads: the earlier name before
+    /// the release that moved the app to `dev.arcade.<App>`. Unknown versions
+    /// get the current name.
+    pub fn autostart_for(&self, id: &str, os: Os, version: Option<&semver::Version>) -> PathBuf {
+        let mut entries = self.autostart_entries(id, os);
+        match (autostart_rename(id), version) {
+            (Some(first), Some(version)) if entries.len() > 1 && *version < first => {
+                entries.remove(1)
+            }
+            _ => entries.remove(0),
+        }
+    }
+    fn legacy_autostart(&self, id: &str, os: Os) -> PathBuf {
         match os {
             Os::Linux => self.config.join("autostart").join(format!(
                 "{}.desktop",
@@ -413,6 +455,17 @@ fn platform(os: Os) -> Platform {
         Os::Windows => Platform::Windows,
         Os::Macos => Platform::Macos,
     }
+}
+
+/// The first release of each app whose own login entry on Linux and macOS
+/// is named `dev.arcade.<App>`. Windows names did not change.
+fn autostart_rename(id: &str) -> Option<semver::Version> {
+    let first = match id {
+        ids::FIND => (0, 5, 0),
+        ids::LENS | ids::LOOK | ids::SHELF => (0, 4, 0),
+        _ => return None,
+    };
+    Some(semver::Version::new(first.0, first.1, first.2))
 }
 
 #[cfg(test)]

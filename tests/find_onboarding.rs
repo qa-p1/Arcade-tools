@@ -65,13 +65,25 @@ fn find_metadata_install_data_and_login_paths_match_the_app() {
             &[paths.home.join("Library/Application Support/Arcade Find")]
         )
     );
-    // The same entries Find's own Settings toggle writes.
+    // The same entries Find's own Settings toggle writes: dev.arcade.Find
+    // from 0.5.0, the earlier names before.
     assert!(paths
         .autostart(apps::FIND, Os::Linux)
-        .ends_with("autostart/arcade-find.desktop"));
+        .ends_with("autostart/dev.arcade.Find.desktop"));
     assert!(paths
         .autostart(apps::FIND, Os::Macos)
+        .ends_with("LaunchAgents/dev.arcade.Find.plist"));
+    let before = semver::Version::new(0, 4, 3);
+    assert!(paths
+        .autostart_for(apps::FIND, Os::Linux, Some(&before))
+        .ends_with("autostart/arcade-find.desktop"));
+    assert!(paths
+        .autostart_for(apps::FIND, Os::Macos, Some(&before))
         .ends_with("LaunchAgents/arcade.find.plist"));
+    assert_eq!(
+        paths.autostart_for(apps::FIND, Os::Linux, Some(&semver::Version::new(0, 5, 0))),
+        paths.autostart(apps::FIND, Os::Linux)
+    );
     assert_eq!(platform::windows_run_name(apps::FIND), "ArcadeFind");
     assert!(platform::login_supported(apps::FIND, Os::Macos));
     let request = arcade_link::InvokeRequest::new("tools.install", "arcade.find")

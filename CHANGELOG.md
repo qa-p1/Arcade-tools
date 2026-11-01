@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.2 — 2026-11-01
+
+### Fixed
+
+- Start at login finds and writes each app's login entry under the name that app
+  reads: `dev.arcade.<App>` on Linux and macOS for Find from 0.5.0 and for Lens,
+  Look and Shelf from 0.4.0, the earlier name for older versions. Switching it on
+  replaces the entry under the other name, so the app starts once and its own
+  Settings show the same state; switching it off removes both. Launch agents are
+  labelled with their file name.
+
 ## 0.4.1 — 2026-10-28
 
 ### Fixed
