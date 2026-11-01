@@ -461,7 +461,7 @@ fn platform(os: Os) -> Platform {
 /// is named `dev.arcade.<App>`. Windows names did not change.
 fn autostart_rename(id: &str) -> Option<semver::Version> {
     let first = match id {
-        ids::FIND => (0, 5, 0),
+        ids::FIND | ids::WHEEL => (0, 5, 0),
         ids::LENS | ids::LOOK | ids::SHELF => (0, 4, 0),
         _ => return None,
     };
