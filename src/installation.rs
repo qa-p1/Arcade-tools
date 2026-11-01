@@ -255,6 +255,13 @@ pub fn record_autostart(paths: &Paths, id: &str, path: Option<PathBuf>) -> Resul
     Ok(())
 }
 
+/// The installed version from the app's receipt, for choosing the login
+/// entry name that version reads (`Paths::autostart_for`).
+pub fn installed_version(paths: &Paths, id: &str) -> Option<semver::Version> {
+    let receipt = Store::new(&paths.link).read(id).ok()??;
+    semver::Version::parse(&receipt.version).ok()
+}
+
 /// A trashed bundle leaves only receipt-owned generated integration behind.
 pub fn cleanup_missing_bundle(paths: &Paths, receipt: &Receipt) -> Result<()> {
     if receipt.method != InstallMethod::MacosBundle || receipt.path.exists() {
@@ -301,7 +308,11 @@ pub fn legacy_receipt(paths: &Paths, record: &Record) -> Receipt {
         .unwrap_or_else(|| paths.executable(&record.id, os, record.kind == Kind::Tarball));
     let root = paths.install_root(&record.id, os, record.kind == Kind::Tarball);
     let now = arcade_link::manifest::now_rfc3339();
-    let autostart = paths.autostart(&record.id, os);
+    let autostart = paths
+        .autostart_entries(&record.id, os)
+        .into_iter()
+        .find(|path| path.is_file())
+        .unwrap_or_else(|| paths.autostart(&record.id, os));
     let uninstaller = platform::windows_uninstall(record.kind, &root)
         .ok()
         .map(|p| p.program)
@@ -717,12 +728,16 @@ fn common_integration(paths: &Paths, id: &str, desktop_id: &str) -> Vec<PathBuf>
             .join("applications")
             .join(format!("{desktop_id}.desktop")),
         paths.home.join(".local/bin").join(id.replace('.', "-")),
-        paths.autostart(id, Os::current()),
         paths
             .config
             .join("autostart")
             .join(format!("{desktop_id}.desktop")),
     ];
+    for entry in paths.autostart_entries(id, Os::current()) {
+        if !paths_out.contains(&entry) {
+            paths_out.push(entry);
+        }
+    }
     for size in [16, 22, 24, 32, 48, 64, 96, 128, 192, 256, 512] {
         paths_out.push(
             paths

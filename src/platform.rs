@@ -653,14 +653,20 @@ pub fn desktop_entry(id: &str, executable: &Path) -> Result<String> {
         .replace('%', "%%");
     Ok(format!("[Desktop Entry]\nType=Application\nName={}\nExec=\"{}\" --background\nTerminal=false\nX-GNOME-Autostart-enabled=true\n{}", app_name(id), quoted, if id == ids::CLIPBOARD { "X-ArcadeClipboard-Managed=true\n" } else { "" }))
 }
-pub fn launch_agent(id: &str, executable: &Path) -> String {
+/// A launch agent's label is its file name, as launchd expects.
+fn agent_label(path: &Path, id: &str) -> String {
+    path.file_stem()
+        .map(|stem| stem.to_string_lossy().into_owned())
+        .unwrap_or_else(|| id.to_owned())
+}
+pub fn launch_agent(label: &str, executable: &Path) -> String {
     let quoted = executable
         .to_string_lossy()
         .replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")
         .replace('"', "&quot;");
-    format!("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\"><dict><key>Label</key><string>{id}</string><key>ProgramArguments</key><array><string>{quoted}</string><string>--background</string></array><key>RunAtLoad</key><true/></dict></plist>\n")
+    format!("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\"><dict><key>Label</key><string>{label}</string><key>ProgramArguments</key><array><string>{quoted}</string><string>--background</string></array><key>RunAtLoad</key><true/></dict></plist>\n")
 }
 /// Earlier versions kept a `<entry>.arcade-tools.bak` copy beside each login
 /// entry they changed, which stayed behind for good. The previous bytes are
@@ -731,16 +737,65 @@ pub fn update_desktop(existing: &str, proposed: &str) -> Result<String> {
 /// Generated login-entry disk/process work on a worker thread; reads and backs
 /// up existing entries and validates the saved result.
 pub fn set_autostart(paths: &Paths, id: &str, executable: &Path, enabled: bool) -> Result<()> {
-    set_autostart_entry(paths, id, executable, enabled)?;
+    // The name the installed version reads: an app that moved to
+    // `dev.arcade.<App>` reads only one of its entry names.
+    let version = crate::installation::installed_version(paths, id);
+    let target = paths.autostart_for(id, Os::current(), version.as_ref());
+    set_autostart_entry(paths, id, &target, executable, enabled)?;
+    remove_other_login_entries(paths, id, &target)?;
     #[cfg(not(windows))]
-    crate::installation::record_autostart(
-        paths,
-        id,
-        enabled.then(|| paths.autostart(id, Os::current())),
-    )?;
+    crate::installation::record_autostart(paths, id, enabled.then_some(target))?;
     Ok(())
 }
-fn set_autostart_entry(paths: &Paths, id: &str, executable: &Path, enabled: bool) -> Result<()> {
+/// The app's login entry under its other name goes, so the app starts once
+/// and switching it off sticks. Only an entry for this app is removed.
+fn remove_other_login_entries(paths: &Paths, id: &str, target: &Path) -> Result<()> {
+    for other in paths.autostart_entries(id, Os::current()) {
+        if other == target || !other.is_file() || same_file(&other, target) {
+            continue;
+        }
+        paths.guard(&other)?;
+        let text = String::from_utf8_lossy(&fs::read(&other)?).into_owned();
+        if login_entry_for(&text, id, &other) {
+            remove(&other)?;
+        }
+    }
+    Ok(())
+}
+/// Whether a login entry starts this app: Arcade's own markers, the app's
+/// name in a desktop entry, or a launch agent labelled with the file's name.
+fn login_entry_for(text: &str, id: &str, path: &Path) -> bool {
+    (id == crate::apps::SHELF && text.contains("Arcade Shelf managed login entry"))
+        || desktop_owned(text, id)
+        || text
+            .lines()
+            .any(|line| line.trim() == format!("Name={}", app_name(id)))
+        || path.file_stem().is_some_and(|stem| {
+            path.extension().is_some_and(|ext| ext == "plist")
+                && text.contains(&format!("<string>{}</string>", stem.to_string_lossy()))
+        })
+}
+/// Two names for one file: macOS volumes are case-insensitive by default, so
+/// `dev.arcade.lens.plist` is `dev.arcade.Lens.plist` there.
+fn same_file(a: &Path, b: &Path) -> bool {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        matches!((fs::metadata(a), fs::metadata(b)), (Ok(x), Ok(y)) if x.dev() == y.dev() && x.ino() == y.ino())
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = (a, b);
+        false
+    }
+}
+fn set_autostart_entry(
+    paths: &Paths,
+    id: &str,
+    target: &Path,
+    executable: &Path,
+    enabled: bool,
+) -> Result<()> {
     // An app installed by its own Windows installer owns a receipt-recorded
     // Startup shortcut. Remove the transition entries first so the app is
     // never started twice, then toggle that shortcut.
@@ -754,7 +809,7 @@ fn set_autostart_entry(paths: &Paths, id: &str, executable: &Path, enabled: bool
         return crate::windows_login::set(paths, id, enabled, crate::windows_login::write_shortcut);
     }
     if id == crate::apps::SHELF {
-        return set_shelf_autostart(paths, executable, enabled);
+        return set_shelf_autostart(paths, target, executable, enabled);
     }
     if !login_supported(id, Os::current()) {
         return Err(Error::new(
@@ -762,7 +817,7 @@ fn set_autostart_entry(paths: &Paths, id: &str, executable: &Path, enabled: bool
             "Change start at login inside this app; its macOS login item belongs to the app.",
         ));
     }
-    let path = paths.autostart(id, Os::current());
+    let path = target.to_path_buf();
     paths.guard(&path)?;
     if enabled {
         paths.check_persistent_executable(executable)?;
@@ -772,7 +827,7 @@ fn set_autostart_entry(paths: &Paths, id: &str, executable: &Path, enabled: bool
         let mut proposed = if cfg!(target_os = "linux") {
             desktop_entry(id, executable)?
         } else {
-            launch_agent(id, executable)
+            launch_agent(&agent_label(&path, id), executable)
         };
         let previous = match fs::read(&path) {
             Ok(bytes) => Some(bytes),
@@ -862,8 +917,13 @@ fn set_autostart_entry(paths: &Paths, id: &str, executable: &Path, enabled: bool
     }
     Ok(())
 }
-fn set_shelf_autostart(paths: &Paths, executable: &Path, enabled: bool) -> Result<()> {
-    let path = paths.autostart(crate::apps::SHELF, Os::current());
+fn set_shelf_autostart(
+    paths: &Paths,
+    target: &Path,
+    executable: &Path,
+    enabled: bool,
+) -> Result<()> {
+    let path = target.to_path_buf();
     paths.guard(&path)?;
     if enabled {
         paths.check_persistent_executable(executable)?;
@@ -895,7 +955,7 @@ fn set_shelf_autostart(paths: &Paths, executable: &Path, enabled: bool) -> Resul
             "# {marker}\n{}",
             desktop_entry(crate::apps::SHELF, executable)?
         ),
-        Os::Macos => launch_agent(crate::apps::SHELF, executable)
+        Os::Macos => launch_agent(&agent_label(&path, crate::apps::SHELF), executable)
             .replace("<plist", &format!("<!-- {marker} -->\n<plist")),
         Os::Windows => {
             let exe = executable.to_string_lossy();
@@ -988,8 +1048,15 @@ pub fn autostart_enabled(paths: &Paths, id: &str) -> bool {
     if let Some(enabled) = crate::windows_login::state(paths, id) {
         return enabled;
     }
+    // Either name starts the app, whichever the installed version reads.
+    let any_entry = || {
+        paths
+            .autostart_entries(id, Os::current())
+            .iter()
+            .any(|path| path.is_file())
+    };
     if id == crate::apps::SHELF {
-        return paths.autostart(id, Os::current()).is_file();
+        return any_entry();
     }
     #[cfg(windows)]
     {
@@ -1005,7 +1072,7 @@ pub fn autostart_enabled(paths: &Paths, id: &str) -> bool {
             .is_ok_and(|r| r.status.success())
     }
     #[cfg(not(windows))]
-    paths.autostart(id, Os::current()).is_file()
+    any_entry()
 }
 pub fn login_supported(id: &str, os: Os) -> bool {
     !(os == Os::Macos && matches!(id, ids::WHEEL | ids::CLIPBOARD))

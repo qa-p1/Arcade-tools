@@ -1,4 +1,14 @@
-# Arcade Tools 0.4.1 status
+# Arcade Tools 0.4.2 status
+
+## 0.4.2 verification (2026-11-01)
+
+- Release target: `v0.4.2`, a fix release: start-at-login entries use the name the
+  installed app version reads (`Paths::autostart_for`); both names count as on and
+  are cleared when switched off. New test
+  `login_entries_move_to_the_name_the_installed_version_reads`; the Find and Shelf
+  onboarding tests assert the new and earlier names.
+- `cargo fmt --check` and workspace Clippy `-D warnings` clean; workspace tests in
+  Link's disposable session **200 passed, 0 failed, 2 ignored**.
 
 ## 0.4.1 verification (2026-10-28)
 
