@@ -21,6 +21,7 @@ pub enum Open {
 pub struct Resident {
     pub hosting: bool,
     pub shortcuts: bool,
+    pub maintenance: bool,
     window: bool,
 }
 
@@ -29,12 +30,13 @@ impl Resident {
         Self {
             hosting: true,
             shortcuts: true,
+            maintenance: true,
             window: !background,
         }
     }
 
     pub fn keeps_running(&self) -> bool {
-        self.hosting || self.shortcuts
+        self.hosting || self.shortcuts || self.maintenance
     }
 
     pub fn close(&mut self, busy: bool) -> Close {
@@ -85,9 +87,20 @@ mod tests {
         state.hosting = false;
         assert_eq!(state.close(false), Close::DestroyWindow);
         state.shortcuts = false;
+        state.maintenance = false;
         assert_eq!(state.close(true), Close::Busy);
         assert_eq!(state.close(false), Close::Quit);
         state.hosting = true;
         assert!(state.keeps_running());
+    }
+
+    #[test]
+    fn maintenance_stays_resident_without_tray_hosting_or_shortcuts() {
+        let mut state = Resident::new(false);
+        state.hosting = false;
+        state.shortcuts = false;
+        assert!(state.keeps_running());
+        assert_eq!(state.close(false), Close::DestroyWindow);
+        assert_eq!(state.open(), Open::CreateWindow);
     }
 }

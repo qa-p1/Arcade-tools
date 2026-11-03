@@ -5,7 +5,8 @@
 The owner requested click-free repair of routine Arcade integration drift.
 Tools now runs an offline startup pass and listens for OS filesystem events on
 its receipt, registry, launcher, command and login-entry directories. No idle
-polling or update opt-in is required. It repairs receipt-owned missing launchers,
+polling or update opt-in is required. Closing the window keeps maintenance
+resident even when tray hosting and shortcuts are off; explicit Quit still exits. It repairs receipt-owned missing launchers,
 command links and registry metadata through the permanently installed app's
 `--repair`. Missing registry metadata comes from the installed app's read-only
 `--arcade-manifest`, checked against its receipt; it never downloads/reinstalls a release or restarts a running app.
