@@ -36,6 +36,7 @@ def main():
         disabled = login.read_text() + '\nHidden=true\n'
         login.write_text(disabled)
         endpoint = profile / 'run/arcade.tools.endpoint'
+        report_path = profile / '.local/share/arcade/tools/maintenance/latest.json'
         with tempfile.TemporaryFile() as log:
             child = subprocess.Popen([str(installed), '--background'], env=env,
                                      stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
@@ -50,21 +51,36 @@ def main():
                     raise AssertionError(f'Tools did not automatically restore {message}')
 
                 wait(endpoint.is_file, 'resident endpoint')
+                def report_stamp():
+                    return report_path.stat().st_mtime_ns if report_path.is_file() else None
+
+                def completed(previous):
+                    if report_stamp() == previous:
+                        return False
+                    report = json.loads(report_path.read_text())
+                    return 'arcade.tools' in report['repaired'] and not report['pending']
+
                 # Two separate faults require two event-driven repairs. There
                 # is no UI, API repair request, update check or network fixture.
                 for cycle in range(2):
                     time.sleep(0.7)
+                    previous = report_stamp()
                     desktop.unlink()
                     cli.unlink()
-                    wait(lambda: desktop.is_file() and cli.is_symlink() and cli.resolve() == installed,
+                    # The child creates links before the worker restores any
+                    # preserved custom entries. Wait for the transaction's
+                    # completion report before asserting its final state.
+                    wait(lambda: completed(previous) and desktop.is_file()
+                         and cli.is_symlink() and cli.resolve() == installed,
                          f'launcher and CLI, cycle {cycle + 1}')
                     assert login.read_text() == disabled, 'Automatic repair enabled login'
                 registry = profile / 'apps/arcade.tools.json'
+                previous = report_stamp()
                 registry.unlink()
-                wait(registry.is_file, 'Arcade Link registry metadata')
+                wait(lambda: completed(previous) and registry.is_file(), 'Arcade Link registry metadata')
                 assert json.loads(registry.read_text())['executable'] == str(installed)
                 assert login.read_text() == disabled
-                report = json.loads((profile / '.local/share/arcade/tools/maintenance/latest.json').read_text())
+                report = json.loads(report_path.read_text())
                 assert 'arcade.tools' in report['repaired'] and not report['pending'], report
                 subprocess.run([str(installed), '--quit'], env=env, capture_output=True, check=True, timeout=20)
                 child.wait(timeout=15)
