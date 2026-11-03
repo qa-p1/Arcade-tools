@@ -1,3 +1,28 @@
+# Arcade Tools 0.4.5 candidate
+
+## Automatic integration maintenance (2026-11-03)
+
+The owner requested click-free repair of routine Arcade integration drift.
+Tools now runs an offline startup pass and listens for OS filesystem events on
+its receipt, registry, launcher, command and login-entry directories. No idle
+polling or update opt-in is required. It repairs receipt-owned missing launchers,
+command links and registry metadata through the permanently installed app's
+`--repair`; it never downloads/reinstalls a release or restarts a running app.
+
+Affected files and receipts are backed up under `maintenance/backups/` in
+Tools' data folder. Healthy customized launchers, disabled login entries and
+unknown receipt fields survive. Development/transient executables, foreign
+entries and changed installed hashes are not executed or overwritten. Missing
+login entries remain off. Repairs time out after 20 seconds, unchanged faults
+are attempted once per process, and unreadable receipts do not block other
+apps. Failed watcher setup is nonfatal and retains a startup maintenance pass.
+
+Native Windows integration that requires its setup program is reported for
+explicit repair, not silently reinstalled. The actual Linux AppImage gate must
+restore two separate launcher/CLI deletions while resident, without a Fix/API
+request, while preserving a disabled login choice. It must pass in CI before
+release; native local and final CI evidence will be recorded here.
+
 # Arcade Tools 0.4.4 status
 
 ## 0.4.4 candidate (2026-11-03)

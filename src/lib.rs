@@ -10,6 +10,7 @@ pub mod engines;
 pub mod health;
 pub mod installation;
 pub mod link;
+pub mod maintenance;
 pub mod manager;
 pub mod markdown;
 pub mod paths;

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.5
+
+- Repair missing Arcade desktop launchers, command links and registry metadata automatically at startup and after integration files change, using the installed app offline.
+- Back up affected integration, preserve customized launchers and disabled login choices, verify installed bytes and the repair result, and bound repair commands to 20 seconds. An unchanged failure is not retried continuously; one bad receipt does not block other apps.
+- Keep Tools usable if optional filesystem watching fails, and refresh Home health after automatic repairs.
+- Add repeated-damage, ownership, future-receipt, disabled-login and actual AppImage maintenance gates. Windows repairs that require the native setup program remain explicit.
+
 ## 0.4.4
 
 - Fix self-updating from pre-overhaul Tools: defer folder migration until the resident starts, preserving the executing AppImage and the old helper's transaction.

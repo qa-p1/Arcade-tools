@@ -17,3 +17,7 @@ Arcade Tools 0.2.0 is the optional home for Box, Lens, Look, Wheel, Clipboard, F
 - **Finding a shortcut.** The shortcut center lists the global and in-app keys of every Arcade app, your desktop and common apps, flags conflicts and opens a cheat sheet over any window.
 
 Start with [getting started](getting-started.md), then [features](features.md).
+
+## Automatic repairs
+
+While Tools runs, it checks Arcade-owned launchers and command links at startup and when integration files change. Routine repairs run locally without clicking Repair or enabling automatic updates. Existing customized launchers and disabled Start at login choices are kept. Tools backs up affected entries in its data folder before repairing them and reports anything it cannot fix safely. A missing application or Windows integration that needs the setup program still requires an explicit install or repair.
