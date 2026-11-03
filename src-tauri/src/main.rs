@@ -51,7 +51,7 @@ fn main() {
             std::process::exit(1);
         }
     }
-    prepare_folders();
+    prepare_folders(&args);
     if args.iter().any(|arg| arg == "--restart") {
         let result = arcade_link::client::Client::connect(
             &arcade_link::Locations::discover(),
@@ -131,7 +131,12 @@ fn main() {
 /// another Tools answers, so files never move under a running older copy; the
 /// next start does it. Nothing is lost either way: the move copies, verifies,
 /// and only then removes.
-fn prepare_folders() {
+fn prepare_folders(args: &[String]) {
+    // A legacy updater may be running this installer from its old cache and
+    // owns a live transaction there. Move neither until the resident starts.
+    if !may_migrate_folders(args) {
+        return;
+    }
     let Ok(paths) = arcade_tools_core::paths::Paths::discover() else {
         return;
     };
@@ -152,5 +157,50 @@ fn prepare_folders() {
     }
     for (from, reason) in &migration.kept {
         eprintln!("Left {} in place: {reason}", from.display());
+    }
+}
+
+fn may_migrate_folders(args: &[String]) -> bool {
+    !args.iter().any(|arg| {
+        matches!(
+            arg.as_str(),
+            "--install"
+                | "--repair"
+                | "--uninstall"
+                | "--integration-status"
+                | "--finish-self-update"
+                | "--finish-self-rollback"
+                | "--finish-self-uninstall"
+                | "--version"
+                | "-V"
+                | "--arcade-manifest"
+        )
+    })
+}
+
+#[cfg(test)]
+mod startup_tests {
+    use super::may_migrate_folders;
+
+    #[test]
+    fn migration_waits_until_installers_and_helpers_finish() {
+        for flag in [
+            "--install",
+            "--repair",
+            "--uninstall",
+            "--integration-status",
+            "--finish-self-update",
+            "--finish-self-rollback",
+            "--finish-self-uninstall",
+        ] {
+            assert!(
+                !may_migrate_folders(&["arcade-tools".into(), flag.into()]),
+                "{flag}"
+            );
+        }
+        for flag in ["--background", "--settings"] {
+            assert!(may_migrate_folders(&["arcade-tools".into(), flag.into()]));
+        }
+        assert!(may_migrate_folders(&["arcade-tools".into()]));
     }
 }
