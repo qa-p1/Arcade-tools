@@ -17,6 +17,32 @@ pub struct Report {
     pub pending: Vec<(String, String)>,
 }
 
+fn launcher_targets(paths: &Paths, receipt: &Receipt, text: &str) -> bool {
+    let executable = installation::executable(paths, receipt);
+    let generated = crate::platform::desktop_entry(&receipt.id, &executable).ok();
+    let quoted = generated.as_deref().and_then(|text| {
+        text.lines().find_map(|line| {
+            line.strip_prefix("Exec=")
+                .map(|value| value.trim_end_matches(" --background"))
+        })
+    });
+    let raw = executable.to_string_lossy();
+    let mut main = false;
+    for line in text.lines().map(str::trim) {
+        if line.starts_with('[') {
+            main = line == "[Desktop Entry]";
+        }
+        if main {
+            if let Some(value) = line.strip_prefix("Exec=") {
+                return quoted.is_some_and(|token| value.contains(token))
+                    || value == raw
+                    || value.starts_with(&format!("{raw} "));
+            }
+        }
+    }
+    false
+}
+
 /// Only receipt-owned paths are eligible. A missing login entry is an off
 /// choice, not damage; an existing disabled entry must stay disabled.
 pub(crate) fn drift(paths: &Paths, receipt: &Receipt) -> Vec<PathBuf> {
@@ -30,12 +56,7 @@ pub(crate) fn drift(paths: &Paths, receipt: &Receipt) -> Vec<PathBuf> {
                 let owned = text
                     .lines()
                     .any(|line| line == format!("X-Arcade-Id={}", receipt.id));
-                let executable = receipt.path.to_string_lossy();
-                if owned
-                    && !text
-                        .lines()
-                        .any(|line| line.starts_with("Exec=") && line.contains(executable.as_ref()))
-                {
+                if owned && !launcher_targets(paths, receipt, &text) {
                     broken.push(path.clone());
                 }
             }
@@ -65,7 +86,7 @@ pub(crate) fn drift(paths: &Paths, receipt: &Receipt) -> Vec<PathBuf> {
 
 /// Bounded local child: a broken repair command cannot wedge the maintenance
 /// worker indefinitely. Output goes to a disposable file, never a full pipe.
-fn run_repair(paths: &Paths, executable: &Path) -> Result<()> {
+fn run_repair(paths: &Paths, executable: &Path, limit: Duration) -> Result<()> {
     let mut output = tempfile::tempfile()?;
     let mut command = Command::new(executable);
     crate::platform::child_environment(&mut command, paths);
@@ -75,7 +96,7 @@ fn run_repair(paths: &Paths, executable: &Path) -> Result<()> {
         .stdout(output.try_clone()?)
         .stderr(output.try_clone()?)
         .spawn()?;
-    let deadline = Instant::now() + Duration::from_secs(20);
+    let deadline = Instant::now() + limit;
     let status = loop {
         if let Some(status) = child.try_wait()? {
             break status;
@@ -229,7 +250,7 @@ fn repair(
         policy.integration.autostart = None;
         installation::write_receipt(paths, &policy)?;
     }
-    let result = run_repair(paths, &executable);
+    let result = run_repair(paths, &executable, Duration::from_secs(20));
     // Keep customized launchers and disabled login choices even if an older
     // app's repair implementation rewrites its whole integration document.
     for (path, bytes) in preserved {
@@ -267,4 +288,29 @@ fn repair(
         ));
     }
     Ok(())
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+    use std::os::unix::fs::PermissionsExt;
+
+    #[test]
+    fn a_stalled_repair_is_terminated_instead_of_wedging_the_worker() {
+        let root = tempfile::tempdir().unwrap();
+        let program = root.path().join("repair");
+        fs::write(
+            &program,
+            "#!/usr/bin/env python3\nimport time\ntime.sleep(60)\n",
+        )
+        .unwrap();
+        fs::set_permissions(&program, fs::Permissions::from_mode(0o755)).unwrap();
+        let error = run_repair(
+            &Paths::under(root.path()),
+            &program,
+            Duration::from_millis(75),
+        )
+        .unwrap_err();
+        assert_eq!(error.code, "timeout");
+    }
 }

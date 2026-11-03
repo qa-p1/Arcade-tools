@@ -92,6 +92,20 @@ fn missing_entries_are_repaired_offline_without_a_fix_action_and_can_be_repaired
 }
 
 #[test]
+fn stale_main_launcher_is_not_hidden_by_a_valid_settings_action() {
+    let f = fixture();
+    f.manager.maintain_integrations().unwrap();
+    fs::write(desktop(&f), format!("[Desktop Entry]\nType=Application\nExec=/missing/old-app\nX-Arcade-Id=arcade.look\n[Desktop Action Settings]\nExec=\"{}\" --settings\n", f.receipt.path.display())).unwrap();
+    assert_eq!(
+        f.manager.maintain_integrations().unwrap().repaired,
+        ["arcade.look"]
+    );
+    assert!(!fs::read_to_string(desktop(&f))
+        .unwrap()
+        .contains("/missing/old-app"));
+}
+
+#[test]
 fn custom_healthy_launcher_disabled_login_and_future_receipt_fields_survive() {
     let mut f = fixture();
     let entry = desktop(&f);
