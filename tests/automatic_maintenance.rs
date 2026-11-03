@@ -224,3 +224,23 @@ fn missing_registry_is_restored_from_the_apps_read_only_manifest_without_repairi
     let json: serde_json::Value = serde_json::from_slice(&fs::read(registry).unwrap()).unwrap();
     assert_eq!(json["settings"]["linkEnabled"], false);
 }
+
+#[test]
+fn stale_registry_version_is_recovered_without_repairing_healthy_entries() {
+    let f = fixture();
+    f.manager.maintain_integrations().unwrap();
+    let registry = f.manager.paths.link.manifest("arcade.look");
+    let mut cached: serde_json::Value =
+        serde_json::from_slice(&fs::read(&registry).unwrap()).unwrap();
+    cached["version"] = "0.3.5".into();
+    fs::write(&registry, serde_json::to_vec(&cached).unwrap()).unwrap();
+    let before = fs::read(desktop(&f)).unwrap();
+    let report = f.manager.maintain_integrations().unwrap();
+    assert_eq!(report.repaired, ["arcade.look"]);
+    assert!(report.pending.is_empty());
+    let restored: serde_json::Value = serde_json::from_slice(&fs::read(registry).unwrap()).unwrap();
+    assert_eq!(restored["version"], f.receipt.version);
+    assert_eq!(restored["settings"]["linkEnabled"], false);
+    assert_eq!(fs::read(desktop(&f)).unwrap(), before);
+    assert_eq!(fs::read_to_string(f.count).unwrap().lines().count(), 1);
+}

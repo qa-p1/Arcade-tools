@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.6
+
+- Automatically refresh registry metadata whose cached version disagrees with the installation receipt, even when its executable path is correct. Recover it from the verified installed app without restarting it or rewriting healthy launchers/login choices.
+- Gate the actual AppImage on version-only registry damage and add a process/filesystem regression for this live-audit finding.
+
 ## 0.4.5
 
 - Repair missing Arcade desktop launchers, command links and registry metadata automatically at startup and after integration files change, using the installed app offline; recover registry metadata from its validated read-only manifest.

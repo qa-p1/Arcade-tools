@@ -85,6 +85,14 @@ def main():
                 wait(lambda: completed(previous) and registry.is_file(), 'Arcade Link registry metadata')
                 assert json.loads(registry.read_text())['executable'] == str(installed)
                 assert login.read_text() == disabled
+                previous = report_stamp()
+                cached = json.loads(registry.read_text())
+                cached['version'] = '0.0.1'
+                registry.write_text(json.dumps(cached))
+                wait(lambda: completed(previous)
+                     and json.loads(registry.read_text())['version'] == receipt['version'],
+                     'stale registry version with a correct executable path')
+                assert login.read_text() == disabled
                 report = json.loads(report_path.read_text())
                 assert 'arcade.tools' in report['repaired'] and not report['pending'], report
                 # Healthy custom launchers also need their discovery cache

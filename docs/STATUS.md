@@ -1,3 +1,17 @@
+# Arcade Tools 0.4.6 candidate
+
+The live-session audit found Clipboard 0.3.1 installed correctly while its
+registry cache still advertised 0.2.5. Automatic maintenance only compared ID
+and executable path, so this version-only drift was missed. Compare the cached
+version with the installation receipt using the existing release version policy;
+recover metadata from the verified installed read-only manifest. Healthy custom
+launchers, disabled login and Link-off choices remain preserved.
+
+The new process/filesystem regression fails on 0.4.5. The real AppImage gate now
+also corrupts only the registry version and requires automatic restoration with
+no Fix request, app restart or executable replacement. Final packaged CI and
+release acceptance must pass before this candidate is counted as shipped.
+
 # Arcade Tools 0.4.5 candidate
 
 ## Automatic integration maintenance (2026-11-03)
