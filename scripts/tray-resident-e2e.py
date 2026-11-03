@@ -156,7 +156,7 @@ def main():
     parser.add_argument("--check-ui", action="store_true", help="Verify debug GUI reports and live tray/hotkey settings through native clicks")
     args = parser.parse_args()
     tools, link = args.tools.resolve(), args.link.resolve()
-    state = Path(os.environ["ARCADE_HOME"]) / ".local/share/arcade-tools"
+    state = Path(os.environ["ARCADE_HOME"]) / ".local/share/arcade/tools"
     state.mkdir(parents=True, exist_ok=True)
     smoke = Path(os.environ["ARCADE_HOME"]) / "tray-ui.jsonl"
     if args.check_ui:
@@ -394,6 +394,7 @@ def main():
         if contents:
             print(contents[-5000:], flush=True)
         logs.close()
+        assert "panicked at" not in contents, "Native Tools logged a panic:\n" + contents
 
 
 if __name__ == "__main__":

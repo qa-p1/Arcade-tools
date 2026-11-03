@@ -147,6 +147,7 @@ dependencies = [
  "ksni",
  "libc",
  "notify",
+ "notify-rust",
  "resvg",
  "serde",
  "serde_json",

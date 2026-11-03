@@ -169,6 +169,9 @@ def main():
                 if child.poll() is None:
                     os.killpg(child.pid, signal.SIGKILL)
                 child.wait(timeout=15)
+            log.seek(0)
+            output = log.read().decode(errors="replace")
+            assert "panicked at" not in output, "Native app logged a panic:\n" + output
         print(f'PASS: {app} actual AppImage keeps its PID and releases renderers across 3 window close/reopen cycles; explicit Restart and Quit still work')
 
 

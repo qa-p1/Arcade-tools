@@ -9,6 +9,7 @@ use std::sync::atomic::Ordering;
 use std::sync::{mpsc, Arc};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter};
+#[cfg(not(target_os = "linux"))]
 use tauri_plugin_notification::NotificationExt;
 
 fn begin(app: &AppHandle) -> Result<Arc<Desktop>> {
@@ -30,12 +31,18 @@ fn progress(app: &AppHandle, state: &Desktop, progress: Progress) {
         .store(progress.cancellable, Ordering::SeqCst);
     let _ = app.emit("operation-progress", progress);
 }
-fn notify(app: &AppHandle, manager: &Manager, message: &str) {
+fn notify(_app: &AppHandle, manager: &Manager, message: &str) {
     if manager
         .preferences()
         .is_ok_and(|prefs| prefs.notifications_enabled)
     {
-        let _ = app
+        #[cfg(target_os = "linux")]
+        drop(send_linux_notification(
+            "Arcade Tools".into(),
+            message.into(),
+        ));
+        #[cfg(not(target_os = "linux"))]
+        let _ = _app
             .notification()
             .builder()
             .title("Arcade Tools")
@@ -43,6 +50,47 @@ fn notify(app: &AppHandle, manager: &Manager, message: &str) {
             .show();
     }
 }
+// The Tauri notification plugin calls notify-rust's synchronous show inside
+// an async task. With zbus' Tokio backend that starts a nested runtime and
+// panics. Keep Linux delivery on the blocking pool and retain ordinary errors.
+#[cfg(target_os = "linux")]
+fn send_linux_notification(
+    title: String,
+    body: String,
+) -> tauri::async_runtime::JoinHandle<std::result::Result<(), String>> {
+    tauri::async_runtime::spawn_blocking(move || {
+        notify_rust::Notification::new()
+            .summary(&title)
+            .body(&body)
+            .auto_icon()
+            .show()
+            .map(|_| ())
+            .map_err(|error| error.to_string())
+    })
+}
+
+#[cfg(all(test, target_os = "linux"))]
+mod notification_tests {
+    #[test]
+    fn notification_from_async_runtime_returns_without_panicking() {
+        assert_eq!(
+            std::env::var("ARCADE_E2E_INNER").as_deref(),
+            Ok("1"),
+            "Run notification tests through scripts/check's private desktop session"
+        );
+        let delivery = tauri::async_runtime::block_on(async {
+            super::send_linux_notification("Arcade Tools test".into(), "Isolated delivery".into())
+                .await
+        });
+        // A missing notification service is an ordinary delivery error. A
+        // nested-runtime panic must fail the join instead of being ignored.
+        assert!(
+            delivery.is_ok(),
+            "Notification worker panicked: {delivery:?}"
+        );
+    }
+}
+
 pub(super) fn wake_updates(state: &Desktop) {
     if let Some(sender) = state
         .update_wake

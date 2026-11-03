@@ -2,6 +2,8 @@
 
 ## 0.4.6
 
+- Dispatch Linux notifications on a blocking worker, avoiding the notification plugin’s nested Tokio-runtime panic. Native tray checks fail on any logged Rust panic.
+
 - Release closed Linux WebViews by disconnecting their retiring IPC callback, breaking Wry’s reference cycle without restarting the app. Native package checks require zero renderer processes after each close/reopen cycle.
 
 - Keep the same resident process when windows close; remove the hidden 20-second memory-cleanup restart. Destroy the WebView and reclaim memory in place while preserving tray hosting, shortcuts and maintenance. Explicit Restart and updates still work.

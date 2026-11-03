@@ -12,6 +12,20 @@ still honor explicit Restart and Quit. A Linux WebView destruction hook breaks
 Wry's IPC reference cycle on that view's own content manager. It leaves shared
 contexts and other live windows alone; no renderer process is killed.
 
+## Linux notification worker
+
+The broader native tray test exposed a separate notification-worker panic:
+Tauri's notification plugin called synchronous notify-rust delivery from an
+async task, and zbus' Tokio backend tried to enter a nested runtime. Linux
+notifications now run directly on a blocking worker, preserving notification
+preferences. Other platforms keep the existing plugin path. The async-runtime
+regression passes; native tray and package checks fail on logged Rust panics.
+Final local checks passed 213 Rust tests and 22 UI checks, including Clippy.
+Native tray hosting, shortcut activation, stable-PID close/reopen, crash recovery
+of peer tray ownership, and Link-off activation/Quit pass without a Rust panic.
+The separate 40 MiB post-UI RSS diagnostic target is not met by the debug native
+build; published release memory acceptance remains pending.
+
 ## Automatic version metadata repair
 
 The live-session audit found Clipboard 0.3.1 installed correctly while its
