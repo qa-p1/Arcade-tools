@@ -5,6 +5,7 @@
 - Repair missing Arcade desktop launchers, command links and registry metadata automatically at startup and after integration files change, using the installed app offline; recover registry metadata from its validated read-only manifest.
 - Back up affected integration, preserve customized launchers and disabled login choices, verify installed bytes and the repair result, and bound repair commands to 20 seconds. An unchanged failure is not retried continuously; one bad receipt does not block other apps.
 - Refresh the Linux desktop application cache at startup and after launcher changes, including healthy customized launchers; bound optional cache commands and avoid idle polling.
+- Honor the installed Linux login entry at release startup, including disabled or removed entries, instead of reapplying an older tray preference.
 - Keep Tools usable if optional filesystem watching fails, and refresh Home health after automatic repairs.
 - Add repeated-damage, ownership, future-receipt, disabled-login and actual AppImage maintenance gates. Windows repairs that require the native setup program remain explicit.
 

@@ -54,6 +54,7 @@ def main():
 
                 wait(endpoint.is_file, 'resident endpoint')
                 wait(desktop_cache.is_file, 'desktop application cache at startup')
+                assert login.read_text() == disabled, f'Startup changed login choice:\n{login.read_text()}'
                 def report_stamp():
                     return report_path.stat().st_mtime_ns if report_path.is_file() else None
 
@@ -77,7 +78,7 @@ def main():
                     wait(lambda: completed(previous) and desktop.is_file() and desktop_cache.is_file()
                          and cli.is_symlink() and cli.resolve() == installed,
                          f'launcher and CLI, cycle {cycle + 1}')
-                    assert login.read_text() == disabled, 'Automatic repair enabled login'
+                    assert login.read_text() == disabled, f'Login choice changed:\n{login.read_text()}'
                 registry = profile / 'apps/arcade.tools.json'
                 previous = report_stamp()
                 registry.unlink()

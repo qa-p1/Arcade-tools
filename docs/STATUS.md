@@ -23,6 +23,14 @@ login entries remain off. Repairs time out after 20 seconds, unchanged faults
 are attempted once per process, and unreadable receipts do not block other
 apps. Failed watcher setup is nonfatal and retains a startup maintenance pass.
 
+The packaged gate also exposed a release-only startup path that reapplied saved
+tray login preferences. Linux startup now reads the installed login choice,
+including disabled or removed entries, without rewriting it. The failure was
+reproduced locally with debug assertions disabled before the fix; the same
+release-path maintenance gate passes afterward. The full local check now passes
+211 Rust tests and 22 UI checks, including Clippy and the startup login regression.
+The final AppImage must still pass packaged CI and the release acceptance gate.
+
 Native Windows integration that requires its setup program is reported for
 explicit repair, not silently reinstalled. The actual Linux AppImage gate must
 restore two separate launcher/CLI deletions while resident, without a Fix/API
