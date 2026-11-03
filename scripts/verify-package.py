@@ -185,7 +185,9 @@ with tempfile.TemporaryDirectory(prefix='arcade-tools-package-') as temporary:
         assert not bundled, f'AppImage must use the host libwayland-client: {bundled}'
         subprocess.run([str(binaries / 'arcade-tools'),'--version'],env=environment,check=True,timeout=10)
         environment['APPIMAGE'] = str(staged_package)
-        lifecycle(binaries / 'arcade-tools', environment, root)
+        # Exercise the mounting runtime and full AppImage bytes, not only
+        # the extracted ELF (which cannot establish installer hash identity).
+        lifecycle(staged_package, environment, root)
         # The package itself must survive its first webview, the main window.
         # AppRun changes into $APPDIR/usr and the mounting runtime sets $OWD
         # (extract-and-run doesn't, so it is set here); WebKit finds its
