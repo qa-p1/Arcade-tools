@@ -1,3 +1,17 @@
+# Arcade Tools 0.4.4 status
+
+## 0.4.4 candidate (2026-11-03)
+
+Reproduced the owner's two 0.3.8 → 0.4.3 checksum rollbacks in a disposable
+profile using the actual released helper. The new installer's startup migrated
+its executing AppImage out of the legacy cache; Link consequently installed
+the inner ELF instead of the verified AppImage (24 MB instead of 93 MB).
+Installer/helper and informational commands now defer migration; normal resident
+startup still migrates. The real package gate checks a legacy-cache installer
+and installed SHA-256. No checksum or rollback checks are weakened.
+
+Full CI and the packaged upgrade check are required before publishing.
+
 # Arcade Tools 0.4.3 status
 
 ## 0.4.3 verification (2026-11-01)

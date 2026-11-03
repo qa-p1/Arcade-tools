@@ -26,6 +26,21 @@ package = packages[0]
 def lifecycle(executable, environment, root):
     def run(*args):
         return subprocess.run([str(executable), *args], env=environment, capture_output=True, text=True, encoding='utf-8', check=True, timeout=90)
+    # Old Tools stages self-updates in this legacy cache. Migration must not
+    # remove the executing AppImage before the installer copies its bytes.
+    if sys.platform == 'linux':
+        import hashlib
+        legacy = Path(environment['ARCADE_HOME']) / '.cache/arcade-tools/downloads'
+        legacy.mkdir(parents=True, exist_ok=True)
+        staged = legacy / 'self-update.AppImage'
+        shutil.copy2(executable, staged)
+        staged.chmod(0o755)
+        result = subprocess.run([str(staged), '--install', '--silent', '--no-launch'],
+            env=environment, capture_output=True, text=True, check=True, timeout=90)
+        upgraded = json.loads(result.stdout)
+        digest = lambda path: hashlib.sha256(Path(path).read_bytes()).hexdigest()
+        assert staged.is_file(), 'Installer moved its source out from under the old helper'
+        assert digest(upgraded['path']) == digest(executable), 'Self-update installed different bytes'
     installed = json.loads(run('--install', '--silent', '--no-launch').stdout)
     receipt_path = root / 'arcade' / 'installs' / 'arcade.tools.json'
     assert installed['version'] == version
@@ -170,7 +185,9 @@ with tempfile.TemporaryDirectory(prefix='arcade-tools-package-') as temporary:
         assert not bundled, f'AppImage must use the host libwayland-client: {bundled}'
         subprocess.run([str(binaries / 'arcade-tools'),'--version'],env=environment,check=True,timeout=10)
         environment['APPIMAGE'] = str(staged_package)
-        lifecycle(binaries / 'arcade-tools', environment, root)
+        # Exercise the mounting runtime and full AppImage bytes, not only
+        # the extracted ELF (which cannot establish installer hash identity).
+        lifecycle(staged_package, environment, root)
         # The package itself must survive its first webview, the main window.
         # AppRun changes into $APPDIR/usr and the mounting runtime sets $OWD
         # (extract-and-run doesn't, so it is set here); WebKit finds its

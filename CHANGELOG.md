@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.4
+
+- Fix self-updating from pre-overhaul Tools: defer folder migration until the resident starts, preserving the executing AppImage and the old helper's transaction.
+- Verify actual installer bytes when staging in the legacy cache in the packaged release gate.
+
 ## 0.4.3 — 2026-11-01
 
 ### Fixed
