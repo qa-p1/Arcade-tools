@@ -143,6 +143,7 @@ dependencies = [
  "arcade-shortcuts",
  "arcade-tools-core",
  "arcade-tools-overlay",
+ "gtk",
  "ksni",
  "libc",
  "notify",

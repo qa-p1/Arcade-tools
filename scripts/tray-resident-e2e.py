@@ -310,14 +310,15 @@ def main():
         time.sleep(1)
         close_window(identifier)
         wait(lambda: window() is None)
-        # About 20 s after the window closes, Tools restarts quietly into the
-        # background to shed WebKit; the successor keeps hosting the tray.
-        assert process.wait(timeout=40) == 0, "Tools did not restart after its window closed"
-        registered = len(host.items)
-        successor = wait(lambda: endpoint_pid("tools"), timeout=10)
-        assert successor != process.pid
-        # The successor registers its own tray item.
-        item = wait(lambda: len(host.items) > registered and host.items[-1], timeout=10)
+        # Closing the UI must never replace the resident process, including
+        # beyond the old 20-second memory-cleanup restart deadline.
+        initial_pid = endpoint_pid("tools")
+        deadline = time.monotonic() + 25
+        while time.monotonic() < deadline:
+            assert process.poll() is None, "Tools exited after closing its window"
+            assert endpoint_pid("tools") == initial_pid, "Window close restarted Tools"
+            time.sleep(0.1)
+        successor = initial_pid
         took_back = False
         try:
             receive(lines, "own", timeout=3)
@@ -344,7 +345,7 @@ def main():
         started = time.monotonic()
         host.call(item, "org.kde.StatusNotifierItem", "Activate", GLib.Variant("(ii)", (0, 0)))
         identifier = wait(window)
-        print(f"PASS: Open after the lean restart creates the window in {(time.monotonic()-started)*1000:.3f} ms", flush=True)
+        print(f"PASS: Open keeps the same resident PID and creates the window in {(time.monotonic()-started)*1000:.3f} ms", flush=True)
         duplicate = start([str(tools)], stdout=subprocess.DEVNULL)
         assert duplicate.wait(timeout=5) == 0
         assert Path(f"/proc/{successor}").exists() and window() == identifier

@@ -1,5 +1,19 @@
 # Arcade Tools 0.4.6 candidate
 
+## Stable resident process (2026-11-03)
+
+The owner explicitly rejected background app replacement on window close or
+memory cleanup. Tools' Linux-only 20-second lean restart is removed; closing
+destroys its WebView and reclaims unused pages in the same process. Only an
+explicit Restart or the update flow replaces it. Packaged CI and the exact
+release AppImage must keep the same PID across three close/reopen cycles,
+including beyond the old timer, require zero retired renderer processes, and
+still honor explicit Restart and Quit. A Linux WebView destruction hook breaks
+Wry's IPC reference cycle on that view's own content manager. It leaves shared
+contexts and other live windows alone; no renderer process is killed.
+
+## Automatic version metadata repair
+
 The live-session audit found Clipboard 0.3.1 installed correctly while its
 registry cache still advertised 0.2.5. Automatic maintenance only compared ID
 and executable path, so this version-only drift was missed. Compare the cached

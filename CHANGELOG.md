@@ -2,6 +2,10 @@
 
 ## 0.4.6
 
+- Release closed Linux WebViews by disconnecting their retiring IPC callback, breaking Wry’s reference cycle without restarting the app. Native package checks require zero renderer processes after each close/reopen cycle.
+
+- Keep the same resident process when windows close; remove the hidden 20-second memory-cleanup restart. Destroy the WebView and reclaim memory in place while preserving tray hosting, shortcuts and maintenance. Explicit Restart and updates still work.
+
 - Automatically refresh registry metadata whose cached version disagrees with the installation receipt, even when its executable path is correct. Recover it from the verified installed app without restarting it or rewriting healthy launchers/login choices.
 - Gate the actual AppImage on version-only registry damage and add a process/filesystem regression for this live-audit finding.
 
