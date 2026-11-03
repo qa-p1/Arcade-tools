@@ -34,6 +34,7 @@ pub enum HealthKind {
     InvalidReceipt,
     MissingEngine,
     ShortcutConflict,
+    IntegrationDrift,
 }
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -189,6 +190,13 @@ fn receipt_issues(
     issues: &mut Vec<HealthIssue>,
 ) {
     let exe = installation::executable(paths, receipt);
+    for path in crate::maintenance::drift(paths, receipt) {
+        issues.push(HealthIssue {
+            app: receipt.id.clone(), kind: HealthKind::IntegrationDrift,
+            path: Some(path), reason: "An Arcade launcher or command link is broken. Tools repairs installed integration automatically.".into(),
+            fix_action: FixAction::Repair, can_fix: !dev && receipt.managed_by == ManagedBy::Tools && receipt.id != ids::TOOLS,
+        });
+    }
     for path in std::iter::once(&exe).chain(receipt.previous.iter().map(|previous| &previous.path))
     {
         if !path.exists() {

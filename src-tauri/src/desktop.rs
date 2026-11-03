@@ -1,5 +1,7 @@
 #[path = "hub.rs"]
 mod hub;
+#[path = "maintenance.rs"]
+mod maintenance;
 use crate::tray::hosting::Presence;
 use crate::{hotkey, index_service, resident, tray};
 use arcade_link::client::Client;
@@ -699,6 +701,17 @@ fn initialize_desktop(app: &AppHandle) -> Result<Arc<Manager>> {
             return Err(Error::new("watch", "Could not watch the Arcade registry."));
         }
         *state.registry.lock().unwrap_or_else(|e| e.into_inner()) = Some(registry);
+        // Optional integration housekeeping must never prevent Tools itself
+        // from starting when the OS denies a directory watch.
+        if let Err(error) = maintenance::start(app.clone(), manager.clone()) {
+            eprintln!("Automatic maintenance watcher: {error}");
+            let fallback = manager.clone();
+            std::thread::spawn(move || {
+                if let Err(error) = fallback.maintain_integrations() {
+                    eprintln!("Startup integration maintenance: {error}");
+                }
+            });
+        }
         hub::start_updates(app.clone(), state.clone(), manager)?;
     }
     state.manager()

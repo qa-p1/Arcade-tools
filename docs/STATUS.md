@@ -1,3 +1,42 @@
+# Arcade Tools 0.4.5 candidate
+
+## Automatic integration maintenance (2026-11-03)
+
+The owner requested click-free repair of routine Arcade integration drift.
+Tools now runs an offline startup pass and listens for OS filesystem events on
+its receipt, registry, launcher, command and login-entry directories. No idle
+polling or update opt-in is required. Closing the window keeps maintenance
+resident even when tray hosting and shortcuts are off; explicit Quit still exits. It repairs receipt-owned missing launchers,
+command links and registry metadata through the permanently installed app's
+`--repair`. Missing registry metadata comes from the installed app's read-only
+`--arcade-manifest`, checked against its receipt; it never downloads/reinstalls a release or restarts a running app.
+
+Linux desktop application caches are refreshed at startup, after launcher changes
+and after repairs, including healthy customized entries. Optional cache helpers
+share the 20-second process limit; cache writes do not trigger a polling loop.
+
+Affected files and receipts are backed up under `maintenance/backups/` in
+Tools' data folder. Healthy customized launchers, disabled login entries and
+unknown receipt fields survive. Development/transient executables, foreign
+entries and changed installed hashes are not executed or overwritten. Missing
+login entries remain off. Repairs time out after 20 seconds, unchanged faults
+are attempted once per process, and unreadable receipts do not block other
+apps. Failed watcher setup is nonfatal and retains a startup maintenance pass.
+
+The packaged gate also exposed a release-only startup path that reapplied saved
+tray login preferences. Linux startup now reads the installed login choice,
+including disabled or removed entries, without rewriting it. The failure was
+reproduced locally with debug assertions disabled before the fix; the same
+release-path maintenance gate passes afterward. The full local check now passes
+211 Rust tests and 22 UI checks, including Clippy and the startup login regression.
+The final AppImage must still pass packaged CI and the release acceptance gate.
+
+Native Windows integration that requires its setup program is reported for
+explicit repair, not silently reinstalled. The actual Linux AppImage gate must
+restore two separate launcher/CLI deletions while resident, without a Fix/API
+request, recover missing registry metadata, and refresh a healthy custom launcher's MIME cache while preserving a disabled login choice. It must pass in CI before
+release; native local and final CI evidence will be recorded here.
+
 # Arcade Tools 0.4.4 status
 
 ## 0.4.4 candidate (2026-11-03)

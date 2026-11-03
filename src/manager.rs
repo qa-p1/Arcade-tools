@@ -241,6 +241,7 @@ pub struct Manager {
     mutation: Mutex<()>,
     scheduler: Mutex<Option<updates::Scheduler>>,
     hashes: Mutex<HashMap<PathBuf, (Fingerprint, String)>>,
+    maintenance_attempts: Mutex<std::collections::HashSet<String>>,
 }
 /// What changes whenever a file's bytes do: a write updates mtime and ctime
 /// (ctime can't be set back by the writer), a replacement changes the inode.
@@ -269,6 +270,7 @@ impl Manager {
             mutation: Mutex::new(()),
             scheduler: Mutex::new(None),
             hashes: Mutex::new(HashMap::new()),
+            maintenance_attempts: Mutex::new(std::collections::HashSet::new()),
         }
     }
     fn cached_checksum(&self, path: &Path) -> Result<String> {
@@ -297,6 +299,39 @@ impl Manager {
         self.mutation
             .try_lock()
             .map_err(|_| Error::new("busy", "Another manager operation is running."))
+    }
+
+    /// Local housekeeping, independent of update opt-ins and network access.
+    /// Receipts establish app ownership; installation/update work keeps priority.
+    pub fn maintain_integrations(&self) -> Result<crate::maintenance::Report> {
+        let _lock = self.lock()?;
+        let mut entries = Vec::new();
+        let mut unreadable = Vec::new();
+        for id in crate::apps::APPS.into_iter().chain([ids::TOOLS]) {
+            let read = (|| -> Result<_> {
+                let Some(receipt) = self.receipt(id)? else {
+                    return Ok(None);
+                };
+                let expected = self.record(id)?.map(|record| record.executable_sha256);
+                Ok(Some((receipt, expected)))
+            })();
+            match read {
+                Ok(Some(entry)) => entries.push(entry),
+                Ok(None) => {}
+                Err(error) => unreadable.push((id.to_owned(), error.to_string())),
+            }
+        }
+        let mut attempted = self
+            .maintenance_attempts
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let mut report = crate::maintenance::maintain(&self.paths, entries, &mut attempted);
+        unreadable.retain(|(id, reason)| attempted.insert(format!("{id}:unreadable:{reason}")));
+        report.pending.extend(unreadable);
+        if !report.repaired.is_empty() || !report.pending.is_empty() {
+            self.write(&self.paths.state().join("maintenance/latest.json"), &report)?;
+        }
+        Ok(report)
     }
     /// Read persisted preferences on a worker thread; no network work.
     pub fn preferences(&self) -> Result<Preferences> {

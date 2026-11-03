@@ -56,13 +56,18 @@
     await loadHealth();
   }
 
-  // Usage is sampled while Home is visible; health is checked when it opens.
+  // Repair completion refreshes apps; update the health notice with it.
+  $effect(() => {
+    void apps;
+    if (active) void loadHealth().catch(() => undefined);
+  });
+
+  // Usage is sampled only while Home is visible.
   $effect(() => {
     if (!active) return;
     let stopped = false;
     const sample = async () => { try { const next = await api.dashboard(); if (!stopped) dashboard = next; } catch { /* keep the last sample */ } };
     void sample();
-    void loadHealth().catch(() => undefined);
     const timer = setInterval(sample, 2000);
     return () => { stopped = true; clearInterval(timer); };
   });

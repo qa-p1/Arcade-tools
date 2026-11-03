@@ -87,14 +87,29 @@ pub fn set(paths: &Paths, executable: &Path, enabled: bool) -> Result<()> {
     set_for(paths, executable, enabled, Os::current())
 }
 
-/// On Windows, a Tools installer receipt owns start at login: remove Tools'
-/// older VBScript entry and report the receipt's state. `None` elsewhere, or
-/// without that receipt, where the Tools-managed entry applies.
+/// Installed login choices take precedence over saved tray preferences.
+/// Linux also respects a disabled or removed desktop entry. Windows removes
+/// the older VBScript entry when its installer owns the Startup shortcut.
 pub fn installer_state(paths: &Paths) -> Result<Option<bool>> {
     #[cfg(windows)]
     if let Some(enabled) = arcade_tools_core::windows_login::state(paths, ids::TOOLS) {
         remove_managed(paths)?;
         return Ok(Some(enabled));
+    }
+    #[cfg(target_os = "linux")]
+    {
+        paths.guard_receipt(ids::TOOLS)?;
+        if let Some(receipt) = arcade_link::receipt::Store::new(&paths.link).read(ids::TOOLS)? {
+            if receipt.method != arcade_link::receipt::InstallMethod::Dev {
+                let enabled = if let Some(entry) = &receipt.integration.autostart {
+                    paths.guard(entry)?;
+                    arcade_link::install::autostart_enabled(entry)
+                } else {
+                    false
+                };
+                return Ok(Some(enabled));
+            }
+        }
     }
     let _ = paths;
     Ok(None)
@@ -180,6 +195,45 @@ fn set_for(paths: &Paths, executable: &Path, enabled: bool, os: Os) -> Result<()
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn startup_reads_installed_login_choices_without_reapplying_saved_preferences() {
+        let root = tempfile::tempdir().unwrap();
+        let paths = Paths::under(root.path());
+        let login = path(&paths, Os::Linux);
+        fs::create_dir_all(login.parent().unwrap()).unwrap();
+        let mut receipt: arcade_link::receipt::Receipt =
+            serde_json::from_value(serde_json::json!({
+                "schema":1, "id":ids::TOOLS, "version":"0.4.5", "channel":"stable",
+                "method":"appimage", "managedBy":"self",
+                "path":paths.home.join("Applications/Arcade/Arcade-Tools.AppImage"),
+                "integration":{"autostart":login},
+                "installedAt":"2026-11-03T00:00:00Z", "updatedAt":"2026-11-03T00:00:00Z"
+            }))
+            .unwrap();
+        let store = arcade_link::receipt::Store::new(&paths.link);
+        store.write(&receipt).unwrap();
+        for (choice, enabled) in [
+            ("Hidden=true\n", false),
+            ("X-GNOME-Autostart-enabled=false\n", false),
+            ("X-GNOME-Autostart-enabled=true\n", true),
+        ] {
+            let text =
+                format!("[Desktop Entry]\nType=Application\nX-Arcade-Id=arcade.tools\n{choice}");
+            fs::write(&login, &text).unwrap();
+            assert_eq!(installer_state(&paths).unwrap(), Some(enabled));
+            assert_eq!(fs::read_to_string(&login).unwrap(), text);
+        }
+        fs::remove_file(&login).unwrap();
+        assert_eq!(installer_state(&paths).unwrap(), Some(false));
+        assert!(!login.exists());
+        receipt.integration.autostart = None;
+        store.write(&receipt).unwrap();
+        assert_eq!(installer_state(&paths).unwrap(), Some(false));
+        fs::remove_file(store.path(ids::TOOLS).unwrap()).unwrap();
+        assert_eq!(installer_state(&paths).unwrap(), None);
+    }
 
     #[test]
     fn link_installer_entries_are_owned_and_the_receipt_follows_login_changes() {
