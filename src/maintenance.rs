@@ -91,13 +91,22 @@ fn run_repair(paths: &Paths, executable: &Path, limit: Duration) -> Result<()> {
 }
 
 fn run_local(paths: &Paths, executable: &Path, argument: &str, limit: Duration) -> Result<Vec<u8>> {
+    run_command(paths, executable, &[argument.as_ref()], limit)
+}
+
+fn run_command(
+    paths: &Paths,
+    executable: &Path,
+    arguments: &[&std::ffi::OsStr],
+    limit: Duration,
+) -> Result<Vec<u8>> {
     use std::io::{Read, Seek, SeekFrom};
     let mut output = tempfile::tempfile()?;
     let mut errors = tempfile::tempfile()?;
     let mut command = Command::new(executable);
     crate::platform::child_environment(&mut command, paths);
     let mut child = command
-        .arg(argument)
+        .args(arguments)
         .stdin(Stdio::null())
         .stdout(output.try_clone()?)
         .stderr(errors.try_clone()?)
@@ -136,6 +145,34 @@ fn run_local(paths: &Paths, executable: &Path, argument: &str, limit: Duration) 
         ));
     }
     Ok(bytes)
+}
+
+/// Refresh desktop discovery at startup and after launcher changes. Optional
+/// system utilities stay bounded and never change the user's startup policy.
+pub fn refresh_desktop_caches(paths: &Paths) {
+    #[cfg(target_os = "linux")]
+    {
+        let applications = paths.data.join("applications");
+        if paths.guard(&applications).is_ok() && applications.is_dir() {
+            let _ = run_command(
+                paths,
+                Path::new("update-desktop-database"),
+                &[applications.as_os_str()],
+                Duration::from_secs(20),
+            );
+        }
+        let icons = paths.data.join("icons/hicolor");
+        if paths.guard(&icons).is_ok() && icons.join("index.theme").is_file() {
+            let _ = run_command(
+                paths,
+                Path::new("gtk-update-icon-cache"),
+                &["-t".as_ref(), icons.as_os_str()],
+                Duration::from_secs(20),
+            );
+        }
+    }
+    #[cfg(not(target_os = "linux"))]
+    let _ = paths;
 }
 
 fn restore_manifest(

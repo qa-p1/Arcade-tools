@@ -37,6 +37,8 @@ def main():
         login.write_text(disabled)
         endpoint = profile / 'run/arcade.tools.endpoint'
         report_path = profile / '.local/share/arcade/tools/maintenance/latest.json'
+        desktop_cache = desktop.parent / 'mimeinfo.cache'
+        desktop_cache.unlink(missing_ok=True)
         with tempfile.TemporaryFile() as log:
             child = subprocess.Popen([str(installed), '--background'], env=env,
                                      stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
@@ -51,6 +53,7 @@ def main():
                     raise AssertionError(f'Tools did not automatically restore {message}')
 
                 wait(endpoint.is_file, 'resident endpoint')
+                wait(desktop_cache.is_file, 'desktop application cache at startup')
                 def report_stamp():
                     return report_path.stat().st_mtime_ns if report_path.is_file() else None
 
@@ -65,12 +68,13 @@ def main():
                 for cycle in range(2):
                     time.sleep(0.7)
                     previous = report_stamp()
+                    desktop_cache.unlink(missing_ok=True)
                     desktop.unlink()
                     cli.unlink()
                     # The child creates links before the worker restores any
                     # preserved custom entries. Wait for the transaction's
                     # completion report before asserting its final state.
-                    wait(lambda: completed(previous) and desktop.is_file()
+                    wait(lambda: completed(previous) and desktop.is_file() and desktop_cache.is_file()
                          and cli.is_symlink() and cli.resolve() == installed,
                          f'launcher and CLI, cycle {cycle + 1}')
                     assert login.read_text() == disabled, 'Automatic repair enabled login'
@@ -82,6 +86,17 @@ def main():
                 assert login.read_text() == disabled
                 report = json.loads(report_path.read_text())
                 assert 'arcade.tools' in report['repaired'] and not report['pending'], report
+                # Healthy custom launchers also need their discovery cache
+                # refreshed, without rewriting the user's entry.
+                customized = desktop.read_text().replace('[Desktop Entry]\n',
+                    '[Desktop Entry]\nMimeType=application/x-arcade-maintenance;\n', 1)
+                desktop_cache.unlink()
+                desktop.write_text(customized)
+                wait(lambda: desktop_cache.is_file()
+                     and 'application/x-arcade-maintenance=' in desktop_cache.read_text(),
+                     'cache for a healthy customized launcher')
+                assert desktop.read_text() == customized
+                assert login.read_text() == disabled
                 subprocess.run([str(installed), '--quit'], env=env, capture_output=True, check=True, timeout=20)
                 child.wait(timeout=15)
             except Exception:
@@ -92,7 +107,7 @@ def main():
                 if child.poll() is None:
                     os.killpg(child.pid, signal.SIGKILL)
                     child.wait()
-        print('PASS: real Tools AppImage repairs repeated launcher/CLI deletion without clicks; disabled login preserved')
+        print('PASS: real Tools AppImage repairs repeated launcher/CLI deletion and desktop caches without clicks; disabled login preserved')
 
 
 if __name__ == '__main__':

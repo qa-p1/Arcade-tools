@@ -11,6 +11,10 @@ command links and registry metadata through the permanently installed app's
 `--repair`. Missing registry metadata comes from the installed app's read-only
 `--arcade-manifest`, checked against its receipt; it never downloads/reinstalls a release or restarts a running app.
 
+Linux desktop application caches are refreshed at startup, after launcher changes
+and after repairs, including healthy customized entries. Optional cache helpers
+share the 20-second process limit; cache writes do not trigger a polling loop.
+
 Affected files and receipts are backed up under `maintenance/backups/` in
 Tools' data folder. Healthy customized launchers, disabled login entries and
 unknown receipt fields survive. Development/transient executables, foreign
@@ -22,7 +26,7 @@ apps. Failed watcher setup is nonfatal and retains a startup maintenance pass.
 Native Windows integration that requires its setup program is reported for
 explicit repair, not silently reinstalled. The actual Linux AppImage gate must
 restore two separate launcher/CLI deletions while resident, without a Fix/API
-request, while preserving a disabled login choice. It must pass in CI before
+request, recover missing registry metadata, and refresh a healthy custom launcher's MIME cache while preserving a disabled login choice. It must pass in CI before
 release; native local and final CI evidence will be recorded here.
 
 # Arcade Tools 0.4.4 status
