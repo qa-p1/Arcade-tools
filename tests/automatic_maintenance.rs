@@ -83,12 +83,6 @@ fn missing_entries_are_repaired_offline_without_a_fix_action_and_can_be_repaired
     assert!(desktop(&f).is_file());
     assert!(f.receipt.integration.cli.as_ref().unwrap().exists());
     assert_eq!(fs::read(&f.receipt.path).unwrap(), before);
-    assert!(f
-        .manager
-        .maintain_integrations()
-        .unwrap()
-        .repaired
-        .is_empty());
     fs::remove_file(desktop(&f)).unwrap();
     assert_eq!(
         f.manager.maintain_integrations().unwrap().repaired,

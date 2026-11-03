@@ -123,12 +123,17 @@ pub(crate) fn maintain(
             receipt.version,
             receipt.path.display()
         );
-        if !attempted.insert(signature) {
+        if !attempted.insert(signature.clone()) {
             continue;
         }
         let result = repair(paths, &receipt, expected_hash.as_deref(), &broken);
         match result {
-            Ok(()) => report.repaired.push(receipt.id),
+            Ok(()) => {
+                // Successful repairs must remain repeatable even when the OS
+                // coalesces our own writes with the next external deletion.
+                attempted.remove(&signature);
+                report.repaired.push(receipt.id);
+            }
             Err(error) => report.pending.push((receipt.id, error.to_string())),
         }
     }
