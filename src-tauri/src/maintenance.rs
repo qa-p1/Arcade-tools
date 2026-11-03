@@ -5,7 +5,7 @@ use std::{
     sync::{mpsc, Arc},
     time::Duration,
 };
-use tauri::{AppHandle, Emitter, Manager as _};
+use tauri::{AppHandle, Emitter, Listener, Manager as _};
 
 struct Service {
     _watcher: RecommendedWatcher,
@@ -35,6 +35,13 @@ pub(super) fn start(app: AppHandle, manager: Arc<Manager>) -> Result<()> {
             .map_err(|error| arcade_tools_core::Error::new("watch", error.to_string()))?;
     }
     app.manage(Service { _watcher: watcher });
+    // A file event may arrive while an install owns the mutation lock. The
+    // operation's completion event retries maintenance after releasing it,
+    // without polling or requiring the user to open Home or click Repair.
+    let completed = tx.clone();
+    app.listen("registry-changed", move |_| {
+        let _ = completed.try_send(());
+    });
     let _ = tx.try_send(()); // Startup also repairs faults left while Tools was closed.
     std::thread::spawn(move || {
         while rx.recv().is_ok() {

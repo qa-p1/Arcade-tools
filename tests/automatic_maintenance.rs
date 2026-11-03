@@ -17,8 +17,12 @@ fn fixture() -> Fixture {
     let count = paths.home.join("repair-count");
     let script = r#"#!/usr/bin/env python3
 import json, os, pathlib, sys
-assert sys.argv[1:] == ['--repair']
 root = pathlib.Path(os.environ['ARCADE_HOME'])
+if sys.argv[1:] == ['--arcade-manifest']:
+    r = json.loads((root / 'installs/arcade.look.json').read_text())
+    print(json.dumps({'schema':1,'id':'arcade.look','name':'Arcade Look','version':r['version'],'executable':r['path'],'link':{'protocol':[1]},'actions':[],'settings':{'linkEnabled':False},'writtenAt':'2026-11-03T00:00:00Z'}))
+    sys.exit(0)
+assert sys.argv[1:] == ['--repair']
 count = root / 'repair-count'
 count.write_text(count.read_text() + 'repair\n' if count.exists() else 'repair\n')
 if (root / 'fail-repair').exists(): sys.exit(9)
@@ -202,4 +206,21 @@ fn one_bad_receipt_does_not_block_another_apps_automatic_repair() {
     let report = f.manager.maintain_integrations().unwrap();
     assert_eq!(report.repaired, ["arcade.look"]);
     assert_eq!(report.pending[0].0, "arcade.box");
+}
+
+#[test]
+fn missing_registry_is_restored_from_the_apps_read_only_manifest_without_repairing_healthy_files() {
+    let f = fixture();
+    f.manager.maintain_integrations().unwrap();
+    let registry = f.manager.paths.link.manifest("arcade.look");
+    fs::remove_file(&registry).unwrap();
+    let before = fs::read(desktop(&f)).unwrap();
+    assert_eq!(
+        f.manager.maintain_integrations().unwrap().repaired,
+        ["arcade.look"]
+    );
+    assert_eq!(fs::read(desktop(&f)).unwrap(), before);
+    assert_eq!(fs::read_to_string(f.count).unwrap().lines().count(), 1);
+    let json: serde_json::Value = serde_json::from_slice(&fs::read(registry).unwrap()).unwrap();
+    assert_eq!(json["settings"]["linkEnabled"], false);
 }

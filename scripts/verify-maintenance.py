@@ -59,6 +59,11 @@ def main():
                     wait(lambda: desktop.is_file() and cli.is_symlink() and cli.resolve() == installed,
                          f'launcher and CLI, cycle {cycle + 1}')
                     assert login.read_text() == disabled, 'Automatic repair enabled login'
+                registry = profile / 'apps/arcade.tools.json'
+                registry.unlink()
+                wait(registry.is_file, 'Arcade Link registry metadata')
+                assert json.loads(registry.read_text())['executable'] == str(installed)
+                assert login.read_text() == disabled
                 report = json.loads((profile / '.local/share/arcade/tools/maintenance/latest.json').read_text())
                 assert 'arcade.tools' in report['repaired'] and not report['pending'], report
                 subprocess.run([str(installed), '--quit'], env=env, capture_output=True, check=True, timeout=20)

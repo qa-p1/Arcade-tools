@@ -7,7 +7,8 @@ Tools now runs an offline startup pass and listens for OS filesystem events on
 its receipt, registry, launcher, command and login-entry directories. No idle
 polling or update opt-in is required. It repairs receipt-owned missing launchers,
 command links and registry metadata through the permanently installed app's
-`--repair`; it never downloads/reinstalls a release or restarts a running app.
+`--repair`. Missing registry metadata comes from the installed app's read-only
+`--arcade-manifest`, checked against its receipt; it never downloads/reinstalls a release or restarts a running app.
 
 Affected files and receipts are backed up under `maintenance/backups/` in
 Tools' data folder. Healthy customized launchers, disabled login entries and

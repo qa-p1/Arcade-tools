@@ -87,14 +87,20 @@ pub(crate) fn drift(paths: &Paths, receipt: &Receipt) -> Vec<PathBuf> {
 /// Bounded local child: a broken repair command cannot wedge the maintenance
 /// worker indefinitely. Output goes to a disposable file, never a full pipe.
 fn run_repair(paths: &Paths, executable: &Path, limit: Duration) -> Result<()> {
+    run_local(paths, executable, "--repair", limit).map(|_| ())
+}
+
+fn run_local(paths: &Paths, executable: &Path, argument: &str, limit: Duration) -> Result<Vec<u8>> {
+    use std::io::{Read, Seek, SeekFrom};
     let mut output = tempfile::tempfile()?;
+    let mut errors = tempfile::tempfile()?;
     let mut command = Command::new(executable);
     crate::platform::child_environment(&mut command, paths);
     let mut child = command
-        .arg("--repair")
+        .arg(argument)
         .stdin(Stdio::null())
         .stdout(output.try_clone()?)
-        .stderr(output.try_clone()?)
+        .stderr(errors.try_clone()?)
         .spawn()?;
     let deadline = Instant::now() + limit;
     let status = loop {
@@ -112,15 +118,65 @@ fn run_repair(paths: &Paths, executable: &Path, limit: Duration) -> Result<()> {
         std::thread::sleep(Duration::from_millis(30));
     };
     if !status.success() {
-        use std::io::{Read, Seek, SeekFrom};
-        output.seek(SeekFrom::Start(0))?;
+        errors.seek(SeekFrom::Start(0))?;
         let mut message = String::new();
-        output.take(4096).read_to_string(&mut message)?;
+        errors.take(4096).read_to_string(&mut message)?;
         return Err(Error::new(
             "repair",
             format!("Local repair failed ({status}): {message}"),
         ));
     }
+    output.seek(SeekFrom::Start(0))?;
+    let mut bytes = Vec::new();
+    output.take(1024 * 1024 + 1).read_to_end(&mut bytes)?;
+    if bytes.len() > 1024 * 1024 {
+        return Err(Error::new(
+            "limit",
+            "The app's repair response is too large.",
+        ));
+    }
+    Ok(bytes)
+}
+
+fn restore_manifest(
+    paths: &Paths,
+    receipt: &Receipt,
+    executable: &Path,
+    backup: &Path,
+) -> Result<()> {
+    let file = paths.link.manifest(&receipt.id);
+    paths.guard(&file)?;
+    if file.is_file() {
+        let bytes = read_bounded(&file, 1024 * 1024)?;
+        arcade_link::paths::write_atomic(&backup.join("registry.json"), &bytes, true)?;
+    }
+    // The app is the authority for its actions and Link-off preference. Ask its
+    // read-only CLI, rather than inventing metadata or starting its GUI.
+    let bytes = run_local(
+        paths,
+        executable,
+        "--arcade-manifest",
+        Duration::from_secs(20),
+    )?;
+    let text =
+        std::str::from_utf8(&bytes).map_err(|error| Error::new("manifest", error.to_string()))?;
+    let doc = arcade_link::manifest::ManifestDocument::from_json(text)
+        .map_err(|error| Error::new("manifest", error))?;
+    if doc.manifest.id != receipt.id
+        || Path::new(&doc.manifest.executable) != executable
+        || !release::versions_match(
+            &doc.manifest.version,
+            &receipt.version,
+            release::Channel::Stable,
+        )
+    {
+        return Err(Error::new(
+            "manifest",
+            "The installed app returned metadata for a different installation.",
+        ));
+    }
+    arcade_link::paths::ensure_private_dir(&paths.link.registry)?;
+    arcade_link::paths::write_atomic(&file, &bytes, true)?;
     Ok(())
 }
 
@@ -188,12 +244,6 @@ fn repair(
             ));
         }
     }
-    if receipt.method == InstallMethod::WindowsInstaller {
-        return Err(Error::new(
-            "native_installer",
-            "This Windows integration needs its verified setup program.",
-        ));
-    }
     // Back up every file the app's --repair can touch before changing a login
     // entry. Healthy/customized entries are restored byte-for-byte afterward.
     let backup = paths
@@ -203,6 +253,16 @@ fn repair(
         .join(arcade_link::endpoint::new_token()?);
     paths.guard(&backup)?;
     arcade_link::paths::ensure_private_dir(&backup)?;
+    let registry = paths.link.manifest(&receipt.id);
+    if broken.iter().all(|path| *path == registry) {
+        return restore_manifest(paths, receipt, &executable, &backup);
+    }
+    if receipt.method == InstallMethod::WindowsInstaller {
+        return Err(Error::new(
+            "native_installer",
+            "This Windows integration needs its verified setup program.",
+        ));
+    }
     let mut preserved = Vec::new();
     for (index, path) in receipt
         .integration
@@ -279,6 +339,9 @@ fn repair(
     // Older app repair code may know fewer fields than the current receipt.
     arcade_link::paths::write_atomic(&receipt_path, &original, true)?;
     installation::write_receipt(paths, &updated)?;
+    if drift(paths, receipt).contains(&registry) {
+        restore_manifest(paths, receipt, &executable, &backup)?;
+    }
     // Recheck the original contract, not a new receipt that dropped a conflict.
     if !drift(paths, receipt).is_empty() {
         arcade_link::paths::write_atomic(&receipt_path, &original, true)?;
