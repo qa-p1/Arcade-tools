@@ -1,3 +1,45 @@
+# Arcade Tools 0.4.6 candidate
+
+## Stable resident process (2026-11-03)
+
+The owner explicitly rejected background app replacement on window close or
+memory cleanup. Tools' Linux-only 20-second lean restart is removed; closing
+destroys its WebView and reclaims unused pages in the same process. Only an
+explicit Restart or the update flow replaces it. Packaged CI and the exact
+release AppImage must keep the same PID across three close/reopen cycles,
+including beyond the old timer, require zero retired renderer processes, and
+still honor explicit Restart and Quit. A Linux WebView destruction hook breaks
+Wry's IPC reference cycle on that view's own content manager. It leaves shared
+contexts and other live windows alone; no renderer process is killed.
+
+## Linux notification worker
+
+The broader native tray test exposed a separate notification-worker panic:
+Tauri's notification plugin called synchronous notify-rust delivery from an
+async task, and zbus' Tokio backend tried to enter a nested runtime. Linux
+notifications now run directly on a blocking worker, preserving notification
+preferences. Other platforms keep the existing plugin path. The async-runtime
+regression passes; native tray and package checks fail on logged Rust panics.
+Final local checks passed 213 Rust tests and 22 UI checks, including Clippy.
+Native tray hosting, shortcut activation, stable-PID close/reopen, crash recovery
+of peer tray ownership, and Link-off activation/Quit pass without a Rust panic.
+The separate 40 MiB post-UI RSS diagnostic target is not met by the debug native
+build; published release memory acceptance remains pending.
+
+## Automatic version metadata repair
+
+The live-session audit found Clipboard 0.3.1 installed correctly while its
+registry cache still advertised 0.2.5. Automatic maintenance only compared ID
+and executable path, so this version-only drift was missed. Compare the cached
+version with the installation receipt using the existing release version policy;
+recover metadata from the verified installed read-only manifest. Healthy custom
+launchers, disabled login and Link-off choices remain preserved.
+
+The new process/filesystem regression fails on 0.4.5. The real AppImage gate now
+also corrupts only the registry version and requires automatic restoration with
+no Fix request, app restart or executable replacement. Final packaged CI and
+release acceptance must pass before this candidate is counted as shipped.
+
 # Arcade Tools 0.4.5 candidate
 
 ## Automatic integration maintenance (2026-11-03)

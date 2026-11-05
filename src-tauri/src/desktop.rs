@@ -47,9 +47,6 @@ struct Desktop {
     metrics: Mutex<arcade_tools_core::dashboard::Metrics>,
     update_wake: Mutex<Option<std::sync::mpsc::Sender<()>>>,
     update_running: AtomicBool,
-    /// Bumped whenever the window opens or closes; a pending lean restart
-    /// only goes ahead if nothing changed since it was scheduled.
-    window_generation: AtomicU64,
     /// A new window stays hidden until its page has drawn real content, so
     /// opening Tools never flashes an empty window.
     reveal_pending: AtomicBool,
@@ -81,7 +78,6 @@ impl Desktop {
             metrics: Mutex::new(Default::default()),
             update_wake: Mutex::new(None),
             update_running: AtomicBool::new(false),
-            window_generation: AtomicU64::new(0),
             reveal_pending: AtomicBool::new(false),
             #[cfg(debug_assertions)]
             audit: Mutex::new(()),
@@ -100,8 +96,51 @@ pub(crate) fn manager(app: &AppHandle) -> Result<Arc<Manager>> {
 fn desktop(app: &AppHandle) -> Arc<Desktop> {
     app.state::<Arc<Desktop>>().inner().clone()
 }
+#[cfg(target_os = "linux")]
+fn release_webview_ipc_on_destroy(window: &tauri::WebviewWindow) -> tauri::Result<()> {
+    use gtk::glib::{gobject_ffi, subclass::SignalId, translate::IntoGlib};
+    use gtk::prelude::{ObjectExt, ObjectType, WidgetExt};
+    use webkit2gtk::WebViewExt;
+
+    window.with_webview(|native| {
+        native.inner().connect_destroy(|webview| {
+            let Some(manager) = webview.user_content_manager() else {
+                return;
+            };
+            let Some(signal) = SignalId::lookup("script-message-received", manager.type_()) else {
+                return;
+            };
+            // Wry's IPC signal closure owns a strong WebView reference, while
+            // that view owns this manager. Break the cycle only on destruction.
+            // Each Wry view has its own manager, even when contexts are shared.
+            // SAFETY: manager stays strongly owned here on the GTK thread. The
+            // signal id belongs to its type; only handlers of that signal on
+            // this retiring manager are disconnected. Individual lookup works
+            // on older GLib versions where disconnect_matched lacks ID support.
+            unsafe {
+                let instance = manager.as_ptr().cast();
+                loop {
+                    let handler = gobject_ffi::g_signal_handler_find(
+                        instance,
+                        gobject_ffi::G_SIGNAL_MATCH_ID,
+                        signal.into_glib(),
+                        0,
+                        std::ptr::null_mut(),
+                        std::ptr::null_mut(),
+                        std::ptr::null_mut(),
+                    );
+                    if handler == 0 {
+                        break;
+                    }
+                    gobject_ffi::g_signal_handler_disconnect(instance, handler);
+                }
+            }
+        });
+    })?;
+    Ok(())
+}
+
 fn show(app: &AppHandle, state: &Desktop) {
-    state.window_generation.fetch_add(1, Ordering::SeqCst);
     state.background.store(false, Ordering::SeqCst);
     state.last_used.store(
         std::time::SystemTime::now()
@@ -131,6 +170,10 @@ fn show(app: &AppHandle, state: &Desktop) {
                 Err(_) => builder,
             };
             builder.build().ok().inspect(|window| {
+                #[cfg(target_os = "linux")]
+                if let Err(error) = release_webview_ipc_on_destroy(window) {
+                    eprintln!("Could not attach WebView cleanup: {error}");
+                }
                 #[cfg(target_os = "linux")]
                 let _ = window.with_webview(|webview| {
                     use webkit2gtk::{SettingsExt, WebViewExt};
@@ -205,41 +248,8 @@ fn restart_process(app: &AppHandle, background: bool) -> std::io::Result<()> {
     Ok(())
 }
 
-/// How long the window stays closed before Tools sheds its WebKit state.
-const LEAN_RESTART_AFTER: Duration = Duration::from_secs(20);
-
-/// Destroying the window leaves WebKit's context, its network process and
-/// memory-pressure monitor loaded: about 160 MiB, against about 70 for a
-/// Tools that started in the background and never opened its window. Once
-/// the window has stayed closed for a while, and nothing is running, restart
-/// quietly into the background. Reopening then costs one fresh webview.
-fn schedule_lean_restart(app: AppHandle) {
-    if !cfg!(target_os = "linux") || std::env::var_os("ARCADE_TOOLS_NO_LEAN_RESTART").is_some() {
-        return;
-    }
-    let state = desktop(&app);
-    let generation = state.window_generation.fetch_add(1, Ordering::SeqCst) + 1;
-    std::thread::spawn(move || {
-        std::thread::sleep(LEAN_RESTART_AFTER);
-        let idle = state.window_generation.load(Ordering::SeqCst) == generation
-            && app.get_webview_window("main").is_none()
-            && !state.active.load(Ordering::SeqCst)
-            && !state.update_running.load(Ordering::SeqCst)
-            && !state.restarting.load(Ordering::SeqCst)
-            && state
-                .resident
-                .lock()
-                .unwrap_or_else(|e| e.into_inner())
-                .keeps_running();
-        if idle {
-            audit(&app, json!({"event":"lean-restart"}));
-            if let Err(error) = restart_process(&app, true) {
-                eprintln!("Lean restart: {error}");
-            }
-        }
-    });
-}
-
+// Closing the window releases GUI resources in place. Only an explicit
+// restart or the update flow may replace the resident process.
 fn reclaim_resident_memory(app: AppHandle) {
     // Let GTK/WebKit finish deferred destruction, then release unused
     // allocator and library pages once. No periodic idle timer.
@@ -1359,7 +1369,6 @@ pub fn run(background: bool, quit: bool) {
             if let tauri::WindowEvent::Destroyed = event {
                 desktop(window.app_handle()).resident.lock().unwrap_or_else(|e| e.into_inner()).destroyed();
                 reclaim_resident_memory(window.app_handle().clone());
-                schedule_lean_restart(window.app_handle().clone());
             }
         })
         .build(tauri::generate_context!())

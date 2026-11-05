@@ -77,6 +77,11 @@ pub(crate) fn drift(paths: &Paths, receipt: &Receipt) -> Vec<PathBuf> {
         .is_some_and(|doc| {
             doc.manifest.id == receipt.id
                 && Path::new(&doc.manifest.executable) == installation::executable(paths, receipt)
+                && release::versions_match(
+                    &doc.manifest.version,
+                    &receipt.version,
+                    release::Channel::Stable,
+                )
         });
     if !registered {
         broken.push(registry);

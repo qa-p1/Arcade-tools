@@ -96,6 +96,9 @@ jobs:
       - name: Automatic integration repair with the real AppImage
         if: runner.os == 'Linux'
         run: dbus-run-session -- xvfb-run -a python3 scripts/verify-maintenance.py target/${{ matrix.target }}/release/bundle/appimage/*.AppImage
+      - name: Verify closing windows never restarts the published app
+        if: runner.os == 'Linux'
+        run: dbus-run-session -- xvfb-run -a python3 scripts/verify-resident.py target/${{ matrix.target }}/release/bundle/appimage/*.AppImage arcade.tools
       # Link's nightly ecosystem check installs, updates, repairs and removes
       # this exact build (it fetches tools-installer-ubuntu-* from main runs).
       - name: Stage the Linux installer for the ecosystem check

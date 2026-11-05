@@ -137,15 +137,17 @@ dependencies = [
 
 [[package]]
 name = "arcade-tools"
-version = "0.4.5"
+version = "0.4.6"
 dependencies = [
  "arcade-link",
  "arcade-shortcuts",
  "arcade-tools-core",
  "arcade-tools-overlay",
+ "gtk",
  "ksni",
  "libc",
  "notify",
+ "notify-rust",
  "resvg",
  "serde",
  "serde_json",
@@ -162,7 +164,7 @@ dependencies = [
 
 [[package]]
 name = "arcade-tools-core"
-version = "0.4.5"
+version = "0.4.6"
 dependencies = [
  "ammonia",
  "arcade-link",
