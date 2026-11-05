@@ -21,6 +21,10 @@ concurrency:
 jobs:
   ci:
     uses: ./.github/workflows/ci.yml
+    with:
+      # Keep all source/overlay checks. The bundle matrix below runs every
+      # installer, maintenance and resident gate on the actual LTO packages.
+      skip_packages: true
 
   prepare:
     runs-on: ubuntu-22.04
@@ -89,6 +93,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: Arcade-tools/.nvmrc
+          cache: npm
+          cache-dependency-path: Arcade-tools/package-lock.json
       - name: Linux dependencies
         if: runner.os == 'Linux'
         run: |

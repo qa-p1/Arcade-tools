@@ -27,3 +27,13 @@ The version lives in `[workspace.package]` in `Cargo.toml`. `package.json`,
 Release notes start from [release-notes-template.md](release-notes-template.md).
 Every push to main also uploads the Linux installer as `tools-installer-ubuntu-<sha>`
 (14 days) for Link's nightly ecosystem check.
+
+PR and main CI build and verify all three installers. Release calls the same
+source/overlay checks with `skip_packages: true`, then builds its production LTO
+installers once in the release bundle matrix. Install/uninstall, automatic
+maintenance and resident-process checks run on those exact shipping packages;
+publication still requires both the source checks and every package gate.
+
+Rust caches are restored for every run and saved only by main pushes. PR and
+tag caches are scoped to their ref, so uploading them cannot warm the next main
+build or a different release tag. Release Node dependencies use the npm cache.
