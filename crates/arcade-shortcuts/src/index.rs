@@ -897,6 +897,58 @@ mod conflict_tests {
         assert_eq!(found[0].a.label, "Action A");
         assert_eq!(found[0].b.label, "Action B");
     }
+
+    fn wm(state: BindState, chord: &str, label: &str) -> WmIndex {
+        WmIndex {
+            name: "Hyprland".into(),
+            config_kind: ConfigKind::default(),
+            groups: vec![WmGroup {
+                title: "Other".into(),
+                shortcuts: vec![WmShortcut {
+                    chord: chord.into(),
+                    display: chord.into(),
+                    label: label.into(),
+                    detail: None,
+                    submap: None,
+                    state,
+                    origin: None,
+                }],
+            }],
+            warnings: vec![],
+        }
+    }
+
+    fn find_toggle() -> ArcadeShortcut {
+        ArcadeShortcut {
+            app: "arcade.find".into(),
+            name: "Find".into(),
+            id: "toggle".into(),
+            title: "Show or hide Find".into(),
+            keys: vec!["Super+Space".into()],
+            display: vec![],
+            rebindable: true,
+        }
+    }
+
+    /// RD-TOOLS-1: Arcade apps add their global shortcut to Hyprland at runtime, so the runtime bind with exactly the
+    /// app's chord is that shortcut itself, not a second binding.
+    #[test]
+    #[should_panic(expected = "KNOWN BUG RD-TOOLS-1")]
+    fn an_apps_own_runtime_bind_is_not_a_conflict() {
+        let own = wm(
+            BindState::RuntimeOnly,
+            "Super+Space",
+            "Lua function (added at runtime)",
+        );
+        let found = conflicts(&[find_toggle()], &own, &[]);
+        assert!(found.is_empty(), "KNOWN BUG RD-TOOLS-1: {found:?}");
+    }
+
+    #[test]
+    fn a_configured_bind_on_the_same_keys_is_a_conflict() {
+        let configured = wm(BindState::Active, "Super+Space", "Launcher");
+        assert_eq!(conflicts(&[find_toggle()], &configured, &[]).len(), 1);
+    }
 }
 
 #[cfg(feature = "builder")]

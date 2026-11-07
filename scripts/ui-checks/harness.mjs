@@ -47,5 +47,10 @@ try {
   await browser.close();
   server.close();
 }
+// A scenario named "KNOWN BUG ..." pins a bug that is not fixed yet: it must fail (XFAIL); passing (XPASS) means the
+// fix landed and the name has to lose its marker.
+for (const result of results) {
+  if (result[0].startsWith('KNOWN BUG') && result[1] !== 'PAGE-ERRORS') result[1] = result[1] === 'FAIL' ? 'XFAIL' : 'XPASS';
+}
 for (const [name, status, detail] of results) console.log(`${status} ${name}${detail ? `: ${detail}` : ''}`);
-process.exit(results.some(([, s]) => s !== 'PASS') ? 1 : 0);
+process.exit(results.some(([, s]) => s !== 'PASS' && s !== 'XFAIL') ? 1 : 0);

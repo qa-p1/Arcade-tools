@@ -282,4 +282,30 @@ mod tests {
         assert_eq!(gtk_dark("gtk-theme-name=Adwaita-dark"), Some(true));
         assert_eq!(gtk_dark("# ignored"), None);
     }
+
+    fn overlay() -> Overlay {
+        let index =
+            crate::index::Index::parse(include_bytes!("../../tests/fixtures/shortcuts-index.json"))
+                .unwrap();
+        Overlay::new(Model::new(Some(index), None), false, false, Timing::start())
+    }
+
+    /// TL-6 and the fleet Escape rule: Escape undoes one step (picker, then filter) and closes only from the top.
+    #[test]
+    #[should_panic(expected = "KNOWN BUG TL-6")]
+    fn escape_clears_a_filter_before_it_closes() {
+        let mut o = overlay();
+        o.key(Key::Text("clip".into()), false);
+        let closed = o.key(Key::Escape, false);
+        assert!(
+            !closed && o.model.query.is_empty(),
+            "KNOWN BUG TL-6: Escape closed with a filter typed"
+        );
+        assert!(o.key(Key::Escape, false));
+    }
+
+    #[test]
+    fn escape_closes_from_the_top() {
+        assert!(overlay().key(Key::Escape, false));
+    }
 }
