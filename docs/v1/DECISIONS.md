@@ -30,3 +30,33 @@ blocking `Response` applies the timeout to each read, so it already acts as an i
 other half of TL-11 holds: there is no Range request, so an interrupted download restarts at byte 0
 (`an_interrupted_download_resumes_where_it_stopped`, known bug). Step 3 still sets an explicit 30 s read-idle
 timeout as the spec asks, and adds resume.
+
+## D4 — Untangle (skill steps 2–5; both extras chosen by the owner)
+
+Read from the skeleton (`grep` of every item) and the module graph; git history shows `manager.rs` changes in nearly
+every commit, whatever the feature. Fixes first, the problems each one solves under it.
+
+- Split `Manager` into one file per area under `src/manager/` (`preferences`, `records`, `checks`, `operations`,
+  `self_update`, `uninstall`, `maintenance`, `launch`); `mod.rs` keeps the types, the struct and the shared helpers.
+  Mechanical (`impl Manager` blocks moved whole, private methods became `pub(super)`); the compiler checks it.
+  - `src/manager.rs` was 3 292 lines with nine unrelated reasons to change; an update fix and an uninstall fix
+    touched the same file and re-read all of it.
+- Hash installed executables in one place, `Manager::cached_checksum`, keyed by size, times and inode.
+  - `record()`'s mismatch branch and `record_from_receipt` called the uncached `checksum` (TL-8: 12 % CPU on Home).
+- Work out an app's channel in one function that returns both the selected and the installed channel.
+  - `list_catalog` and `checked` each computed `prefs.channels.get(id).or(record.channel)` on their own.
+  - The UI could only show the selected one (TL-9).
+- One retention rule for installers: keep the installed package and one rollback package per app, applied after
+  each successful operation and at startup.
+  - `installation::retain` wrote packages that nothing ever removed; `cleanup_interrupted` only knew downloads
+    and snapshots (TL-7).
+- One "back one step" rule for Escape, in the overlay and in the window: close a picker, then clear a filter, then
+  leave a detail or reader view; only the top level closes (the overlay) or does nothing (the window).
+  - The overlay's `key` returned "close" for Escape unconditionally (TL-6).
+  - The window had no Escape handling at all (TL-3).
+- Downloads move into the updater redesign (`specs/LINK.md` §3): one download path with an explicit read-idle
+  timeout and Range resume, used by full and delta downloads alike.
+  - The timeout was a module constant shared by catalog fetches and installers; nothing could resume (TL-11).
+
+Special cases kept on purpose: the 30 s parent wait in `finish_self_update` (the old process must exit before its
+file is replaced) and the per-OS installer kinds (the platforms differ).

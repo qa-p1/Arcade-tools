@@ -44,7 +44,7 @@ fn startup_cleanup_bounds_the_installer_cache() {
         .join("arcade/tools/installers/arcade.shelf");
     fs::create_dir_all(&dir).unwrap();
     for n in 0..3 {
-        fs::write(dir.join(format!("{:064x}.AppImage", n)), vec![0u8; 1024]).unwrap();
+        fs::write(dir.join(format!("{n:064x}.AppImage")), vec![0u8; 1024]).unwrap();
     }
     f.manager.cleanup_interrupted().unwrap();
     let left = fs::read_dir(&dir).map(|d| d.count()).unwrap_or(0);
