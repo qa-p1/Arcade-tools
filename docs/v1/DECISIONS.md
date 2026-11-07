@@ -60,3 +60,28 @@ every commit, whatever the feature. Fixes first, the problems each one solves un
 
 Special cases kept on purpose: the 30 s parent wait in `finish_self_update` (the old process must exit before its
 file is replaced) and the per-OS installer kinds (the platforms differ).
+
+## D5 — Updater design (SPEC.md §Updater work, Link `release` API)
+
+- **Link 1.0.0** is the dependency (all crates, one copy), with the `release` feature for manifests and deltas.
+- **Channels:** `Stable`, `Nightly`, `Test`. Discovery lists `/releases` (ETag-conditional): Stable is the newest
+  published release tagged `vX.Y.Z`; Nightly the newest prerelease tagged `vX.Y.Z-nightly.YYYYMMDD.N`; Test the
+  newest prerelease tagged `vX.Y.Z-rc.N`. The old moving `nightly` tag is no longer followed (its builds are
+  unsigned, so they could not pass the signature rule anyway). `Test` is never stored or shown: it applies only while
+  `ARCADE_TOOLS_CHANNEL_OVERRIDE=test` is set (the release gates). When the API's anonymous limit is hit, Stable
+  falls back to `releases/latest/download/` as before; Nightly and Test report the limit and retry later.
+- **Trust:** a release must carry `manifest.json`; Stable and Nightly also `manifest.json.sig`, verified against the
+  keys built into Tools (`resources/update-keys.pub`: current and next). The trusted comment must name this app and
+  channel. The chosen asset's size and SHA-256 must equal its manifest entry; `arcade-release.json` only supplies
+  install arguments. Test manifests are unsigned (Link D4) and are reachable only through the override. Until the
+  owner adds the public key (B1, `LOCAL.md` §1), the key file is empty and stable/nightly updates are refused with a
+  clear message: never unsigned. Debug-only loopback test sources trust a fixed test key whose secret lives in
+  `tests/support`; release builds cannot use it.
+- **Chunk store:** the "shared store" is the files Tools already keeps: every installed executable and every retained
+  package, each indexed by its own manifest entry (saved next to the package as `<sha256>.manifest.json`), so indexing
+  costs nothing and no chunk is stored twice. A file without a saved entry (a pre-1.0 install) is chunked once on
+  demand. Missing ranges are fetched with HTTP Range, neighbouring ranges less than 256 KiB apart in one request.
+- **Ladder:** delta → full download with resume (`downloads/<sha256>.part`, `Range: bytes=N-`, up to 3 attempts) →
+  error. Downloads use a 30 s read-idle timeout. Progress counts the bytes to download, not the file size.
+- **Bad releases:** a catalog app may list `bad` versions; they are never offered, and an installed bad version gets a
+  rollback notice.

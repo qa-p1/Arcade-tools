@@ -406,7 +406,7 @@ pub(crate) fn is_newer(installed: &InstalledApp, release: &Release, sha256: &str
     if installed.channel != release.channel {
         return true;
     }
-    if release.channel == Channel::Stable {
+    if release.channel != Channel::Nightly {
         if let (Ok(old), Ok(new)) = (
             semver::Version::parse(&installed.version),
             semver::Version::parse(&release.version),
