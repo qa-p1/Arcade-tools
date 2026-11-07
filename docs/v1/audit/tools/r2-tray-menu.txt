@@ -1,0 +1,55 @@
+reg org.kde.StatusNotifierItem-230788-1 :1.202
+ITEM org.kde.StatusNotifierItem-230788-1 {'Id': 'arcade-tools', 'Title': 'Arcade Tools', 'Menu': '/MenuBar', 'Status': 'Active'}
+[0]  type= enabled= toggle=/
+  [262] Open Arcade Tools type= enabled= toggle=/
+  [263] Show shortcuts    Super+/ type= enabled= toggle=/
+  [264]  type=separator enabled= toggle=/
+  [265] Arcade Box type= enabled= toggle=/
+    [266] Open Arcade Box type= enabled= toggle=/
+    [267] Settings type= enabled= toggle=/
+    [268] Open pipelines type= enabled= toggle=/
+    [269]  type=separator enabled= toggle=/
+    [270] Restart Arcade Box type= enabled= toggle=/
+    [271] Quit Arcade Box type= enabled= toggle=/
+  [272] Arcade Find type= enabled= toggle=/
+    [273] Open Arcade Find type= enabled= toggle=/
+    [274] Settings type= enabled= toggle=/
+    [275] Rescan index type= enabled= toggle=/
+    [276]  type=separator enabled= toggle=/
+    [277] Restart Arcade Find type= enabled= toggle=/
+    [278] Quit Arcade Find type= enabled= toggle=/
+  [279] Arcade Lens type= enabled= toggle=/
+    [280] Open Arcade Lens type= enabled= toggle=/
+    [281] Settings type= enabled= toggle=/
+    [282] Capture type= enabled= toggle=/
+    [283] Capture text type= enabled= toggle=/
+    [284] Pick color type= enabled= toggle=/
+    [285]  type=separator enabled= toggle=/
+    [286] Restart Arcade Lens type= enabled= toggle=/
+    [287] Quit Arcade Lens type= enabled= toggle=/
+  [288] Arcade Look type= enabled= toggle=/
+    [289] Open Arcade Look type= enabled= toggle=/
+    [290] Settings type= enabled= toggle=/
+    [291]  type=separator enabled= toggle=/
+    [292] Restart Arcade Look type= enabled= toggle=/
+    [293] Quit Arcade Look type= enabled= toggle=/
+  [294] Arcade Shelf type= enabled= toggle=/
+    [295] Open Arcade Shelf type= enabled= toggle=/
+    [296] Settings type= enabled= toggle=/
+    [297] New shelf… type= enabled= toggle=/
+    [298] Show shelf type= enabled= toggle=/
+    [299]  type=separator enabled= toggle=/
+    [300] Restart Arcade Shelf type= enabled= toggle=/
+    [301] Quit Arcade Shelf type= enabled= toggle=/
+  [302] Arcade Wheel type= enabled= toggle=/
+    [303] Open Arcade Wheel type= enabled= toggle=/
+    [304] Settings type= enabled= toggle=/
+    [305] Open wheel type= enabled= toggle=/
+    [306]  type=separator enabled= toggle=/
+    [307] Restart Arcade Wheel type= enabled= toggle=/
+    [308] Quit Arcade Wheel type= enabled= toggle=/
+  [309]  type=separator enabled= toggle=/
+  [310] Start all Arcade apps type= enabled= toggle=/
+  [311] Quit all Arcade apps type= enabled= toggle=/
+  [312]  type=separator enabled= toggle=/
+  [313] Quit Arcade Tools type= enabled= toggle=/

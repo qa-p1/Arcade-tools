@@ -1,0 +1,35 @@
+           PID: 144184 (arcade-tools-ov)
+           TID: 144184 (arcade-tools-ov)
+           UID: 1000 (harneet)
+           GID: 1000 (harneet)
+        Signal: 11 (SEGV) si_code: SEGV_MAPERR
+     Timestamp: Fri 2026-11-06 19:26:21 IST (1min 28s ago)
+  Command Line: /tmp/claude-1000/-home-harneet-Work-Coding/c7347b9d-c34f-4fc8-b57d-de9a2d5591f6/scratchpad/audit-cswt/resume/tmp/.mount_ArcadeeAdjgM/usr/bin/arcade-tools-overlay --toggle
+    Executable: /tmp/claude-1000/-home-harneet-Work-Coding/c7347b9d-c34f-4fc8-b57d-de9a2d5591f6/scratchpad/audit-cswt/resume/tmp/.mount_ArcadeeAdjgM/usr/bin/arcade-tools-overlay
+ Control Group: /user.slice/user-1000.slice/user@1000.service/app.slice/app-t3code.slice/app-t3code-agents.slice/app-t3code-agents-f86f5e917718.slice/t3code-codex-3f66e714.scope
+          Unit: user@1000.service
+     User Unit: t3code-codex-3f66e714.scope
+         Slice: user-1000.slice
+     Owner UID: 1000 (harneet)
+       Boot ID: 67a36b2885bb4e939d25d0d24df5222c
+    Machine ID: 7883894458574561a0a90bdb4b6c3c47
+      Hostname: helios
+       Storage: /var/lib/systemd/coredump/core.arcade-tools-ov.1000.67a36b2885bb4e939d25d0d24df5222c.144184.1793973381000000.zst (present)
+  Size on Disk: 1M
+       Message: Process 144184 (arcade-tools-ov) of user 1000 dumped core.
+                
+                Module /tmp/claude-1000/-home-harneet-Work-Coding/c7347b9d-c34f-4fc8-b57d-de9a2d5591f6/scratchpad/audit-cswt/resume/tmp/.mount_ArcadeeAdjgM/usr/bin/arcade-tools-overlay without build-id.
+                Module /tmp/claude-1000/-home-harneet-Work-Coding/c7347b9d-c34f-4fc8-b57d-de9a2d5591f6/scratchpad/audit-cswt/resume/tmp/.mount_ArcadeeAdjgM/usr/bin/arcade-tools-overlay
+                Module /tmp/claude-1000/-home-harneet-Work-Coding/c7347b9d-c34f-4fc8-b57d-de9a2d5591f6/scratchpad/audit-cswt/resume/tmp/.mount_ArcadeeAdjgM/usr/lib/libXext.so.6 without build-id.
+                Module /tmp/claude-1000/-home-harneet-Work-Coding/c7347b9d-c34f-4fc8-b57d-de9a2d5591f6/scratchpad/audit-cswt/resume/tmp/.mount_ArcadeeAdjgM/usr/lib/libXext.so.6
+                Module /tmp/claude-1000/-home-harneet-Work-Coding/c7347b9d-c34f-4fc8-b57d-de9a2d5591f6/scratchpad/audit-cswt/resume/tmp/.mount_ArcadeeAdjgM/usr/lib/libXi.so.6 without build-id.
+                Module /tmp/claude-1000/-home-harneet-Work-Coding/c7347b9d-c34f-4fc8-b57d-de9a2d5591f6/scratchpad/audit-cswt/resume/tmp/.mount_ArcadeeAdjgM/usr/lib/libXi.so.6
+                Module /tmp/claude-1000/-home-harneet-Work-Coding/c7347b9d-c34f-4fc8-b57d-de9a2d5591f6/scratchpad/audit-cswt/resume/tmp/.mount_ArcadeeAdjgM/usr/lib/libXrender.so.1 without build-id.
+                Module /tmp/claude-1000/-home-harneet-Work-Coding/c7347b9d-c34f-4fc8-b57d-de9a2d5591f6/scratchpad/audit-cswt/resume/tmp/.mount_ArcadeeAdjgM/usr/lib/libXrender.so.1
+                Module /tmp/claude-1000/-home-harneet-Work-Coding/c7347b9d-c34f-4fc8-b57d-de9a2d5591f6/scratchpad/audit-cswt/resume/tmp/.mount_ArcadeeAdjgM/usr/lib/libXcursor.so.1 without build-id.
+                Module /tmp/claude-1000/-home-harneet-Work-Coding/c7347b9d-c34f-4fc8-b57d-de9a2d5591f6/scratchpad/audit-cswt/resume/tmp/.mount_ArcadeeAdjgM/usr/lib/libXcursor.so.1
+                Module /tmp/claude-1000/-home-harneet-Work-Coding/c7347b9d-c34f-4fc8-b57d-de9a2d5591f6/scratchpad/audit-cswt/resume/tmp/.mount_ArcadeeAdjgM/usr/lib/libxkbcommon.so.0 without build-id.
+                Module /tmp/claude-1000/-home-harneet-Work-Coding/c7347b9d-c34f-4fc8-b57d-de9a2d5591f6/scratchpad/audit-cswt/resume/tmp/.mount_ArcadeeAdjgM/usr/lib/libxkbcommon.so.0
+                Stack trace of thread 144184:
+                #0  0x00007f5d3e20aa8e n/a (/tmp/claude-1000/-home-harneet-Work-Coding/c7347b9d-c34f-4fc8-b57d-de9a2d5591f6/scratchpad/audit-cswt/resume/tmp/.mount_ArcadeeAdjgM/usr/lib/libxkbcommon.so.0 + 0x1da8e)
+                ELF object binary architecture: AMD x86-64

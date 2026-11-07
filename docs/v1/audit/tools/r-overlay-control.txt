@@ -1,0 +1,1 @@
+Host libxkbcommon diagnosis only, no file changes: leave alive; blur exit=0

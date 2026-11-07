@@ -1,0 +1,878 @@
+{
+  "pid": 131254,
+  "cpuPercent": 0.16666666666666669,
+  "before": {
+    "ticks": 196,
+    "status": "Name:\tarcade-tools\nUmask:\t0022\nState:\tS (sleeping)\nTgid:\t131254\nNgid:\t0\nPid:\t131254\nPPid:\t131253\nTracerPid:\t0\nUid:\t1000\t1000\t1000\t1000\nGid:\t1000\t1000\t1000\t1000\nFDSize:\t1024\nGroups:\t3 90 953 967 980 982 983 985 989 995 998 1000 \nNStgid:\t131254\nNSpid:\t131254\nNSpgid:\t131253\nNSsid:\t131253\nKthread:\t0\nVmPeak:\t135230736 kB\nVmSize:\t74204028 kB\nVmLck:\t       0 kB\nVmPin:\t       0 kB\nVmHWM:\t  191404 kB\nVmRSS:\t  187736 kB\nRssAnon:\t   49160 kB\nRssFile:\t  129948 kB\nRssShmem:\t    8628 kB\nVmData:\t72532816 kB\nVmStk:\t     140 kB\nVmExe:\t   17620 kB\nVmLib:\t  241960 kB\nVmPTE:\t    1252 kB\nVmSwap:\t       0 kB\nHugetlbPages:\t       0 kB\nCoreDumping:\t0\nTHP_enabled:\t1\nuntag_mask:\t0xffffffffffffffff\nThreads:\t78\nSigQ:\t11/61132\nSigPnd:\t0000000000000000\nShdPnd:\t0000000000000000\nSigBlk:\t0000000000000000\nSigIgn:\t0000000000001000\nSigCgt:\t0000000100810640\nCapInh:\t0000000800000000\nCapPrm:\t0000000000000000\nCapEff:\t0000000000000000\nCapBnd:\t000001ffffffffff\nCapAmb:\t0000000000000000\nNoNewPrivs:\t0\nSeccomp:\t0\nSeccomp_filters:\t0\nSpeculation_Store_Bypass:\tthread vulnerable\nSpeculationIndirectBranch:\tconditional enabled\nCpus_allowed:\tfff\nCpus_allowed_list:\t0-11\nMems_allowed:\t1\nMems_allowed_list:\t0\nvoluntary_ctxt_switches:\t1875\nnonvoluntary_ctxt_switches:\t125\nx86_Thread_features:\t\nx86_Thread_features_locked:\t\n",
+    "threads": {
+      "131254": {
+        "name": "arcade-tools",
+        "ticks": 22
+      },
+      "131273": {
+        "name": "gmain",
+        "ticks": 0
+      },
+      "131274": {
+        "name": "gdbus",
+        "ticks": 0
+      },
+      "131275": {
+        "name": "arcade-tools",
+        "ticks": 0
+      },
+      "131276": {
+        "name": "arcade-tools",
+        "ticks": 0
+      },
+      "131277": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "131278": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "131279": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "131280": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "131281": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "131282": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "131283": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "131284": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "131285": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "131286": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "131287": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "131288": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "131291": {
+        "name": "ebsiteDataStore",
+        "ticks": 0
+      },
+      "131305": {
+        "name": "llvmpipe-0",
+        "ticks": 0
+      },
+      "131306": {
+        "name": "llvmpipe-1",
+        "ticks": 0
+      },
+      "131307": {
+        "name": "llvmpipe-2",
+        "ticks": 0
+      },
+      "131308": {
+        "name": "llvmpipe-3",
+        "ticks": 0
+      },
+      "131309": {
+        "name": "llvmpipe-4",
+        "ticks": 0
+      },
+      "131310": {
+        "name": "llvmpipe-5",
+        "ticks": 0
+      },
+      "131311": {
+        "name": "llvmpipe-6",
+        "ticks": 0
+      },
+      "131312": {
+        "name": "llvmpipe-7",
+        "ticks": 0
+      },
+      "131313": {
+        "name": "llvmpipe-8",
+        "ticks": 0
+      },
+      "131314": {
+        "name": "llvmpipe-9",
+        "ticks": 0
+      },
+      "131315": {
+        "name": "llvmpipe-10",
+        "ticks": 0
+      },
+      "131316": {
+        "name": "llvmpipe-11",
+        "ticks": 0
+      },
+      "131317": {
+        "name": "arcade-tools",
+        "ticks": 0
+      },
+      "131318": {
+        "name": "arcade-tools",
+        "ticks": 0
+      },
+      "131319": {
+        "name": "arcade-tools",
+        "ticks": 0
+      },
+      "131320": {
+        "name": "arcade-tools",
+        "ticks": 0
+      },
+      "131321": {
+        "name": "arcade-tools",
+        "ticks": 0
+      },
+      "131322": {
+        "name": "arcade-tools",
+        "ticks": 0
+      },
+      "131323": {
+        "name": "arcade-tools",
+        "ticks": 0
+      },
+      "131324": {
+        "name": "arcade-tools",
+        "ticks": 0
+      },
+      "131325": {
+        "name": "arcade-tools",
+        "ticks": 0
+      },
+      "131326": {
+        "name": "arcade-tools",
+        "ticks": 0
+      },
+      "131327": {
+        "name": "arcade-tools",
+        "ticks": 0
+      },
+      "131328": {
+        "name": "arcade-tools",
+        "ticks": 0
+      },
+      "131329": {
+        "name": "arcade-:disk$0",
+        "ticks": 0
+      },
+      "131337": {
+        "name": "PressureMonitor",
+        "ticks": 1
+      },
+      "131348": {
+        "name": "reqwest-interna",
+        "ticks": 0
+      },
+      "131349": {
+        "name": "ReceiveQueue",
+        "ticks": 0
+      },
+      "131357": {
+        "name": "tools-shortcut-",
+        "ticks": 2
+      },
+      "131358": {
+        "name": "notify-rs inoti",
+        "ticks": 0
+      },
+      "131360": {
+        "name": "arcade-tools",
+        "ticks": 0
+      },
+      "131361": {
+        "name": "notify-rs inoti",
+        "ticks": 0
+      },
+      "131362": {
+        "name": "tools-tray",
+        "ticks": 0
+      },
+      "131363": {
+        "name": "arcade-link-acc",
+        "ticks": 0
+      },
+      "131364": {
+        "name": "arcade-tools",
+        "ticks": 0
+      },
+      "131366": {
+        "name": "notify-rs inoti",
+        "ticks": 0
+      },
+      "131369": {
+        "name": "notify-rs inoti",
+        "ticks": 0
+      },
+      "131370": {
+        "name": "tools-shortcut-",
+        "ticks": 0
+      },
+      "131371": {
+        "name": "arcade-tools",
+        "ticks": 39
+      },
+      "131372": {
+        "name": "ReceiveQueue",
+        "ticks": 1
+      },
+      "131382": {
+        "name": "arcade-tools",
+        "ticks": 20
+      },
+      "131398": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "131399": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "131400": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "131401": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "131402": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "131403": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "131404": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "131405": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "131406": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "131407": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "131408": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "131409": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "133736": {
+        "name": "arcade-link-con",
+        "ticks": 0
+      },
+      "133737": {
+        "name": "arcade-link-con",
+        "ticks": 0
+      },
+      "133772": {
+        "name": "tools-tray",
+        "ticks": 0
+      },
+      "134946": {
+        "name": "arcade-tools",
+        "ticks": 0
+      },
+      "134949": {
+        "name": "VBlankMonitor",
+        "ticks": 0
+      },
+      "134951": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "134952": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      }
+    },
+    "fds": {
+      "0": "pipe:[542329]",
+      "1": "/tmp/claude-1000/-home-harneet-Work-Coding/c7347b9d-c34f-4fc8-b57d-de9a2d5591f6/scratchpad/audit-cswt/resume/logs/tools-foreground.log",
+      "2": "/tmp/claude-1000/-home-harneet-Work-Coding/c7347b9d-c34f-4fc8-b57d-de9a2d5591f6/scratchpad/audit-cswt/resume/logs/tools-foreground.log",
+      "3": "pipe:[542915]",
+      "4": "anon_inode:[eventfd]",
+      "5": "socket:[542337]",
+      "6": "anon_inode:[eventfd]",
+      "7": "socket:[539583]",
+      "8": "anon_inode:[eventfd]",
+      "9": "socket:[539584]",
+      "10": "socket:[542339]",
+      "11": "anon_inode:[eventpoll]",
+      "12": "anon_inode:[eventfd]",
+      "13": "anon_inode:[eventpoll]",
+      "14": "socket:[541175]",
+      "15": "socket:[541176]",
+      "16": "socket:[541175]",
+      "17": "socket:[513008]",
+      "18": "/dev/urandom",
+      "19": "anon_inode:[eventfd]",
+      "20": "/dev/udmabuf",
+      "21": "socket:[545052]",
+      "22": "/memfd:lp_dma_buf (deleted)",
+      "23": "anon_inode:inotify",
+      "24": "/dmabuf:",
+      "25": "anon_inode:sync_file",
+      "26": "/memfd:allocation fd (deleted)",
+      "27": "/dev/udmabuf",
+      "28": "/memfd:lp_dma_buf (deleted)",
+      "29": "/dmabuf:",
+      "30": "anon_inode:sync_file",
+      "31": "/memfd:allocation fd (deleted)",
+      "32": "/dev/urandom",
+      "33": "anon_inode:[eventfd]",
+      "34": "socket:[544041]",
+      "35": "anon_inode:[eventpoll]",
+      "36": "anon_inode:[eventpoll]",
+      "37": "anon_inode:[eventfd]",
+      "38": "anon_inode:[eventpoll]",
+      "39": "socket:[541175]",
+      "40": "anon_inode:[eventpoll]",
+      "41": "anon_inode:[eventfd]",
+      "42": "anon_inode:[eventpoll]",
+      "43": "anon_inode:[eventfd]",
+      "44": "anon_inode:[eventpoll]",
+      "45": "socket:[541175]",
+      "46": "socket:[544049]",
+      "47": "anon_inode:[eventpoll]",
+      "48": "anon_inode:inotify",
+      "49": "anon_inode:[eventpoll]",
+      "50": "anon_inode:[eventfd]",
+      "51": "socket:[544051]",
+      "52": "socket:[556131]",
+      "54": "anon_inode:inotify",
+      "55": "socket:[541181]",
+      "56": "anon_inode:[eventpoll]",
+      "57": "anon_inode:[eventfd]",
+      "58": "socket:[554177]",
+      "59": "socket:[549230]",
+      "60": "anon_inode:inotify",
+      "61": "anon_inode:[eventfd]",
+      "62": "anon_inode:[eventfd]",
+      "63": "anon_inode:[eventfd]",
+      "64": "anon_inode:[eventpoll]",
+      "65": "socket:[541175]",
+      "66": "/memfd:WebKitSharedMemory (deleted)",
+      "67": "/proc/meminfo",
+      "68": "/proc/131254/statm",
+      "69": "/proc/zoneinfo",
+      "70": "/proc/131254/cgroup",
+      "71": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/app-t3code.slice/app-t3code-agents.slice/app-t3code-agents-f86f5e917718.slice/t3code-codex-3f66e714.scope/memory.current",
+      "72": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/app-t3code.slice/app-t3code-agents.slice/app-t3code-agents-f86f5e917718.slice/t3code-codex-3f66e714.scope/memory.max",
+      "73": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/app-t3code.slice/app-t3code-agents.slice/app-t3code-agents-f86f5e917718.slice/t3code-codex-3f66e714.scope/memory.high",
+      "74": "/proc/133717/stat",
+      "78": "socket:[545177]",
+      "79": "socket:[545178]",
+      "1023": "/tmp/claude-1000/-home-harneet-Work-Coding/c7347b9d-c34f-4fc8-b57d-de9a2d5591f6/scratchpad/audit-cswt/resume/tmp/.mount_ArcadeeAdjgM"
+    }
+  },
+  "after": {
+    "ticks": 201,
+    "status": "Name:\tarcade-tools\nUmask:\t0022\nState:\tS (sleeping)\nTgid:\t131254\nNgid:\t0\nPid:\t131254\nPPid:\t131253\nTracerPid:\t0\nUid:\t1000\t1000\t1000\t1000\nGid:\t1000\t1000\t1000\t1000\nFDSize:\t1024\nGroups:\t3 90 953 967 980 982 983 985 989 995 998 1000 \nNStgid:\t131254\nNSpid:\t131254\nNSpgid:\t131253\nNSsid:\t131253\nKthread:\t0\nVmPeak:\t135230736 kB\nVmSize:\t74204028 kB\nVmLck:\t       0 kB\nVmPin:\t       0 kB\nVmHWM:\t  191404 kB\nVmRSS:\t  187716 kB\nRssAnon:\t   49140 kB\nRssFile:\t  129948 kB\nRssShmem:\t    8628 kB\nVmData:\t72532816 kB\nVmStk:\t     140 kB\nVmExe:\t   17620 kB\nVmLib:\t  241960 kB\nVmPTE:\t    1252 kB\nVmSwap:\t       0 kB\nHugetlbPages:\t       0 kB\nCoreDumping:\t0\nTHP_enabled:\t1\nuntag_mask:\t0xffffffffffffffff\nThreads:\t78\nSigQ:\t12/61132\nSigPnd:\t0000000000000000\nShdPnd:\t0000000000000000\nSigBlk:\t0000000000000000\nSigIgn:\t0000000000001000\nSigCgt:\t0000000100810640\nCapInh:\t0000000800000000\nCapPrm:\t0000000000000000\nCapEff:\t0000000000000000\nCapBnd:\t000001ffffffffff\nCapAmb:\t0000000000000000\nNoNewPrivs:\t0\nSeccomp:\t0\nSeccomp_filters:\t0\nSpeculation_Store_Bypass:\tthread vulnerable\nSpeculationIndirectBranch:\tconditional enabled\nCpus_allowed:\tfff\nCpus_allowed_list:\t0-11\nMems_allowed:\t1\nMems_allowed_list:\t0\nvoluntary_ctxt_switches:\t1931\nnonvoluntary_ctxt_switches:\t145\nx86_Thread_features:\t\nx86_Thread_features_locked:\t\n",
+    "threads": {
+      "131254": {
+        "name": "arcade-tools",
+        "ticks": 23
+      },
+      "131273": {
+        "name": "gmain",
+        "ticks": 0
+      },
+      "131274": {
+        "name": "gdbus",
+        "ticks": 0
+      },
+      "131275": {
+        "name": "arcade-tools",
+        "ticks": 0
+      },
+      "131276": {
+        "name": "arcade-tools",
+        "ticks": 0
+      },
+      "131277": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "131278": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "131279": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "131280": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "131281": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "131282": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "131283": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "131284": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "131285": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "131286": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "131287": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "131288": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "131291": {
+        "name": "ebsiteDataStore",
+        "ticks": 0
+      },
+      "131305": {
+        "name": "llvmpipe-0",
+        "ticks": 0
+      },
+      "131306": {
+        "name": "llvmpipe-1",
+        "ticks": 0
+      },
+      "131307": {
+        "name": "llvmpipe-2",
+        "ticks": 0
+      },
+      "131308": {
+        "name": "llvmpipe-3",
+        "ticks": 0
+      },
+      "131309": {
+        "name": "llvmpipe-4",
+        "ticks": 0
+      },
+      "131310": {
+        "name": "llvmpipe-5",
+        "ticks": 0
+      },
+      "131311": {
+        "name": "llvmpipe-6",
+        "ticks": 0
+      },
+      "131312": {
+        "name": "llvmpipe-7",
+        "ticks": 0
+      },
+      "131313": {
+        "name": "llvmpipe-8",
+        "ticks": 0
+      },
+      "131314": {
+        "name": "llvmpipe-9",
+        "ticks": 0
+      },
+      "131315": {
+        "name": "llvmpipe-10",
+        "ticks": 0
+      },
+      "131316": {
+        "name": "llvmpipe-11",
+        "ticks": 0
+      },
+      "131317": {
+        "name": "arcade-tools",
+        "ticks": 0
+      },
+      "131318": {
+        "name": "arcade-tools",
+        "ticks": 0
+      },
+      "131319": {
+        "name": "arcade-tools",
+        "ticks": 0
+      },
+      "131320": {
+        "name": "arcade-tools",
+        "ticks": 0
+      },
+      "131321": {
+        "name": "arcade-tools",
+        "ticks": 0
+      },
+      "131322": {
+        "name": "arcade-tools",
+        "ticks": 0
+      },
+      "131323": {
+        "name": "arcade-tools",
+        "ticks": 0
+      },
+      "131324": {
+        "name": "arcade-tools",
+        "ticks": 0
+      },
+      "131325": {
+        "name": "arcade-tools",
+        "ticks": 0
+      },
+      "131326": {
+        "name": "arcade-tools",
+        "ticks": 0
+      },
+      "131327": {
+        "name": "arcade-tools",
+        "ticks": 0
+      },
+      "131328": {
+        "name": "arcade-tools",
+        "ticks": 0
+      },
+      "131329": {
+        "name": "arcade-:disk$0",
+        "ticks": 0
+      },
+      "131337": {
+        "name": "PressureMonitor",
+        "ticks": 1
+      },
+      "131348": {
+        "name": "reqwest-interna",
+        "ticks": 0
+      },
+      "131349": {
+        "name": "ReceiveQueue",
+        "ticks": 0
+      },
+      "131357": {
+        "name": "tools-shortcut-",
+        "ticks": 2
+      },
+      "131358": {
+        "name": "notify-rs inoti",
+        "ticks": 0
+      },
+      "131360": {
+        "name": "arcade-tools",
+        "ticks": 0
+      },
+      "131361": {
+        "name": "notify-rs inoti",
+        "ticks": 0
+      },
+      "131362": {
+        "name": "tools-tray",
+        "ticks": 0
+      },
+      "131363": {
+        "name": "arcade-link-acc",
+        "ticks": 0
+      },
+      "131364": {
+        "name": "arcade-tools",
+        "ticks": 0
+      },
+      "131366": {
+        "name": "notify-rs inoti",
+        "ticks": 0
+      },
+      "131369": {
+        "name": "notify-rs inoti",
+        "ticks": 0
+      },
+      "131370": {
+        "name": "tools-shortcut-",
+        "ticks": 0
+      },
+      "131371": {
+        "name": "arcade-tools",
+        "ticks": 39
+      },
+      "131372": {
+        "name": "ReceiveQueue",
+        "ticks": 1
+      },
+      "131382": {
+        "name": "arcade-tools",
+        "ticks": 20
+      },
+      "131398": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "131399": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "131400": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "131401": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "131402": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "131403": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "131404": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "131405": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "131406": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "131407": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "131408": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "131409": {
+        "name": "tokio-rt-worker",
+        "ticks": 0
+      },
+      "133736": {
+        "name": "arcade-link-con",
+        "ticks": 0
+      },
+      "133737": {
+        "name": "arcade-link-con",
+        "ticks": 0
+      },
+      "133772": {
+        "name": "tools-tray",
+        "ticks": 0
+      },
+      "134946": {
+        "name": "arcade-tools",
+        "ticks": 0
+      },
+      "134949": {
+        "name": "VBlankMonitor",
+        "ticks": 0
+      },
+      "134951": {
+        "name": "tokio-rt-worker",
+        "ticks": 1
+      },
+      "134952": {
+        "name": "tokio-rt-worker",
+        "ticks": 1
+      }
+    },
+    "fds": {
+      "0": "pipe:[542329]",
+      "1": "/tmp/claude-1000/-home-harneet-Work-Coding/c7347b9d-c34f-4fc8-b57d-de9a2d5591f6/scratchpad/audit-cswt/resume/logs/tools-foreground.log",
+      "2": "/tmp/claude-1000/-home-harneet-Work-Coding/c7347b9d-c34f-4fc8-b57d-de9a2d5591f6/scratchpad/audit-cswt/resume/logs/tools-foreground.log",
+      "3": "pipe:[542915]",
+      "4": "anon_inode:[eventfd]",
+      "5": "socket:[542337]",
+      "6": "anon_inode:[eventfd]",
+      "7": "socket:[539583]",
+      "8": "anon_inode:[eventfd]",
+      "9": "socket:[539584]",
+      "10": "socket:[542339]",
+      "11": "anon_inode:[eventpoll]",
+      "12": "anon_inode:[eventfd]",
+      "13": "anon_inode:[eventpoll]",
+      "14": "socket:[541175]",
+      "15": "socket:[541176]",
+      "16": "socket:[541175]",
+      "17": "socket:[513008]",
+      "18": "/dev/urandom",
+      "19": "anon_inode:[eventfd]",
+      "20": "/dev/udmabuf",
+      "21": "socket:[545052]",
+      "22": "/memfd:lp_dma_buf (deleted)",
+      "23": "anon_inode:inotify",
+      "24": "/dmabuf:",
+      "25": "anon_inode:sync_file",
+      "26": "/memfd:allocation fd (deleted)",
+      "27": "/dev/udmabuf",
+      "28": "/memfd:lp_dma_buf (deleted)",
+      "29": "/dmabuf:",
+      "30": "anon_inode:sync_file",
+      "31": "/memfd:allocation fd (deleted)",
+      "32": "/dev/urandom",
+      "33": "anon_inode:[eventfd]",
+      "34": "socket:[544041]",
+      "35": "anon_inode:[eventpoll]",
+      "36": "anon_inode:[eventpoll]",
+      "37": "anon_inode:[eventfd]",
+      "38": "anon_inode:[eventpoll]",
+      "39": "socket:[541175]",
+      "40": "anon_inode:[eventpoll]",
+      "41": "anon_inode:[eventfd]",
+      "42": "anon_inode:[eventpoll]",
+      "43": "anon_inode:[eventfd]",
+      "44": "anon_inode:[eventpoll]",
+      "45": "socket:[541175]",
+      "46": "socket:[544049]",
+      "47": "anon_inode:[eventpoll]",
+      "48": "anon_inode:inotify",
+      "49": "anon_inode:[eventpoll]",
+      "50": "anon_inode:[eventfd]",
+      "51": "socket:[544051]",
+      "52": "socket:[556131]",
+      "54": "anon_inode:inotify",
+      "55": "socket:[541181]",
+      "56": "anon_inode:[eventpoll]",
+      "57": "anon_inode:[eventfd]",
+      "58": "socket:[554177]",
+      "59": "socket:[549230]",
+      "60": "anon_inode:inotify",
+      "61": "anon_inode:[eventfd]",
+      "62": "anon_inode:[eventfd]",
+      "63": "anon_inode:[eventfd]",
+      "64": "anon_inode:[eventpoll]",
+      "65": "socket:[541175]",
+      "66": "/memfd:WebKitSharedMemory (deleted)",
+      "67": "/proc/meminfo",
+      "68": "/proc/131254/statm",
+      "69": "/proc/zoneinfo",
+      "70": "/proc/131254/cgroup",
+      "71": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/app-t3code.slice/app-t3code-agents.slice/app-t3code-agents-f86f5e917718.slice/t3code-codex-3f66e714.scope/memory.current",
+      "72": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/app-t3code.slice/app-t3code-agents.slice/app-t3code-agents-f86f5e917718.slice/t3code-codex-3f66e714.scope/memory.max",
+      "73": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/app-t3code.slice/app-t3code-agents.slice/app-t3code-agents-f86f5e917718.slice/t3code-codex-3f66e714.scope/memory.high",
+      "74": "/proc/133717/stat",
+      "78": "socket:[545177]",
+      "79": "socket:[545178]",
+      "1023": "/tmp/claude-1000/-home-harneet-Work-Coding/c7347b9d-c34f-4fc8-b57d-de9a2d5591f6/scratchpad/audit-cswt/resume/tmp/.mount_ArcadeeAdjgM"
+    }
+  },
+  "threadTicks": {
+    "131254": 1,
+    "131273": 0,
+    "131274": 0,
+    "131275": 0,
+    "131276": 0,
+    "131277": 0,
+    "131278": 0,
+    "131279": 0,
+    "131280": 0,
+    "131281": 0,
+    "131282": 0,
+    "131283": 0,
+    "131284": 0,
+    "131285": 0,
+    "131286": 0,
+    "131287": 0,
+    "131288": 0,
+    "131291": 0,
+    "131305": 0,
+    "131306": 0,
+    "131307": 0,
+    "131308": 0,
+    "131309": 0,
+    "131310": 0,
+    "131311": 0,
+    "131312": 0,
+    "131313": 0,
+    "131314": 0,
+    "131315": 0,
+    "131316": 0,
+    "131317": 0,
+    "131318": 0,
+    "131319": 0,
+    "131320": 0,
+    "131321": 0,
+    "131322": 0,
+    "131323": 0,
+    "131324": 0,
+    "131325": 0,
+    "131326": 0,
+    "131327": 0,
+    "131328": 0,
+    "131329": 0,
+    "131337": 0,
+    "131348": 0,
+    "131349": 0,
+    "131357": 0,
+    "131358": 0,
+    "131360": 0,
+    "131361": 0,
+    "131362": 0,
+    "131363": 0,
+    "131364": 0,
+    "131366": 0,
+    "131369": 0,
+    "131370": 0,
+    "131371": 0,
+    "131372": 0,
+    "131382": 0,
+    "131398": 0,
+    "131399": 0,
+    "131400": 0,
+    "131401": 0,
+    "131402": 0,
+    "131403": 0,
+    "131404": 0,
+    "131405": 0,
+    "131406": 0,
+    "131407": 0,
+    "131408": 0,
+    "131409": 0,
+    "133736": 0,
+    "133737": 0,
+    "133772": 0,
+    "134946": 0,
+    "134949": 0,
+    "134951": 1,
+    "134952": 1
+  }
+}
