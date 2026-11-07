@@ -101,6 +101,18 @@ impl Model {
         self.scope = self.scope.next(backwards);
         self.scroll = 0.0;
     }
+    /// Escape: undo one step (the filter, then a picker opened over an app's list). False when there is nothing
+    /// left to undo and the overlay should close.
+    pub fn back(&mut self) -> bool {
+        if !self.query.is_empty() {
+            self.clear_query();
+        } else if self.picking && self.app.is_some() {
+            self.picking = false;
+        } else {
+            return false;
+        }
+        true
+    }
     pub fn open_picker(&mut self) {
         self.picking = true;
         self.clear_query();
@@ -357,6 +369,16 @@ mod tests {
             Some(Index::parse(include_bytes!("../tests/fixtures/shortcuts-index.json")).unwrap()),
             app,
         )
+    }
+
+    #[test]
+    fn escape_steps_back_from_a_picker_opened_over_an_app() {
+        let mut model = model(Some(0));
+        model.open_picker();
+        model.type_text("wh");
+        assert!(model.back() && model.query.is_empty() && model.picking);
+        assert!(model.back() && !model.picking);
+        assert!(!model.back());
     }
 
     #[test]

@@ -3,11 +3,10 @@
 //! catches outside clicks; the centered sheet's background is fully opaque.
 
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use smithay_client_toolkit::reexports::calloop::channel::{channel, Event as ChannelEvent};
-use smithay_client_toolkit::reexports::calloop::timer::{TimeoutAction, Timer};
-use smithay_client_toolkit::reexports::calloop::{EventLoop, LoopHandle, RegistrationToken};
+use smithay_client_toolkit::reexports::calloop::{EventLoop, LoopHandle};
 use smithay_client_toolkit::reexports::calloop_wayland_source::WaylandSource;
 use smithay_client_toolkit::reexports::protocols::wp::fractional_scale::v1::client::{
     wp_fractional_scale_manager_v1, wp_fractional_scale_v1,
@@ -84,12 +83,10 @@ struct Wl {
     frac_scale: Option<u32>,
     logical_size: (u32, u32),
     configured: bool,
-    focus: bool,
     exit: bool,
     error: Option<String>,
     qh: QueueHandle<Wl>,
     handle: LoopHandle<'static, Wl>,
-    leave_timer: Option<RegistrationToken>,
     frame_requested: bool,
 }
 
@@ -167,12 +164,10 @@ pub fn run(overlay: Overlay, instance: &Instance, setup: Setup) -> Result<(), St
         frac_scale: None,
         logical_size: (crate::layout::WIDTH, crate::layout::HEIGHT),
         configured: false,
-        focus: false,
         exit: false,
         error: None,
         qh,
         handle,
-        leave_timer: None,
         frame_requested: false,
     };
     while !state.exit {
@@ -418,10 +413,6 @@ impl KeyboardHandler for Wl {
         _: &[u32],
         _: &[Keysym],
     ) {
-        self.focus = true;
-        if let Some(timer) = self.leave_timer.take() {
-            self.handle.remove(timer);
-        }
     }
     fn leave(
         &mut self,
@@ -431,26 +422,7 @@ impl KeyboardHandler for Wl {
         _: &wl_surface::WlSurface,
         _: u32,
     ) {
-        if !self.focus {
-            return;
-        }
-        self.focus = false;
-        if let Some(timer) = self.leave_timer.take() {
-            self.handle.remove(timer);
-        }
-        self.leave_timer = self
-            .handle
-            .insert_source(
-                Timer::from_duration(Duration::from_millis(150)),
-                |_, _, state: &mut Wl| {
-                    state.leave_timer = None;
-                    if !state.focus {
-                        state.exit = true;
-                    }
-                    TimeoutAction::Drop
-                },
-            )
-            .ok();
+        // ARCADE_APP.md UI-1: losing focus never closes the overlay.
     }
     fn press_key(
         &mut self,

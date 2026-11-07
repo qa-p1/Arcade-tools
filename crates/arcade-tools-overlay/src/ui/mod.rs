@@ -57,7 +57,7 @@ impl Overlay {
 
     fn key(&mut self, key: Key, shift: bool) -> bool {
         match key {
-            Key::Escape => return true,
+            Key::Escape => return !self.model.back(),
             Key::Tab => self.model.cycle(shift),
             Key::Backspace => self.model.backspace(),
             Key::Enter if self.model.picking => self.model.pick(None),
@@ -292,14 +292,13 @@ mod tests {
 
     /// TL-6 and the fleet Escape rule: Escape undoes one step (picker, then filter) and closes only from the top.
     #[test]
-    #[should_panic(expected = "KNOWN BUG TL-6")]
     fn escape_clears_a_filter_before_it_closes() {
         let mut o = overlay();
         o.key(Key::Text("clip".into()), false);
         let closed = o.key(Key::Escape, false);
         assert!(
             !closed && o.model.query.is_empty(),
-            "KNOWN BUG TL-6: Escape closed with a filter typed"
+            "Escape closed with a filter typed (TL-6)"
         );
         assert!(o.key(Key::Escape, false));
     }
