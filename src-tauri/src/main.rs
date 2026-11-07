@@ -26,6 +26,7 @@ Without options, opens the Arcade Tools window.
                           in the window; --silent removes Tools without asking
                           and leaves the apps installed, updating themselves
   --integration-status    Print the installation state as JSON
+  --status                Print whether Arcade Tools is running, as one line of JSON
   -V, --version           Print the version
   -h, --help              Print this help
 ";
@@ -39,6 +40,13 @@ fn main() {
     if args.iter().skip(1).any(|a| a == "--help" || a == "-h") {
         print!("{USAGE}");
         return;
+    }
+    if let Err(arg) = check_args(&args[1..]) {
+        eprint!("arcade-tools: unknown argument {arg:?}\n\n{USAGE}");
+        std::process::exit(2);
+    }
+    if args.iter().any(|a| a == "--status") {
+        std::process::exit(print_status());
     }
     if let Some(index) = args.iter().position(|arg| arg == "--wait-for-process") {
         let result = args
@@ -122,6 +130,79 @@ fn main() {
     }
     installation::make_way_for_offer();
     desktop::run(args.iter().any(|a| a == "--background"), false);
+}
+
+/// Every argument Tools accepts, including the ones its own helpers and updaters pass (`--finish-self-*`,
+/// `--wait-for-process`); the second list takes a value.
+const FLAGS: &[&str] = &[
+    "--background",
+    "--settings",
+    "--quit",
+    "--restart",
+    "--show-shortcuts",
+    "--install",
+    "--start-at-login",
+    "--no-launch",
+    "--keep-download",
+    "--repair",
+    "--uninstall",
+    "--silent",
+    "--yes",
+    "--remove-data",
+    "--integration-status",
+    "--status",
+    "--version",
+    "-V",
+    "--arcade-manifest",
+];
+const VALUE_FLAGS: &[&str] = &[
+    "--channel",
+    "--wait-for-process",
+    "--finish-self-update",
+    "--finish-self-rollback",
+    "--finish-self-uninstall",
+];
+
+/// ARCADE_APP.md CLI-2: anything else is a mistake, reported before Tools starts or hands it to a running copy.
+fn check_args(args: &[String]) -> Result<(), String> {
+    let mut rest = args.iter();
+    while let Some(arg) = rest.next() {
+        if VALUE_FLAGS.contains(&arg.as_str()) {
+            rest.next().ok_or_else(|| arg.clone())?;
+        } else if !FLAGS.contains(&arg.as_str()) && !arg.starts_with("-psn_") {
+            // -psn_* is added by macOS when Finder starts an app bundle.
+            return Err(arg.clone());
+        }
+    }
+    Ok(())
+}
+
+/// ARCADE_APP.md CLI-1: one line of JSON, exit 0 when Tools runs and 3 (LSB "not running") otherwise. Asks the
+/// running Tools over Link and starts or registers nothing.
+fn print_status() -> i32 {
+    let me = arcade_tools_core::manager::me();
+    let answer = arcade_link::client::Client::connect(
+        &arcade_link::Locations::discover(),
+        "arcade.tools",
+        &me,
+    )
+    .and_then(|mut client| client.status());
+    let (running, status) = match answer {
+        Ok(status) => (true, status),
+        Err(_) => (false, serde_json::Value::Null),
+    };
+    let line = serde_json::json!({
+        "app": "arcade.tools",
+        "version": env!("CARGO_PKG_VERSION"),
+        "running": running,
+        "status": status,
+    });
+    println!("{line}");
+    if running {
+        0
+    } else {
+        3
+    }
 }
 
 /// Sends otherwise-lost stderr to the log folder, then moves Tools' 0.3

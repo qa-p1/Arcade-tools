@@ -96,17 +96,15 @@ fn arcade_manifest_creates_nothing() {
 }
 
 #[test]
-#[should_panic(expected = "KNOWN BUG TL-4")]
 fn status_prints_one_json_line_without_starting_tools() {
     let home = profile();
     let out = run(home.path(), &["--status"]);
-    let out = out.unwrap_or_else(|| {
-        panic!("KNOWN BUG TL-4: --status started Tools instead of printing its status")
-    });
+    let out = out
+        .unwrap_or_else(|| panic!("TL-4: --status started Tools instead of printing its status"));
     let text = String::from_utf8_lossy(&out.stdout);
     assert!(
         matches!(out.status.code(), Some(0 | 3)) && text.lines().count() == 1,
-        "KNOWN BUG TL-4: --status exited {:?} and printed {text:?}",
+        "TL-4: --status exited {:?} and printed {text:?}",
         out.status.code()
     );
     let status: serde_json::Value = serde_json::from_str(text.trim()).unwrap();
@@ -116,15 +114,14 @@ fn status_prints_one_json_line_without_starting_tools() {
 }
 
 #[test]
-#[should_panic(expected = "KNOWN BUG CLI-2")]
 fn an_unknown_argument_prints_usage_and_exits_2() {
     let home = profile();
     let out = run(home.path(), &["--no-such-option"]);
-    let out = out.unwrap_or_else(|| panic!("KNOWN BUG CLI-2: an unknown argument started Tools"));
+    let out = out.unwrap_or_else(|| panic!("CLI-2: an unknown argument started Tools"));
     assert!(
         out.status.code() == Some(2)
             && String::from_utf8_lossy(&out.stderr).contains("Usage: arcade-tools"),
-        "KNOWN BUG CLI-2: exited {:?}",
+        "CLI-2: exited {:?}",
         out.status.code()
     );
 }
