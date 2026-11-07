@@ -75,7 +75,8 @@ impl Manager {
                     record.channel = receipt_channel(&receipt)?;
                     record.package = None;
                     record.sha256 = String::new();
-                    record.executable_sha256 = checksum(&executable).unwrap_or_default();
+                    record.executable_sha256 =
+                        self.cached_checksum(&executable).unwrap_or_default();
                 }
                 record.executable = Some(executable);
                 return Ok(Some(record));
@@ -123,7 +124,7 @@ impl Manager {
             channel: receipt_channel(receipt)?,
             kind,
             sha256: String::new(),
-            executable_sha256: checksum(&executable).unwrap_or_default(),
+            executable_sha256: self.cached_checksum(&executable).unwrap_or_default(),
             last_mode: None,
             executable: Some(executable),
             package: None,

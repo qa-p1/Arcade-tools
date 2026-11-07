@@ -62,14 +62,18 @@
     if (active) void loadHealth().catch(() => undefined);
   });
 
-  // Usage is sampled only while Home is visible.
+  // Usage is sampled only while Home is on screen (ARCADE_APP.md RT-6).
   $effect(() => {
     if (!active) return;
     let stopped = false;
-    const sample = async () => { try { const next = await api.dashboard(); if (!stopped) dashboard = next; } catch { /* keep the last sample */ } };
+    const sample = async () => {
+      if (document.visibilityState !== 'visible') return;
+      try { const next = await api.dashboard(); if (!stopped) dashboard = next; } catch { /* keep the last sample */ }
+    };
     void sample();
-    const timer = setInterval(sample, 2000);
-    return () => { stopped = true; clearInterval(timer); };
+    const timer = setInterval(sample, 10_000);
+    document.addEventListener('visibilitychange', sample);
+    return () => { stopped = true; clearInterval(timer); document.removeEventListener('visibilitychange', sample); };
   });
 </script>
 

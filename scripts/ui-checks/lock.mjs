@@ -11,6 +11,15 @@ async function openDetails(page) {
 }
 
 export default {
+  async 'Home samples usage at most every 10 s (TL-8)'(page) {
+    await page.click('#tab-home');
+    await sleep(500);
+    const count = () => page.evaluate(() => window.__mock.calls.filter(([c]) => c === 'dashboard').length);
+    const before = await count();
+    await sleep(5000);
+    const extra = (await count()) - before;
+    assert(extra === 0, `Home asked for ${extra} samples in 5 s`);
+  },
   async 'Back to apps returns from the details page'(page) {
     await openDetails(page);
     await page.click('.back-button');

@@ -5,7 +5,6 @@ use arcade_tools_core::{manager::Manager, paths::Paths, release::checksum_reads,
 use std::fs;
 
 #[test]
-#[should_panic(expected = "KNOWN BUG TL-8")]
 fn listing_an_unmanaged_app_again_does_not_rehash_it() {
     let root = tempfile::tempdir().unwrap();
     let paths = Paths::under(root.path());
@@ -37,6 +36,6 @@ fn listing_an_unmanaged_app_again_does_not_rehash_it() {
     let reads = checksum_reads() - before;
     assert_eq!(
         reads, 0,
-        "KNOWN BUG TL-8: 5 unchanged refreshes hashed the AppImage {reads} times"
+        "5 unchanged refreshes hashed the AppImage {reads} times (TL-8)"
     );
 }
