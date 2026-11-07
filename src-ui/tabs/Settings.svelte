@@ -30,7 +30,8 @@
     onUpdateChecks, onOnboarding, onSelectTab, onTheme, onLink, run,
   }: Props = $props();
   const themes: { id: Theme; label: string }[] = [{ id: 'system', label: 'System' }, { id: 'light', label: 'Light' }, { id: 'dark', label: 'Dark' }];
-  const channelName = $derived(toolsApp?.managed ? (toolsApp.channel === 'nightly' ? 'Nightly' : 'Stable') : 'Development build');
+  // Any installed Tools follows a channel, whoever installed it; only a dev build has none (TL-10).
+  const channelName = $derived(!toolsApp ? null : toolsApp.installationClass === 'dev' ? 'Development build' : toolsApp.channel === 'nightly' ? 'Nightly' : 'Stable');
 
   async function copyDiagnostics(): Promise<void> {
     await copyText(await api.diagnosticsText());
@@ -231,7 +232,7 @@
         <span class="glyph-tile"><img src={glyph('arcade.tools')} alt="" width="18" height="18" /></span>
         <div class="row-main">
           <div class="row-title about-version selectable">Version {toolsApp?.version ?? __TOOLS_VERSION__}</div>
-          <div class="row-sub">{channelName} · The optional home for the Arcade apps.</div>
+          <div class="row-sub">{channelName ? `${channelName} · ` : ''}The optional home for the Arcade apps.</div>
           {#if toolsApp?.reason}<div class="row-sub">{toolsApp.reason}</div>{/if}
         </div>
         {#if toolsApp?.installed}

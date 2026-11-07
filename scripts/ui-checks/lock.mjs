@@ -55,7 +55,7 @@ export default {
     const tab = await page.textContent('[role="tab"][aria-selected="true"]');
     assert(/Apps/.test(tab), `the page changed to ${tab}`);
   },
-  async 'KNOWN BUG TL-10: About names the channel of a self-installed Tools'(page) {
+  async 'About names the channel of a self-installed Tools (TL-10)'(page) {
     await page.addInitScript(() => {
       const m = window.__mock;
       m.on('tools_app', () => ({ ...m.state.apps[0], id: 'arcade.tools', name: 'Arcade Tools', version: '0.4.6', managed: false, installationClass: 'selfInstalled', channel: 'stable' }));
@@ -66,5 +66,17 @@ export default {
     await sleep(300);
     const about = (await page.locator('#about-heading').locator('xpath=../..').textContent()).replace(/\s+/g, ' ');
     assert(about.includes('Stable'), `About says: ${about.slice(0, 160)}`);
+  },
+  async 'About says Development build only for a dev build'(page) {
+    await page.addInitScript(() => {
+      const m = window.__mock;
+      m.on('tools_app', () => ({ ...m.state.apps[0], id: 'arcade.tools', name: 'Arcade Tools', version: '0.4.6', managed: false, installationClass: 'dev', channel: 'stable' }));
+    });
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => window.__mock.calls.some(([c]) => c === 'tray_ui_intent'), null, { timeout: 10000 });
+    await page.click('#tab-settings');
+    await sleep(300);
+    const about = (await page.locator('#about-heading').locator('xpath=../..').textContent()).replace(/\s+/g, ' ');
+    assert(about.includes('Development build'), `About says: ${about.slice(0, 160)}`);
   },
 };
