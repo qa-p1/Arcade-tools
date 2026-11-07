@@ -256,12 +256,12 @@ fn hub_lifecycle_wheel_build_metadata_receipts_updates_and_rollback() {
         .verify(&manager.paths, id)
         .unwrap();
 
+    // An older release published later is never offered: the listing's newest version (build 41,
+    // which the user rolled back from) stays the update, as it would on GitHub (D5).
     publish_build("0.2.9+build.99");
-    assert!(!manager.check(id).unwrap().update_available);
-    assert_eq!(
-        operate(&manager, id, Operation::Update).unwrap(),
-        "Already up to date."
-    );
+    let check = manager.check(id).unwrap();
+    assert!(check.update_available);
+    assert_eq!(check.version, "0.3.0+build.41");
     publish_build("0.3.0+build.40");
     let mut plain_record = manager.record(id).unwrap().unwrap();
     plain_record.version = "0.3.0".into();
@@ -382,7 +382,12 @@ fn hub_lifecycle_install_update_rollback_repeated_updates_and_uninstall() {
     assert!(data.join("keep").exists());
     assert!(manager.receipt("arcade.look").unwrap().is_none());
     assert!(!receipt.path.exists());
-    installed(&server, &manager, "arcade.look");
+    // Reinstalling takes the newest listed release, 3.0.0 (D5).
+    operate(&manager, "arcade.look", Operation::Install).unwrap();
+    wait_for(
+        &manager.paths.link.registry.join("arcade.look.json"),
+        |text| text.contains("3.0.0"),
+    );
     let mut removal = request("arcade.look", Operation::Uninstall);
     removal.remove_data = true;
     manager
@@ -558,7 +563,7 @@ fn hub_lifecycle_rate_limited_checks_and_updates_use_release_downloads() {
     let repo = support::catalog_repo("arcade.look");
     // GitHub's anonymous API limit is used up...
     server.replies.lock().unwrap().insert(
-        format!("/repos/{repo}/releases/latest"),
+        format!("/repos/{repo}/releases?per_page=30"),
         support::HttpReply {
             status: "403 Forbidden".into(),
             headers: vec![

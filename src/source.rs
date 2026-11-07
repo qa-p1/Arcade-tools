@@ -39,7 +39,7 @@ pub struct GithubAsset {
     pub name: String,
     pub browser_download_url: String,
 }
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 struct GithubRelease {
     tag_name: String,
     draft: bool,
@@ -59,6 +59,48 @@ pub struct ReleaseCheck {
     pub checked: CheckedRelease,
     pub cache: ReleaseCache,
     pub unchanged: bool,
+}
+
+/// The newest published release whose tag belongs to `channel`: stable releases are never prereleases, nightly and
+/// rc builds always are.
+/// GitHub lists releases newest first. The highest version wins; among equal precedence (build metadata only differs)
+/// the most recently published one does, as GitHub's own "latest" would.
+fn newest_on(listing: Vec<GithubRelease>, channel: Channel) -> Option<GithubRelease> {
+    let mut best: Option<(semver::Version, GithubRelease)> = None;
+    for release in listing {
+        if release.draft
+            || release.prerelease != (channel != Channel::Stable)
+            || !channel.owns_tag(&release.tag_name)
+        {
+            continue;
+        }
+        let Ok(version) = semver::Version::parse(&release.tag_name[1..]) else {
+            continue;
+        };
+        if best
+            .as_ref()
+            .is_none_or(|(b, _)| version.cmp_precedence(b).is_gt())
+        {
+            best = Some((version, release));
+        }
+    }
+    best.map(|(_, release)| release)
+}
+
+/// `v1.2.3`, `v1.2.3-rc.4` and `v1.2.3-nightly.20261107.1` all carry version 1.2.3 (Link D4: rc and nightly builds
+/// report the version they are built as).
+fn tag_carries(tag: &str, version: &str) -> bool {
+    let (Some(tag), Ok(version)) = (
+        tag.strip_prefix('v')
+            .and_then(|t| semver::Version::parse(t).ok()),
+        semver::Version::parse(version),
+    ) else {
+        return false;
+    };
+    (tag.major, tag.minor, tag.patch) == (version.major, version.minor, version.patch)
+        && (version.pre.is_empty()
+            || tag.pre == version.pre
+            || tag.pre.as_str().starts_with(&format!("{}.", version.pre)))
 }
 
 fn allowed(url: &Url, test: bool) -> bool {
@@ -177,24 +219,23 @@ impl Source {
         os: crate::release::Os,
         arch: crate::release::Arch,
     ) -> Result<ReleaseCheck> {
+        if channel != Channel::Stable {
+            // Only the stable release has a fixed download path outside the API.
+            return Err(Error::new(
+                "rate_limited",
+                "GitHub's request limit was reached; Tools will check again later.",
+            ));
+        }
         let tag_path =
             |tag: &str, file: &str| format!("{repository}/releases/download/{tag}/{file}");
-        let manifest_url = if channel == Channel::Stable {
-            self.web(&format!(
-                "{repository}/releases/latest/download/arcade-release.json"
-            ))?
-        } else {
-            self.web(&tag_path("nightly", "arcade-release.json"))?
-        };
+        let manifest_url = self.web(&format!(
+            "{repository}/releases/latest/download/arcade-release.json"
+        ))?;
         let release = Release::parse(&self.json(manifest_url.as_str())?)?;
         release.matches(id, channel)?;
         let asset = release.select(os, arch)?;
         safe_filename(&asset.file)?;
-        let tag = if channel == Channel::Stable {
-            format!("v{}", release.version)
-        } else {
-            "nightly".into()
-        };
+        let tag = format!("v{}", release.version);
         let download_url = self.web(&tag_path(&tag, &asset.file))?.to_string();
         self.asset_url(&download_url, repository)?;
         let cache = ReleaseCache {
@@ -289,14 +330,10 @@ impl Source {
         cached: Option<&ReleaseCache>,
     ) -> Result<ReleaseCheck> {
         crate::catalog::allowed_repo(repository)?;
-        let selector = if channel == Channel::Stable {
-            "latest"
-        } else {
-            "tags/nightly"
-        };
+        // One listing serves every channel; the newest release whose tag belongs to the channel wins (D5).
         let url = self
             .api
-            .join(&format!("repos/{repository}/releases/{selector}"))
+            .join(&format!("repos/{repository}/releases?per_page=30"))
             .map_err(|e| Error::new("source", e.to_string()))?;
         let cached = cached.filter(|cache| {
             cache.schema == 1
@@ -347,25 +384,21 @@ impl Source {
             }
             Fetch::Modified { bytes, etag } => (bytes, etag),
         };
-        let github: GithubRelease = serde_json::from_slice(&bytes)?;
-        if github.draft
-            || channel == Channel::Stable
-                && (github.prerelease || !github.tag_name.starts_with('v'))
-            || channel == Channel::Nightly && github.tag_name != "nightly"
-        {
-            return Err(Error::new(
-                "manifest",
-                "GitHub release does not match the requested channel.",
-            ));
-        }
+        let listing: Vec<GithubRelease> = serde_json::from_slice(&bytes)?;
+        let github = newest_on(listing, channel).ok_or_else(|| {
+            Error::new(
+                "not_found",
+                format!("No {} release is published for this app.", channel.as_str()),
+            )
+        })?;
         let manifest = unique_asset(&github.assets, "arcade-release.json")?;
         self.asset_url(&manifest.browser_download_url, repository)?;
         let release = Release::parse(&self.json(&manifest.browser_download_url)?)?;
         release.matches(id, channel)?;
-        if channel == Channel::Stable && github.tag_name != format!("v{}", release.version) {
+        if !tag_carries(&github.tag_name, &release.version) {
             return Err(Error::new(
                 "manifest",
-                "Release version does not match its stable tag.",
+                "Release version does not match its tag.",
             ));
         }
         let asset = release.select(os, arch)?;
@@ -551,6 +584,52 @@ fn unique_asset<'a>(assets: &'a [GithubAsset], name: &str) -> Result<&'a GithubA
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn listed(tag: &str, prerelease: bool) -> GithubRelease {
+        GithubRelease {
+            tag_name: tag.into(),
+            draft: false,
+            prerelease,
+            assets: Vec::new(),
+            body: None,
+        }
+    }
+
+    #[test]
+    fn the_newest_release_of_each_channel_is_chosen_from_the_listing() {
+        let mut draft = listed("v9.0.0", false);
+        draft.draft = true;
+        let listing = vec![
+            draft,
+            listed("v1.1.0-rc.2", true),
+            listed("v1.1.0-nightly.20261107.1", true),
+            listed("v0.9.0", false),
+            listed("v1.0.0+build.2", false),
+            listed("v1.0.0+build.1", false),
+            listed("v1.1.0-rc.1", true),
+            listed("v1.0.0-nightly.20261101.3", true),
+            listed("nightly", true),
+        ];
+        let tag = |c| newest_on(listing.clone(), c).map(|r| r.tag_name);
+        assert_eq!(tag(Channel::Stable).as_deref(), Some("v1.0.0+build.2"));
+        assert_eq!(
+            tag(Channel::Nightly).as_deref(),
+            Some("v1.1.0-nightly.20261107.1")
+        );
+        assert_eq!(tag(Channel::Test).as_deref(), Some("v1.1.0-rc.2"));
+        assert!(newest_on(vec![listed("v1.0.0-rc.1", false)], Channel::Test).is_none());
+    }
+
+    #[test]
+    fn a_tag_carries_the_version_it_is_built_as() {
+        assert!(tag_carries("v1.2.3", "1.2.3"));
+        assert!(tag_carries("v1.2.3-rc.4", "1.2.3"));
+        assert!(tag_carries("v1.2.3-nightly.20261107.1", "1.2.3"));
+        assert!(tag_carries("v1.2.3-nightly.42.1", "1.2.3-nightly.42"));
+        assert!(!tag_carries("v1.2.3-nightly.420.1", "1.2.3-nightly.42"));
+        assert!(!tag_carries("v1.2.4", "1.2.3"));
+        assert!(!tag_carries("1.2.3", "1.2.3"));
+    }
 
     #[test]
     fn github_repository_matching_ignores_case_but_keeps_repository_boundaries() {

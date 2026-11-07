@@ -73,6 +73,8 @@ pub struct FakeRelease {
     pub routes: Arc<Mutex<HashMap<String, Vec<u8>>>>,
     pub replies: Arc<Mutex<HashMap<String, HttpReply>>>,
     pub requests: RecordedRequests,
+    /// Published releases, newest first: (repo, channel, version, GitHub release JSON).
+    releases: Mutex<Vec<(String, String, String, serde_json::Value)>>,
     worker: Option<JoinHandle<()>>,
 }
 impl FakeRelease {
@@ -160,6 +162,7 @@ impl FakeRelease {
             routes,
             replies,
             requests,
+            releases: Mutex::new(Vec::new()),
             worker: Some(worker),
         };
         // Legacy lifecycle fixtures represent releases usable by Tools 0.1.0.
@@ -235,20 +238,33 @@ impl FakeRelease {
                 "size": bytes.len(), "digest": format!("sha256:{:x}", Sha256::digest(&bytes))}));
             routes.insert(format!("/{route}"), bytes);
         }
-        let endpoint = if channel == "stable" {
-            "latest"
-        } else {
-            "tags/nightly"
-        };
-        let api = serde_json::to_vec(&serde_json::json!({
-            "tag_name": if channel == "stable" { format!("v{version}") } else { "nightly".into() },
-            "draft": false, "prerelease": channel == "nightly", "assets": assets,
-        }))
-        .unwrap();
-        for repo in repos(id) {
-            routes.insert(format!("/repos/{repo}/releases/{endpoint}"), api.clone());
-        }
         drop(routes);
+        let mut releases = self.releases.lock().unwrap();
+        for repo in repos(id) {
+            let earlier = releases
+                .iter()
+                .filter(|(r, c, _, _)| *r == repo && c == channel)
+                .count();
+            let base = version.split(['-', '+']).next().unwrap();
+            let tag = match channel {
+                "stable" => format!("v{version}"),
+                // A fixture version that already names its nightly build keeps it: `0.2.0-nightly.42` → `.42.1`.
+                "nightly" => match version.split_once('-').map(|(_, pre)| pre) {
+                    Some(pre) if pre.starts_with("nightly.") => {
+                        format!("v{base}-{}.{}", pre.split('+').next().unwrap(), earlier + 1)
+                    }
+                    _ => format!("v{base}-nightly.20261107.{}", earlier + 1),
+                },
+                _ => format!("v{base}-rc.{}", earlier + 1),
+            };
+            let api = serde_json::json!({
+                "tag_name": tag, "draft": false, "prerelease": channel != "stable", "assets": assets,
+            });
+            releases.retain(|(r, c, v, _)| !(*r == repo && c == channel && v == version));
+            releases.insert(0, (repo, channel.to_owned(), version.to_owned(), api));
+        }
+        drop(releases);
+        self.relist(id);
         // Link v0.3.0's generator adds installArgs for AppImages and DMGs. These
         // fakes are plain scripts, so they publish as pre-0.3.0 releases; the hub
         // lifecycle tests opt back in with a receipt-writing installer.
@@ -276,16 +292,11 @@ impl FakeRelease {
         edit(&mut manifest);
         let bytes = serde_json::to_vec(&manifest).unwrap();
         routes.insert(route, bytes.clone());
-        for repo in repos(id) {
-            let endpoint = format!(
-                "/repos/{repo}/releases/{}",
-                if channel == "stable" {
-                    "latest"
-                } else {
-                    "tags/nightly"
-                }
-            );
-            let mut api: serde_json::Value = serde_json::from_slice(&routes[&endpoint]).unwrap();
+        drop(routes);
+        for (_, c, v, api) in self.releases.lock().unwrap().iter_mut() {
+            if c != channel || v != version {
+                continue;
+            }
             for asset in api["assets"].as_array_mut().unwrap() {
                 if asset["name"] == "arcade-release.json" {
                     asset["size"] = serde_json::json!(bytes.len());
@@ -293,7 +304,25 @@ impl FakeRelease {
                         serde_json::json!(format!("sha256:{:x}", Sha256::digest(&bytes)));
                 }
             }
-            routes.insert(endpoint, serde_json::to_vec(&api).unwrap());
+        }
+        self.relist(id);
+    }
+}
+impl FakeRelease {
+    /// Serve GitHub's release listing for each spelling of the app's repo, newest first.
+    fn relist(&self, id: &str) {
+        let releases = self.releases.lock().unwrap();
+        let mut routes = self.routes.lock().unwrap();
+        for repo in repos(id) {
+            let listing: Vec<&serde_json::Value> = releases
+                .iter()
+                .filter(|(r, _, _, _)| *r == repo)
+                .map(|(_, _, _, api)| api)
+                .collect();
+            routes.insert(
+                format!("/repos/{repo}/releases?per_page=30"),
+                serde_json::to_vec(&listing).unwrap(),
+            );
         }
     }
 }
