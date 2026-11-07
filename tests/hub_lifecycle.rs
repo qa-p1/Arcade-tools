@@ -574,7 +574,7 @@ fn hub_lifecycle_rate_limited_checks_and_updates_use_release_downloads() {
         },
     );
     // When the download host fails too, the rate limit is what's reported.
-    let fallback = format!("/{repo}/releases/latest/download/arcade-release.json");
+    let fallback = format!("/{repo}/releases/latest/download/manifest.json");
     server.replies.lock().unwrap().insert(
         fallback.clone(),
         support::HttpReply {
@@ -595,12 +595,12 @@ fn hub_lifecycle_rate_limited_checks_and_updates_use_release_downloads() {
     {
         let mut routes = server.routes.lock().unwrap();
         let prefix = "/assets/arcade-look-2.0.0-stable/";
-        let manifest = routes[&format!("{prefix}arcade-release.json")].clone();
+        // The signed manifest and its signature are release files too.
+        for file in ["arcade-release.json", "manifest.json", "manifest.json.sig"] {
+            let bytes = routes[&format!("{prefix}{file}")].clone();
+            routes.insert(format!("/{repo}/releases/latest/download/{file}"), bytes);
+        }
         let image = routes[&format!("{prefix}App_x64.AppImage")].clone();
-        routes.insert(
-            format!("/{repo}/releases/latest/download/arcade-release.json"),
-            manifest,
-        );
         routes.insert(
             format!("/{repo}/releases/download/v2.0.0/App_x64.AppImage"),
             image,
@@ -1309,4 +1309,57 @@ fn hub_lifecycle_refuses_corrupt_rollback_and_cleans_first_install_failure() {
         "checksum"
     );
     assert_eq!(manager.receipt("arcade.look").unwrap().unwrap(), before);
+}
+
+#[test]
+fn hub_lifecycle_releases_need_a_trusted_signature_and_a_matching_manifest() {
+    use arcade_link::release as link;
+    let (server, manager) = fixture();
+    installed(&server, &manager, "arcade.look");
+    publish(&server, &manager, "arcade.look", "2.0.0", false);
+    let prefix = "/assets/arcade-look-2.0.0-stable/";
+    let refused = |code: &str| {
+        let error = manager.check("arcade.look").unwrap_err();
+        assert_eq!(error.code, code, "{error:?}");
+        assert_eq!(
+            operate(&manager, "arcade.look", Operation::Update)
+                .unwrap_err()
+                .code,
+            code
+        );
+        assert_eq!(
+            manager.record("arcade.look").unwrap().unwrap().version,
+            "1.0.0"
+        );
+    };
+    // A valid signature from a key Tools doesn't trust is no signature.
+    let sig_route = format!("{prefix}manifest.json.sig");
+    let genuine = server.routes.lock().unwrap()[&sig_route].clone();
+    let json = server.routes.lock().unwrap()[&format!("{prefix}manifest.json")].clone();
+    let foreign = link::SecretKey::generate().unwrap();
+    let (_, signature) =
+        link::sign_manifest(&link::ReleaseManifest::from_json(&json).unwrap(), &foreign);
+    server
+        .routes
+        .lock()
+        .unwrap()
+        .insert(sig_route.clone(), signature.into_bytes());
+    refused("signature");
+    server.routes.lock().unwrap().insert(sig_route, genuine);
+    // arcade-release.json is unsigned: an installer the signed manifest doesn't describe is refused.
+    server.amend_manifest("arcade.look", "2.0.0", "stable", |manifest| {
+        manifest["assets"][0]["sha256"] = json!("0".repeat(64));
+    });
+    refused("manifest");
+    let sha = checksum(
+        &server
+            .root
+            .path()
+            .join("arcade-look-2.0.0-stable/App_x64.AppImage"),
+    )
+    .unwrap();
+    server.amend_manifest("arcade.look", "2.0.0", "stable", |manifest| {
+        manifest["assets"][0]["sha256"] = json!(sha);
+    });
+    assert!(manager.check("arcade.look").unwrap().update_available);
 }

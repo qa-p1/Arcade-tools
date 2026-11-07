@@ -146,6 +146,9 @@ pub struct ReleaseCache {
     pub asset: Asset,
     pub download_url: String,
     pub body: String,
+    /// The installer's verified manifest entry; caches written before signed manifests have none and are refetched.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub entry: Option<arcade_link::release::FileEntry>,
 }
 
 /// Receipts may record the compiled base version for a nightly build. Its

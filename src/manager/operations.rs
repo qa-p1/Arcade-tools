@@ -796,6 +796,7 @@ impl Manager {
                         release: package.release.clone(),
                         asset: package.asset.clone(),
                         url: String::new(),
+                        entry: None,
                     },
                     &package.path,
                 )?;

@@ -1,6 +1,7 @@
 //! GitHub is the only production source. Loopback HTTP is opt-in for tests.
 use crate::release::{safe_filename, verify, Asset, Channel, Release, ReleaseCache};
-use crate::{Error, Result};
+use crate::{trust, Error, Result};
+use arcade_link::release::{FileEntry, ReleaseManifest};
 use reqwest::{blocking::Client, redirect::Policy, StatusCode, Url};
 use serde::Deserialize;
 use std::io::{Read, Write};
@@ -11,6 +12,8 @@ use tempfile::NamedTempFile;
 
 pub const MAX_DOWNLOAD: u64 = 1024 * 1024 * 1024;
 const MAX_JSON: u64 = 1024 * 1024;
+/// A release manifest lists every chunk of every file: about 5 MB for 1 GiB of installers.
+const MAX_MANIFEST: u64 = 16 * 1024 * 1024;
 
 /// Bounded conditional HTTP result. A 304 never carries a replacement body.
 #[derive(Debug, Clone)]
@@ -53,6 +56,9 @@ pub struct CheckedRelease {
     pub release: Release,
     pub asset: Asset,
     pub url: String,
+    /// The chosen installer's entry in the verified `manifest.json`: its chunks drive delta downloads. `None` only
+    /// for packages Tools already holds (rollback).
+    pub entry: Option<FileEntry>,
 }
 #[derive(Debug, Clone)]
 pub struct ReleaseCheck {
@@ -228,14 +234,28 @@ impl Source {
         }
         let tag_path =
             |tag: &str, file: &str| format!("{repository}/releases/download/{tag}/{file}");
-        let manifest_url = self.web(&format!(
-            "{repository}/releases/latest/download/arcade-release.json"
-        ))?;
+        let latest =
+            |file: &str| self.web(&format!("{repository}/releases/latest/download/{file}"));
+        // The signature binds the manifest to its tag, so the tag it names is the one to download from.
+        let signed = self.bytes(latest(trust::MANIFEST)?.as_str(), MAX_MANIFEST)?;
+        let tag = ReleaseManifest::from_json(&signed)
+            .map_err(|e| Error::new("manifest", format!("manifest.json: {e}")))?
+            .tag;
+        let signature = self.text(latest(trust::SIGNATURE)?.as_str())?;
+        let signed = trust::verify(
+            id,
+            channel,
+            &tag,
+            &signed,
+            Some(&signature),
+            &trust::trusted_keys(self.test)?,
+        )?;
+        let manifest_url = latest("arcade-release.json")?;
         let release = Release::parse(&self.json(manifest_url.as_str())?)?;
         release.matches(id, channel)?;
         let asset = release.select(os, arch)?;
         safe_filename(&asset.file)?;
-        let tag = format!("v{}", release.version);
+        let entry = trust::entry_for(&signed, &release, &asset)?;
         let download_url = self.web(&tag_path(&tag, &asset.file))?.to_string();
         self.asset_url(&download_url, repository)?;
         let cache = ReleaseCache {
@@ -246,28 +266,37 @@ impl Source {
             asset: asset.clone(),
             download_url: download_url.clone(),
             body: String::new(),
+            entry: Some(entry.clone()),
         };
         Ok(ReleaseCheck {
             checked: CheckedRelease {
                 release,
                 asset,
                 url: download_url,
+                entry: Some(entry),
             },
             cache,
             unchanged: false,
         })
     }
     fn json(&self, url: &str) -> Result<Vec<u8>> {
+        self.bytes(url, MAX_JSON)
+    }
+    fn bytes(&self, url: &str, limit: u64) -> Result<Vec<u8>> {
         let mut response = self.response(url)?;
         let mut bytes = Vec::new();
-        response
-            .by_ref()
-            .take(MAX_JSON + 1)
-            .read_to_end(&mut bytes)?;
-        if bytes.len() as u64 > MAX_JSON {
-            return Err(Error::new("too_large", "Release metadata exceeds 1 MiB."));
+        response.by_ref().take(limit + 1).read_to_end(&mut bytes)?;
+        if bytes.len() as u64 > limit {
+            return Err(Error::new(
+                "too_large",
+                format!("Release metadata exceeds {} MiB.", limit / (1024 * 1024)),
+            ));
         }
         Ok(bytes)
+    }
+    fn text(&self, url: &str) -> Result<String> {
+        String::from_utf8(self.json(url)?)
+            .map_err(|_| Error::new("signature", "The release signature is not text."))
     }
 
     /// Bounded release history, fetched explicitly on a worker.
@@ -345,6 +374,10 @@ impl Source {
                     .select(os, arch)
                     .is_ok_and(|a| a == cache.asset)
                 && self.asset_url(&cache.download_url, repository).is_ok()
+                && cache
+                    .entry
+                    .as_ref()
+                    .is_some_and(|e| e.name == cache.asset.file && e.sha256 == cache.asset.sha256)
         });
         let response = match self.fetch(
             url.as_str(),
@@ -377,6 +410,7 @@ impl Source {
                         release: cache.release.clone(),
                         asset: cache.asset.clone(),
                         url: cache.download_url.clone(),
+                        entry: cache.entry.clone(),
                     },
                     cache,
                     unchanged: true,
@@ -391,6 +425,31 @@ impl Source {
                 format!("No {} release is published for this app.", channel.as_str()),
             )
         })?;
+        // Trust first: nothing else is read from a release whose signed manifest doesn't verify (D5).
+        let signed = unique_asset(&github.assets, trust::MANIFEST)?;
+        self.asset_url(&signed.browser_download_url, repository)?;
+        let signed = self.bytes(&signed.browser_download_url, MAX_MANIFEST)?;
+        let signature = match github
+            .assets
+            .iter()
+            .filter(|a| a.name == trust::SIGNATURE)
+            .count()
+        {
+            0 => None,
+            _ => {
+                let asset = unique_asset(&github.assets, trust::SIGNATURE)?;
+                self.asset_url(&asset.browser_download_url, repository)?;
+                Some(self.text(&asset.browser_download_url)?)
+            }
+        };
+        let signed = trust::verify(
+            id,
+            channel,
+            &github.tag_name,
+            &signed,
+            signature.as_deref(),
+            &trust::trusted_keys(self.test)?,
+        )?;
         let manifest = unique_asset(&github.assets, "arcade-release.json")?;
         self.asset_url(&manifest.browser_download_url, repository)?;
         let release = Release::parse(&self.json(&manifest.browser_download_url)?)?;
@@ -403,6 +462,7 @@ impl Source {
         }
         let asset = release.select(os, arch)?;
         safe_filename(&asset.file)?;
+        let entry = trust::entry_for(&signed, &release, &asset)?;
         let download = unique_asset(&github.assets, &asset.file)?;
         self.asset_url(&download.browser_download_url, repository)?;
         let cache = ReleaseCache {
@@ -413,12 +473,14 @@ impl Source {
             asset: asset.clone(),
             download_url: download.browser_download_url.clone(),
             body: github.body.unwrap_or_default(),
+            entry: Some(entry.clone()),
         };
         Ok(ReleaseCheck {
             checked: CheckedRelease {
                 release,
                 asset,
                 url: cache.download_url.clone(),
+                entry: Some(entry),
             },
             cache,
             unchanged: false,
@@ -457,7 +519,12 @@ impl Source {
         std::fs::create_dir_all(cache)?;
         let mut file = NamedTempFile::new_in(cache)?;
         let mut response = self.response(&checked.url)?;
-        let total = checked.asset.size.or(response.content_length());
+        let total = checked
+            .entry
+            .as_ref()
+            .map(|e| e.size)
+            .or(checked.asset.size)
+            .or(response.content_length());
         if total.is_some_and(|n| n > MAX_DOWNLOAD) {
             return Err(Error::new(
                 "too_large",

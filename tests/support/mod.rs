@@ -59,6 +59,55 @@ pub fn catalog_repo(id: &str) -> String {
         .unwrap_or_else(|| compiled_repo(id))
 }
 
+/// The secret half of the update key debug builds of Tools trust for loopback sources (`src/trust.rs`).
+pub const TEST_SIGNING_KEY: &str = "untrusted comment: Arcade Tools test-only update key (debug loopback sources)
+RWQAAEIyAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAxxy+UWLj3N5hFGnqkvKJsyvUHsbiNvymSc0dQvPwRQ0qOQJlAH/VsXVyZ0cOljgX0qZSCxHAYATThhnxx/MOXLNgDan0zp+s9J/D2nvWbyFBVm9hCUSptoWCRiy9cLyMrLk91Q4LofI=
+";
+
+/// The tag a fixture release gets: the Nth release of `version`'s base on a channel.
+fn fixture_tag(version: &str, channel: &str, earlier: usize) -> String {
+    let base = version.split(['-', '+']).next().unwrap();
+    match channel {
+        "stable" => format!("v{version}"),
+        // A fixture version that already names its nightly build keeps it: `0.2.0-nightly.42` → `.42.1`.
+        "nightly" => match version.split_once('-').map(|(_, pre)| pre) {
+            Some(pre) if pre.starts_with("nightly.") => {
+                format!("v{base}-{}.{}", pre.split('+').next().unwrap(), earlier + 1)
+            }
+            _ => format!("v{base}-nightly.20261107.{}", earlier + 1),
+        },
+        _ => format!("v{base}-rc.{}", earlier + 1),
+    }
+}
+
+/// Writes `manifest.json` for every file in `dir` and, outside the test channel, its signature.
+pub fn sign_release(dir: &Path, id: &str, version: &str, tag: &str, channel: &str) {
+    use arcade_link::release as link;
+    let mut files: Vec<PathBuf> = std::fs::read_dir(dir)
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .filter(|p| {
+            let name = p.file_name().unwrap();
+            name != link::MANIFEST_NAME && name != link::SIGNATURE_NAME
+        })
+        .collect();
+    files.sort();
+    let channel: link::Channel = match channel {
+        "stable" | "nightly" => channel.parse().unwrap(),
+        _ => link::Channel::Test,
+    };
+    let manifest = link::ReleaseManifest::build(id, version, tag, channel, &files).unwrap();
+    let _ = std::fs::remove_file(dir.join(link::SIGNATURE_NAME));
+    if channel == link::Channel::Test {
+        std::fs::write(dir.join(link::MANIFEST_NAME), manifest.to_json()).unwrap();
+    } else {
+        let key = link::SecretKey::parse(TEST_SIGNING_KEY).unwrap();
+        let (json, signature) = link::sign_manifest(&manifest, &key);
+        std::fs::write(dir.join(link::MANIFEST_NAME), json).unwrap();
+        std::fs::write(dir.join(link::SIGNATURE_NAME), signature).unwrap();
+    }
+}
+
 #[derive(Clone)]
 pub struct HttpReply {
     pub status: String,
@@ -226,6 +275,15 @@ impl FakeRelease {
             String::from_utf8_lossy(&out.stderr)
         );
         println!("{}", String::from_utf8_lossy(&out.stdout).trim());
+        let earlier = self
+            .releases
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(r, c, v, _)| *r == repos(id)[0] && c == channel && v != version)
+            .count();
+        let tag = fixture_tag(version, channel, earlier);
+        sign_release(&dir, id, version, &tag, channel);
         let prefix = format!("assets/{}-{version}-{channel}/", id.replace('.', "-"));
         let mut assets = Vec::new();
         let mut routes = self.routes.lock().unwrap();
@@ -241,22 +299,6 @@ impl FakeRelease {
         drop(routes);
         let mut releases = self.releases.lock().unwrap();
         for repo in repos(id) {
-            let earlier = releases
-                .iter()
-                .filter(|(r, c, _, _)| *r == repo && c == channel)
-                .count();
-            let base = version.split(['-', '+']).next().unwrap();
-            let tag = match channel {
-                "stable" => format!("v{version}"),
-                // A fixture version that already names its nightly build keeps it: `0.2.0-nightly.42` → `.42.1`.
-                "nightly" => match version.split_once('-').map(|(_, pre)| pre) {
-                    Some(pre) if pre.starts_with("nightly.") => {
-                        format!("v{base}-{}.{}", pre.split('+').next().unwrap(), earlier + 1)
-                    }
-                    _ => format!("v{base}-nightly.20261107.{}", earlier + 1),
-                },
-                _ => format!("v{base}-rc.{}", earlier + 1),
-            };
             let api = serde_json::json!({
                 "tag_name": tag, "draft": false, "prerelease": channel != "stable", "assets": assets,
             });

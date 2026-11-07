@@ -21,6 +21,7 @@ pub mod removal;
 pub mod self_update;
 pub mod shortcut_control;
 pub mod source;
+pub mod trust;
 pub mod updates;
 pub mod windows_login;
 
