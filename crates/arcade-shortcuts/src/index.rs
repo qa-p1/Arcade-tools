@@ -730,6 +730,11 @@ fn conflicts(arcade: &[ArcadeShortcut], wm: &WmIndex, apps: &[AppSheet]) -> Vec<
         for bind in wm.groups.iter().flat_map(|g| &g.shortcuts) {
             // Arcade globals have no submap, so they compete in every submap.
             for key in &a.keys {
+                // Arcade apps add their global shortcut to Hyprland at runtime: a runtime-only bind on exactly the
+                // app's keys is that shortcut, not a second binding (RD-TOOLS-1).
+                if bind.state == BindState::RuntimeOnly && *key == bind.chord {
+                    continue;
+                }
                 if keys::conflicts(key, &bind.chord) {
                     add(
                         if key.len() <= bind.chord.len() {
@@ -933,7 +938,6 @@ mod conflict_tests {
     /// RD-TOOLS-1: Arcade apps add their global shortcut to Hyprland at runtime, so the runtime bind with exactly the
     /// app's chord is that shortcut itself, not a second binding.
     #[test]
-    #[should_panic(expected = "KNOWN BUG RD-TOOLS-1")]
     fn an_apps_own_runtime_bind_is_not_a_conflict() {
         let own = wm(
             BindState::RuntimeOnly,
@@ -941,7 +945,17 @@ mod conflict_tests {
             "Lua function (added at runtime)",
         );
         let found = conflicts(&[find_toggle()], &own, &[]);
-        assert!(found.is_empty(), "KNOWN BUG RD-TOOLS-1: {found:?}");
+        assert!(found.is_empty(), "{found:?}");
+    }
+
+    #[test]
+    fn another_runtime_bind_that_overlaps_is_still_a_conflict() {
+        let other = wm(
+            BindState::RuntimeOnly,
+            "Super+Space Super+K",
+            "Lua function (added at runtime)",
+        );
+        assert_eq!(conflicts(&[find_toggle()], &other, &[]).len(), 1);
     }
 
     #[test]
