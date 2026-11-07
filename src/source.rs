@@ -81,10 +81,16 @@ fn allowed(url: &Url, test: bool) -> bool {
     }
 }
 
+const DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(120);
+
 impl Source {
     /// Build a blocking HTTP client on a worker thread. No request is sent.
     pub fn github() -> Result<Self> {
-        Self::new(Url::parse("https://api.github.com/").unwrap(), false)
+        Self::new(
+            Url::parse("https://api.github.com/").unwrap(),
+            false,
+            DOWNLOAD_TIMEOUT,
+        )
     }
     #[cfg(debug_assertions)]
     /// Build a loopback-only test HTTP client on a worker thread. Debug-only;
@@ -97,13 +103,20 @@ impl Source {
                 "Test releases require a loopback HTTP server.",
             ));
         }
-        Self::new(url, true)
+        Self::new(url, true, DOWNLOAD_TIMEOUT)
     }
-    fn new(api: Url, test: bool) -> Result<Self> {
+    #[cfg(debug_assertions)]
+    /// [`Source::test_server`] with a shorter download timeout, so tests can pin how it applies.
+    pub fn test_server_with_timeout(url: &str, timeout: Duration) -> Result<Self> {
+        let mut source = Self::test_server(url)?;
+        source.client = Self::new(source.api.clone(), true, timeout)?.client;
+        Ok(source)
+    }
+    fn new(api: Url, test: bool, timeout: Duration) -> Result<Self> {
         let client = Client::builder()
             .user_agent(concat!("Arcade-Tools/", env!("CARGO_PKG_VERSION")))
             .connect_timeout(Duration::from_secs(10))
-            .timeout(Duration::from_secs(120))
+            .timeout(timeout)
             .redirect(Policy::custom(move |attempt| {
                 if attempt.previous().len() >= 8 || !allowed(attempt.url(), test) {
                     attempt.error("Unsafe release redirect")

@@ -246,7 +246,13 @@ pub fn safe_filename(name: &str) -> Result<()> {
     Ok(())
 }
 /// File/hash work on a worker thread; never a UI thread.
+static CHECKSUM_READS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+/// How many full-file hashes this process has read; tests pin hash caching with it.
+pub fn checksum_reads() -> u64 {
+    CHECKSUM_READS.load(std::sync::atomic::Ordering::Relaxed)
+}
 pub fn checksum(path: &Path) -> Result<String> {
+    CHECKSUM_READS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let mut reader = std::fs::File::open(path)?;
     let mut hash = Sha256::new();
     let mut block = [0u8; 65536];
