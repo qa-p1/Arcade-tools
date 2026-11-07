@@ -36,7 +36,6 @@ fn fixture() -> Fixture {
 }
 
 #[test]
-#[should_panic(expected = "KNOWN BUG TL-7")]
 fn startup_cleanup_bounds_the_installer_cache() {
     let f = fixture();
     let dir = Paths::under(f.root.path())
@@ -50,7 +49,7 @@ fn startup_cleanup_bounds_the_installer_cache() {
     let left = fs::read_dir(&dir).map(|d| d.count()).unwrap_or(0);
     assert_eq!(
         left, 0,
-        "KNOWN BUG TL-7: {left} installers that no install or rollback needs were kept"
+        "{left} installers that no install or rollback needs were kept (TL-7)"
     );
 }
 

@@ -33,8 +33,8 @@ impl Manager {
         }
         Ok(report)
     }
-    /// Partial downloads, staged installer copies and transaction snapshots
-    /// left by a Tools that was killed mid-operation. Startup worker only.
+    /// Partial downloads, transaction snapshots left by a Tools that was killed mid-operation, and retained
+    /// installers that neither the installed version nor its rollback needs. Startup worker only.
     pub fn cleanup_interrupted(&self) -> Result<u64> {
         let _lock = self.lock()?;
         let mut freed = 0;
@@ -53,6 +53,9 @@ impl Manager {
             .chain([ids::TOOLS])
             .collect();
         freed += installation::remove_orphan_snapshots(&self.paths, &ids)?;
+        for id in &ids {
+            freed += installation::prune_installers(&self.paths, id)?;
+        }
         Ok(freed)
     }
     /// Tools records left behind when an app uninstalled itself. Run on the

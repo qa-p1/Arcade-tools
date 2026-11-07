@@ -51,10 +51,7 @@ pub fn retain(
         Kind::Tarball => "tar.gz",
         _ => return Err(Error::new("unavailable", "Unsupported installer.")),
     };
-    let dir = paths
-        .cache
-        .join("arcade/tools/installers")
-        .join(&checked.release.id);
+    let dir = installers(paths, &checked.release.id);
     let path = dir.join(format!("{}.{}", checked.asset.sha256, extension));
     paths.guard(&path)?;
     fs::create_dir_all(&dir)?;
@@ -71,6 +68,44 @@ pub fn retain(
     };
     package.verify(paths, &checked.release.id)?;
     Ok(package)
+}
+
+/// The installers folder for one app.
+pub fn installers(paths: &Paths, id: &str) -> PathBuf {
+    paths.cache.join("arcade/tools/installers").join(id)
+}
+
+/// Retention (TL-7): keep the installed package and the one rollback package for `id`, remove every other
+/// retained installer. Returns the bytes freed. Worker thread, under the manager lock.
+pub fn prune_installers(paths: &Paths, id: &str) -> Result<u64> {
+    let dir = installers(paths, id);
+    let Ok(entries) = fs::read_dir(&dir) else {
+        return Ok(0);
+    };
+    let read_record = |file: PathBuf| -> Option<crate::manager::Record> {
+        serde_json::from_slice(&fs::read(file).ok()?).ok()
+    };
+    let current = read_record(paths.state().join(format!("{id}.json")));
+    let previous = PreviousInstallation::read(paths, id)
+        .ok()
+        .flatten()
+        .map(|p| p.record);
+    let keep: Vec<PathBuf> = [current, previous]
+        .into_iter()
+        .flatten()
+        .filter_map(|record| record.package.map(|package| package.path))
+        .collect();
+    let mut freed = 0;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if keep.contains(&path) {
+            continue;
+        }
+        paths.guard(&path)?;
+        freed += entry.metadata().map_or(0, |m| m.len());
+        crate::platform::remove(&path)?;
+    }
+    Ok(freed)
 }
 
 /// Pure argument policy, safe on any thread. A present installArgs opts into the

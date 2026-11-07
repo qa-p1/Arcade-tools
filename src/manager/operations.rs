@@ -31,6 +31,11 @@ impl Manager {
         };
         let mut replaced = false;
         let result = self.operate_inner(request, cancel, progress, &mut history, &mut replaced);
+        if result.is_ok() {
+            if let Err(error) = installation::prune_installers(&self.paths, &request.id) {
+                eprintln!("Installer cache: {error}");
+            }
+        }
         if matches!(
             request.operation,
             Operation::Update | Operation::Repair | Operation::Rollback
