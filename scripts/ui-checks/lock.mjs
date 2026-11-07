@@ -26,11 +26,34 @@ export default {
     await sleep(200);
     assert(await page.locator('.catalog-detail').count() === 0, 'still on the details page');
   },
-  async 'KNOWN BUG TL-3: Escape returns from the details page'(page) {
+  async 'Escape returns from the details page (TL-3)'(page) {
     await openDetails(page);
     await page.keyboard.press('Escape');
     await sleep(200);
     assert(await page.locator('.catalog-detail').count() === 0, 'Escape left the details page open');
+  },
+  async 'Escape returns from a guide to the guide list (TL-3)'(page) {
+    await page.click('#tab-learn');
+    await page.locator('#panel-learn button', { hasText: 'Read' }).first().click();
+    await page.waitForSelector('#panel-learn .back-button', { timeout: 5000 });
+    await page.keyboard.press('Escape');
+    await sleep(200);
+    assert(await page.locator('#panel-learn .back-button').count() === 0, 'Escape left the guide open');
+  },
+  async 'Escape clears a search before anything else (UI-2)'(page) {
+    await page.click('#tab-learn');
+    await page.fill('#docs-query', 'shortcut');
+    await page.focus('#docs-query');
+    await page.keyboard.press('Escape');
+    await sleep(200);
+    assert(await page.inputValue('#docs-query') === '', 'the search kept its text');
+  },
+  async 'Escape on a top-level page keeps the window as it is'(page) {
+    await page.click('#tab-apps');
+    await page.keyboard.press('Escape');
+    await sleep(200);
+    const tab = await page.textContent('[role="tab"][aria-selected="true"]');
+    assert(/Apps/.test(tab), `the page changed to ${tab}`);
   },
   async 'KNOWN BUG TL-10: About names the channel of a self-installed Tools'(page) {
     await page.addInitScript(() => {

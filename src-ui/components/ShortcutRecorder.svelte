@@ -48,7 +48,7 @@
     if (event.key === 'Tab') { recording = false; return; }
     event.preventDefault();
     event.stopPropagation();
-    if (event.key === 'Escape') { recording = false; hint = ''; return; }
+    if (event.key === 'Escape') { event.preventDefault(); recording = false; hint = ''; return; }
     const plain = !event.ctrlKey && !event.altKey && !event.shiftKey && !event.metaKey;
     if (event.key === 'Backspace' && plain && allowEmpty) {
       recording = false;

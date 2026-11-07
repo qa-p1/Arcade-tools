@@ -1,6 +1,7 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core';
   import { onMount, tick } from 'svelte';
+  import { clearFieldOnEscape } from './lib/escape';
   import AppDialog from './components/ConfirmDialog.svelte';
   import Message from './components/Message.svelte';
   import ProgressBar from './components/ProgressBar.svelte';
@@ -269,6 +270,8 @@
     shortcutsChanged();
   }
 </script>
+
+<svelte:window onkeydowncapture={clearFieldOnEscape} />
 
 <svelte:head>
   <title>Arcade Tools</title>

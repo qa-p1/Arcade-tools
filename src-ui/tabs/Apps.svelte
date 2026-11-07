@@ -1,6 +1,7 @@
 <script lang="ts">
   import { glyph } from '../lib/glyphs';
   import { tick } from 'svelte';
+  import { escapeGoesBack } from '../lib/escape';
   import AppCard from '../components/AppCard.svelte';
   import AppDetail from '../components/AppDetail.svelte';
   import type { AppView, Channel, Operation, Release } from '../lib/api';
@@ -144,6 +145,8 @@
     pendingBundle = null;
   }
 </script>
+
+<svelte:window onkeydown={(event) => { if (active && detailId && escapeGoesBack(event)) { event.preventDefault(); backToList(); } }} />
 
 <div id="panel-apps" class="tab-panel" role="tabpanel" aria-labelledby="tab-apps" tabindex="0" hidden={!active}>
   {#if detailApp}

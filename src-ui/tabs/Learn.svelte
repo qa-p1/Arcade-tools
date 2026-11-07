@@ -1,5 +1,6 @@
 <script lang="ts">
   import { glyph } from '../lib/glyphs';
+  import { escapeGoesBack } from '../lib/escape';
   import { api, type DocPage, type DocsSearchHit, type LearnApp } from '../lib/api';
   import { onDestroy } from 'svelte';
   import Icon from '../components/Icon.svelte';
@@ -125,6 +126,8 @@
     if (active && target.id && target.serial !== openedTarget) { openedTarget = target.serial; void openReader(target.id); }
   });
 </script>
+
+<svelte:window onkeydown={(event) => { if (active && readerApp && escapeGoesBack(event)) { event.preventDefault(); closeReader(); } }} />
 
 <div id="panel-learn" class="tab-panel" role="tabpanel" aria-labelledby="tab-learn" tabindex="0" hidden={!active}>
   {#if readerApp}
