@@ -177,15 +177,39 @@ impl FakeRelease {
                                     k.eq_ignore_ascii_case("if-none-match") && v.trim() == etag
                                 })
                             });
-                            HttpReply {
-                                status: if unchanged {
-                                    "304 Not Modified"
-                                } else {
-                                    "200 OK"
-                                }
-                                .into(),
-                                headers: vec![("ETag".into(), etag)],
-                                body: if unchanged { vec![] } else { body },
+                            if unchanged {
+                                return HttpReply {
+                                    status: "304 Not Modified".into(),
+                                    headers: vec![("ETag".into(), etag)],
+                                    body: vec![],
+                                };
+                            }
+                            // One `Range: bytes=a-b` or `bytes=a-`, as GitHub's release host serves.
+                            let range = headers.iter().find_map(|h| {
+                                let (k, v) = h.split_once(':')?;
+                                let spec = k.eq_ignore_ascii_case("range").then_some(v.trim())?;
+                                let (a, b) = spec.strip_prefix("bytes=")?.split_once('-')?;
+                                let start: usize = a.parse().ok()?;
+                                let end = if b.is_empty() { body.len() } else { b.parse::<usize>().ok()? + 1 };
+                                (start < end && end <= body.len()).then_some(start..end)
+                            });
+                            match range {
+                                Some(r) => HttpReply {
+                                    status: "206 Partial Content".into(),
+                                    headers: vec![
+                                        ("ETag".into(), etag),
+                                        (
+                                            "Content-Range".into(),
+                                            format!("bytes {}-{}/{}", r.start, r.end - 1, body.len()),
+                                        ),
+                                    ],
+                                    body: body[r].to_vec(),
+                                },
+                                None => HttpReply {
+                                    status: "200 OK".into(),
+                                    headers: vec![("ETag".into(), etag)],
+                                    body,
+                                },
                             }
                         },
                     )
