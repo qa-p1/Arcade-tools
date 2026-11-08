@@ -1,5 +1,14 @@
 {
   "bundle": {
-    "externalBin": ["binaries/arcade-tools-overlay"]
+    "externalBin": [
+      "binaries/arcade-tools-overlay"
+    ],
+    "linux": {
+      "appimage": {
+        "files": {
+          "/usr/lib/libarcade-trim.so": "binaries/libarcade-trim.so"
+        }
+      }
+    }
   }
 }

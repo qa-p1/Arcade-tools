@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Build the native companion for Tauri's externalBin bundle configuration."""
+"""Build what the package bundles besides Tools itself: the overlay companion (Tauri's externalBin) and, on
+Linux, libarcade-trim.so, which trims WebKit's helper processes (OPEN1; tauri.bundle.conf.json puts it in the
+AppImage's usr/lib)."""
 import argparse
 import os
 from pathlib import Path
@@ -39,6 +41,14 @@ def main():
     else:
         shutil.copy2(sources[0], destination)
     print(f"Prepared {destination.relative_to(root)}")
+    if "linux" in target:
+        trimmer = root / "src-tauri/binaries/libarcade-trim.so"
+        if trimmer.is_symlink():
+            raise SystemExit("The generated trimmer destination is a symlink")
+        linux = root / "packaging/linux"
+        subprocess.run(["cc", "-O2", "-shared", "-fPIC", "-Wall", "-Werror", "-o", str(trimmer),
+                        str(linux / "arcade-trim-preload.c"), f"-I{linux}", "-lpthread"], check=True)
+        print(f"Prepared {trimmer.relative_to(root)}")
 
 
 if __name__ == "__main__":

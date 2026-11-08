@@ -187,6 +187,8 @@ with tempfile.TemporaryDirectory(prefix='arcade-tools-package-') as temporary:
         # beside it crashed on the first key press (TL-5). Both must come from the host.
         bundled = sorted(p.name for p in (root / 'squashfs-root').rglob('libxkbcommon*.so*'))
         assert not bundled, f'AppImage must use the host libxkbcommon: {bundled}'
+        # OPEN1: Tools preloads this into WebKit's helper processes (main.rs).
+        assert (root / 'squashfs-root' / 'usr' / 'lib' / 'libarcade-trim.so').is_file(), 'AppImage lacks libarcade-trim.so'
         subprocess.run([str(binaries / 'arcade-tools'),'--version'],env=environment,check=True,timeout=10)
         environment['APPIMAGE'] = str(staged_package)
         # Exercise the mounting runtime and full AppImage bytes, not only

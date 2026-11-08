@@ -19,6 +19,7 @@ pub mod paths;
 pub mod platform;
 pub mod release;
 pub mod removal;
+pub mod runtime_gc;
 pub mod self_update;
 mod settings_export;
 pub mod shortcut_control;

@@ -109,3 +109,25 @@ file is replaced) and the per-OS installer kinds (the platforms differ).
   swap, and the result message names the folder. One backup per app; a later switch replaces it. Larger than 2 GiB
   refuses the switch rather than fill the disk. The live data is left for the app's own FS-2 downgrade rule, which
   may restore this backup.
+
+## D7 — Memory (PLAN step 5; SPEC.md §Memory, AUDIT/memory.md)
+
+- **U1:** a resident start (no arguments, `--background`, `--settings`) calls Link's `relaunch_unpacked` and exits;
+  one-shot calls (`--status`, `--quit`, installers…) return before it, so they never pay for the ~250 MB copy, and a
+  copy that is offering to install itself (Downloads) keeps running from its mount. Tools removes unpacked copies of
+  every app that no process runs from (`runtime_gc.rs`), keeping each installed app's newest copy of the version
+  its receipt names, at startup and after every operation. Link's `remove_unpacked_except` needs the folder key,
+  which only the app can compute (it hashes the AppImage's size and time), so Tools decides by name and use instead.
+- **W1 + W3b:** 3 s after the last window is destroyed (the audit's minimum before ending the network process, which
+  holds only the onboarding flag's localStorage), `release_webkit` then `page_out_hidden`; also once after startup.
+  This replaces `resident/memory.rs`, whose PAGEOUT of library pages the audit measured as ineffective.
+- **OPEN1:** while the window is open, `runtime::trim` 2 s after the page is ready and every 20 s; WebKit's helper
+  processes load `libarcade-trim.so` (Link's preload trimmer, vendored and built by `prepare-overlay.py`, placed in
+  the AppImage's `usr/lib`) through `LD_PRELOAD`, set in `main` only when the library is inside `$APPDIR`. Link's
+  child environment already drops entries inside `$APPDIR`, so apps Tools starts never inherit it. OPEN2 (software
+  compositing) is not applied: motion is unproven and the spec doesn't list it.
+- **TD1:** Home shows each app's tree PSS (descendants plus its AppImage's FUSE helper) on Linux; other platforms
+  keep the main process's resident size.
+- **Budgets** are Link's `tools/fleet/budgets.json` (`xvfb` section in CI: background and closed 30 PSS / 50 RSS,
+  window open 225 / 310). Tools CI measures its packaged AppImage with Link's `fleet_budget.py --only tools` once it
+  pins Link 1.0.1 (the version that can follow an unpacked relaunch).

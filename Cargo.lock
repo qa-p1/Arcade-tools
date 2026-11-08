@@ -150,7 +150,6 @@ dependencies = [
  "arcade-tools-overlay",
  "gtk",
  "ksni",
- "libc",
  "notify",
  "notify-rust",
  "resvg",

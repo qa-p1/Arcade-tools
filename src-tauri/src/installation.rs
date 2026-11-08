@@ -510,7 +510,8 @@ fn proposal(
 /// say) while another Tools runs, asks that one to quit: the single instance
 /// would otherwise only bring it forward, and the offer would never show. A
 /// busy Tools refuses and stays; this launch then only brings it forward.
-pub fn make_way_for_offer() {
+/// Returns whether this copy will offer to install itself.
+pub fn make_way_for_offer() -> bool {
     let offer = (|| -> Result<bool> {
         let environment = Environment::discover()?;
         let runtime = Runtime::discover()?;
@@ -529,6 +530,7 @@ pub fn make_way_for_offer() {
             );
         }
     }
+    matches!(offer, Ok(true))
 }
 #[tauri::command]
 pub async fn self_install_proposal() -> Result<Option<Proposal>> {

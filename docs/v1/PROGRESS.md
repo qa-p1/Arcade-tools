@@ -49,6 +49,10 @@ Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
   `read_os_release`. knip: 14 exports used only in their own file are no longer exported; `design/format.ts` is
   vendored. `scripts/tray-resident-e2e.py` (tray, resident, crash recovery, guide screenshot) is not in CI yet:
   step 6 wires it in.
+- Step 5 (memory, D7): U1 relaunch + runtime GC, W1/W3b after close, OPEN1 (self-trim + WebKit helper preload,
+  bundled `libarcade-trim.so`, checked by `verify-package.py`), TD1 tree PSS on Home. Link's `fleet_budget.py`
+  learned to follow unpacked relaunches and `--only` (in Link PR #45, also fixing its dbus arguments, which would
+  have stopped the fleet job). The CI budget step lands with the Link 1.0.1 bump; numbers will be recorded here.
 - Link 1.0.1 is up for review: https://github.com/qa-p1/Arcade-Link/pull/45.
 - Next: tag Link v1.0.1, bump Tools to it and flip T3; PLAN steps 5 (memory), 6 (CI), 7 (round 5), 8 (rc).
 

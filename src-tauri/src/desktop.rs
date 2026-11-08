@@ -50,6 +50,8 @@ struct Desktop {
     /// A new window stays hidden until its page has drawn real content, so
     /// opening Tools never flashes an empty window.
     reveal_pending: AtomicBool,
+    /// The open-window trimmer (OPEN1) is running.
+    trimming: AtomicBool,
     #[cfg(debug_assertions)]
     audit: Mutex<()>,
 }
@@ -79,6 +81,7 @@ impl Desktop {
             update_wake: Mutex::new(None),
             update_running: AtomicBool::new(false),
             reveal_pending: AtomicBool::new(false),
+            trimming: AtomicBool::new(false),
             #[cfg(debug_assertions)]
             audit: Mutex::new(()),
         }
@@ -228,7 +231,27 @@ fn reveal_pending_window(app: &AppHandle) {
 #[tauri::command]
 fn window_ready(app: AppHandle) {
     reveal_pending_window(&app);
+    trim_while_open(app);
 }
+
+/// OPEN1 (AUDIT/memory.md): while the window is open, this process gives freed heap and cold code pages back 2 s
+/// after the page is ready and every 20 s after. Code refaults from the page cache in microseconds; WebKit's own
+/// helper processes do the same through `libarcade-trim.so` (see `main.rs`).
+fn trim_while_open(app: AppHandle) {
+    if desktop(&app).trimming.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    std::thread::spawn(move || {
+        std::thread::sleep(OPEN_TRIM_FIRST);
+        while app.get_webview_window("main").is_some() {
+            arcade_link::runtime::trim();
+            std::thread::sleep(OPEN_TRIM_EVERY);
+        }
+        desktop(&app).trimming.store(false, Ordering::SeqCst);
+    });
+}
+const OPEN_TRIM_FIRST: std::time::Duration = std::time::Duration::from_secs(2);
+const OPEN_TRIM_EVERY: std::time::Duration = std::time::Duration::from_secs(20);
 
 /// Start a successor that waits for this process, then quit. Apps keep their
 /// tray icons hidden through Link's restart grace, so the tray doesn't flicker.
@@ -250,16 +273,20 @@ fn restart_process(app: &AppHandle, background: bool) -> std::io::Result<()> {
 
 // Closing the window releases GUI resources in place. Only an explicit
 // restart or the update flow may replace the resident process.
-fn reclaim_resident_memory(app: AppHandle) {
-    // Let GTK/WebKit finish deferred destruction, then release unused
-    // allocator and library pages once. No periodic idle timer.
+/// W1 + W3b (AUDIT/memory.md): once no window is left, end WebKit's network process (WebKit starts a new one with
+/// the next window), return freed heap and code pages, and let the kernel page out the idle heap (free unless memory
+/// is short). After a close the wait lets GTK/WebKit finish deferred destruction and the network process flush
+/// localStorage (the onboarding flag); after startup it runs once the manager is ready. No periodic idle timer.
+fn reclaim_resident_memory(app: AppHandle, after: std::time::Duration) {
     std::thread::spawn(move || {
-        std::thread::sleep(std::time::Duration::from_millis(500));
-        if app.get_webview_window("main").is_none() {
-            resident::release_unused_runtime_pages();
+        std::thread::sleep(after);
+        if app.webview_windows().is_empty() {
+            arcade_link::runtime::release_webkit();
+            arcade_link::runtime::page_out_hidden();
         }
     });
 }
+const RELEASE_AFTER_CLOSE: std::time::Duration = std::time::Duration::from_secs(3);
 fn audit(app: &AppHandle, event: Value) {
     #[cfg(debug_assertions)]
     {
@@ -1282,7 +1309,7 @@ pub fn run(background: bool, quit: bool) {
                         json!({"event":"initialization-error", "message":error.message}),
                     );
                 } else {
-                    reclaim_resident_memory(handle);
+                    reclaim_resident_memory(handle, std::time::Duration::ZERO);
                 }
             });
             Ok(())
@@ -1370,7 +1397,7 @@ pub fn run(background: bool, quit: bool) {
             }
             if let tauri::WindowEvent::Destroyed = event {
                 desktop(window.app_handle()).resident.lock().unwrap_or_else(|e| e.into_inner()).destroyed();
-                reclaim_resident_memory(window.app_handle().clone());
+                reclaim_resident_memory(window.app_handle().clone(), RELEASE_AFTER_CLOSE);
             }
         })
         .build(tauri::generate_context!())

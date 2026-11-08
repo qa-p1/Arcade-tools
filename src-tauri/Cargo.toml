@@ -37,7 +37,6 @@ tempfile = "3"
 notify-rust = "4"
 gtk = "0.18"
 ksni = { version = "0.3", features = ["blocking"] }
-libc = "0.2"
 webkit2gtk = { version = "2", features = ["v2_16"] }
 
 [target.'cfg(any(target_os = "windows", target_os = "macos"))'.dependencies]

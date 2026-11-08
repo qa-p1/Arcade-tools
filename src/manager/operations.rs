@@ -35,6 +35,9 @@ impl Manager {
             if let Err(error) = installation::prune_installers(&self.paths, &request.id) {
                 eprintln!("Installer cache: {error}");
             }
+            if let Err(error) = self.cleanup_unpacked() {
+                eprintln!("Unpacked app copies: {error}");
+            }
         }
         if matches!(
             request.operation,

@@ -70,7 +70,22 @@ impl Manager {
         for id in &ids {
             freed += installation::prune_installers(&self.paths, id)?;
         }
+        freed += self.cleanup_unpacked()?;
         Ok(freed)
+    }
+    /// U1: unpacked app copies nothing runs from, except each installed app's copy of its installed version
+    /// (`runtime_gc`). Startup worker and after every operation.
+    pub fn cleanup_unpacked(&self) -> Result<u64> {
+        if !cfg!(target_os = "linux") {
+            return Ok(0);
+        }
+        let mut installed = Vec::new();
+        for id in crate::apps::APPS.iter().copied().chain([ids::TOOLS]) {
+            if let Some(receipt) = self.receipt(id)? {
+                installed.push((id, receipt.version));
+            }
+        }
+        crate::runtime_gc::collect(&self.paths, &installed)
     }
     /// Tools records left behind when an app uninstalled itself. Run on the
     /// startup worker, like `cleanup_stale_bundles`.

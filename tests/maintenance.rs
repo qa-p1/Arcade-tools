@@ -346,3 +346,32 @@ fn archives_reject_traversal_duplicate_names_and_unlisted_payloads() {
         "backup"
     );
 }
+
+#[test]
+fn unpacked_copies_nothing_runs_from_are_removed() {
+    let source = support::FakeRelease::new();
+    let manager = fixture(&source.root.path().join("user"), &source);
+    let root = arcade_tools_core::runtime_gc::root(&manager.paths);
+    let stale = root.join("look-0.9.0-00000000000000aa");
+    let running = root.join("look-0.8.0-00000000000000bb");
+    for folder in [&stale, &running] {
+        fs::create_dir_all(folder.join("usr/bin")).unwrap();
+        fs::write(folder.join("usr/share-data"), vec![0u8; 4096]).unwrap();
+    }
+    // A process started from a copy keeps it, as an app updated while running does until it restarts.
+    let sleep = running.join("usr/bin/sleep");
+    fs::copy("/bin/sleep", &sleep).unwrap();
+    let mut child = std::process::Command::new(&sleep)
+        .arg("30")
+        .spawn()
+        .unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(200));
+    let freed = manager.cleanup_unpacked().unwrap();
+    child.kill().unwrap();
+    child.wait().unwrap();
+    assert!(!stale.exists());
+    assert!(running.exists());
+    assert!(freed >= 4096);
+    manager.cleanup_unpacked().unwrap();
+    assert!(!running.exists());
+}

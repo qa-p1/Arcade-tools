@@ -128,8 +128,42 @@ fn main() {
         }
         return;
     }
-    installation::make_way_for_offer();
+    if !installation::make_way_for_offer() {
+        // U1 (AUDIT/memory.md): a resident Tools runs from its unpacked copy, so no FUSE helper stays resident and
+        // pages come from the real disk; $APPIMAGE still names the installed file. A copy offering to install
+        // itself keeps running from its mount. One-shot calls returned above, never paying for the copy.
+        if let Some(code) = arcade_link::runtime::relaunch_unpacked(
+            "arcade.tools",
+            env!("CARGO_PKG_VERSION"),
+            false,
+        ) {
+            std::process::exit(code);
+        }
+    }
+    #[cfg(target_os = "linux")]
+    preload_webkit_trimmer();
     desktop::run(args.iter().any(|a| a == "--background"), false);
+}
+
+/// OPEN1 (AUDIT/memory.md): WebKit's helper processes inherit `libarcade-trim.so` (Link's
+/// `packaging/linux/arcade-trim-preload.c`), which trims them 2 s after start and every 20 s; it does nothing in any
+/// other process. Apps Tools starts never get it: Link's child environment drops entries inside `$APPDIR`.
+#[cfg(target_os = "linux")]
+fn preload_webkit_trimmer() {
+    let Some(dir) = std::env::var_os("APPDIR").filter(|d| !d.is_empty()) else {
+        return;
+    };
+    let library = std::path::Path::new(&dir).join("usr/lib/libarcade-trim.so");
+    if !library.is_file() {
+        return;
+    }
+    let mut value = library.into_os_string();
+    if let Some(old) = std::env::var_os("LD_PRELOAD").filter(|v| !v.is_empty()) {
+        value.push(":");
+        value.push(old);
+    }
+    // Still single-threaded: Tauri and WebKit start later.
+    std::env::set_var("LD_PRELOAD", value);
 }
 
 /// Every argument Tools accepts, including the ones its own helpers and updaters pass (`--finish-self-*`,
