@@ -1,5 +1,8 @@
 use super::*;
 
+/// How long an interrupted download is kept for resuming.
+const PARTIAL_DOWNLOAD_KEEP: std::time::Duration = std::time::Duration::from_secs(7 * 24 * 60 * 60);
+
 impl Manager {
     /// Local housekeeping, independent of update opt-ins and network access.
     /// Receipts establish app ownership; installation/update work keeps priority.
@@ -33,7 +36,7 @@ impl Manager {
         }
         Ok(report)
     }
-    /// Partial downloads, transaction snapshots left by a Tools that was killed mid-operation, and retained
+    /// Partial downloads older than a week, transaction snapshots left by a Tools that was killed mid-operation, and retained
     /// installers that neither the installed version nor its rollback needs. Startup worker only.
     pub fn cleanup_interrupted(&self) -> Result<u64> {
         let _lock = self.lock()?;
@@ -42,6 +45,17 @@ impl Manager {
         if let Ok(entries) = fs::read_dir(&downloads) {
             for entry in entries.flatten() {
                 let path = entry.path();
+                // A recent `<sha256>.part` is an interrupted download the next attempt resumes (D5).
+                let recent_part = path.extension().is_some_and(|e| e == "part")
+                    && entry
+                        .metadata()
+                        .and_then(|m| m.modified())
+                        .ok()
+                        .and_then(|t| t.elapsed().ok())
+                        .is_some_and(|age| age < PARTIAL_DOWNLOAD_KEEP);
+                if recent_part {
+                    continue;
+                }
                 self.paths.guard(&path)?;
                 freed += entry.metadata().map_or(0, |m| m.len());
                 platform::remove(&path)?;

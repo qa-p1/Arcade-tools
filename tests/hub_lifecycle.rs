@@ -1363,3 +1363,96 @@ fn hub_lifecycle_releases_need_a_trusted_signature_and_a_matching_manifest() {
     });
     assert!(manager.check("arcade.look").unwrap().update_available);
 }
+
+#[test]
+fn hub_lifecycle_updates_download_only_the_changed_chunks() {
+    let (server, manager) = fixture();
+    let id = "arcade.look";
+    // The script changes between versions; a large shared payload (a comment) does not.
+    let mut x = 0x9e37_79b9_7f4a_7c15u64;
+    let payload: String = (0..512 * 1024)
+        .map(|_| {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            format!("{:02x}", x as u8)
+        })
+        .collect();
+    let release = |version: &str| {
+        let mut bytes = fake_app(&manager.paths, id, version, false);
+        bytes.extend_from_slice(format!("\n# {payload}\n").as_bytes());
+        server.publish(
+            id,
+            version,
+            "stable",
+            &[("App_x64.AppImage", &bytes)],
+            "nsis",
+        );
+        server.amend_manifest(id, version, "stable", |manifest| {
+            manifest["assets"][0]["installArgs"] = json!(["--install", "--silent"]);
+        });
+        bytes.len() as u64
+    };
+    release("1.0.0");
+    operate(&manager, id, Operation::Install).unwrap();
+    wait_for(
+        &manager.paths.link.registry.join(format!("{id}.json")),
+        |text| text.contains("1.0.0"),
+    );
+    let size = release("2.0.0");
+    server.requests.lock().unwrap().clear();
+    operate(&manager, id, Operation::Update).unwrap();
+    assert_eq!(manager.record(id).unwrap().unwrap().version, "2.0.0");
+    let installer = "/assets/arcade-look-2.0.0-stable/App_x64.AppImage";
+    let ranges: Vec<(u64, u64)> = server
+        .requests
+        .lock()
+        .unwrap()
+        .iter()
+        .filter(|(route, _)| route == installer)
+        .map(|(_, headers)| {
+            let spec = headers
+                .iter()
+                .find_map(|h| {
+                    h.strip_prefix("range: bytes=")
+                        .or(h.strip_prefix("Range: bytes="))
+                })
+                .expect("every installer request asks for a range");
+            let (a, b) = spec.split_once('-').unwrap();
+            (a.parse().unwrap(), b.parse().unwrap())
+        })
+        .collect();
+    let fetched: u64 = ranges.iter().map(|(a, b)| b - a + 1).sum();
+    assert!(
+        !ranges.is_empty() && fetched * 4 < size,
+        "{ranges:?} of {size} bytes"
+    );
+    // The new package's chunk list is kept for the next update; the old one goes with its package.
+    let installers = arcade_tools_core::installation::installers(&manager.paths, id);
+    let saved = fs::read_dir(&installers)
+        .unwrap()
+        .filter(|e| {
+            e.as_ref()
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .ends_with(".manifest.json")
+        })
+        .count();
+    assert!(saved >= 1);
+
+    // A host that ignores Range (answers 200 with the whole file) breaks the delta; the full download still works.
+    release("3.0.0");
+    let route = "/assets/arcade-look-3.0.0-stable/App_x64.AppImage".to_string();
+    let whole = server.routes.lock().unwrap()[&route].clone();
+    server.replies.lock().unwrap().insert(
+        route,
+        support::HttpReply {
+            status: "200 OK".into(),
+            headers: vec![],
+            body: whole,
+        },
+    );
+    operate(&manager, id, Operation::Update).unwrap();
+    assert_eq!(manager.record(id).unwrap().unwrap().version, "3.0.0");
+}

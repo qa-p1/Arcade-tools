@@ -190,7 +190,11 @@ impl FakeRelease {
                                 let spec = k.eq_ignore_ascii_case("range").then_some(v.trim())?;
                                 let (a, b) = spec.strip_prefix("bytes=")?.split_once('-')?;
                                 let start: usize = a.parse().ok()?;
-                                let end = if b.is_empty() { body.len() } else { b.parse::<usize>().ok()? + 1 };
+                                let end = if b.is_empty() {
+                                    body.len()
+                                } else {
+                                    b.parse::<usize>().ok()? + 1
+                                };
                                 (start < end && end <= body.len()).then_some(start..end)
                             });
                             match range {
@@ -200,7 +204,12 @@ impl FakeRelease {
                                         ("ETag".into(), etag),
                                         (
                                             "Content-Range".into(),
-                                            format!("bytes {}-{}/{}", r.start, r.end - 1, body.len()),
+                                            format!(
+                                                "bytes {}-{}/{}",
+                                                r.start,
+                                                r.end - 1,
+                                                body.len()
+                                            ),
                                         ),
                                     ],
                                     body: body[r].to_vec(),

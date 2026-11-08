@@ -3,6 +3,7 @@ pub mod archive;
 pub mod backup;
 pub mod catalog;
 pub mod dashboard;
+pub mod delta;
 pub mod diagnostics;
 pub mod diagnostics_archive;
 pub mod docs;

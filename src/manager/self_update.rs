@@ -177,9 +177,10 @@ impl Manager {
         progress(Progress::new(id, "Checking release", None, true));
         let checked = self.checked(id)?;
         self.paths.guard(&self.paths.downloads())?;
-        let download = self.source.download(
+        let download = self.source.download_from(
             &checked,
             &self.paths.downloads(),
+            &self.local_chunks(id),
             cancel,
             &mut |count, total| {
                 progress(Progress::new(

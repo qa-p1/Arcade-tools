@@ -83,5 +83,10 @@ file is replaced) and the per-OS installer kinds (the platforms differ).
   demand. Missing ranges are fetched with HTTP Range, neighbouring ranges less than 256 KiB apart in one request.
 - **Ladder:** delta → full download with resume (`downloads/<sha256>.part`, `Range: bytes=N-`, up to 3 attempts) →
   error. Downloads use a 30 s read-idle timeout. Progress counts the bytes to download, not the file size.
+- **Delta details** (`src/delta.rs`): a delta is tried only when it skips at least 20 % of the file; fetched pieces
+  are split at chunk boundaries to ≤ 4 MiB and merged into Range requests of ≤ 8 MiB, so memory stays bounded. A
+  host that answers a Range request with anything but the exact 206 range fails the delta, which falls back to the full
+  download. A response shorter than its own Content-Length is an interruption (resumed); a complete response with the
+  wrong bytes is a checksum error (the `.part` is discarded). Startup cleanup keeps `.part` files younger than 7 days.
 - **Bad releases:** a catalog app may list `bad` versions; they are never offered, and an installed bad version gets a
   rollback notice.

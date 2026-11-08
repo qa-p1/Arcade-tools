@@ -221,6 +221,14 @@ impl Manager {
         )
     }
 
+    /// The app's retained installers and installed file, as chunk sources for a delta download (D5). Worker thread.
+    pub(super) fn local_chunks(&self, id: &str) -> arcade_link::release::ChunkIndex {
+        let record = self.record(id).ok().flatten();
+        let installed = record
+            .as_ref()
+            .and_then(|r| Some((r.executable.as_deref()?, r.executable_sha256.as_str())));
+        crate::delta::local_chunks(&self.paths, id, installed)
+    }
     /// Download and verify a release, keeping the package for rollback.
     pub(super) fn download_package(
         &self,
@@ -231,9 +239,10 @@ impl Manager {
     ) -> Result<Package> {
         progress(Progress::new(id, "Downloading", Some(0.0), true));
         self.paths.guard(&self.paths.downloads())?;
-        let downloaded = self.source.download(
+        let downloaded = self.source.download_from(
             checked,
             &self.paths.downloads(),
+            &self.local_chunks(id),
             cancel,
             &mut |count, total| {
                 progress(Progress::new(

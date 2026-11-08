@@ -67,6 +67,10 @@ pub fn retain(
         path,
     };
     package.verify(paths, &checked.release.id)?;
+    // Saved beside the package so the next update can reuse its chunks without reading it (D5).
+    if let Some(entry) = &checked.entry {
+        crate::delta::save_entry(paths, &checked.release.id, entry)?;
+    }
     Ok(package)
 }
 
@@ -90,11 +94,21 @@ pub fn prune_installers(paths: &Paths, id: &str) -> Result<u64> {
         .ok()
         .flatten()
         .map(|p| p.record);
-    let keep: Vec<PathBuf> = [current, previous]
-        .into_iter()
-        .flatten()
-        .filter_map(|record| record.package.map(|package| package.path))
-        .collect();
+    // Each kept package keeps its saved manifest entry; the installed file keeps the entry it was chunked into.
+    let mut keep: Vec<PathBuf> = Vec::new();
+    for record in [current, previous].into_iter().flatten() {
+        if !record.executable_sha256.is_empty() {
+            keep.push(crate::delta::saved_entry(
+                paths,
+                id,
+                &record.executable_sha256,
+            ));
+        }
+        if let Some(package) = record.package {
+            keep.push(crate::delta::saved_entry(paths, id, &package.asset.sha256));
+            keep.push(package.path);
+        }
+    }
     let mut freed = 0;
     for entry in entries.flatten() {
         let path = entry.path();

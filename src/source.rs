@@ -1,7 +1,8 @@
 //! GitHub is the only production source. Loopback HTTP is opt-in for tests.
+use crate::delta;
 use crate::release::{safe_filename, verify, Asset, Channel, Release, ReleaseCache};
 use crate::{trust, Error, Result};
-use arcade_link::release::{FileEntry, ReleaseManifest};
+use arcade_link::release::{assemble, ChunkIndex, DeltaPlan, FileEntry, ReleaseManifest};
 use reqwest::{blocking::Client, redirect::Policy, StatusCode, Url};
 use serde::Deserialize;
 use std::io::{Read, Write};
@@ -129,7 +130,8 @@ fn allowed(url: &Url, test: bool) -> bool {
     }
 }
 
-const DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(120);
+/// Read-idle timeout: the blocking client applies it to each read, so a slow but steady download finishes (D3, D5).
+const DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(30);
 
 impl Source {
     /// Build a blocking HTTP client on a worker thread. No request is sent.
@@ -507,8 +509,7 @@ impl Source {
         }
         Ok(())
     }
-    /// Download and verify SHA-256/size on a worker thread. Cancellation is
-    /// checked during bounded streaming, before any installer runs.
+    /// Download and verify SHA-256/size on a worker thread, without local chunks.
     pub fn download(
         &self,
         checked: &CheckedRelease,
@@ -516,51 +517,294 @@ impl Source {
         cancel: &AtomicBool,
         progress: &mut dyn FnMut(u64, Option<u64>),
     ) -> Result<NamedTempFile> {
+        self.download_from(checked, cache, &ChunkIndex::default(), cancel, progress)
+    }
+    /// The download ladder (D5) on a worker thread: a delta built from `have` when it saves enough, else (or when the
+    /// delta fails) the whole file, resumed from `<sha256>.part` across up to three attempts. Cancellation is checked
+    /// while streaming; nothing is installed here. Progress counts the bytes to download.
+    pub fn download_from(
+        &self,
+        checked: &CheckedRelease,
+        cache: &Path,
+        have: &ChunkIndex,
+        cancel: &AtomicBool,
+        progress: &mut dyn FnMut(u64, Option<u64>),
+    ) -> Result<NamedTempFile> {
         std::fs::create_dir_all(cache)?;
+        if let Some(entry) = &checked.entry {
+            if let Some(plan) = delta::plan(have, entry) {
+                match self.download_delta(checked, entry, &plan, have, cache, cancel, progress) {
+                    Ok(file) => return Ok(file),
+                    Err(error) if error.code == "cancelled" => return Err(error),
+                    Err(error) => eprintln!(
+                        "Delta download failed; downloading the whole file: {}",
+                        error.message
+                    ),
+                }
+            }
+        }
+        self.download_whole(checked, cache, cancel, progress)
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn download_delta(
+        &self,
+        checked: &CheckedRelease,
+        entry: &FileEntry,
+        plan: &DeltaPlan,
+        have: &ChunkIndex,
+        cache: &Path,
+        cancel: &AtomicBool,
+        progress: &mut dyn FnMut(u64, Option<u64>),
+    ) -> Result<NamedTempFile> {
+        let requests = delta::requests(plan);
+        let total: u64 = requests.iter().map(|r| r.end - r.start).sum();
         let mut file = NamedTempFile::new_in(cache)?;
-        let mut response = self.response(&checked.url)?;
-        let total = checked
+        let mut buffer = Vec::new();
+        let mut buffered = 0..0;
+        let mut next = 0;
+        let mut count = 0;
+        let mut stopped = None;
+        let mut out = std::io::BufWriter::new(file.as_file_mut());
+        let assembled = assemble(
+            entry,
+            plan,
+            have,
+            &mut |range| {
+                if range.start < buffered.start || range.end > buffered.end {
+                    while requests.get(next).is_some_and(|r| r.end <= range.start) {
+                        next += 1;
+                    }
+                    let request = match requests.get(next) {
+                        Some(r) if r.start <= range.start && range.end <= r.end => r.clone(),
+                        _ => {
+                            return Err(std::io::Error::other("range outside the planned requests"))
+                        }
+                    };
+                    buffer =
+                        match self.fetch_range(&checked.url, request.clone(), cancel, &mut |n| {
+                            count += n;
+                            progress(count, Some(total));
+                        }) {
+                            Ok(bytes) => bytes,
+                            Err(error) => {
+                                stopped = Some(error);
+                                return Err(std::io::Error::other("stopped"));
+                            }
+                        };
+                    buffered = request;
+                }
+                let at = (range.start - buffered.start) as usize;
+                Ok(buffer[at..at + (range.end - range.start) as usize].to_vec())
+            },
+            &mut out,
+        );
+        if let Some(error) = stopped {
+            return Err(error);
+        }
+        assembled.map_err(|e| Error::new("delta", e.to_string()))?;
+        out.flush()?;
+        drop(out);
+        file.as_file().sync_all()?;
+        verify(file.path(), &checked.asset)?;
+        Ok(file)
+    }
+    /// One `Range: bytes=a-b` request, read whole into memory (at most [`delta::REQUEST_MAX`]).
+    fn fetch_range(
+        &self,
+        url: &str,
+        range: std::ops::Range<u64>,
+        cancel: &AtomicBool,
+        progress: &mut dyn FnMut(u64),
+    ) -> Result<Vec<u8>> {
+        let mut response = self.ranged_response(url, range.start, Some(range.end - 1))?;
+        let expected = format!("bytes {}-{}/", range.start, range.end - 1);
+        if response.status() != StatusCode::PARTIAL_CONTENT
+            || !content_range(&response).is_some_and(|v| v.starts_with(&expected))
+        {
+            return Err(Error::new(
+                "delta",
+                "The server did not return the requested range.",
+            ));
+        }
+        let len = (range.end - range.start) as usize;
+        let mut bytes = Vec::with_capacity(len);
+        let mut block = [0u8; 65536];
+        while bytes.len() < len {
+            if cancel.load(Ordering::SeqCst) {
+                return Err(Error::new("cancelled", "Cancelled."));
+            }
+            let n = response.read(&mut block).map_err(interrupted)?;
+            if n == 0 {
+                break;
+            }
+            let n = n.min(len - bytes.len());
+            bytes.extend_from_slice(&block[..n]);
+            progress(n as u64);
+        }
+        if bytes.len() != len {
+            return Err(Error::new("delta", "A range ended early."));
+        }
+        Ok(bytes)
+    }
+    fn download_whole(
+        &self,
+        checked: &CheckedRelease,
+        cache: &Path,
+        cancel: &AtomicBool,
+        progress: &mut dyn FnMut(u64, Option<u64>),
+    ) -> Result<NamedTempFile> {
+        let part = cache.join(format!("{}.part", checked.asset.sha256));
+        let size = checked
             .entry
             .as_ref()
             .map(|e| e.size)
-            .or(checked.asset.size)
-            .or(response.content_length());
-        if total.is_some_and(|n| n > MAX_DOWNLOAD) {
-            return Err(Error::new(
-                "too_large",
-                "Installer exceeds the 1 GiB download limit.",
-            ));
+            .or(checked.asset.size);
+        if size.is_some_and(|n| n > MAX_DOWNLOAD) {
+            return Err(too_large());
         }
-        let mut count = 0u64;
-        let mut block = [0u8; 65536];
+        let mut attempt = 0;
         loop {
             if cancel.load(Ordering::SeqCst) {
                 return Err(Error::new("cancelled", "Cancelled."));
             }
-            let n = response.read(&mut block).map_err(|error| {
-                eprintln!("Download: {error}");
-                Error::new(
-                    "network",
-                    "The download was interrupted. Check your internet connection and try again.",
-                )
-            })?;
+            match self.stream_to_part(&checked.url, &part, size, cancel, progress) {
+                Ok(()) => break,
+                Err(error) if error.code == "network" && attempt + 1 < DOWNLOAD_ATTEMPTS => {
+                    attempt += 1;
+                    eprintln!("Download attempt {attempt} interrupted; resuming.");
+                    std::thread::sleep(Duration::from_millis(500 * attempt as u64));
+                }
+                Err(error) => return Err(error),
+            }
+        }
+        if let Err(error) = verify(&part, &checked.asset) {
+            let _ = std::fs::remove_file(&part);
+            return Err(error);
+        }
+        let file = std::fs::File::open(&part)?;
+        Ok(NamedTempFile::from_parts(
+            file,
+            tempfile::TempPath::try_from_path(&part)?,
+        ))
+    }
+    /// Continues `part` from its current length (`Range: bytes=N-`); a server that answers 200 starts it over.
+    fn stream_to_part(
+        &self,
+        url: &str,
+        part: &Path,
+        size: Option<u64>,
+        cancel: &AtomicBool,
+        progress: &mut dyn FnMut(u64, Option<u64>),
+    ) -> Result<()> {
+        let mut have = std::fs::metadata(part).map_or(0, |m| m.len());
+        if size.is_some_and(|n| have > n) {
+            std::fs::remove_file(part)?;
+            have = 0;
+        }
+        if size.is_some_and(|n| have == n) {
+            return Ok(());
+        }
+        let mut response = self.ranged_response(url, have, None)?;
+        let resumed = have > 0
+            && response.status() == StatusCode::PARTIAL_CONTENT
+            && content_range(&response).is_some_and(|v| v.starts_with(&format!("bytes {have}-")));
+        if !resumed {
+            if response.status() != StatusCode::OK {
+                return Err(Error::new(
+                    "source",
+                    "The download did not return HTTP 200.",
+                ));
+            }
+            have = 0;
+        }
+        // What this response promises; the expected size is checked by verification, not here.
+        let served = response.content_length().map(|n| n + have);
+        let total = size.or(served);
+        if total.is_some_and(|n| n > MAX_DOWNLOAD) {
+            return Err(too_large());
+        }
+        let mut file = std::fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .append(resumed)
+            .truncate(!resumed)
+            .open(part)?;
+        let mut count = have;
+        let mut block = [0u8; 65536];
+        loop {
+            if cancel.load(Ordering::SeqCst) {
+                file.sync_all()?;
+                return Err(Error::new("cancelled", "Cancelled."));
+            }
+            let n = match response.read(&mut block) {
+                Ok(n) => n,
+                Err(error) => {
+                    file.sync_all()?;
+                    return Err(interrupted(error));
+                }
+            };
             if n == 0 {
                 break;
             }
             count += n as u64;
             if count > MAX_DOWNLOAD {
-                return Err(Error::new(
-                    "too_large",
-                    "Installer exceeds the 1 GiB download limit.",
-                ));
+                return Err(too_large());
             }
             file.write_all(&block[..n])?;
             progress(count, total);
         }
-        file.as_file().sync_all()?;
-        verify(file.path(), &checked.asset)?;
-        Ok(file)
+        file.sync_all()?;
+        if served.is_some_and(|n| count < n) {
+            return Err(interrupted(std::io::Error::other("the body ended early")));
+        }
+        Ok(())
     }
+    /// A download request starting at `from` (no Range header at 0), ending at `to` inclusive if given.
+    fn ranged_response(
+        &self,
+        url: &str,
+        from: u64,
+        to: Option<u64>,
+    ) -> Result<reqwest::blocking::Response> {
+        let parsed = Url::parse(url).map_err(|e| Error::new("source", e.to_string()))?;
+        if !allowed(&parsed, self.test) {
+            return Err(Error::new(
+                "source",
+                "Release URL is outside the trusted GitHub source.",
+            ));
+        }
+        let mut request = self
+            .client
+            .get(parsed)
+            .header("Accept", "application/octet-stream");
+        if from > 0 || to.is_some() {
+            let end = to.map(|t| t.to_string()).unwrap_or_default();
+            request = request.header("Range", format!("bytes={from}-{end}"));
+        }
+        let response = request.send().map_err(|error| {
+            eprintln!("Download: {error}");
+            interrupted(std::io::Error::other(error))
+        })?;
+        let status = response.status();
+        if status.is_client_error() || status.is_server_error() {
+            return Err(http_error(status, response.headers()));
+        }
+        Ok(response)
+    }
+}
+const DOWNLOAD_ATTEMPTS: u32 = 3;
+fn too_large() -> Error {
+    Error::new("too_large", "Installer exceeds the 1 GiB download limit.")
+}
+fn interrupted(error: std::io::Error) -> Error {
+    eprintln!("Download: {error}");
+    Error::new(
+        "network",
+        "The download was interrupted. Check your internet connection and try again.",
+    )
+}
+fn content_range(response: &reqwest::blocking::Response) -> Option<&str> {
+    response.headers().get("Content-Range")?.to_str().ok()
 }
 impl HttpSource for Source {
     fn fetch(&self, url: &str, etag: Option<&str>, limit: u64) -> Result<Fetch> {

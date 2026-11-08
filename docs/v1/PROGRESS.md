@@ -2,7 +2,15 @@
 
 Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
 
-## 2026-11-07 — paused for the usage-limit reset (resume here)
+## 2026-11-08
+
+- D5 download ladder done: `src/delta.rs` (local chunk index from retained packages + installed file, bounded pieces and
+  Range requests), `Source::download_from` (delta → whole file resumed from `<sha256>.part`, 3 attempts, 30 s idle),
+  saved `<sha256>.manifest.json` beside retained packages and kept by pruning. TL-11's resume test is now a normal test;
+  new hub test checks an update fetches < ¼ of the file and that a Range-ignoring host falls back to a full download.
+- Next: catalog `bad` flag + rollback notice, then TL-9.
+
+## 2026-11-07 — paused for the usage-limit reset
 
 Done on the branch (all pushed, core suite green under `tools/e2e.py run`):
 - Lock (step 1), manager split (D4), fixes TL-8, TL-4, CLI-2, TL-6, TL-2, TL-3, TL-10, RD-TOOLS-1, TL-7.

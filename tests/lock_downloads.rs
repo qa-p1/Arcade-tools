@@ -1,6 +1,6 @@
 //! TL-11. The blocking client applies its timeout to each read of the body, so a slow but steady download finishes
-//! and only a quiet connection times out (the audit's "120 s total" reading did not hold; DECISIONS.md D3). What is
-//! missing is resume: an interrupted download starts again from byte 0.
+//! and only a quiet connection times out (the audit's "120 s total" reading did not hold; DECISIONS.md D3). An
+//! interrupted download resumes from its `.part` file (D5).
 mod support;
 use arcade_tools_core::release::{checksum, Arch, Channel, Os};
 use arcade_tools_core::source::Source;
@@ -10,8 +10,8 @@ use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-/// Serves `body` in 16 pieces `gap` apart. With `cut`, the first request stops halfway and drops the connection.
-/// Records each request's headers.
+/// Serves `body` in 16 pieces `gap` apart, honouring `Range: bytes=N-`. With `cut`, the first request stops halfway
+/// and drops the connection. Records each request's headers.
 fn trickle(body: Vec<u8>, gap: Duration, cut: bool) -> (String, Arc<Mutex<Vec<Vec<String>>>>) {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let url = format!("http://{}/asset", listener.local_addr().unwrap());
@@ -28,13 +28,32 @@ fn trickle(body: Vec<u8>, gap: Duration, cut: bool) -> (String, Arc<Mutex<Vec<Ve
                 }
                 headers.push(line.trim().to_ascii_lowercase());
             }
+            let from = headers
+                .iter()
+                .find_map(|h| {
+                    h.strip_prefix("range: bytes=")?
+                        .strip_suffix('-')?
+                        .parse::<usize>()
+                        .ok()
+                })
+                .filter(|&n| n < body.len());
             log.lock().unwrap().push(headers);
-            let _ = write!(
-                stream,
-                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
-                body.len()
-            );
-            for (i, piece) in body.chunks(body.len().div_ceil(16)).enumerate() {
+            let _ = match from {
+                Some(n) => write!(
+                    stream,
+                    "HTTP/1.1 206 Partial Content\r\nContent-Length: {}\r\nContent-Range: bytes {n}-{}/{}\r\nConnection: close\r\n\r\n",
+                    body.len() - n,
+                    body.len() - 1,
+                    body.len()
+                ),
+                None => write!(
+                    stream,
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    body.len()
+                ),
+            };
+            let rest = &body[from.unwrap_or(0)..];
+            for (i, piece) in rest.chunks(body.len().div_ceil(16)).enumerate() {
                 if cut && n == 0 && i == 8 {
                     break;
                 }
@@ -105,10 +124,9 @@ fn a_stalled_download_times_out() {
 }
 
 #[test]
-#[should_panic(expected = "KNOWN BUG TL-11")]
 fn an_interrupted_download_resumes_where_it_stopped() {
     let server = support::FakeRelease::new();
-    let body = vec![42u8; 64 * 1024];
+    let body: Vec<u8> = (0..64 * 1024).map(|i| (i % 251) as u8).collect();
     published(&server, &body);
     let source = Source::test_server(&server.url).unwrap();
     let mut checked = source
@@ -117,16 +135,19 @@ fn an_interrupted_download_resumes_where_it_stopped() {
     let (url, seen) = trickle(body, Duration::from_millis(10), true);
     checked.url = url;
     let cache = server.root.path().join("downloads");
-    let cancel = AtomicBool::new(false);
-    assert!(source
-        .download(&checked, &cache, &cancel, &mut |_, _| {})
-        .is_err());
-    let _ = source.download(&checked, &cache, &cancel, &mut |_, _| {});
+    let file = source
+        .download(&checked, &cache, &AtomicBool::new(false), &mut |_, _| {})
+        .unwrap();
+    assert_eq!(checksum(file.path()).unwrap(), checked.asset.sha256);
     let requests = seen.lock().unwrap().clone();
+    assert_eq!(requests.len(), 2, "{requests:?}");
     assert!(
-        requests
-            .get(1)
-            .is_some_and(|h| h.iter().any(|l| l.starts_with("range: bytes=32768-"))),
-        "KNOWN BUG TL-11: the retry asked for the whole file again: {requests:?}"
+        requests[1].iter().any(|l| l == "range: bytes=32768-"),
+        "the retry asked for the whole file again: {requests:?}"
+    );
+    drop(file);
+    assert!(
+        std::fs::read_dir(&cache).unwrap().next().is_none(),
+        "the finished .part is not left behind"
     );
 }
