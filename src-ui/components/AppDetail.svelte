@@ -119,7 +119,13 @@
       {#if !installed}
         <button class="btn primary" type="button" disabled={busy || Boolean(installReason) || !installedApp?.installSupported} onclick={() => askToConfirm('install')}>Install</button>
       {:else}
-        <button class="btn primary" type="button" disabled={busy || Boolean(installReason) || !installedApp?.installSupported} onclick={() => askToConfirm('update')}>Update</button>
+        {#if latest?.updateAvailable}
+          <button class="btn primary" type="button" disabled={busy || Boolean(installReason) || !installedApp?.installSupported} onclick={() => askToConfirm('update')}>Update to v{latest.version}</button>
+        {:else if latest}
+          <button class="btn" type="button" disabled>Up to date</button>
+        {:else}
+          <button class="btn" type="button" disabled={busy} onclick={() => run(onCheckLatest, app.name)}>Check for updates</button>
+        {/if}
       {/if}
     </div>
   </header>

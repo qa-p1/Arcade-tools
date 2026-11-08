@@ -308,6 +308,7 @@
         apps={ui.apps}
         selected={ui.selected}
         releases={ui.releases}
+        updates={ui.updates}
         releaseNotesHtml={ui.releaseNotesHtml}
         catalogData={ui.catalogData}
         catalogLoading={ui.catalogLoading}

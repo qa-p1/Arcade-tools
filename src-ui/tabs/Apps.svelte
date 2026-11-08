@@ -4,7 +4,7 @@
   import { escapeGoesBack } from '../lib/escape';
   import AppCard from '../components/AppCard.svelte';
   import AppDetail from '../components/AppDetail.svelte';
-  import type { AppView, Channel, Operation, Release } from '../lib/api';
+  import type { AppView, Channel, Operation, Release, UpdateState } from '../lib/api';
   import type { CatalogApp, CatalogBundle, CatalogData } from '../lib/catalog';
   import type { ShortcutsIndex } from '../lib/shortcuts';
   import { ui } from '../lib/state.svelte';
@@ -15,6 +15,8 @@
     apps: AppView[];
     selected: string | null;
     releases: Map<string, Release>;
+    /** The scheduler's last check, which Home and Updates report too (RD-TOOLS-3). */
+    updates: UpdateState | null;
     releaseNotesHtml: Record<string, string>;
     catalogData: CatalogData | null;
     catalogLoading: boolean;
@@ -38,11 +40,25 @@
   };
 
   let {
-    active, apps, selected, releases, releaseNotesHtml, catalogData, catalogLoading, shortcuts, busy,
+    active, apps, selected, releases, updates, releaseNotesHtml, catalogData, catalogLoading, shortcuts, busy,
     onChannel, onLogin, onLaunch, onInstall, onCheckUpdates, onOperation, onReleases,
     onCatalogRefresh, onCheckLatest, onOpenDocs, onInstallCatalogApp, onUpdateCatalogApp,
     onUninstallCatalogApp, onInstallBundle, run,
   }: Props = $props();
+
+  /** This session's explicit check, else the scheduler's last result for the app's selected channel. */
+  function latestFor(id: string): Release | undefined {
+    const checked = releases.get(id);
+    if (checked) return checked;
+    const state = updates?.apps[id];
+    const channel = apps.find((app) => app.id === id)?.channel ?? state?.channel;
+    const latest = channel ? state?.latest[channel] : undefined;
+    if (!state || !channel || !latest?.latestVersion || latest.error) return undefined;
+    return {
+      id, version: latest.latestVersion, channel, file: '', notes: latest.cache?.release.notes ?? '',
+      updateAvailable: latest.updateAvailable && !latest.heldBack,
+    };
+  }
 
   let detailId = $state<string | null>(null);
   let category = $state('all');
@@ -153,7 +169,7 @@
     <AppDetail
       app={detailApp}
       installedApp={detailView}
-      latest={releases.get(detailApp.id)}
+      latest={latestFor(detailApp.id)}
       releaseNotesHtml={releaseNotesHtml[detailApp.id]}
       shortcuts={shortcuts}
       engines={catalogData?.engines.engines ?? []}

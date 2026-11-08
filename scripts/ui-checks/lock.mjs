@@ -26,6 +26,23 @@ export default {
     await sleep(200);
     assert(await page.locator('.catalog-detail').count() === 0, 'still on the details page');
   },
+  async 'Details agree with the last update check (RD-TOOLS-3)'(page) {
+    await page.evaluate(() => {
+      const m = window.__mock;
+      const latest = { latestVersion: '1.0.0', updateAvailable: false, heldBack: false, reason: null, error: null, cache: null };
+      m.state.updates = {
+        schema: 1, lastCheck: Date.now() / 1000 - 60, lastSuccess: Date.now() / 1000 - 60, lastFailure: null,
+        apps: Object.fromEntries(m.state.apps.map((a) => [a.id, { installedVersion: '1.0.0', channel: 'stable', latest: { stable: latest }, updateAvailable: false, heldBack: false, reason: null }])),
+      };
+      m.emit('updates-changed', m.state.updates);
+    });
+    await sleep(200);
+    await openDetails(page);
+    const facts = await page.textContent('.catalog-detail .facts');
+    const actions = await page.textContent('.catalog-detail .detail-actions');
+    assert(facts.includes('Latest') && facts.includes('v1.0.0') && !facts.includes('Not checked'), facts);
+    assert(actions.includes('Up to date') && !/Update/.test(actions), actions);
+  },
   async 'Escape returns from the details page (TL-3)'(page) {
     await openDetails(page);
     await page.keyboard.press('Escape');

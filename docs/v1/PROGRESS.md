@@ -22,7 +22,10 @@ Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
   wait by polling `try_wait` instead of the SIGCHLD-based `wait-timeout` crate, which GTK/GLib's own SIGCHLD handler
   starved. Unit test replaces the SIGCHLD handler and fails without the fix (timed out).
 - Draft PR qa-p1/Arcade-tools#23 opened for CI; this session watches it.
-- Next: RD-TOOLS-3/6, TL-12; then T3 after Link 1.0.1; then PLAN steps 4–8.
+- RD-TOOLS-3 fixed: Details falls back to the scheduler's last result for the selected channel; the action reads
+  "Update to vX" only when one is available, "Up to date" (disabled) when current, "Check for updates" when unknown.
+  UI check in `lock.mjs`.
+- Next: RD-TOOLS-6, TL-12; then T3 after Link 1.0.1; then PLAN steps 4–8.
 
 ## 2026-11-07 — paused for the usage-limit reset
 
