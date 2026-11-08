@@ -4,6 +4,15 @@ Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
 
 ## 2026-11-08 (session 2)
 
+- **Gates on rc.3** ([run 42500704532](https://github.com/qa-p1/Arcade-tools/actions/runs/42500704532)), the
+  workflow's first run, on the published files: SHA256SUMS, manifest and prerelease checks pass; conformance (every
+  rule), package smoke on the AppImage, exe and dmg, upgrade 0.4.6 → 1.0.0 with data kept, maintenance, resident
+  (3 cycles, PID stable), tray (window in 188 ms), N-1 on Link v0.4.4 and v0.4.15, Tier 1 Hyprland and Tier 2
+  sway/KWin/Mutter/X11 all pass. Budgets met: PSS background 1.2 / open 257.8 / closed 11.5 MB; cold start 564 ms,
+  show 536 ms, wakeups 0.3 bg / 9.7 open / 0.7 closed, disk 371.5 MB. The delta test passed (14.1 of 94.5 MB from
+  0.4.6, tampered chunk and bad signature refused), but its step failed afterwards: `tee target/delta.log` ran before
+  `target/` existed. The run is red, so rc.3 cannot be promoted; the fix (log to `$RUNNER_TEMP`) goes into rc.4,
+  which is needed anyway for the rc.3 → rc.4 self-update.
 - **rc.3 published** ([v1.0.0-rc.3](https://github.com/qa-p1/Arcade-tools/releases/tag/v1.0.0-rc.3), from f246c5b,
   PR #40). Release run 42497501163: the first attempt's Linux bundle timed out in `verify-resident.py` (the first
   window open after a background start did not return in 25 s); macOS and Windows passed. The same step passed on
