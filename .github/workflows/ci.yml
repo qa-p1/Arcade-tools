@@ -201,7 +201,8 @@ jobs:
   # failure; Tier 2 (sway, KWin, Mutter, X11) blocks on a crash or data loss.
   desktop:
     needs: check
-    if: ${{ !inputs.skip_packages }}
+    # Its own gate: reports even when another check step failed, as long as the AppImage was uploaded.
+    if: ${{ !cancelled() && !inputs.skip_packages }}
     uses: qa-p1/Arcade-Link/.github/workflows/desktop-e2e.yml@v1.0.2
     with:
       name: tools
@@ -211,7 +212,8 @@ jobs:
       link-ref: v1.0.2
   desktop-tier2:
     needs: check
-    if: ${{ !inputs.skip_packages }}
+    # Its own gate: reports even when another check step failed, as long as the AppImage was uploaded.
+    if: ${{ !cancelled() && !inputs.skip_packages }}
     uses: qa-p1/Arcade-Link/.github/workflows/desktop-tier2.yml@v1.0.2
     with:
       artifact: tools-appimage
