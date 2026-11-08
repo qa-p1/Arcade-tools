@@ -4,6 +4,13 @@ Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
 
 ## 2026-11-08 (session 2)
 
+- Upgrade gate script `scripts/verify-upgrade.py OLD NEW` (under `dbus-run-session -- xvfb-run -a`): installs the
+  published OLD from a download with Start at login, runs it on a user's settings, tray choices, update state and
+  history (in OLD's own file shapes, read back after OLD ran), installs NEW over it while OLD runs, then checks NEW
+  replaced the copy in place, kept all of it and Start at login, and moved launcher, command and login entry to
+  itself (0.4.6's `app.arcadetools.desktop` must not remain). Dry run: published 0.4.6 (SHA256SUMS verified) → local
+  build passes. At rc time it runs against the published rc file. No Tools nightly has ever been published, so the
+  Nightly → Stable half of that gate uses the first nightly built from 1.0 (recorded for step 8).
 - N-1 (D11): CI runs the tray test's peer checks (hosting, cached menu toggle, Start) with the mock peer served by
   the v0.4.4 and v0.4.15 Link CLIs that the published apps were built with; both pass locally against this build
   (3 s each). The full tray test also passes locally with the overlay built: its `--show-shortcuts` step expected
