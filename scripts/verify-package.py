@@ -26,6 +26,11 @@ package = packages[0]
 def lifecycle(executable, environment, root):
     def run(*args):
         return subprocess.run([str(executable), *args], env=environment, capture_output=True, text=True, encoding='utf-8', check=True, timeout=90)
+    # README §Clean uninstall: whatever Tools adds to a fresh profile, --uninstall --remove-data takes away again
+    # (the runtime folder only holds sockets of processes that have exited).
+    def files():
+        return {p for p in root.rglob('*') if not p.is_dir() and not p.is_relative_to(root / 'runtime')}
+    fresh = files()  # the package; on Linux also the legacy self-update copy staged below
     # Old Tools stages self-updates in this legacy cache. Migration must not
     # remove the executing AppImage before the installer copies its bytes.
     if sys.platform == 'linux':
@@ -35,6 +40,7 @@ def lifecycle(executable, environment, root):
         staged = legacy / 'self-update.AppImage'
         shutil.copy2(executable, staged)
         staged.chmod(0o755)
+        fresh.add(staged)
         result = subprocess.run([str(staged), '--install', '--silent', '--no-launch'],
             env=environment, capture_output=True, text=True, check=True, timeout=90)
         upgraded = json.loads(result.stdout)
@@ -50,6 +56,10 @@ def lifecycle(executable, environment, root):
     run('--repair')
     run('--uninstall', '--silent')
     assert not receipt_path.exists()
+    run('--install', '--silent', '--no-launch')
+    run('--uninstall', '--silent', '--remove-data')
+    left = sorted(str(p.relative_to(root)) for p in files() - fresh)
+    assert not left, f'--uninstall --remove-data left files in a fresh profile: {left}'
 
 
 with tempfile.TemporaryDirectory(prefix='arcade-tools-package-') as temporary:
