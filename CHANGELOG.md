@@ -18,7 +18,8 @@ and versions follow [Semantic Versioning](https://semver.org/).
 ### Changed
 - Arcade Link 1.0.3: the 1.0 runtime, release manifests and update primitives. 1.0.2 trims read-only data too
   (background memory about 40 → 15–18 MB PSS) and makes uninstall leave no lock file or empty icon/desktop cache;
-  1.0.3 pages out every private mapping once the window closes (about 36 → 12 MB PSS while closed).
+  1.0.3 pages out every private mapping once the window closes (about 36 → 12 MB PSS while closed). 1.0.4 runs the
+  desktop end-to-end tests against the app outside its checkout and adds the performance budgets CI checks.
 - Tools trims its memory again once startup settles and after each background update check.
 - Tools runs from an unpacked copy of its AppImage and trims its memory, and the WebView's, while the window is open
   and after it closes; unused unpacked copies are removed.

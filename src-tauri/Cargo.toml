@@ -16,12 +16,12 @@ native-tray-check = ["tauri/tray-icon"]
 [build-dependencies]
 tauri-build = { version = "=2.6.3", features = [] }
 resvg = { version = "0.45", default-features = false }
-arcade-link = { git = "https://github.com/qa-p1/Arcade-Link", tag = "v1.0.3", features = ["design"] }
+arcade-link = { git = "https://github.com/qa-p1/Arcade-Link", tag = "v1.0.4", features = ["design"] }
 
 [dependencies]
 arcade-tools-core = { path = ".." }
 # Shared tray and installer contracts are pinned to the released Link tag.
-arcade-link = { git = "https://github.com/qa-p1/Arcade-Link", tag = "v1.0.3", features = ["watch", "install", "trayhost", "design"] }
+arcade-link = { git = "https://github.com/qa-p1/Arcade-Link", tag = "v1.0.4", features = ["watch", "install", "trayhost", "design"] }
 arcade-shortcuts = { path = "../crates/arcade-shortcuts" }
 arcade-tools-overlay = { path = "../crates/arcade-tools-overlay" }
 tauri = { version = "=2.11.6", features = [] }
