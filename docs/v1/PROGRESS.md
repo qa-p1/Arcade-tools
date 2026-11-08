@@ -4,6 +4,11 @@ Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
 
 ## 2026-11-08 (session 2)
 
+- Design pass (D13): `scripts/verify-design.py` in `scripts/check` holds the UI to the kit (colours, type, tokens,
+  spacing scale) and the kit's error wording in UI and Rust; it found and the pass fixed 6 off-scale gaps and 8
+  "Could not" messages (one pointed to a Rebuild button that does not exist). `SCREENS_STATES=1` captures empty,
+  list, settings and error in both themes for the fleet sheet; reviewing them fixed the error state's header and
+  toast. UI checks, typecheck and rustfmt pass locally.
 - On Link v1.0.4 (37ba008; Link's crate code is unchanged from 1.0.3, the design kit re-syncs with no differences):
   the desktop workflows run the app from outside the checkout, and CI's Linux job runs `perf_budget.py` against the
   package with the budgets of D12 (3913326). Waiting for PR #23's full run.

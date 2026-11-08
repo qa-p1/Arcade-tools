@@ -276,12 +276,12 @@
 
 <style>
   .back-button { margin: -6px 0 14px -8px; }
-  .detail-head { display: flex; align-items: center; gap: 16px; margin-bottom: 28px; }
+  .detail-head { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; }
   .detail-head h1 { font-size: var(--fs-title); font-weight: 600; letter-spacing: -.015em; }
   .detail-head .sub { margin-top: 2px; color: var(--muted); }
   .detail-actions { display: flex; gap: 8px; }
-  .detail-grid { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 28px; align-items: start; }
-  .detail-block + .detail-block { margin-top: 30px; }
+  .detail-grid { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 24px; align-items: start; }
+  .detail-block + .detail-block { margin-top: 32px; }
   .detail-block h2 { margin-bottom: 10px; font-size: var(--fs-heading); font-weight: 600; }
   .block-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
   .block-head h2 { margin: 0; }

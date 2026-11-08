@@ -231,3 +231,19 @@ Xvfb profile, and the limits live in the `perf` block of Link's `budgets.json`, 
 400 MB. CI fails on any of them (exit 1) and on a metric it could not measure. Like D10, they are ratchets: lowered
 once CI's measurements show room, never raised without a new decision here. Disk counts the installed AppImage and
 its unpacked copy (U1, ~88 + 282 MB): the unpacked copy is what makes start and show fast and memory low.
+
+## D13 — Design pass: what "from the kit" means, and how it stays true
+
+README's design pass asks that fonts, icons, spacing, colours and error wording come from the Link design kit, with
+the same states (empty, list, settings, error; light and dark) captured for every app. STANDARD §11 checks colours and
+font sizes only; §4 also says "Nothing off-scale" for spacing, and §9 fixes the error form.
+
+**Decision.** `scripts/verify-design.py` (run by `scripts/check`, so CI's check job on every OS) fails on a colour
+literal, a px font size or a font family outside the kit's variables, an undefined `var(--token)`, a padding, margin
+or gap off the kit's spacing scale (1 px hairlines allowed), and a "Could not / Failed to / Unable to" message in the UI
+or in Rust outside logging. The pass snapped six off-scale gaps (22, 28, 30 → 24 or 32; the Connections indent is
+now the row's own `--sp-14 + --tile + --sp-12`) and rewrote eight Rust messages to "Couldn't <verb> <thing>. <Reason>.
+<What to do>." One of them sent people to a "Rebuild" button that does not exist; it now says changes show after Tools
+restarts, which is what happens. `screens.mjs` with `SCREENS_STATES=1` captures the four states in both themes for
+the fleet sheet (`dev/v1/fleet-screens/`). Looking at them found the error state's header still reading "Loading your
+apps…" and its toast repeating the bare reason; both now say "Couldn't list your apps".

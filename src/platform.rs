@@ -852,7 +852,7 @@ fn set_autostart_entry(
             if fs::read_to_string(&path)? != proposed {
                 return Err(Error::new(
                     "autostart",
-                    "Could not verify the saved login entry.",
+                    "Couldn't save Start at login. The login entry reads back differently. Try again.",
                 ));
             }
             #[cfg(target_os = "linux")]
@@ -911,7 +911,7 @@ fn set_autostart_entry(
         {
             return Err(Error::new(
                 "autostart",
-                "Could not verify the saved login entry.",
+                "Couldn't save Start at login. The login entry reads back differently. Try again.",
             ));
         }
     }
@@ -977,7 +977,7 @@ fn set_shelf_autostart(
         }
         return Err(Error::new(
             "autostart",
-            "Could not verify Shelf's login entry.",
+            "Couldn't save Start at login for Shelf. Its login entry reads back differently. Try again.",
         ));
     }
     Ok(())

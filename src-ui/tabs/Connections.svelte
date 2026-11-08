@@ -125,7 +125,7 @@
   .peer-row .row-title, .peer-row .row-sub { display: block; }
   .chevron { display: grid; color: var(--faint); transition: transform .15s; }
   .chevron.open { transform: rotate(180deg); }
-  .peer-detail { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px 24px; padding: 4px 14px 14px 62px; }
+  .peer-detail { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px 24px; padding: 4px 14px 14px calc(var(--sp-14) + var(--tile) + var(--sp-12)); }
   h3 { margin-bottom: 6px; color: var(--muted); font-size: var(--fs-small); font-weight: 600; }
   ul { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: var(--fs-control); }
   .detail-foot { display: flex; grid-column: 1 / -1; align-items: center; justify-content: space-between; gap: 12px; padding-top: 12px; border-top: 1px solid var(--line); font-size: var(--fs-small); }

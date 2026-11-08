@@ -757,7 +757,7 @@ fn initialize_desktop(app: &AppHandle) -> Result<Arc<Manager>> {
                 let _ = handle.emit("registry-changed", ());
             }
         }) {
-            return Err(Error::new("watch", "Could not watch the Arcade registry."));
+            return Err(Error::new("watch", "Couldn't watch the Arcade registry. App changes won't show until Tools restarts. Restart Tools."));
         }
         *state.registry.lock().unwrap_or_else(|e| e.into_inner()) = Some(registry);
         // Optional integration housekeeping must never prevent Tools itself

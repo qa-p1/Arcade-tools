@@ -43,7 +43,7 @@ fn validate(path: &Path, expected: &str, os: Os) -> Result<()> {
     if fs::read_to_string(path)? != expected {
         return Err(Error::new(
             "autostart",
-            "Could not verify the saved login entry.",
+            "Couldn't save Start at login. The login entry reads back differently. Try again.",
         ));
     }
     if os == Os::current() {

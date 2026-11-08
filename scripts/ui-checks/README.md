@@ -15,7 +15,8 @@ SCREENS_DIR=target/ui-screens node scripts/ui-checks/harness.mjs dist scripts/ui
 `screens.mjs` takes every tab in light and dark at 1100×760 and 700×600 for
 before/after comparisons; it is not part of `ui-checks`. With `SCREENS_DOCS=1`
 it writes the user guide's images (`docs/user/images/home.png`, `apps.png`,
-`updates.png`) instead.
+`updates.png`) instead, and with `SCREENS_STATES=1` the design pass's four states
+(empty, list, settings, error) in light and dark, as `<state>-<theme>.png`.
 
 Set `CHROMIUM` to use a Chromium other than Playwright's own. Each scenario
 asserts the correct behaviour and prints PASS or FAIL.

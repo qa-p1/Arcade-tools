@@ -28,6 +28,9 @@ and versions follow [Semantic Versioning](https://semver.org/).
   the state is unknown.
 
 ### Fixed
+- Design pass: spacing is on the kit's scale everywhere, error messages read "Couldn't …" with what to do
+  next, and when the app list can't load, Home says so instead of "Loading your apps…". A shortcut-watching
+  warning no longer points to a Rebuild button that doesn't exist.
 - `--show-shortcuts` waits for the overlay, so the AppImage stays mounted while it is open.
 - The packaged shortcut overlay no longer bundles libxkbcommon, which broke typing on newer X11 systems.
 - Engine version checks no longer time out when GTK takes over child-process signals.

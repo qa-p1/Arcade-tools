@@ -82,7 +82,7 @@
     <div>
       <h1>Home</h1>
       <p class="sub">
-        {ui.loaded ? `${installed.length} installed · ${running.length} running${dashboard?.totalMemoryBytes ? ` · ${formatSize(dashboard.totalMemoryBytes)} in use` : ''}` : 'Loading your apps…'}
+        {ui.loaded ? `${installed.length} installed · ${running.length} running${dashboard?.totalMemoryBytes ? ` · ${formatSize(dashboard.totalMemoryBytes)} in use` : ''}` : ui.loadError ? "Couldn't list your apps" : 'Loading your apps…'}
       </p>
     </div>
     <div class="page-actions">

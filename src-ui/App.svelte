@@ -185,7 +185,7 @@
         openIntent(trayIntent);
       } catch (error) {
         ui.loadError = asFailure(error).message;
-        setMessage(ui.loadError, true);
+        setMessage(`Couldn't list your apps. ${ui.loadError}`, true);
       } finally {
         windowReady();
       }
