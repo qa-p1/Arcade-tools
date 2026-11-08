@@ -117,6 +117,15 @@ jobs:
           # Use the host libwayland-client; Ubuntu's copy breaks EGL on newer distributions.
           LINUXDEPLOY_EXCLUDED_LIBRARIES: 'libwayland-client.so*;libxkbcommon.so*'
         run: npm run tauri -- build --config src-tauri/tauri.bundle.conf.json --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+      # The AppImage this run builds, for the desktop jobs below (Link's Tier 1 and Tier 2 harness); uploaded
+      # before the checks so a failing check still leaves the desktop gates their file.
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Linux' && !inputs.skip_packages
+        with:
+          name: tools-appimage
+          path: Arcade-tools/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage
+          retention-days: 7
+          if-no-files-found: error
       - name: Package smoke in a disposable profile
         if: ${{ !inputs.skip_packages }}
         run: python3 scripts/verify-package.py --target ${{ matrix.target }}
@@ -154,14 +163,6 @@ jobs:
       - name: Verify closing windows never restarts the published app
         if: runner.os == 'Linux' && !inputs.skip_packages
         run: dbus-run-session -- xvfb-run -a python3 scripts/verify-resident.py target/${{ matrix.target }}/release/bundle/appimage/*.AppImage arcade.tools
-      # The AppImage this run tested, for the desktop jobs below (Link's Tier 1 and Tier 2 harness).
-      - uses: actions/upload-artifact@v4
-        if: runner.os == 'Linux' && !inputs.skip_packages
-        with:
-          name: tools-appimage
-          path: Arcade-tools/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage
-          retention-days: 7
-          if-no-files-found: error
       # Link's nightly ecosystem check installs, updates, repairs and removes
       # this exact build (it fetches tools-installer-ubuntu-* from main runs).
       - name: Stage the Linux installer for the ecosystem check
