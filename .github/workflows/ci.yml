@@ -218,6 +218,15 @@ jobs:
           python3 ../Arcade-link/tools/fleet/fleet_budget.py --apps target/budget --only tools --section xvfb \
             --budgets ../Arcade-link/tools/fleet/budgets.json --settle 30 --open tools --close-wait 20 \
             --json target/budget/memory.json | tee -a "$GITHUB_STEP_SUMMARY"
+      # Link's performance budgets on the same package (RT-6, PERF-2; DECISIONS.md D12): cold start and show latency,
+      # idle CPU and wakeups in the background, with Home open and after closing it, and disk use.
+      - name: Performance budgets of the package
+        if: runner.os == 'Linux' && !inputs.skip_packages
+        timeout-minutes: 10
+        run: |
+          python3 ../Arcade-link/tools/fleet/perf_budget.py --app target/budget/Arcade-Tools.AppImage --name tools \
+            --window '^Arcade Tools$' --budgets ../Arcade-link/tools/fleet/budgets.json --section xvfb \
+            --json target/budget/perf.json | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Automatic integration repair with the real AppImage
         if: runner.os == 'Linux' && !inputs.skip_packages
         run: dbus-run-session -- xvfb-run -a python3 scripts/verify-maintenance.py target/${{ matrix.target }}/release/bundle/appimage/*.AppImage

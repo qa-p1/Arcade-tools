@@ -218,3 +218,16 @@ v0.4.15 (Wheel has no Link crate pin).
 kit, install code and peer descriptions, not the wire format, so v0.4.14 is covered), while the current CLI watches the tray and reads status. Mocks are used instead of the published apps
 because they exercise the same protocol code without each app's GUI, engines and 30 s of start-up per run. When apps
 ship 1.0 on Link 1.0.x, the pair moves to the Link of the previous stable release of each peer.
+
+## D12 — Performance budgets (cold start, show, idle CPU and wakeups, disk)
+
+README asks for idle CPU ≈ 0 % with bounded wakeups (background and with the default page open), cold start, show
+latency and disk use within budget, without numbers. Link's `perf_budget.py` measures them on the package in a private
+Xvfb profile, and the limits live in the `perf` block of Link's `budgets.json`, beside the memory budgets (D7, D10).
+
+**Decision.** Tools' limits, set from a local run of the same tool (cold start 690 ms, show 614 ms, CPU 0.0 / 0.4 /
+0.03 %, wakeups 0.2 / 2.2 / 0.4 per second, disk 370 MB) with headroom for CI runners and llvmpipe: cold start
+1500 ms, show 1000 ms, background and closed CPU 0.5 % and 5 wakeups/s, Home open 2.0 % and 20 wakeups/s, disk
+400 MB. CI fails on any of them (exit 1) and on a metric it could not measure. Like D10, they are ratchets: lowered
+once CI's measurements show room, never raised without a new decision here. Disk counts the installed AppImage and
+its unpacked copy (U1, ~88 + 282 MB): the unpacked copy is what makes start and show fast and memory low.
