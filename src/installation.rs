@@ -144,7 +144,9 @@ pub fn install_args(asset: &Asset, channel: Channel) -> Result<Option<Vec<String
         "--install".into(),
         "--silent".into(),
         "--channel".into(),
-        channel.as_str().into(),
+        // The install contract takes stable or nightly: an rc (Test) installs as Stable, since Test is never stored
+        // (DECISIONS.md D5). Asking for "test" made every rc install fail.
+        channel.stored().as_str().into(),
         "--no-launch".into(),
     ]))
 }
@@ -225,7 +227,7 @@ pub fn validate_receipt(
     receipt.validate()?;
     if receipt.id != id
         || !release::versions_match(&receipt.version, version, channel)
-        || receipt.channel != channel.as_str()
+        || receipt.channel != channel.stored().as_str()
         || receipt.method == InstallMethod::Dev
     {
         return Err(Error::new(

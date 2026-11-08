@@ -431,7 +431,7 @@ impl Manager {
                 &r.version,
                 &package.release.version,
                 package.release.channel,
-            ) && r.channel == package.release.channel.as_str()
+            ) && r.channel == package.release.channel.stored().as_str()
         });
         if install_args.is_some() && !app_written {
             return Err(Error::new(
@@ -643,7 +643,8 @@ impl Manager {
                         "--install".into(),
                         "--silent".into(),
                         "--channel".into(),
-                        channel.as_str().into(),
+                        // stable or nightly only: Test is never stored (DECISIONS.md D5).
+                        channel.stored().as_str().into(),
                         "--no-launch".into(),
                     ],
                 )?;

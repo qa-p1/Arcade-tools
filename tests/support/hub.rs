@@ -71,6 +71,10 @@ if '--install' in args:
     # A real resident such as Find execs itself unless Tools suppresses launch.
     # Refuse here so a missing --no-launch fails promptly instead of hanging.
     assert '--no-launch' in args, 'Managed installer would launch a resident'
+    # The shared install contract (Tools' own --install too) takes stable or nightly, nothing else.
+    if '--channel' in args and args[args.index('--channel')+1] not in ('stable', 'nightly'):
+        print('usage: Choose stable or nightly.', file=sys.stderr)
+        sys.exit(1)
     old = json.loads(receipt_file.read_text()) if receipt_file.exists() else None
     previous = old.get('previous') if old else None
     source = pathlib.Path(sys.argv[0]).resolve()

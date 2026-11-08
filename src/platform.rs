@@ -189,7 +189,8 @@ pub fn windows_install_options(
     let destination = command.args.pop().unwrap();
     command
         .args
-        .push(format!("/ARCADECHANNEL={}", channel.as_str()));
+        // stable or nightly only: Test is never stored (DECISIONS.md D5).
+        .push(format!("/ARCADECHANNEL={}", channel.stored().as_str()));
     command.args.push("/ARCADEMANAGEDBY=tools".into());
     if asset.kind == Kind::Inno {
         command.args.push(format!(

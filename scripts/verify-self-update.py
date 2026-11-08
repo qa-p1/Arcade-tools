@@ -49,16 +49,19 @@ def main():
     assert digest(old_image) != new_digest, "OLD and NEW are the same file"
     with tempfile.TemporaryDirectory(prefix="tools-self-update-") as directory:
         root = Path(directory)
-        profile = root / "profile"
+        home = root / "home"
+        # A private home with its own XDG folders, and no ARCADE_HOME: ARCADE_HOME marks a test profile, in which
+        # Tools never runs its timed update checks (hub.rs), so the update a user gets could not happen.
         env = {k: v for k, v in os.environ.items() if not k.startswith("ARCADE_") and k not in (
             "APPIMAGE", "APPDIR", "LD_LIBRARY_PATH", "WAYLAND_DISPLAY", "HYPRLAND_INSTANCE_SIGNATURE", "SWAYSOCK")}
-        env.update(ARCADE_HOME=str(profile), HOME=str(root / "home"), XDG_CONFIG_HOME=str(profile / ".config"),
-                   XDG_DATA_HOME=str(profile / ".local/share"), XDG_CACHE_HOME=str(profile / ".cache"),
+        env.update(HOME=str(home), XDG_CONFIG_HOME=str(home / ".config"), XDG_DATA_HOME=str(home / ".local/share"),
+                   XDG_CACHE_HOME=str(home / ".cache"), XDG_RUNTIME_DIR=str(root / "run"),
                    ARCADE_NO_INSTALL_PROMPT="1", ARCADE_TOOLS_CHANNEL_OVERRIDE="test", GDK_BACKEND="x11")
-        downloads = root / "home/Downloads"
+        (root / "run").mkdir(mode=0o700)
+        downloads = home / "Downloads"
         downloads.mkdir(parents=True)
-        state = profile / ".local/share/arcade/tools"
-        endpoint = profile / "run/arcade.tools.endpoint"
+        state = home / ".local/share/arcade/tools"
+        endpoint = root / "run/arcade/arcade.tools.endpoint"
         log_path = root / "tools.log"
         log = log_path.open("w+b")
         launched = []
@@ -139,6 +142,10 @@ def main():
             subprocess.run([str(installed), "--quit"], env=env, capture_output=True, timeout=30)
         except Exception:
             print(logged().decode(errors="replace")[-6000:])
+            # Tools' own record of what its checks found and decided.
+            for name in ("preferences.json", "updates.json", "update-history.jsonl"):
+                file = state / name
+                print(f"--- {name}:\n{file.read_text()[-4000:] if file.is_file() else '(missing)'}")
             raise
         finally:
             if pid := resident():

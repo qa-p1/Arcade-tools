@@ -34,6 +34,9 @@ and versions follow [Semantic Versioning](https://semver.org/).
 - Design pass: spacing is on the kit's scale everywhere, error messages read "Couldn't …" with what to do
   next, and when the app list can't load, Home says so instead of "Loading your apps…". A shortcut-watching
   warning no longer points to a Rebuild button that doesn't exist.
+- Updating to a release candidate on the test channel no longer fails in the installer, and an update that fails
+  to install is not retried every minute; automatic updates wait for a newer release. Tools' own automatic update
+  also respects a rollback now.
 - Tools started at login updates itself at the first check when automatic updates are on for it; a background
   start used to count as use, which put the update off by six hours.
 - `--show-shortcuts` waits for the overlay, so the AppImage stays mounted while it is open.

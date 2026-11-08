@@ -406,7 +406,9 @@ fn sync_selected(state: &mut AppUpdate) {
     }
 }
 pub(crate) fn is_newer(installed: &InstalledApp, release: &Release, sha256: &str) -> bool {
-    if installed.channel != release.channel {
+    // Compared as stored: an rc (Test) installs as Stable, so an installed rc is not "on another channel" from the
+    // rc it came from; at equal versions the package hash decides, as for any release.
+    if installed.channel.stored() != release.channel.stored() {
         return true;
     }
     if release.channel != Channel::Nightly {
@@ -567,6 +569,32 @@ mod tests {
             },
             "same",
         )
+    }
+
+    #[test]
+    fn an_installed_rc_and_the_next_rc_differ_only_by_their_hash() {
+        // An rc installs as Stable (Test is never stored); the next rc reports the same version on Test.
+        let installed = |hash: &str| InstalledApp {
+            id: "arcade.tools".into(),
+            version: "1.0.0".into(),
+            channel: Channel::Stable,
+            selected_channel: Channel::Test,
+            sha256: Some(hash.into()),
+        };
+        let rc = Release {
+            schema: 1,
+            id: "arcade.tools".into(),
+            version: "1.0.0".into(),
+            channel: Channel::Test,
+            link_protocol: vec![1],
+            notes: String::new(),
+            assets: vec![],
+        };
+        assert!(is_newer(&installed("rc3"), &rc, "rc4"));
+        assert!(
+            !is_newer(&installed("rc4"), &rc, "rc4"),
+            "the installed rc is not offered again"
+        );
     }
 
     #[test]
