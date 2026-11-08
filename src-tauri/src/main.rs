@@ -61,12 +61,7 @@ fn main() {
     }
     prepare_folders(&args);
     if args.iter().any(|arg| arg == "--restart") {
-        let result = arcade_link::client::Client::connect(
-            &arcade_link::Locations::discover(),
-            "arcade.tools",
-            &arcade_tools_core::manager::me(),
-        )
-        .and_then(|mut client| {
+        let result = connect_tools(&arcade_link::Locations::discover()).and_then(|mut client| {
             client
                 .call("app.restart", serde_json::json!({}))
                 .map(|_| ())
@@ -100,12 +95,7 @@ fn main() {
         return;
     }
     if args.iter().any(|a| a == "--quit") {
-        let result = arcade_link::client::Client::connect(
-            &arcade_link::paths::Locations::discover(),
-            "arcade.tools",
-            &arcade_tools_core::manager::me(),
-        )
-        .and_then(|mut client| {
+        let result = connect_tools(&arcade_link::Locations::discover()).and_then(|mut client| {
             if client
                 .status()?
                 .pointer("/status/busy")
@@ -211,16 +201,29 @@ fn check_args(args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+/// How long a command waits for the running Tools to answer `hello`: as long as Link's server waits for one (2 s).
+/// A Tools that is still starting (just restarted, or started at login) can answer late, and Link's default 150 ms
+/// is the liveness probe for background checks: `--quit` right after a restart failed with "didn't respond in time"
+/// (D17). A Tools that is not running still fails at once: there is no endpoint, or the connection is refused.
+const COMMAND_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(2);
+
+/// Connects to the running Tools for a command (`--quit`, `--restart`, `--status`, the folder-migration check).
+fn connect_tools(
+    locations: &arcade_link::Locations,
+) -> Result<arcade_link::Client, arcade_link::LinkError> {
+    arcade_link::client::Client::connect_with(
+        locations,
+        "arcade.tools",
+        &arcade_tools_core::manager::me(),
+        COMMAND_TIMEOUT,
+    )
+}
+
 /// ARCADE_APP.md CLI-1: one line of JSON, exit 0 when Tools runs and 3 (LSB "not running") otherwise. Asks the
 /// running Tools over Link and starts or registers nothing.
 fn print_status() -> i32 {
-    let me = arcade_tools_core::manager::me();
-    let answer = arcade_link::client::Client::connect(
-        &arcade_link::Locations::discover(),
-        "arcade.tools",
-        &me,
-    )
-    .and_then(|mut client| client.status());
+    let answer =
+        connect_tools(&arcade_link::Locations::discover()).and_then(|mut client| client.status());
     let (running, status) = match answer {
         Ok(status) => (true, status),
         Err(_) => (false, serde_json::Value::Null),
@@ -257,13 +260,7 @@ fn prepare_folders(args: &[String]) {
     };
     // Started from the launcher, at login or by an update, stderr would be lost.
     let _ = arcade_link::logs::capture_stderr(&paths.logs(), "arcade-tools");
-    if arcade_link::client::Client::connect(
-        &paths.link,
-        "arcade.tools",
-        &arcade_tools_core::manager::me(),
-    )
-    .is_ok()
-    {
+    if connect_tools(&paths.link).is_ok() {
         return;
     }
     let migration = paths.migrate_own_folders();

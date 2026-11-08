@@ -156,3 +156,88 @@ fn show_shortcuts_keeps_running_until_the_overlay_closes() {
         "--show-shortcuts returned while the overlay was still open"
     );
 }
+
+/// A Tools that is still starting (just restarted, or started at login) answers `hello` late. `--status` and
+/// `--quit` must wait for it as long as Link's server waits for a hello (2 s), not fail after Link's 150 ms liveness
+/// probe: `--quit` right after `--restart` exited 1 with "didn't respond in time" (rc.8 Release, D17).
+#[cfg(target_os = "linux")]
+#[test]
+fn status_and_quit_wait_for_a_tools_that_is_still_starting() {
+    use std::io::{BufRead, BufReader, Write};
+    use std::os::unix::net::UnixListener;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
+
+    let home = profile();
+    let locations = arcade_link::Locations::under(&home.path().join(".local/share/arcade"));
+    let address = arcade_link::transport::address_for(&locations, "arcade.tools").unwrap();
+    let token = arcade_link::endpoint::new_token().unwrap();
+    arcade_link::endpoint::write(
+        &locations,
+        "arcade.tools",
+        &arcade_link::endpoint::EndpointInfo {
+            protocol: vec![1],
+            transport: address.transport.into(),
+            address: address.address.clone(),
+            pid: std::process::id(),
+            started_at: String::new(),
+            token: token.clone(),
+        },
+    )
+    .unwrap();
+    let listener = UnixListener::bind(&address.address).unwrap();
+    let quit = Arc::new(AtomicBool::new(false));
+    let quitting = quit.clone();
+    std::thread::spawn(move || {
+        for stream in listener.incoming() {
+            let Ok(stream) = stream else { continue };
+            let (token, quitting) = (token.clone(), quitting.clone());
+            std::thread::spawn(move || {
+                let mut writer = stream.try_clone().unwrap();
+                for line in BufReader::new(stream).lines() {
+                    let Ok(line) = line else { return };
+                    let request: serde_json::Value = serde_json::from_str(&line).unwrap();
+                    let result = match request["method"].as_str().unwrap_or_default() {
+                        "hello" => {
+                            assert_eq!(request["params"]["token"], token.as_str());
+                            // Busy starting: well past 150 ms, well within 2 s.
+                            std::thread::sleep(Duration::from_millis(600));
+                            serde_json::json!({"server": {"id": "arcade.tools"}, "protocol": 1})
+                        }
+                        "app.status" => {
+                            serde_json::json!({"app": "arcade.tools", "status": {"busy": false}})
+                        }
+                        "app.quit" => {
+                            quitting.store(true, Ordering::SeqCst);
+                            serde_json::json!({})
+                        }
+                        other => panic!("unexpected request {other}"),
+                    };
+                    let reply = serde_json::json!({"v": 1, "id": request["id"], "result": result});
+                    if writeln!(writer, "{reply}").is_err() {
+                        return;
+                    }
+                }
+            });
+        }
+    });
+
+    let status = run(home.path(), &["--status"]).expect("--status hung");
+    let line: serde_json::Value = serde_json::from_slice(&status.stdout).unwrap();
+    assert_eq!(
+        (status.status.code(), &line["running"]),
+        (Some(0), &serde_json::json!(true)),
+        "--status took a starting Tools for not running: {line}"
+    );
+    let out = run(home.path(), &["--quit"]).expect("--quit hung");
+    assert!(
+        out.status.success(),
+        "--quit exited {:?}: {}",
+        out.status.code(),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        quit.load(Ordering::SeqCst),
+        "--quit never asked Tools to quit"
+    );
+}

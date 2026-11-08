@@ -4,6 +4,13 @@ Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
 
 ## 2026-11-08 (session 2)
 
+- **rc.8 not published**: its Release (run 42528082923, from d3f6c5b, PR #45) failed in the Linux bundle's resident
+  check. The diagnostics from PR #42 caught it: after `--restart`, `--quit` exited 1 with "didn't respond in time"
+  0.85 s later, because the restarted Tools, still starting, missed Link's 150 ms hello window. A real bug for anyone
+  typing `--quit`/`--restart`/`--status` just after a (re)start, and the cause of PR #42's one-off failure. Fixed (D17):
+  commands wait 2 s; CLI test with a fake Tools that answers hello after 600 ms fails at 150 ms and passes at 2 s. rc.9
+  carries it, with Gates on rc.9 as `update-from: v1.0.0-rc.7` (rc.7 has D16). The rc.3 bundle's 25 s hang at the
+  first window open is a different step and stays open.
 - **rc.7 published** (f5b5ecc, PR #44 with D16). Checked on the published file: installed from the download with the
   test channel, its first check finds `v1.0.0-rc.7`, offers nothing and attempts no install, now by package hash (the
   same check on rc.5 passed only because it had no hash). It cannot pass the self-update gate itself (rc.6 decides
