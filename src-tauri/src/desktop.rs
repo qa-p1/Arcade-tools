@@ -1268,7 +1268,9 @@ pub fn set_update_count(app: &AppHandle, count: usize) {
     }
 }
 /// The fleet's OS identity (`dev.arcade.<App>`, STANDARD §10): the X11 WM_CLASS and Wayland app_id, matching the
-/// desktop entry (RD-TOOLS-6). GTK reads the program name when it starts, so this runs first.
+/// desktop entry (RD-TOOLS-6). GTK reads the program name when it starts, so this runs first. Linux only: Windows
+/// and macOS take their identity from the bundle.
+#[cfg(target_os = "linux")]
 pub const OS_IDENTIFIER: &str = "dev.arcade.Tools";
 
 pub fn run(background: bool, quit: bool) {
