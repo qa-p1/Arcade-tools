@@ -232,6 +232,12 @@ Xvfb profile, and the limits live in the `perf` block of Link's `budgets.json`, 
 once CI's measurements show room, never raised without a new decision here. Disk counts the installed AppImage and
 its unpacked copy (U1, ~88 + 282 MB): the unpacked copy is what makes start and show fast and memory low.
 
+**Correction (Link 1.0.5).** The open-window wakeups above (2.2/s locally) and CI's first figure (-2.3/s) were
+undercounts: `perf_budget.py` differenced whole-tree totals, so threads that exited during the window (WebKit's
+workers) took their lifetime of context switches out of the count. Counted per thread (Link 1.0.5), Tools' open
+window does about 11 wakeups/s locally (11.2); background 0.2 and closed 0.4 were unaffected. The budget of 20
+still holds, with less headroom than recorded; it stays a ratchet.
+
 ## D13 — Design pass: what "from the kit" means, and how it stays true
 
 README's design pass asks that fonts, icons, spacing, colours and error wording come from the Link design kit, with

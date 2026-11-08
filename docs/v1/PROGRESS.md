@@ -4,6 +4,10 @@ Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
 
 ## 2026-11-08 (session 2)
 
+- On Link v1.0.5 (601af05): the Tier 2 smoke polls `--status` instead of a fixed 8 s sleep (the sway job once
+  missed Tools' first start), and `perf_budget.py` counts wakeups per thread: CI's first perf run read open-window
+  wakeups as -2.3/s, which passes any budget. Measured correctly: about 11/s open (budget 20), D12 corrected.
+  PR #23 on 10e29ae was green on every job (Linux, Windows, macOS, Tier 1 Hyprland, all four Tier 2 desktops).
 - Design pass (D13): `scripts/verify-design.py` in `scripts/check` holds the UI to the kit (colours, type, tokens,
   spacing scale) and the kit's error wording in UI and Rust; it found and the pass fixed 6 off-scale gaps and 8
   "Could not" messages (one pointed to a Rebuild button that does not exist). `SCREENS_STATES=1` captures empty,

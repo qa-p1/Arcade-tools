@@ -57,7 +57,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: qa-p1/Arcade-Link
-          ref: v1.0.4
+          ref: v1.0.5
           path: Arcade-link
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -274,22 +274,22 @@ jobs:
     needs: check
     # Its own gate: reports even when another check step failed, as long as the AppImage was uploaded.
     if: ${{ !cancelled() && !inputs.skip_packages }}
-    uses: qa-p1/Arcade-Link/.github/workflows/desktop-e2e.yml@v1.0.4
+    uses: qa-p1/Arcade-Link/.github/workflows/desktop-e2e.yml@v1.0.5
     with:
       name: tools
       test: tests/desktop/tools_desktop.py
       args: '"$APP"'
       artifact: tools-appimage
-      link-ref: v1.0.4
+      link-ref: v1.0.5
   desktop-tier2:
     needs: check
     # Its own gate: reports even when another check step failed, as long as the AppImage was uploaded.
     if: ${{ !cancelled() && !inputs.skip_packages }}
-    uses: qa-p1/Arcade-Link/.github/workflows/desktop-tier2.yml@v1.0.4
+    uses: qa-p1/Arcade-Link/.github/workflows/desktop-tier2.yml@v1.0.5
     with:
       artifact: tools-appimage
       show: --settings
-      link-ref: v1.0.4
+      link-ref: v1.0.5
 
   deny:
     name: cargo deny (advisories, licences, bans, sources)

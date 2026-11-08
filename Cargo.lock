@@ -99,8 +99,8 @@ checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
 name = "arcade-link"
-version = "1.0.4"
-source = "git+https://github.com/qa-p1/Arcade-Link?tag=v1.0.4#a076adbbd402e210a01228339d3f3ef26d7dad96"
+version = "1.0.5"
+source = "git+https://github.com/qa-p1/Arcade-Link?tag=v1.0.5#601af05ffb20a98874eebf6fb22da7d7201d23d4"
 dependencies = [
  "base64 0.22.1",
  "blake2",
