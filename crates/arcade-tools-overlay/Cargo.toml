@@ -28,7 +28,6 @@ softbuffer = { version = "0.4", default-features = false, features = ["x11", "wa
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
-wait-timeout = "0.2"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 smithay-client-toolkit = { version = "0.19", default-features = false, features = ["calloop", "xkbcommon"] }

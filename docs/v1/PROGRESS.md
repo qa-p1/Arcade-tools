@@ -18,7 +18,11 @@ Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
   (CI, release, `scripts/package`; linuxdeploy splits on `;`), and `verify-package.py` asserts no bundled
   libxkbcommon. Ubuntu 22.04 runners can't reproduce the crash (host = bundled), so typing in the packaged overlay
   on a newer X11 host is part of the rc gate (Tier 2 X11 smoke).
-- Next: RD-TOOLS-2/3/6, TL-12; then T3 after Link 1.0.1; then PLAN steps 4–8.
+- RD-TOOLS-2 fixed: engine version checks (and the overlay's Hyprland registration, which also runs inside Tools)
+  wait by polling `try_wait` instead of the SIGCHLD-based `wait-timeout` crate, which GTK/GLib's own SIGCHLD handler
+  starved. Unit test replaces the SIGCHLD handler and fails without the fix (timed out).
+- Draft PR qa-p1/Arcade-tools#23 opened for CI; this session watches it.
+- Next: RD-TOOLS-3/6, TL-12; then T3 after Link 1.0.1; then PLAN steps 4–8.
 
 ## 2026-11-07 — paused for the usage-limit reset
 
