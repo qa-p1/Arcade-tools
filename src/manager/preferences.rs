@@ -53,6 +53,12 @@ impl Manager {
     /// Persist a channel selection on a worker thread; no network work.
     pub fn set_channel(&self, id: &str, channel: Channel) -> Result<()> {
         manager_id(id)?;
+        if channel == Channel::Test {
+            return Err(Error::new(
+                "invalid",
+                "The test channel is only for release testing (ARCADE_TOOLS_CHANNEL_OVERRIDE=test).",
+            ));
+        }
         let _lock = self.lock()?;
         let mut prefs = self.preferences()?;
         prefs.channels.insert(id.into(), channel);

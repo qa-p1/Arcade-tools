@@ -68,7 +68,10 @@ file is replaced) and the per-OS installer kinds (the platforms differ).
   published release tagged `vX.Y.Z`; Nightly the newest prerelease tagged `vX.Y.Z-nightly.YYYYMMDD.N`; Test the
   newest prerelease tagged `vX.Y.Z-rc.N`. The old moving `nightly` tag is no longer followed (its builds are
   unsigned, so they could not pass the signature rule anyway). `Test` is never stored or shown: it applies only while
-  `ARCADE_TOOLS_CHANNEL_OVERRIDE=test` is set (the release gates). When the API's anonymous limit is hit, Stable
+  `ARCADE_TOOLS_CHANNEL_OVERRIDE=test` is set (the release gates): `Channel::followed()` maps every app to Test
+  while it is set and a stored Test (an rc's record) to Stable otherwise; `set_channel` refuses Test, backups never
+  write it, and a production source refuses to check Test without the override (its manifests are unsigned). No
+  hidden CLI flag: the environment variable is the one way in (SPEC allowed either). When the API's anonymous limit is hit, Stable
   falls back to `releases/latest/download/` as before; Nightly and Test report the limit and retry later.
 - **Trust:** a release must carry `manifest.json`; Stable and Nightly also `manifest.json.sig`, verified against the
   keys built into Tools (`resources/update-keys.pub`: current and next). The trusted comment must name this app and

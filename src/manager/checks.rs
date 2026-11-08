@@ -217,7 +217,8 @@ impl Manager {
                         .get(&app.id)
                         .copied()
                         .or(record.as_ref().map(|r| r.channel))
-                        .unwrap_or_default(),
+                        .unwrap_or_default()
+                        .followed(),
                     sha256: record.map(|r| r.sha256).filter(|hash| !hash.is_empty()),
                 });
             }
@@ -360,7 +361,8 @@ impl Manager {
             .get(id)
             .copied()
             .or(self.record(id)?.map(|r| r.channel))
-            .unwrap_or_default();
+            .unwrap_or_default()
+            .followed();
         let path = self
             .paths
             .cache

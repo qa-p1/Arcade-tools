@@ -1,4 +1,6 @@
 #![allow(dead_code)]
+#[cfg(target_os = "linux")]
+pub mod hub;
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};

@@ -378,6 +378,13 @@ impl Source {
         cached: Option<&ReleaseCache>,
         withdrawn: &[String],
     ) -> Result<ReleaseCheck> {
+        // Unsigned rc manifests are trusted only on the Test channel, so it needs the gates' override.
+        if channel == Channel::Test && !self.test && Channel::overridden().is_none() {
+            return Err(Error::new(
+                "invalid",
+                "Release candidates are only followed for release testing.",
+            ));
+        }
         crate::catalog::allowed_repo(repository)?;
         // One listing serves every channel; the newest release whose tag belongs to the channel wins (D5).
         let url = self

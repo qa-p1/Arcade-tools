@@ -28,6 +28,18 @@ impl Channel {
         (std::env::var("ARCADE_TOOLS_CHANNEL_OVERRIDE").as_deref() == Ok("test"))
             .then_some(Self::Test)
     }
+    /// The channel Tools follows for an app set to `self`: Test while the override is set, otherwise the stored
+    /// channel. A Test left in a record or a hand-edited file is followed as Stable, never as Test.
+    pub fn followed(self) -> Self {
+        Self::overridden().unwrap_or(self.stored())
+    }
+    /// The channel to keep in preferences and backups: Test is never stored.
+    pub fn stored(self) -> Self {
+        match self {
+            Self::Test => Self::Stable,
+            channel => channel,
+        }
+    }
     /// Whether a release tag belongs to this channel: `v1.2.3`, `v1.2.3-nightly.20261107.1`, `v1.2.3-rc.2`.
     pub fn owns_tag(self, tag: &str) -> bool {
         let Some(version) = tag

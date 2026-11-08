@@ -70,7 +70,7 @@ pub fn export(manager: &Manager, cancel: &AtomicBool) -> Result<BackupReport> {
         let mut backup = BackupApp {
             id: app.id.clone(),
             version: app.version.unwrap_or_default(),
-            channel: app.channel,
+            channel: app.channel.stored(),
             settings: Vec::new(),
             not_included: None,
         };
@@ -226,7 +226,7 @@ pub fn restore(
                 .iter()
                 .any(|installed| installed.id == app.id && installed.installed)
             {
-                manager.set_channel(&app.id, app.channel)?;
+                manager.set_channel(&app.id, app.channel.stored())?;
                 manager.operate(
                     &Request {
                         id: app.id.clone(),
