@@ -149,6 +149,9 @@ pub struct ReleaseCache {
     /// The installer's verified manifest entry; caches written before signed manifests have none and are refetched.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub entry: Option<arcade_link::release::FileEntry>,
+    /// The release tag the cache describes; caches without one are refetched.
+    #[serde(default)]
+    pub tag: String,
 }
 
 /// Receipts may record the compiled base version for a nightly build. Its

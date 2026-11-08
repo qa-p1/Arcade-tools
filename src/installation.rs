@@ -17,6 +17,9 @@ pub struct Package {
     pub release: Release,
     pub asset: Asset,
     pub path: PathBuf,
+    /// The GitHub release tag it came from, so a withdrawn release can be recognised once installed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tag: Option<String>,
 }
 impl Package {
     /// Validate retained release metadata, SHA-256 and size on a worker thread.
@@ -65,6 +68,7 @@ pub fn retain(
         release: checked.release.clone(),
         asset: checked.asset.clone(),
         path,
+        tag: Some(checked.tag.clone()).filter(|t| !t.is_empty()),
     };
     package.verify(paths, &checked.release.id)?;
     // Saved beside the package so the next update can reuse its chunks without reading it (D5).

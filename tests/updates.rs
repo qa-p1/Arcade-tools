@@ -462,6 +462,7 @@ fn release_etag_cache_is_bound_to_source_platform_and_verified_metadata() {
             Os::Linux,
             Arch::X64,
             None,
+            &[],
         )
         .unwrap();
     let before = server.requests.lock().unwrap().len();
@@ -473,6 +474,7 @@ fn release_etag_cache_is_bound_to_source_platform_and_verified_metadata() {
             Os::Linux,
             Arch::X64,
             Some(&first.cache),
+            &[],
         )
         .unwrap();
     assert!(check.unchanged);
@@ -487,11 +489,12 @@ fn release_etag_cache_is_bound_to_source_platform_and_verified_metadata() {
             Os::Linux,
             Arch::X64,
             Some(&cache),
+            &[],
         )
         .unwrap();
     assert!(!check.unchanged);
     assert_eq!(check.checked.asset.sha256, first.checked.asset.sha256);
-    cache = first.cache;
+    cache = first.cache.clone();
     cache.schema = 9;
     assert!(
         !source
@@ -501,9 +504,25 @@ fn release_etag_cache_is_bound_to_source_platform_and_verified_metadata() {
                 Channel::Stable,
                 Os::Linux,
                 Arch::X64,
-                Some(&cache)
+                Some(&cache),
+                &[],
             )
             .unwrap()
             .unchanged
     );
+    // A cached release the catalog has since withdrawn is never reused, even when GitHub answers 304.
+    let withdrawn = [first.checked.tag.clone()];
+    assert_eq!(first.checked.tag, "v2.0.0");
+    let error = source
+        .check_repo_conditional(
+            "arcade.look",
+            "qa-p1/arcade-look",
+            Channel::Stable,
+            Os::Linux,
+            Arch::X64,
+            Some(&first.cache),
+            &withdrawn,
+        )
+        .unwrap_err();
+    assert_eq!(error.code, "not_found");
 }

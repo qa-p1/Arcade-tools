@@ -378,6 +378,7 @@ impl Manager {
             Os::current(),
             Arch::current()?,
             cache.as_ref(),
+            &app.withdrawn(),
         )?;
         self.write(&path, &check.cache)?;
         check.checked.release.compatible(id, channel)?;

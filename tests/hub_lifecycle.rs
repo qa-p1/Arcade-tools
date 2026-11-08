@@ -1456,3 +1456,53 @@ fn hub_lifecycle_updates_download_only_the_changed_chunks() {
     operate(&manager, id, Operation::Update).unwrap();
     assert_eq!(manager.record(id).unwrap().unwrap().version, "3.0.0");
 }
+
+#[test]
+fn hub_lifecycle_a_withdrawn_release_is_never_offered_and_installed_copies_are_told_to_roll_back() {
+    let (server, manager) = fixture();
+    installed(&server, &manager, "arcade.look");
+    publish(&server, &manager, "arcade.look", "2.0.0", false);
+    operate(&manager, "arcade.look", Operation::Update).unwrap();
+    let view = |manager: &Manager| {
+        manager
+            .list(false)
+            .unwrap()
+            .into_iter()
+            .find(|app| app.id == "arcade.look")
+            .unwrap()
+    };
+    assert_eq!(view(&manager).withdrawn, None);
+    // The catalog withdraws 2.0.0.
+    let mut catalog: Value =
+        serde_json::from_slice(&server.routes.lock().unwrap()["/catalog.json"]).unwrap();
+    for app in catalog["apps"].as_array_mut().unwrap() {
+        if app["id"] == "arcade.look" {
+            app["bad"] = json!([{"tag": "v2.0.0", "reason": "Loses your settings on start."}]);
+        }
+    }
+    server.routes.lock().unwrap().insert(
+        "/withdrawn/catalog.json".into(),
+        serde_json::to_vec(&catalog).unwrap(),
+    );
+    arcade_tools_core::catalog::CatalogClient::with_url(
+        manager.paths.clone(),
+        Source::test_server(&server.url).unwrap(),
+        &format!("{}withdrawn/catalog.json", server.url),
+    )
+    .unwrap()
+    .refresh_catalog();
+    assert_eq!(
+        view(&manager).withdrawn.as_deref(),
+        Some("Loses your settings on start.")
+    );
+    // Discovery skips it: the newest release Tools offers is 1.0.0, which is older, so no update.
+    let check = manager.check("arcade.look").unwrap();
+    assert_eq!(check.version, "1.0.0");
+    assert!(!check.update_available);
+    operate(&manager, "arcade.look", Operation::Rollback).unwrap();
+    assert_eq!(
+        manager.record("arcade.look").unwrap().unwrap().version,
+        "1.0.0"
+    );
+    assert_eq!(view(&manager).withdrawn, None);
+}

@@ -226,6 +226,7 @@
       {#if installedApp && installed}
         <div class="card side-card" aria-label="Installed app management" role="group">
           <h3>Manage</h3>
+          {#if installedApp.withdrawn}<p class="notice warn withdrawn"><Icon name="alert" /><span>This version was withdrawn: {installedApp.withdrawn} {installedApp.rollbackVersion ? `Roll back to ${installedApp.rollbackVersion}.` : 'Reinstall to get the current release.'}</span></p>{/if}
           <label class="switch-row"><span>Channel</span><select class="select sm" value={installedApp.channel} disabled={busy} onchange={(event) => run(() => changeChannel(installedApp!, event.currentTarget.value as 'stable' | 'nightly'), app.name)}><option value="stable">Stable</option><option value="nightly">Nightly</option></select></label>
           {#if installedApp.loginSupported}<label class="switch-row"><span>Start at login</span><input class="switch" type="checkbox" checked={installedApp.startAtLogin} disabled={busy} onchange={(event) => run(() => changeLogin(installedApp!, event.currentTarget.checked), app.name)} /></label>{/if}
           <label class="switch-row"><span>Keep its own tray icon</span><input class="switch" type="checkbox" checked={ownIcon} disabled={busy} onchange={(event) => run(() => setOwnIcon(event.currentTarget.checked), app.name)} /></label>

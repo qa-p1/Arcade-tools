@@ -8,7 +8,9 @@ Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
   Range requests), `Source::download_from` (delta → whole file resumed from `<sha256>.part`, 3 attempts, 30 s idle),
   saved `<sha256>.manifest.json` beside retained packages and kept by pruning. TL-11's resume test is now a normal test;
   new hub test checks an update fetches < ¼ of the file and that a Range-ignoring host falls back to a full download.
-- Next: catalog `bad` flag + rollback notice, then TL-9.
+- Catalog `bad` flag done (D5): schema + validator in the catalog, discovery/cache skip, `AppView.withdrawn`, UI notice
+  and Updates section, hub test + UI check.
+- Next: TL-9 (`installedChannel`, badge, immediate install on channel switch, backup before Nightly→Stable).
 
 ## 2026-11-07 — paused for the usage-limit reset
 

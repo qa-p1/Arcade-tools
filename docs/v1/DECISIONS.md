@@ -88,5 +88,8 @@ file is replaced) and the per-OS installer kinds (the platforms differ).
   host that answers a Range request with anything but the exact 206 range fails the delta, which falls back to the full
   download. A response shorter than its own Content-Length is an interruption (resumed); a complete response with the
   wrong bytes is a checksum error (the `.part` is discarded). Startup cleanup keeps `.part` files younger than 7 days.
-- **Bad releases:** a catalog app may list `bad` versions; they are never offered, and an installed bad version gets a
-  rollback notice.
+- **Bad releases:** a catalog app (or `tools`) may list `bad: [{tag, reason}]` (catalog schema, Arcade-catalog
+  7549858). Entries name release tags, not versions, because many nightlies share one base version. Discovery skips
+  withdrawn tags (the next newest on the channel is offered) and never reuses a cached release that has since been
+  withdrawn. Retained packages record their tag, so an installed withdrawn release shows the reason in the app's
+  Manage card and in Updates › Withdrawn versions, with the rollback when one is kept.

@@ -94,6 +94,7 @@ impl ReleaseSource for Source {
             request.os,
             request.arch,
             request.cached,
+            &request.app.withdrawn(),
         )
     }
 }

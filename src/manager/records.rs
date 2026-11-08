@@ -254,7 +254,8 @@ impl Manager {
                 data_folders: self.paths.data_folders(id, Os::current()).iter().map(|p| p.display().to_string()).collect(), reason,
                 description: app.description.clone(), category: app.category.clone(), icon: app.icon.clone(),
                 platforms: app.platforms.clone(), min_tools: app.min_tools.clone(), install_reason: app.install_reason.clone(),
-                install_supported: app.supported_install(), installation_class: class, rollback_version: if app.supported_install() { self.rollback_version(id)? } else { None } })
+                install_supported: app.supported_install(), installation_class: class, rollback_version: if app.supported_install() { self.rollback_version(id)? } else { None },
+                withdrawn: record.as_ref().and_then(|r| r.package.as_ref()?.tag.as_deref()).and_then(|tag| app.withdrawn_reason(tag)).map(str::to_owned) })
         }).collect()
     }
 }

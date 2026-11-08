@@ -34,6 +34,8 @@ export interface AppView {
   installSupported: boolean;
   installationClass: 'managed' | 'legacyManaged' | 'selfInstalled' | 'manual' | 'dev';
   rollbackVersion: string | null;
+  /** Why the installed release was withdrawn by the catalog, if it was. */
+  withdrawn: string | null;
 }
 
 export interface Release {

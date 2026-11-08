@@ -160,6 +160,8 @@ pub struct AppView {
     pub install_supported: bool,
     pub installation_class: InstallationClass,
     pub rollback_version: Option<String>,
+    /// Why the installed release was withdrawn (catalog `bad`), if it was: the app view offers a rollback.
+    pub withdrawn: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]

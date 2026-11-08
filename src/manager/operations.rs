@@ -798,6 +798,7 @@ impl Manager {
                     release,
                     asset,
                     path: pointer.path,
+                    tag: previous.record.package.as_ref().and_then(|p| p.tag.clone()),
                 };
                 let retained = installation::retain(
                     &self.paths,
@@ -805,6 +806,7 @@ impl Manager {
                         release: package.release.clone(),
                         asset: package.asset.clone(),
                         url: String::new(),
+                        tag: package.tag.clone().unwrap_or_default(),
                         entry: None,
                     },
                     &package.path,

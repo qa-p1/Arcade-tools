@@ -57,6 +57,8 @@ pub struct CheckedRelease {
     pub release: Release,
     pub asset: Asset,
     pub url: String,
+    /// The GitHub release tag (`v1.2.0`, `v1.3.0-rc.1`); empty for packages Tools already holds.
+    pub tag: String,
     /// The chosen installer's entry in the verified `manifest.json`: its chunks drive delta downloads. `None` only
     /// for packages Tools already holds (rollback).
     pub entry: Option<FileEntry>,
@@ -72,12 +74,17 @@ pub struct ReleaseCheck {
 /// rc builds always are.
 /// GitHub lists releases newest first. The highest version wins; among equal precedence (build metadata only differs)
 /// the most recently published one does, as GitHub's own "latest" would.
-fn newest_on(listing: Vec<GithubRelease>, channel: Channel) -> Option<GithubRelease> {
+fn newest_on(
+    listing: Vec<GithubRelease>,
+    channel: Channel,
+    withdrawn: &[String],
+) -> Option<GithubRelease> {
     let mut best: Option<(semver::Version, GithubRelease)> = None;
     for release in listing {
         if release.draft
             || release.prerelease != (channel != Channel::Stable)
             || !channel.owns_tag(&release.tag_name)
+            || withdrawn.contains(&release.tag_name)
         {
             continue;
         }
@@ -226,6 +233,7 @@ impl Source {
         channel: Channel,
         os: crate::release::Os,
         arch: crate::release::Arch,
+        withdrawn: &[String],
     ) -> Result<ReleaseCheck> {
         if channel != Channel::Stable {
             // Only the stable release has a fixed download path outside the API.
@@ -243,6 +251,12 @@ impl Source {
         let tag = ReleaseManifest::from_json(&signed)
             .map_err(|e| Error::new("manifest", format!("manifest.json: {e}")))?
             .tag;
+        if withdrawn.contains(&tag) {
+            return Err(Error::new(
+                "rate_limited",
+                "GitHub's request limit was reached; Tools will check again later.",
+            ));
+        }
         let signature = self.text(latest(trust::SIGNATURE)?.as_str())?;
         let signed = trust::verify(
             id,
@@ -269,12 +283,14 @@ impl Source {
             download_url: download_url.clone(),
             body: String::new(),
             entry: Some(entry.clone()),
+            tag: tag.clone(),
         };
         Ok(ReleaseCheck {
             checked: CheckedRelease {
                 release,
                 asset,
                 url: download_url,
+                tag,
                 entry: Some(entry),
             },
             cache,
@@ -343,7 +359,7 @@ impl Source {
         os: crate::release::Os,
         arch: crate::release::Arch,
     ) -> Result<CheckedRelease> {
-        let check = self.check_repo_conditional(id, repository, channel, os, arch, None)?;
+        let check = self.check_repo_conditional(id, repository, channel, os, arch, None, &[])?;
         check.checked.release.compatible(id, channel)?;
         Ok(check.checked)
     }
@@ -351,6 +367,7 @@ impl Source {
     /// A 304 reuses only validated metadata for this source, app, channel and
     /// platform; it performs no asset/manifest request. Protocol eligibility is
     /// reported by `updates` and enforced separately before installation.
+    #[allow(clippy::too_many_arguments)]
     pub fn check_repo_conditional(
         &self,
         id: &str,
@@ -359,6 +376,7 @@ impl Source {
         os: crate::release::Os,
         arch: crate::release::Arch,
         cached: Option<&ReleaseCache>,
+        withdrawn: &[String],
     ) -> Result<ReleaseCheck> {
         crate::catalog::allowed_repo(repository)?;
         // One listing serves every channel; the newest release whose tag belongs to the channel wins (D5).
@@ -380,6 +398,8 @@ impl Source {
                     .entry
                     .as_ref()
                     .is_some_and(|e| e.name == cache.asset.file && e.sha256 == cache.asset.sha256)
+                && !cache.tag.is_empty()
+                && !withdrawn.contains(&cache.tag)
         });
         let response = match self.fetch(
             url.as_str(),
@@ -391,7 +411,7 @@ impl Source {
             // by everyone behind the same NAT. Release files don't count.
             Err(error) if error.code == "rate_limited" => {
                 return self
-                    .check_without_api(id, repository, channel, os, arch)
+                    .check_without_api(id, repository, channel, os, arch, withdrawn)
                     .map_err(|fallback| {
                         if fallback.code == "not_found" {
                             fallback
@@ -412,6 +432,7 @@ impl Source {
                         release: cache.release.clone(),
                         asset: cache.asset.clone(),
                         url: cache.download_url.clone(),
+                        tag: cache.tag.clone(),
                         entry: cache.entry.clone(),
                     },
                     cache,
@@ -421,7 +442,7 @@ impl Source {
             Fetch::Modified { bytes, etag } => (bytes, etag),
         };
         let listing: Vec<GithubRelease> = serde_json::from_slice(&bytes)?;
-        let github = newest_on(listing, channel).ok_or_else(|| {
+        let github = newest_on(listing, channel, withdrawn).ok_or_else(|| {
             Error::new(
                 "not_found",
                 format!("No {} release is published for this app.", channel.as_str()),
@@ -476,12 +497,14 @@ impl Source {
             download_url: download.browser_download_url.clone(),
             body: github.body.unwrap_or_default(),
             entry: Some(entry.clone()),
+            tag: github.tag_name.clone(),
         };
         Ok(ReleaseCheck {
             checked: CheckedRelease {
                 release,
                 asset,
                 url: cache.download_url.clone(),
+                tag: cache.tag.clone(),
                 entry: Some(entry),
             },
             cache,
@@ -921,14 +944,25 @@ mod tests {
             listed("v1.0.0-nightly.20261101.3", true),
             listed("nightly", true),
         ];
-        let tag = |c| newest_on(listing.clone(), c).map(|r| r.tag_name);
+        let tag = |c| newest_on(listing.clone(), c, &[]).map(|r| r.tag_name);
         assert_eq!(tag(Channel::Stable).as_deref(), Some("v1.0.0+build.2"));
         assert_eq!(
             tag(Channel::Nightly).as_deref(),
             Some("v1.1.0-nightly.20261107.1")
         );
         assert_eq!(tag(Channel::Test).as_deref(), Some("v1.1.0-rc.2"));
-        assert!(newest_on(vec![listed("v1.0.0-rc.1", false)], Channel::Test).is_none());
+        assert!(newest_on(vec![listed("v1.0.0-rc.1", false)], Channel::Test, &[]).is_none());
+        // A withdrawn release is skipped: the next newest is offered.
+        assert_eq!(
+            newest_on(
+                listing.clone(),
+                Channel::Stable,
+                &["v1.0.0+build.2".into(), "v1.0.0+build.1".into()]
+            )
+            .map(|r| r.tag_name)
+            .as_deref(),
+            Some("v0.9.0")
+        );
     }
 
     #[test]

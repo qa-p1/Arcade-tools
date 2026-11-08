@@ -39,8 +39,16 @@ pub struct CatalogApp {
     pub docs: String,
     pub resident: bool,
     pub homepage: String,
+    /// Withdrawn releases: never offered; an installed one gets a rollback notice.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub bad: Vec<BadRelease>,
     #[serde(skip)]
     pub install_reason: Option<String>,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BadRelease {
+    pub tag: String,
+    pub reason: String,
 }
 impl CatalogApp {
     /// Pure calculation, safe on any thread.
@@ -49,6 +57,17 @@ impl CatalogApp {
     }
     /// The one-line summary every surface shows: the catalog tagline, else
     /// Link's copy of it, else the older catalog pitch.
+    /// Pure calculation: the tags Tools must not offer.
+    pub fn withdrawn(&self) -> Vec<String> {
+        self.bad.iter().map(|b| b.tag.clone()).collect()
+    }
+    /// Pure calculation: why the release tagged `tag` was withdrawn, if it was.
+    pub fn withdrawn_reason(&self, tag: &str) -> Option<&str> {
+        self.bad
+            .iter()
+            .find(|b| b.tag == tag)
+            .map(|b| b.reason.as_str())
+    }
     pub fn display_tagline(&self) -> String {
         [
             self.tagline.as_str(),
@@ -77,6 +96,8 @@ pub struct ToolsEntry {
     pub icon: String,
     #[serde(default)]
     pub tagline: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub bad: Vec<BadRelease>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -189,6 +210,7 @@ impl Catalog {
             docs: "docs/user".into(),
             resident: true,
             homepage: format!("https://github.com/{}", self.tools.repo),
+            bad: self.tools.bad.clone(),
             install_reason: parse_version(env!("CARGO_PKG_VERSION"))
                 .ok()
                 .zip(parse_version(&self.tools.min_tools).ok())

@@ -94,6 +94,19 @@ export default {
     assert(!history.includes('rolled_back') && history.includes('Rolled back') && !history.includes('— → —'), history);
     assert(rollback.includes('Switch to v2.0.0'), rollback);
   },
+  async 'Updates: a withdrawn version says why and offers the rollback'(page) {
+    await page.evaluate(() => {
+      const m = window.__mock;
+      m.state.apps = m.state.apps.map((a) => a.id === 'arcade.look'
+        ? { ...a, version: '2.0.0', rollbackVersion: '1.0.0', withdrawn: 'Loses your settings on start.' } : a);
+      m.emit('registry-changed', null);
+    });
+    await sleep(200);
+    await tab(page, 'updates');
+    await sleep(300);
+    const section = await text(page, '#panel-updates [aria-labelledby="withdrawn-heading"]');
+    assert(section.includes('Loses your settings on start.') && section.includes('Roll back to v1.0.0'), section);
+  },
   async 'Details show notes even when rendering fails'(page) {
     await page.evaluate(() => {
       const m = window.__mock;
