@@ -73,7 +73,7 @@ jobs:
       - name: Both macOS architectures
         if: runner.os == 'macOS'
         run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version-file: Arcade-tools/.nvmrc
           cache: npm
