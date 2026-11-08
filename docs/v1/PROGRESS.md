@@ -9,6 +9,10 @@ Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
   "Tag a release", which started "Release" on the test channel (run 42487791767). Next, against the published
   rc files: upgrade from published 0.4.6 (`verify-upgrade.py`), N-1, desktop and performance; then rc.2 for the
   rc.1 → rc.2 self-update (delta path) under `ARCADE_TOOLS_CHANNEL_OVERRIDE=test`.
+- rc.1's Release (run 42487791767) failed in `prepare` before building anything: `check-versions.py` needs
+  `tomllib` (Python 3.11+) and that job used ubuntu-22.04's Python 3.10; CI's jobs install 3.12 first. Nothing was
+  published. Release runs the workflow from the tag's commit, so rc.1 cannot be rebuilt: the fix goes to main and
+  the next candidate is rc.2 (the rc.1 tag stays, as every tag does).
 - On Link v1.0.5 (601af05): the Tier 2 smoke polls `--status` instead of a fixed 8 s sleep (the sway job once
   missed Tools' first start), and `perf_budget.py` counts wakeups per thread: CI's first perf run read open-window
   wakeups as -2.3/s, which passes any budget. Measured correctly: about 11/s open (budget 20), D12 corrected.

@@ -30,6 +30,10 @@ jobs:
       version: ${{ steps.release.outputs.version }}
     steps:
       - uses: actions/checkout@v4
+      # check-versions.py reads Cargo.toml with tomllib (Python 3.11+); ubuntu-22.04's system Python is 3.10.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - name: The tag is this version's release candidate
         id: release
         run: |
