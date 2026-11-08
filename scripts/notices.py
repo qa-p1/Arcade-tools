@@ -6,7 +6,8 @@
 
 Rust: the normal (non-dev, non-build) dependency graph of the shipped binaries, for every target platform, from
 `cargo metadata --locked`; each crate's own licence files from its source. JavaScript: the packages the built
-interface bundles (svelte's runtime and @tauri-apps/api; `vite build` puts nothing else in). Fonts: Inter.
+interface bundles (svelte's runtime and @tauri-apps/api; `vite build` puts nothing else in). Fonts: Inter. Native
+libraries of the Linux AppImage: packaging/linux/native/, recorded by scripts/native-notices.py from a built image.
 Identical licence texts are printed once, with every component that uses them.
 """
 import argparse
@@ -127,10 +128,34 @@ def js_packages():
     return out
 
 
+def native_packages():
+    """The Ubuntu packages bundled in the Linux AppImage, as recorded by scripts/native-notices.py."""
+    folder = ROOT / "packaging" / "linux" / "native"
+    if not (folder / "packages.json").is_file():
+        return []
+    record = json.loads((folder / "packages.json").read_text(encoding="utf-8"))["packages"]
+    return [{
+        "label": f"{name} (Ubuntu package)",
+        "home": f"https://launchpad.net/ubuntu/+source/{info['source']}",
+        "texts": [normalized((folder / "copyright" / f"{name}.txt").read_text(encoding="utf-8", errors="replace"))],
+    } for name, info in sorted(record.items())]
+
+
 def render():
     fonts = [{"label": "Inter (typeface)", "licence": "OFL-1.1", "home": "https://rsms.me/inter/",
               "texts": [normalized((ROOT / "src-ui/design/fonts/OFL.txt").read_text(encoding="utf-8"))]}]
-    sections = [("Fonts", fonts), ("JavaScript", js_packages()), ("Rust crates", rust_crates())]
+    mit = (STANDARD / "MIT.txt").read_text(encoding="utf-8")
+    packaging = [
+        {"label": "AppImage type2-runtime (Linux AppImage)", "licence": "MIT",
+         "home": "https://github.com/AppImage/type2-runtime",
+         "texts": [normalized(mit.replace("<year> <copyright holders>", "the AppImage project contributors"))]},
+        {"label": "linuxdeploy AppRun and GTK plugin hooks (Linux AppImage)", "licence": "MIT",
+         "home": "https://github.com/linuxdeploy/linuxdeploy",
+         "texts": [normalized(mit.replace("<year> <copyright holders>", "the linuxdeploy contributors"))]},
+    ]
+    sections = [("Fonts", fonts), ("JavaScript", js_packages()), ("Rust crates", rust_crates()),
+                ("Packaging", packaging)]
+    native = native_packages()
     missing = [c["label"] for _, group in sections for c in group if not c["texts"]]
     if missing:
         sys.exit("notices: no licence text found for " + ", ".join(sorted(missing)))
@@ -148,6 +173,23 @@ def render():
         for c in sorted(group, key=lambda c: c["label"].lower()):
             home = f" — {c['home']}" if c["home"] else ""
             lines.append(f"- {c['label']} ({c['licence']}){home}")
+            for text in c["texts"]:
+                by_text.setdefault(text, []).append(c["label"])
+        lines.append("")
+    if native:
+        lines += [
+            "## Native libraries in the Linux AppImage",
+            "",
+            "The Linux AppImage bundles these Ubuntu 22.04 packages' libraries (WebKitGTK, GTK and their",
+            "dependencies). They are dynamically linked and stored as separate files under `usr/lib` in the image: to",
+            "use a modified version of an LGPL library, run the AppImage with `--appimage-extract`, replace the library",
+            "in `squashfs-root/usr/lib`, and start `squashfs-root/AppRun`. The source of every version of each package",
+            "is published by Ubuntu at the link given. Windows and macOS builds use the system's web view and bundle",
+            "none of these.",
+            "",
+        ]
+        for c in native:
+            lines.append(f"- {c['label']} — {c['home']}")
             for text in c["texts"]:
                 by_text.setdefault(text, []).append(c["label"])
         lines.append("")
