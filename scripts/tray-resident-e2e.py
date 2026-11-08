@@ -138,6 +138,30 @@ class Watcher:
         self.call(menu, "com.canonical.dbusmenu", "Event", GLib.Variant("(isvu)", (identifier, "clicked", GLib.Variant("s", ""), 0)))
 
 
+def resident_pid():
+    """The resident Tools of this private profile: the one `--background` arcade-tools process with this ARCADE_HOME.
+    A published AppImage relaunches from its unpacked copy (U1) and the launcher exits, so the process this script
+    started is not always the resident one."""
+    home = f"ARCADE_HOME={os.environ['ARCADE_HOME']}".encode()
+    found = []
+    for entry in Path("/proc").iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            argv = (entry / "cmdline").read_bytes().split(b"\0")
+            if Path(os.readlink(entry / "exe")).name != "arcade-tools" or b"--background" not in argv:
+                continue
+            if home not in (entry / "environ").read_bytes().split(b"\0"):
+                continue
+            if (entry / "stat").read_text().rpartition(") ")[2].split()[0] == "Z":
+                continue
+        except OSError:
+            continue
+        found.append(int(entry.name))
+    assert len(found) <= 1, f"More than one resident Tools: {found}"
+    return found[0] if found else None
+
+
 def metrics(pid):
     stat = Path(f"/proc/{pid}/stat").read_text().split(") ", 1)[1].split()
     ticks = int(stat[11]) + int(stat[12])
@@ -239,7 +263,7 @@ def main():
         wait(lambda: status("tools"))
         receive(lines, "hosted")
         assert window() is None, "Background startup created a webview"
-        print(f"Background startup RSS={metrics(process.pid)[1]:.3f} MiB", flush=True)
+        print(f"Background startup RSS={metrics(wait(resident_pid))[1]:.3f} MiB", flush=True)
         index = Path(os.environ["ARCADE_HOME"]) / "cache/arcade/tools/shortcuts-index.json"
         wait(lambda: index.exists())
         assert json.loads(index.read_text())["schema"] == 1
@@ -326,7 +350,7 @@ def main():
         initial_pid = endpoint_pid("tools")
         deadline = time.monotonic() + 25
         while time.monotonic() < deadline:
-            assert process.poll() is None, "Tools exited after closing its window"
+            assert resident_pid() == initial_pid, "Tools exited after closing its window"
             assert endpoint_pid("tools") == initial_pid, "Window close restarted Tools"
             time.sleep(0.1)
         successor = initial_pid
@@ -379,9 +403,12 @@ def main():
         duplicate = start([str(tools)], stdout=subprocess.DEVNULL)
         assert duplicate.wait(timeout=5) == 0
         wait(window)
-        assert process.poll() is None
+        quitting = resident_pid()
+        assert quitting, "Tools exited after the second launch"
         subprocess.run([str(tools), "--quit"], check=True, timeout=5)
-        assert process.wait(timeout=5) == 0
+        wait(lambda: not Path(f"/proc/{quitting}").exists() or "zombie" in Path(f"/proc/{quitting}/status").read_text())
+        if process.pid == quitting:
+            assert process.wait(timeout=5) == 0
         print("PASS: Link-off native activation and explicit quit", flush=True)
         if args.check_budgets:
             assert after_rss <= 40, f"Resident RSS {after_rss:.3f} MiB exceeds 40 MiB"

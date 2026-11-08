@@ -253,3 +253,38 @@ now the row's own `--sp-14 + --tile + --sp-12`) and rewrote eight Rust messages 
 restarts, which is what happens. `screens.mjs` with `SCREENS_STATES=1` captures the four states in both themes for
 the fleet sheet (`dev/v1/fleet-screens/`). Looking at them found the error state's header still reading "Loading your
 apps…" and its toast repeating the bare reason; both now say "Couldn't list your apps".
+
+## D14 — Exit gates on the published files: the Gates workflow, and what the self-update gate proves
+
+PLAN Release §2 runs every exit gate against the published rc files, never a local build; CI and Release test what
+they build. README: "Nothing ships unverified".
+
+**Decision.** `gates.yml` (workflow_dispatch on an rc tag) is that run. One job downloads the rc's files from its
+release, refuses a draft or a non-prerelease, checks `SHA256SUMS.txt` and the unsigned manifest
+(`arcade-link verify-manifest --unsigned --files`) and hands the checked files to every other job as artifacts; the
+gate scripts come from the tag's commit. It covers each PLAN gate that has a published file to test: conformance on
+the AppImage; `verify-package.py --package` on the AppImage, exe and dmg (the Windows and macOS smoke); the upgrade
+from the previous stable release (default `v0.4.6`); maintenance and resident checks; the tray test on the AppImage
+itself and with the published apps' Link as the peer (N-1); the memory and performance budgets; Tier 1 and Tier 2.
+`promote.yml` is run only on an rc whose Gates run is green.
+
+- **Delta, signature, tampered chunk.** The previous stable release (0.4.x) has no manifest, so no copy of it can
+  fetch 1.0.0 with a delta through GitHub, and rc manifests are unsigned (D1, B1). The `delta` job therefore runs
+  Tools' own updater code (`tests/releases.rs`, `ARCADE_TOOLS_GATE_DELTA=OLD:NEW`) on the two published AppImages:
+  NEW is served by the local release host with a manifest signed by the test key, Tools checks the signature, builds
+  the delta from OLD and assembles NEW byte for byte; a tampered chunk falls back to the intact file and a bad
+  signature is refused. Measured on 0.4.6 → the 1.0.0 build: 15.3 of 92.7 MB fetched.
+- **Self-update through GitHub.** With `update-from` set, `verify-self-update.py` installs that earlier rc in a
+  private profile with automatic updates on for Tools and the test channel forced, starts it as login does and
+  touches nothing. It passes only if the first check replaces it with this rc's bytes, the restarted copy runs in
+  the background, the receipt and history agree, and Tools logged the delta (a successful delta now prints
+  "Downloaded <file> with a delta: N of M bytes"; before, only a failed one left a trace). So PLAN's "Tools updates
+  itself twice" is rc.N → rc.N+1 through the test channel, then rc.N+1 → 1.0.0 after Promote (Release §4).
+- **Found by writing it.** A background start counted as use, so the auto-update policy ("not used in the last
+  10 minutes") put Tools' own update off from the first check to the next one, 6 hours later; a login start now
+  leaves "last used" at 0 (`desktop.rs`, test `a_background_start_is_not_use`). An AppImage relaunches from its
+  unpacked copy and the launcher exits, so `tray-resident-e2e.py` follows the resident process by its private
+  ARCADE_HOME instead of the PID it started; a binary extracted from the AppImage is not a substitute (WebKit's
+  helper path is relative to the AppDir, and AppRun's GTK environment is missing). The macOS release job compared
+  `wc -l` output as a string, which macOS pads with spaces; it compares numbers now (rc.2 failed on it).
+

@@ -190,3 +190,151 @@ fn nightly_and_clipboard_tarball_from_canonical_generator() {
         .is_err());
     assert!(Source::test_server("https://untrusted.example/").is_err());
 }
+
+/// PLAN exit gate "a delta update from the previous release works through Tools, the signed manifest verifies, and
+/// a tampered chunk is rejected", run on published files by the Gates workflow: `ARCADE_TOOLS_GATE_DELTA=OLD:NEW`
+/// names the previous rc's AppImage and this rc's, both downloaded from their releases and checked against their
+/// manifests. NEW is served by a local release host and signed with the test key (rc manifests are unsigned, and the
+/// stable key is the owner's, B1); Tools' own source then checks the signature, builds the delta from OLD and
+/// assembles NEW byte for byte. Without the variable this test does nothing.
+#[test]
+fn gate_published_files_delta_signature_and_tampered_chunk() {
+    use sha2::Digest;
+    let Ok(spec) = std::env::var("ARCADE_TOOLS_GATE_DELTA") else {
+        return;
+    };
+    let (old, new) = spec
+        .split_once(':')
+        .expect("ARCADE_TOOLS_GATE_DELTA=OLD:NEW");
+    let new_bytes = std::fs::read(new).unwrap();
+    let name = std::path::Path::new(new)
+        .file_name()
+        .unwrap()
+        .to_str()
+        .unwrap();
+    let digest = format!("{:x}", sha2::Sha256::digest(&new_bytes));
+    let server = FakeRelease::new();
+    // Tools checks its own repository the way the self-updater does: by the catalog's `tools.repo`.
+    let repo = support::catalog_repo("arcade.tools");
+    server.publish(
+        "arcade.tools",
+        "1.0.0",
+        "stable",
+        &[(name, &new_bytes)],
+        "nsis",
+    );
+    let route = format!("/assets/arcade-tools-1.0.0-stable/{name}");
+    let have = || {
+        let mut index = arcade_link::release::ChunkIndex::default();
+        index.add_file(std::path::Path::new(old)).unwrap();
+        index
+    };
+    // Each request for the installer: its `Range: bytes=` value, or None for a plain whole-file request.
+    let asked = |server: &FakeRelease| -> Vec<Option<String>> {
+        server
+            .requests
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(r, _)| *r == route)
+            .map(|(_, headers)| {
+                headers.iter().find_map(|h| {
+                    h.to_ascii_lowercase()
+                        .strip_prefix("range: bytes=")
+                        .map(str::to_owned)
+                })
+            })
+            .collect()
+    };
+    let bounded = |r: &Option<String>| r.as_deref().is_some_and(|r| !r.ends_with('-'));
+
+    // The signed manifest verifies, and the delta from OLD fetches only the changed chunks.
+    let source = Source::test_server(&server.url).unwrap();
+    let checked = source
+        .check_repo("arcade.tools", &repo, Channel::Stable, Os::Linux, Arch::X64)
+        .unwrap();
+    assert!(
+        checked.entry.is_some(),
+        "the verified manifest has the file's chunks"
+    );
+    let cache = tempfile::tempdir().unwrap();
+    let file = source
+        .download_from(
+            &checked,
+            cache.path(),
+            &have(),
+            &AtomicBool::new(false),
+            &mut |_, _| {},
+        )
+        .unwrap();
+    assert_eq!(checksum(file.path()).unwrap(), digest);
+    let ranges = asked(&server);
+    assert!(
+        !ranges.is_empty() && ranges.iter().all(bounded),
+        "only bounded delta ranges: {ranges:?}"
+    );
+    let total: u64 = ranges
+        .iter()
+        .flatten()
+        .filter_map(|r| r.split_once('-'))
+        .map(|(a, b)| b.parse::<u64>().unwrap() - a.parse::<u64>().unwrap() + 1)
+        .sum();
+    assert!(
+        total * 2 < new_bytes.len() as u64,
+        "the delta fetched {total} of {} bytes",
+        new_bytes.len()
+    );
+    println!(
+        "delta: {total} of {} bytes in {} requests",
+        new_bytes.len(),
+        ranges.len()
+    );
+
+    // A tampered chunk is rejected: the assembled file fails its check and the intact whole file is used instead.
+    let tampered: Vec<u8> = new_bytes.iter().map(|b| b ^ 0x5a).collect();
+    server
+        .tampered_ranges
+        .lock()
+        .unwrap()
+        .insert(route.clone(), tampered);
+    server.requests.lock().unwrap().clear();
+    let cache = tempfile::tempdir().unwrap();
+    let file = source
+        .download_from(
+            &checked,
+            cache.path(),
+            &have(),
+            &AtomicBool::new(false),
+            &mut |_, _| {},
+        )
+        .unwrap();
+    assert_eq!(
+        checksum(file.path()).unwrap(),
+        digest,
+        "the published file, never the tampered one"
+    );
+    let ranges = asked(&server);
+    assert!(
+        ranges.iter().any(bounded),
+        "the delta was tried: {ranges:?}"
+    );
+    assert!(
+        ranges.iter().any(|r| !bounded(r)),
+        "then the whole file was fetched: {ranges:?}"
+    );
+
+    // A manifest whose signature does not match is refused before anything is downloaded.
+    let signature = "/assets/arcade-tools-1.0.0-stable/manifest.json.sig".to_string();
+    let mut routes = server.routes.lock().unwrap();
+    let text = String::from_utf8(routes[&signature].clone()).unwrap();
+    let mut lines: Vec<String> = text.lines().map(str::to_owned).collect();
+    let mut sig = lines[1].clone().into_bytes();
+    sig[10] = if sig[10] == b'A' { b'B' } else { b'A' };
+    lines[1] = String::from_utf8(sig).unwrap();
+    routes.insert(signature, (lines.join("\n") + "\n").into_bytes());
+    drop(routes);
+    assert!(Source::test_server(&server.url)
+        .unwrap()
+        .check_repo("arcade.tools", &repo, Channel::Stable, Os::Linux, Arch::X64)
+        .is_err());
+}

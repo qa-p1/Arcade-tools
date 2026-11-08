@@ -67,12 +67,16 @@ impl Desktop {
             cancel: AtomicBool::new(false),
             background: AtomicBool::new(background),
             link_enabled: AtomicBool::new(true),
-            last_used: AtomicU64::new(
+            // Starting in the background (at login) is not use: 0 lets the first update check auto-update Tools,
+            // which "used within the last 10 minutes" otherwise put off until the next check, 6 hours later.
+            last_used: AtomicU64::new(if background {
+                0
+            } else {
                 std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap_or_default()
-                    .as_secs(),
-            ),
+                    .as_secs()
+            }),
             selected: Mutex::new(None),
             resident: Mutex::new(resident::Resident::new(background)),
             restarting: AtomicBool::new(false),
@@ -1436,4 +1440,24 @@ pub fn run(background: bool, quit: bool) {
                 if desktop(app).resident.lock().unwrap_or_else(|e| e.into_inner()).keeps_running() { api.prevent_exit(); }
             }
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_background_start_is_not_use() {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        assert_eq!(Desktop::new(true).last_used.load(Ordering::SeqCst), 0);
+        assert!(Desktop::new(false).last_used.load(Ordering::SeqCst) >= now);
+        // The first check's policy then allows Tools' own auto-update after a login start.
+        let status = serde_json::json!({"busy": false, "status": {"busy": false, "lastUsed": 0}});
+        let decision =
+            arcade_tools_core::updates::auto_update_policy(true, &status, Some(0), now + 60);
+        assert!(decision.eligible, "{}", decision.reason);
+    }
 }

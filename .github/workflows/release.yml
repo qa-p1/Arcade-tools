@@ -135,7 +135,8 @@ jobs:
             if [ -f "$f" ]; then cp "$f" "target/release-files/$(basename "$f" | tr ' ' '-')"; fi
           done
           ls target/release-files
-          [ "$(ls target/release-files | wc -l)" = 1 ]
+          # -eq: macOS wc pads the count with spaces.
+          [ "$(ls target/release-files | wc -l)" -eq 1 ]
       - uses: actions/upload-artifact@v4
         with:
           name: release-${{ runner.os }}
