@@ -125,6 +125,11 @@ def main():
                 print('\n'.join(line for line in ps.splitlines() if 'PID' in line or 'arcade' in line.lower()),
                       file=sys.stderr)
                 raise
+            except subprocess.CalledProcessError as error:
+                # What the launch said when it failed (the resident's own log is printed by the caller).
+                print(f'{" ".join(args)} exited {error.returncode}; its output:\n{error.stdout}{error.stderr}',
+                      file=sys.stderr)
+                raise
         def pid():
             try:
                 return json.loads(endpoint.read_text())['pid']
