@@ -34,6 +34,9 @@ Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
   Tools' own bundled guide comes from the tree being built (`docs-snapshot.py --self-version`, used by release.yml).
   Other apps' bundled guides are their latest stable at build time by design (Learn fetches newer ones).
 - CI's Link checkout (for `tools/e2e.py`) moved from v0.4.0 to v1.0.0.
+- VENDORED now records Link v1.0.0 (d60772c) for the release script and design kit; `scripts/arcade-release.py`
+  gains the `test` channel and `arcade.css` the emoji font fallbacks, both copied unchanged. This fixed PR #23's red
+  `verify-vendored` step ("VENDORED names Link tags ['v0.4.15'], but Cargo.toml pins v1.0.0").
 - All audit findings for Tools are fixed except T3 (needs Link 1.0.1).
 - Next: Link 1.0.1 (migration archive fix + template lockfile), then T3; then PLAN steps 4–8.
 
