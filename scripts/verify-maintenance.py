@@ -42,17 +42,33 @@ def main():
         with tempfile.TemporaryFile() as log:
             child = subprocess.Popen([str(installed), '--background'], env=env,
                                      stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+            def resident_pid():
+                try:
+                    return json.loads(endpoint.read_text())['pid']
+                except (OSError, ValueError, KeyError):
+                    return None
+
+            def check_alive(message):
+                # An installed AppImage hands over to its unpacked copy (Link U1): the launcher exits 0 and the
+                # resident, named by the endpoint, carries on. Follow the resident, not the launcher.
+                if child.poll() is None:
+                    return
+                assert child.returncode == 0, f'Tools launcher exited {child.returncode} while checking {message}'
+                pid = resident_pid()
+                assert pid is None or Path(f'/proc/{pid}').exists(), f'Tools exited while checking {message}'
+
             try:
                 def wait(predicate, message):
                     deadline = time.monotonic() + 25
                     while time.monotonic() < deadline:
-                        assert child.poll() is None, f'Tools exited while checking {message}'
+                        check_alive(message)
                         if predicate():
                             return
                         time.sleep(0.05)
                     raise AssertionError(f'Tools did not automatically restore {message}')
 
-                wait(endpoint.is_file, 'resident endpoint')
+                wait(lambda: resident_pid() is not None, 'resident endpoint')
+                resident = resident_pid()
                 wait(desktop_cache.is_file, 'desktop application cache at startup')
                 assert login.read_text() == disabled, f'Startup changed login choice:\n{login.read_text()}'
                 def report_stamp():
@@ -108,6 +124,10 @@ def main():
                 assert login.read_text() == disabled
                 subprocess.run([str(installed), '--quit'], env=env, capture_output=True, check=True, timeout=20)
                 child.wait(timeout=15)
+                deadline = time.monotonic() + 15
+                while Path(f'/proc/{resident}').exists() and time.monotonic() < deadline:
+                    time.sleep(0.1)
+                assert not Path(f'/proc/{resident}').exists(), '--quit left the resident running'
             except Exception:
                 log.seek(0)
                 print(log.read().decode(errors='replace')[-8000:], file=sys.stderr)
@@ -116,6 +136,9 @@ def main():
                 if child.poll() is None:
                     os.killpg(child.pid, signal.SIGKILL)
                     child.wait()
+                pid = resident_pid()
+                if pid and Path(f'/proc/{pid}').exists():
+                    os.kill(pid, signal.SIGKILL)
         print('PASS: real Tools AppImage repairs repeated launcher/CLI deletion and desktop caches without clicks; disabled login preserved')
 
 
