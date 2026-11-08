@@ -1,0 +1,78 @@
+name: Memory probe
+
+# Where the window-open memory of a published AppImage goes, on several runners at once (Tools docs/v1/DECISIONS.md
+# D18). Each runner runs the budget gate's own command, then scripts/open-memory.py for a per-process breakdown,
+# then both again with MALLOC_ARENA_MAX=2. A diagnostic, never a gate: it does not fail on a budget.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published release to measure (vX.Y.Z or vX.Y.Z-rc.N)
+        default: v1.0.0-rc.9
+  pull_request:
+    paths:
+      - .github/workflows/memory-probe.yml
+      - scripts/open-memory.py
+
+permissions:
+  contents: read
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  PYTHONUTF8: '1'
+  TAG: ${{ inputs.tag || 'v1.0.0-rc.9' }}
+
+jobs:
+  probe:
+    name: Probe ${{ matrix.runner }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [1, 2, 3, 4, 5, 6, 7, 8]
+    defaults:
+      run:
+        working-directory: Arcade-tools
+    steps:
+      - uses: actions/checkout@v4
+        with: { path: Arcade-tools }
+      - uses: actions/checkout@v4
+        with: { repository: qa-p1/Arcade-Link, ref: v1.0.5, path: Arcade-link }
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - name: Linux dependencies (as the budget gate)
+        timeout-minutes: 10
+        run: |
+          for i in 1 2 3; do
+            sudo apt-get update -o Acquire::Retries=3 && sudo apt-get install -y -o Acquire::Retries=3 libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libssl-dev libwayland-dev libxkbcommon-dev libxkbcommon-x11-0 patchelf desktop-file-utils xvfb dbus-x11 xdotool python3-gi gir1.2-glib-2.0 && break
+            sleep $((i * 15))
+          done
+      - name: The published AppImage
+        timeout-minutes: 5
+        run: |
+          mkdir -p target/budget target/published
+          for i in 1 2 3; do
+            gh release download "$TAG" -R "$GITHUB_REPOSITORY" -D target/published -p '*.AppImage' -p SHA256SUMS.txt --clobber && break
+            sleep $((i * 10))
+          done
+          (cd target/published && sha256sum --strict --ignore-missing -c SHA256SUMS.txt)
+          cp target/published/*.AppImage target/budget/Arcade-Tools.AppImage
+          chmod +x target/budget/Arcade-Tools.AppImage
+          nproc; grep -m1 'model name' /proc/cpuinfo; free -m
+      - name: Measure (default, then MALLOC_ARENA_MAX=2)
+        timeout-minutes: 12
+        run: |
+          for arenas in "" 2; do
+            if [ -n "$arenas" ]; then export MALLOC_ARENA_MAX=$arenas; else unset MALLOC_ARENA_MAX; fi
+            echo "### MALLOC_ARENA_MAX=${arenas:-unset}" | tee -a "$GITHUB_STEP_SUMMARY"
+            python3 ../Arcade-link/tools/fleet/fleet_budget.py --apps target/budget --only tools --section xvfb \
+              --budgets ../Arcade-link/tools/fleet/budgets.json --settle 30 --open tools --close-wait 20 \
+              | tee -a "$GITHUB_STEP_SUMMARY" || true
+            xvfb-run -a python3 scripts/open-memory.py ../Arcade-link/tools/fleet target/budget/Arcade-Tools.AppImage \
+              --label "runner ${{ matrix.runner }} arenas ${arenas:-unset}" | tee -a target/open-memory.jsonl
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: open-memory-${{ matrix.runner }}
+          path: Arcade-tools/target/open-memory.jsonl

@@ -344,3 +344,20 @@ Tools is waited for. A CLI test serves a fake Tools that answers `hello` after 6
 passes with 2 s. Link's background probes keep 150 ms. Since Release and Gates run from the tag, rc.8 stays
 unpublished and the fix goes into rc.9, with the self-update gate run as `update-from: v1.0.0-rc.7`.
 
+## D18 — Window-open memory has two levels on CI; find the cause before any rc passes on it
+
+Gates on rc.9 (run 42535663129, `update-from: v1.0.0-rc.7`) passed every gate, the self-update included (rc.7 → rc.9
+with a delta of 8.5 of 94.5 MB, back in the background after 67 s), except the open-window memory: PSS 297.5 / RSS
+333.3 against D10's cap of 281 / 310. rc.6 measured 301.4 / 338.3. Every other run measured 255.8–262.2 PSS: 30 CI
+runs and three Gates runs, rc.7's among them. Background (1.3) and closed (11.3) were normal in both high runs, and
+so were the runner image and the WebKit installed. Locally the same file measures 141 at 6 s on every run (full speed
+or pinned to one CPU): the memory peaks at 2.4 s and is flat from 4.4 s, so the sample does not sit on a slope there.
+The high level is about 40 MB above the normal one, about one glibc thread arena of the WebKit process (D10 found two
+of 38–40 MB), which a thread gets or not depending on lock contention; this is a hypothesis, not yet a finding.
+
+**Decision.** The cap stays at 281 (D10: it is only lowered) and a run that fails it is not re-run until it passes:
+two of five Gates runs measured above it, so the budget is not met as it stands. The memory probe workflow measures a
+published AppImage on eight runners at once, with the gate's own command and `scripts/open-memory.py` (PSS per
+process and per kind of mapping 6 s after the window opens), then both again with `MALLOC_ARENA_MAX=2`, to find what
+the high level is. What it finds decides the fix.
+
