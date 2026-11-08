@@ -53,6 +53,9 @@ Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
   bundled `libarcade-trim.so`, checked by `verify-package.py`), TD1 tree PSS on Home. Link's `fleet_budget.py`
   learned to follow unpacked relaunches and `--only` (in Link PR #45, also fixing its dbus arguments, which would
   have stopped the fleet job). The CI budget step lands with the Link 1.0.1 bump; numbers will be recorded here.
+- Step 6 (CI, D8): Release builds rc tags only and publishes on the test channel through Link's `app-publish`;
+  new `promote.yml` and `nightly.yml` call Link's reusable workflows; `tag.yml` makes rc tags and starts Release;
+  network steps have timeouts and retries; the tray/resident e2e runs in CI. CI timing to be measured on the PR.
 - Link 1.0.1 is up for review: https://github.com/qa-p1/Arcade-Link/pull/45.
 - Next: tag Link v1.0.1, bump Tools to it and flip T3; PLAN steps 5 (memory), 6 (CI), 7 (round 5), 8 (rc).
 

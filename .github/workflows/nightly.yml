@@ -1,0 +1,28 @@
+# Nightly: main CI's already-tested installers (artifacts release-*) as a signed prerelease
+# vX.Y.Z-nightly.YYYYMMDD.N, with no rebuild. Skipped when main hasn't changed or its CI isn't green.
+name: Nightly
+on:
+  schedule: [{ cron: "37 2 * * *" }]
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+jobs:
+  version:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        run: echo "version=$(python3 scripts/check-versions.py --print)" >> "$GITHUB_OUTPUT"
+  nightly:
+    needs: version
+    uses: qa-p1/Arcade-Link/.github/workflows/app-nightly.yml@v1.0.0
+    with:
+      app: arcade.tools
+      version: ${{ needs.version.outputs.version }}
+      link-ref: v1.0.0
+    secrets:
+      ARCADE_UPDATE_SIGNING_KEY: ${{ secrets.ARCADE_UPDATE_SIGNING_KEY }}

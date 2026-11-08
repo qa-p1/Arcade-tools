@@ -131,3 +131,20 @@ file is replaced) and the per-OS installer kinds (the platforms differ).
 - **Budgets** are Link's `tools/fleet/budgets.json` (`xvfb` section in CI: background and closed 30 PSS / 50 RSS,
   window open 225 / 310). Tools CI measures its packaged AppImage with Link's `fleet_budget.py --only tools` once it
   pins Link 1.0.1 (the version that can follow an unpacked relaunch).
+
+## D8 — CI and releases on Link's shape (PLAN step 6, Link SPEC §4)
+
+- **Release** (`release.yml`) runs only on a release-candidate tag `vX.Y.Z-rc.N` whose base is the app version (the
+  built files already say `X.Y.Z`, so promotion needs no rebuild). It keeps the LTO build matrix and every package
+  gate, then hands the installers (`release-<os>` artifacts, spaces in names replaced) to Link's reusable
+  `app-publish.yml`: a hidden prerelease on the test channel with `arcade-release.json` and an unsigned manifest.
+  `tag.yml` creates only rc tags and starts Release on them (a tag pushed with the workflow token starts no workflow).
+- **Promote** (`promote.yml`, Link `app-promote.yml`) republishes a verified rc's bytes as `vX.Y.Z` with a signed
+  manifest; it publishes nothing without `ARCADE_UPDATE_SIGNING_KEY` (B1).
+- **Nightly** (`nightly.yml`, Link `app-nightly.yml`) republishes main CI's tested installers as
+  `vX.Y.Z-nightly.YYYYMMDD.N`, signed. They are CI's non-LTO builds, by design: a nightly is exactly what was
+  tested, and LTO only matters for the stable files, which come from Release. The old moving `nightly` release is
+  no longer updated (D5 stopped following it); it is kept, never deleted.
+- **CI** keeps one job per OS (lint, tests, package, package smoke). Every apt, npm and Playwright step has a timeout
+  and three tries. Linux also runs `scripts/tray-resident-e2e.py` (tray host, resident window, single instance,
+  crash recovery, Link-off quit) on the debug build the tests produced, with Link's cached CLI.
