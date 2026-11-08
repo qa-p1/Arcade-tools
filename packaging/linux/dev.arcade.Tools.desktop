@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Arcade Tools
+Comment=Install and update the Arcade apps
+Exec=arcade-tools
+Icon=dev.arcade.Tools
+Terminal=false
+Categories=Utility;
+StartupWMClass=dev.arcade.Tools
+X-Arcade-Id=arcade.tools

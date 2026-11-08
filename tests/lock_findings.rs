@@ -90,8 +90,9 @@ fn choosing_a_channel_is_remembered() {
     );
 }
 
+/// T3, fixed in Link 1.0.1: a legacy file whose name the current folder already holds with other contents is
+/// archived under `archived-legacy/`, so the legacy folder is retired on the first start, never kept forever.
 #[test]
-#[should_panic(expected = "KNOWN BUG T3")]
 fn legacy_folders_are_retired_once_the_current_ones_exist() {
     let root = tempfile::tempdir().unwrap();
     let paths = Paths::under(root.path());
@@ -105,11 +106,32 @@ fn legacy_folders_are_retired_once_the_current_ones_exist() {
         br#"{"theme":"light"}"#,
     )
     .unwrap();
-    paths.migrate_own_folders();
-    let again = paths.migrate_own_folders();
-    assert!(
-        again.kept.is_empty() && !legacy.exists(),
-        "KNOWN BUG T3: every start leaves {:?} in place",
-        again.kept
+    let first = paths.migrate_own_folders();
+    assert!(first.kept.is_empty(), "kept {:?}", first.kept);
+    assert!(!legacy.exists());
+    // The current settings win; the legacy copy is archived, not lost.
+    assert_eq!(
+        fs::read(paths.state().join("preferences.json")).unwrap(),
+        br#"{"theme":"light"}"#
     );
+    let archived: Vec<_> = walkdir(&paths.state().join("archived-legacy"))
+        .into_iter()
+        .filter(|p| p.ends_with("preferences.json"))
+        .collect();
+    assert_eq!(archived.len(), 1, "{archived:?}");
+    assert_eq!(fs::read(&archived[0]).unwrap(), br#"{"theme":"dark"}"#);
+    assert!(paths.migrate_own_folders().kept.is_empty());
+}
+
+fn walkdir(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
+    let mut out = Vec::new();
+    for entry in fs::read_dir(dir).into_iter().flatten().flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            out.extend(walkdir(&path));
+        } else {
+            out.push(path);
+        }
+    }
+    out
 }

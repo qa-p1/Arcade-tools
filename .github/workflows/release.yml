@@ -132,10 +132,10 @@ jobs:
     needs: [prepare, bundle, ci]
     permissions:
       contents: write
-    uses: qa-p1/Arcade-Link/.github/workflows/app-publish.yml@v1.0.0
+    uses: qa-p1/Arcade-Link/.github/workflows/app-publish.yml@v1.0.1
     with:
       app: arcade.tools
       version: ${{ needs.prepare.outputs.version }}
       tag: ${{ needs.prepare.outputs.tag }}
       channel: test
-      link-ref: v1.0.0
+      link-ref: v1.0.1

@@ -1,31 +1,88 @@
 # Changelog
 
-## 0.4.6
+All notable changes are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and versions follow [Semantic Versioning](https://semver.org/).
 
-- Dispatch Linux notifications on a blocking worker, avoiding the notification plugin’s nested Tokio-runtime panic. Native tray checks fail on any logged Rust panic.
+## [Unreleased]
 
-- Release closed Linux WebViews by disconnecting their retiring IPC callback, breaking Wry’s reference cycle without restarting the app. Native package checks require zero renderer processes after each close/reopen cycle.
+### Added
+- Signed updates: a release is trusted only through its `manifest.json`, signed with ed25519 and bound to the app,
+  channel and tag. Release candidates live on a hidden test channel that Tools never offers.
+- Delta updates: only the changed chunks of a new version are downloaded, assembled from the installed copy and kept
+  packages, and verified chunk by chunk; any mismatch falls back to a full download, which resumes after an
+  interruption.
+- A release the catalog marks as bad is no longer offered, and Tools offers to roll back an installed copy.
+- Apps on the Nightly channel show a badge; switching back to Stable backs up the app's data first.
+- Third-party notices in Settings › About, and a security policy (`SECURITY.md`).
 
-- Keep the same resident process when windows close; remove the hidden 20-second memory-cleanup restart. Destroy the WebView and reclaim memory in place while preserving tray hosting, shortcuts and maintenance. Explicit Restart and updates still work.
+### Changed
+- Arcade Link 1.0.1: the 1.0 runtime, release manifests and update primitives.
+- Tools runs from an unpacked copy of its AppImage and trims its memory, and the WebView's, while the window is open
+  and after it closes; unused unpacked copies are removed.
+- Tools' Linux desktop id and window class are `dev.arcade.Tools`, with a scalable and a symbolic icon.
+- Details reads "Update to vX" only when an update exists, "Up to date" when current and "Check for updates" when
+  the state is unknown.
 
-- Automatically refresh registry metadata whose cached version disagrees with the installation receipt, even when its executable path is correct. Recover it from the verified installed app without restarting it or rewriting healthy launchers/login choices.
-- Gate the actual AppImage on version-only registry damage and add a process/filesystem regression for this live-audit finding.
+### Fixed
+- `--show-shortcuts` waits for the overlay, so the AppImage stays mounted while it is open.
+- The packaged shortcut overlay no longer bundles libxkbcommon, which broke typing on newer X11 systems.
+- Engine version checks no longer time out when GTK takes over child-process signals.
+- The legacy data folder is retired once, keeping a copy of any conflicting file under `archived-legacy`, instead of
+  being kept and logged on every start.
+- Home names Arcade Tools, never asks for optional engines, and shows backup progress.
+- `ARCADE_TOOLS_CHANNEL_OVERRIDE=test` is honoured for release testing, and a stored or restored "test" channel is
+  refused.
 
-## 0.4.5
+### Security
+- Dependencies with advisories updated (rustls, rustls-webpki, ammonia, pulldown-cmark, zip 9); `cargo deny` runs in CI.
 
-- Repair missing Arcade desktop launchers, command links and registry metadata automatically at startup and after integration files change, using the installed app offline; recover registry metadata from its validated read-only manifest.
-- Back up affected integration, preserve customized launchers and disabled login choices, verify installed bytes and the repair result, and bound repair commands to 20 seconds. An unchanged failure is not retried continuously; one bad receipt does not block other apps.
-- Refresh the Linux desktop application cache at startup and after launcher changes, including healthy customized launchers; bound optional cache commands and avoid idle polling.
-- Honor the installed Linux login entry at release startup, including disabled or removed entries, instead of reapplying an older tray preference.
+## [0.4.6] — 2026-11-05
+
+### Fixed
+- Dispatch Linux notifications on a blocking worker, avoiding the notification plugin’s nested Tokio-runtime panic.
+  Native tray checks fail on any logged Rust panic.
+- Release closed Linux WebViews by disconnecting their retiring IPC callback, breaking Wry’s reference cycle without
+  restarting the app. Native package checks require zero renderer processes after each close/reopen cycle.
+- Automatically refresh registry metadata whose cached version disagrees with the installation receipt, even when its
+  executable path is correct. Recover it from the verified installed app without restarting it or rewriting healthy
+  launchers/login choices.
+- Gate the actual AppImage on version-only registry damage and add a process/filesystem regression for this
+  live-audit finding.
+
+### Changed
+- Keep the same resident process when windows close; remove the hidden 20-second memory-cleanup restart. Destroy the
+  WebView and reclaim memory in place while preserving tray hosting, shortcuts and maintenance. Explicit Restart and
+  updates still work.
+
+## [0.4.5] — 2026-11-03
+
+### Added
+- Repair missing Arcade desktop launchers, command links and registry metadata automatically at startup and after
+  integration files change, using the installed app offline; recover registry metadata from its validated read-only
+  manifest.
+- Back up affected integration, preserve customized launchers and disabled login choices, verify installed bytes and
+  the repair result, and bound repair commands to 20 seconds. An unchanged failure is not retried continuously; one
+  bad receipt does not block other apps.
+- Add repeated-damage, ownership, future-receipt, disabled-login and actual AppImage maintenance gates. Windows
+  repairs that require the native setup program remain explicit.
+
+### Changed
+- Refresh the Linux desktop application cache at startup and after launcher changes, including healthy customized
+  launchers; bound optional cache commands and avoid idle polling.
+
+### Fixed
+- Honor the installed Linux login entry at release startup, including disabled or removed entries, instead of
+  reapplying an older tray preference.
 - Keep Tools usable if optional filesystem watching fails, and refresh Home health after automatic repairs.
-- Add repeated-damage, ownership, future-receipt, disabled-login and actual AppImage maintenance gates. Windows repairs that require the native setup program remain explicit.
 
-## 0.4.4
+## [0.4.4] — 2026-11-03
 
-- Fix self-updating from pre-overhaul Tools: defer folder migration until the resident starts, preserving the executing AppImage and the old helper's transaction.
+### Fixed
+- Fix self-updating from pre-overhaul Tools: defer folder migration until the resident starts, preserving the
+  executing AppImage and the old helper's transaction.
 - Verify actual installer bytes when staging in the legacy cache in the packaged release gate.
 
-## 0.4.3 — 2026-11-01
+## [0.4.3] — 2026-11-01
 
 ### Fixed
 
@@ -33,7 +90,7 @@
   the entry Wheel itself reads from 0.5.0, and `arcade-wheel.desktop` for older
   versions, so Tools and Wheel's own Settings agree on whether it starts at login.
 
-## 0.4.2 — 2026-11-01
+## [0.4.2] — 2026-11-01
 
 ### Fixed
 
@@ -44,7 +101,7 @@
   Settings show the same state; switching it off removes both. Launch agents are
   labelled with their file name.
 
-## 0.4.1 — 2026-10-28
+## [0.4.1] — 2026-10-28
 
 ### Fixed
 
@@ -53,7 +110,7 @@
   as `dev.arcade.Box`), as well as its earlier name. Apps released on Link 0.4.0
   are found and removed cleanly.
 
-## 0.4.0 — 2026-10-28
+## [0.4.0] — 2026-10-28
 
 Arcade design kit; one look and one set of conventions shared with every Arcade app.
 
@@ -99,7 +156,9 @@ Arcade design kit; one look and one set of conventions shared with every Arcade 
 - Every push to main publishes the Linux installer that Arcade Link's nightly
   ecosystem check installs, updates, repairs and removes.
 
-## 0.3.8 — 2026-10-25
+## [0.3.8] — 2026-10-25
+
+### Changed
 
 - A calmer, consistent interface across Home, Apps, Updates, Shortcuts, Learn,
   Connections, Engines, Settings and onboarding: quieter cards, clearer actions,
@@ -113,7 +172,9 @@ Arcade design kit; one look and one set of conventions shared with every Arcade 
   placeholders while checking, uses the catalog's purpose labels, and offers a
   retry after a failed check instead of retrying forever.
 
-## 0.3.7 — 2026-10-25
+## [0.3.7] — 2026-10-25
+
+### Changed
 
 - The shortcut sheet is calmer and easier to scan.
   Each shortcut is one line with its keys on the right, so a column holds about
@@ -124,7 +185,9 @@ Arcade design kit; one look and one set of conventions shared with every Arcade 
   keys sit beside their titles. The app glyph is now placed correctly on
   HiDPI screens.
 
-## 0.3.6 — 2026-10-19
+## [0.3.6] — 2026-10-19
+
+### Fixed
 
 - Updating Tools while it runs now switches to the new version. Running a
   newer Tools you downloaded (or `--install` from the command line) only brought
@@ -133,7 +196,9 @@ Arcade design kit; one look and one set of conventions shared with every Arcade 
   asked to quit first; a busy Tools stays, and the new version starts the next
   time Tools starts.
 
-## 0.3.5 — 2026-10-19
+## [0.3.5] — 2026-10-19
+
+### Fixed
 
 - Opening the Tools window, Settings or the Uninstall review no longer crashes
   Tools when it runs from its AppImage (0.3.2 to 0.3.4). Since 0.3.2 Tools
@@ -144,7 +209,9 @@ Arcade design kit; one look and one set of conventions shared with every Arcade 
 - The package check in CI now opens the Tools window from the AppImage and fails
   if Tools quits.
 
-## 0.3.4 — 2026-10-19
+## [0.3.4] — 2026-10-19
+
+### Fixed
 
 - A helper an app starts from its own image (such as a settings window) keeps
   working after the app quits: the previous release stopped passing the AppImage
@@ -153,7 +220,9 @@ Arcade design kit; one look and one set of conventions shared with every Arcade 
   image (the installed copy, other Arcade apps, a restart through the AppImage
   file) drop it, so installing from Downloads still leaves nothing behind.
 
-## 0.3.3 — 2026-10-19
+## [0.3.3] — 2026-10-19
+
+### Fixed
 
 - Installing or updating from your Downloads folder no longer leaves the
   downloaded AppImage mounted and its runtime running. The previous release
@@ -161,7 +230,9 @@ Arcade design kit; one look and one set of conventions shared with every Arcade 
   waits on a pipe the app inherits, and the installed copy still inherited that;
   now no inherited handle is passed on.
 
-## 0.3.2 — 2026-10-18
+## [0.3.2] — 2026-10-18
+
+### Fixed
 
 - Updating or installing from your Downloads folder, closing the window (Tools
   restarts lean in the background) and starting other Arcade apps no longer
@@ -171,13 +242,17 @@ Arcade design kit; one look and one set of conventions shared with every Arcade 
 - The launcher's "Open Settings" action opens Settings instead of Home
   (`arcade-tools --settings`).
 
-## 0.3.1 — 2026-10-18
+## [0.3.1] — 2026-10-18
+
+### Fixed
 
 - Same app as 0.3.0, which could not be published: the release build's
   documentation snapshot now uses the workflow's token, so GitHub's anonymous
   rate limit no longer stops it.
 
-## 0.3.0 — 2026-10-18
+## [0.3.0] — 2026-10-18
+
+### Changed
 
 - Apps started from Tools get your own environment instead of the AppImage's, so
   "Start all Arcade apps" starts Clipboard again.
@@ -203,7 +278,9 @@ Arcade design kit; one look and one set of conventions shared with every Arcade 
 - The shortcuts overlay picks up shortcut changes live on Windows and macOS too.
 - Built against Arcade Link commit `2fc7c91`.
 
-## 0.2.1 — 2026-10-15
+## [0.2.1] — 2026-10-15
+
+### Fixed
 
 - Restore portable settings as `file/any` inputs, which Link 0.3 requires;
   restoring Arcade Lens settings from a backup was rejected with
@@ -211,7 +288,9 @@ Arcade design kit; one look and one set of conventions shared with every Arcade 
 - Stop bundling Ubuntu's `libwayland-client` in the AppImage. On newer distributions
   (Arch, CachyOS, Fedora) it broke the host Mesa EGL and the Tools window rendered blank.
 
-## 0.2.0 — 2026-10-14
+## [0.2.0] — 2026-10-14
+
+### Added
 
 - Replace the installer list with a Svelte hub: dashboard, catalog/bundles,
   updates, shortcuts, Learn, Connections, Engines, Settings and onboarding.
@@ -232,6 +311,8 @@ Arcade design kit; one look and one set of conventions shared with every Arcade 
 - Share Windows PATH/receipt integration and canonical release metadata, with
   v0.3.0 provenance hashes. Test all three OSes on Rust 1.88 and package both binaries.
 
-## 0.1.0
+## [0.1.0] — 2026-10-10
+
+### Added
 
 - Verified per-user install, update, repair, launch and uninstall for Arcade apps.

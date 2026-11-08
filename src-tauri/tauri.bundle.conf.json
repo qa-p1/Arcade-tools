@@ -6,7 +6,10 @@
     "linux": {
       "appimage": {
         "files": {
-          "/usr/lib/libarcade-trim.so": "binaries/libarcade-trim.so"
+          "/usr/lib/libarcade-trim.so": "binaries/libarcade-trim.so",
+          "/usr/share/applications/dev.arcade.Tools.desktop": "../packaging/linux/dev.arcade.Tools.desktop",
+          "/usr/share/icons/hicolor/scalable/apps/dev.arcade.Tools.svg": "../packaging/linux/dev.arcade.Tools.svg",
+          "/usr/share/icons/hicolor/symbolic/apps/dev.arcade.Tools-symbolic.svg": "../packaging/linux/dev.arcade.Tools-symbolic.svg"
         }
       }
     }

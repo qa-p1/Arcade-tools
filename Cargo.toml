@@ -4,6 +4,7 @@ version.workspace = true
 edition = "2021"
 rust-version = "1.88"
 license = "MIT"
+publish = false
 description = "Verified per-user installation and lifecycle management for the Arcade apps"
 
 [workspace]
@@ -20,7 +21,7 @@ version = "0.4.6"
 # against a local checkout instead, add to .cargo/config.toml (not committed):
 #   [patch."https://github.com/qa-p1/Arcade-Link"]
 #   arcade-link = { path = "<path to>/Arcade-link/crates/arcade-link" }
-arcade-link = { git = "https://github.com/qa-p1/Arcade-Link", tag = "v1.0.0", features = ["watch", "install", "engines", "trayhost", "release"] }
+arcade-link = { git = "https://github.com/qa-p1/Arcade-Link", tag = "v1.0.1", features = ["watch", "install", "engines", "trayhost", "release"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 reqwest = { version = "0.13", default-features = false, features = ["blocking", "rustls"] }
@@ -34,7 +35,7 @@ pulldown-cmark = { version = "0.13", default-features = false, features = ["html
 ammonia = "4"
 regex = "1"
 base64 = "0.22"
-zip = { version = "2.4", default-features = false, features = ["deflate"] }
+zip = { version = "9.4", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 sysinfo = { version = "0.35", default-features = false, features = ["system"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]

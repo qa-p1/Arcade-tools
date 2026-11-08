@@ -101,20 +101,20 @@ pub fn parse(raw: Vec<u8>) -> Result<BTreeMap<String, Vec<u8>>> {
     let mut remaining = MAX_ARCHIVE;
     for i in 0..zip.len() {
         let mut entry = zip.by_index(i).map_err(zip_error)?;
-        relative_path(entry.name())?;
+        let name = entry.name().map_err(zip_error)?.into_owned();
+        relative_path(&name)?;
         if entry.is_dir()
             || entry
                 .unix_mode()
                 .is_some_and(|m| m & 0o170000 != 0 && m & 0o170000 != 0o100000)
             || entry.size() > remaining
-            || files.contains_key(entry.name())
+            || files.contains_key(&name)
         {
             return Err(Error::new(
                 "archive",
                 "Unsafe, duplicate or oversized archive entry.",
             ));
         }
-        let name = entry.name().to_owned();
         let mut bytes = Vec::new();
         (&mut entry).take(remaining + 1).read_to_end(&mut bytes)?;
         if bytes.len() as u64 > remaining {

@@ -12,4 +12,4 @@ resources/catalog-snapshot/** -text
 src-tauri/resources/** -text
 src-ui/design/** -text
 src-tauri/icons/** -text
-assets/icon.svg -text
+packaging/linux/dev.arcade.Tools*.svg -text

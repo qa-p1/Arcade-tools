@@ -213,10 +213,21 @@ fn install_options(
     let staging = tempfile::tempdir()?;
     let icon = staging.path().join("tools.png");
     std::fs::write(&icon, include_bytes!("../icons/128x128.png"))?;
-    let icons = [Icon {
-        source: icon,
-        size: IconSize::Pixels(128),
-    }];
+    let scalable = staging.path().join("tools.svg");
+    std::fs::write(
+        &scalable,
+        include_bytes!("../../packaging/linux/dev.arcade.Tools.svg"),
+    )?;
+    let icons = [
+        Icon {
+            source: icon,
+            size: IconSize::Pixels(128),
+        },
+        Icon {
+            source: scalable,
+            size: IconSize::Scalable,
+        },
+    ];
     let app = info();
     let receipt = arcade_link::install::install(
         &environment,

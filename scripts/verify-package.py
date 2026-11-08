@@ -189,6 +189,11 @@ with tempfile.TemporaryDirectory(prefix='arcade-tools-package-') as temporary:
         assert not bundled, f'AppImage must use the host libxkbcommon: {bundled}'
         # OPEN1: Tools preloads this into WebKit's helper processes (main.rs).
         assert (root / 'squashfs-root' / 'usr' / 'lib' / 'libarcade-trim.so').is_file(), 'AppImage lacks libarcade-trim.so'
+        # The fleet identity (ARCADE_APP.md ID-1/ID-3): one dev.arcade.Tools entry, its icon and the symbolic icon.
+        share = root / 'squashfs-root' / 'usr' / 'share'
+        for identity in ('applications/dev.arcade.Tools.desktop', 'icons/hicolor/scalable/apps/dev.arcade.Tools.svg',
+                         'icons/hicolor/symbolic/apps/dev.arcade.Tools-symbolic.svg'):
+            assert (share / identity).is_file(), f'AppImage lacks {identity}'
         subprocess.run([str(binaries / 'arcade-tools'),'--version'],env=environment,check=True,timeout=10)
         environment['APPIMAGE'] = str(staged_package)
         # Exercise the mounting runtime and full AppImage bytes, not only
