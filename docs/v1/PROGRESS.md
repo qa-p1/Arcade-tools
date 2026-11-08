@@ -2,6 +2,33 @@
 
 Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
 
+## 2026-11-08 (session 2)
+
+- Done since: schema versions + migrations from every 0.x (D9, a94668e); clean uninstall leaves nothing in a fresh
+  home (lifecycle test + package smoke, 67355d2); accessibility checks (axe WCAG A/AA on every tab in both themes,
+  Tab reachability with a visible ring, 125 %/150 % scaling, reduced motion; a8591a3) — the kit's tab-panel focus rule
+  went upstream (Link PR https://github.com/qa-p1/Arcade-Link/pull/47); native-library notices for the AppImage
+  (`scripts/native-notices.py`, 4c238cb; the recorded set comes from the CI artifact).
+- CI fixes (5873625): the T3 and migration tests used Linux's legacy folder on every OS (now taken from Link's table
+  per platform); the updates test still expected a newer `updates.json` to be refused (D9 reads it). `scripts/check`
+  runs `cargo test --no-fail-fast` so one failing binary no longer hides the rest.
+- Product bug found by the clean-uninstall smoke (36aa4fa): `--repair` run from another copy (the download) repointed
+  the receipt, desktop entry and CLI at that copy; a later uninstall deleted the download and left the installed
+  copy. The running copy is adopted only when the recorded file is gone.
+- Memory (task: budgets). Measured on Xvfb (no swap locally): background 40 PSS, open 350, closed +20 s 71 vs budgets
+  30 / 225 / 30. Causes: Link's trim dropped only `r-xp`, so read-only data (`r--p`: libwebkit ~10 MB, the binary's
+  .rodata ~4 MB) stayed resident; the single trim at "manager ready" ran before the tray, Link socket and first
+  update check faulted code back in. Link fix in PR #47 (smaps-checked `r--p` trim; also stops reverting written
+  `r-xp` mappings, a latent bug). Tools re-trims once after startup settles and after each background update check.
+  Result on a local package against the patched Link: background 15–18 PSS (met), closed +20 s 28–34 with swap
+  (as on CI runners; 45 without), window open 261–334 vs 225 — WebKitWebProcess keeps ~123 MB of in-use malloc for
+  llvmpipe compositing, removable only by UX trades; D10 records the decision (the open cap is set from CI's perf
+  job, the owner's option is in catalog `LOCAL.md` §4).
+- The Linux package smoke (CI on 7802262) found uninstall leaving `arcade.tools.lock`, `icon-theme.cache` and
+  `mimeinfo.cache` in a fresh home: a Link bug, fixed in Link PR #47 (52bd02a). The local package built against it
+  passes the whole lifecycle; Tools' CI passes once it pins Link 1.0.2. Release-only `unused_mut` warning in
+  `trust.rs` fixed.
+
 ## 2026-11-08 (later)
 
 - Link v1.0.1 tagged (a68e801) through its "Tag a release" after the desktop harness passed on main; Link PR

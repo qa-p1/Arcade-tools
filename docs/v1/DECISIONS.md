@@ -167,3 +167,34 @@ A file from a newer Tools keeps its higher schema number and every field this ve
 map), so a Nightly → Stable switch never loses settings; the switch also backs up the app's data first (D6). The
 three 0.x shapes (0.1.0; 0.2.0–0.2.1; 0.3.0–0.4.6), each in its own folder (`<data>/arcade-tools` until 0.3.8), are
 loaded in `tests/schema_migrations.rs`; the tray file in `tray::settings` tests.
+
+## D10 — Window-open memory on Xvfb is above the 225 PSS ratchet; no UX trade to close it
+
+PLAN's checklist asks for every per-app budget. Link's `budgets.json` `xvfb` section gives Tools 30/50 in the
+background and after close, 225/310 with the window open, and calls the open and closed caps *ratchets*: "set to
+today's achievable value, lowered as items land" (AUDIT/memory.md §7). The 225 came from the audit's lab estimate for
+OPEN1 (210–228), not from a run of `fleet_budget.py`.
+
+Measured 2026-11-08 with `fleet_budget.py --only tools --section xvfb --settle 30 --open tools --close-wait 20` on the
+AppImage packaged locally (Ubuntu 24.04 and its WebKitGTK, Mesa 25.2 llvmpipe, 4 CPUs like GitHub's runners; CI
+packages on 22.04, so the WebKit it bundles differs, one more reason the cap below comes from CI), PSS / RSS in MB:
+
+| state | 0.4.6 code before this session | with Link's `r--p` trim and trims after startup | budget |
+|---|---|---|---|
+| background | 40 / 43 | **14.6–17.6 / 15.5–18.6** | 30 / 50 |
+| open, at the gate's 6 s | 350–398 | 329–334 / 363–368 | 225 / 310 |
+| open, after the helpers' 20 s trim | — | 261 / 278 | 225 / 310 |
+| closed +20 s | 71 | 28–45 (29 and 34 with swap, 45 without) | 30 / 50 |
+
+What is left with the window open is WebKitWebProcess: 211 MB anonymous, of which ~123 MB is glibc malloc in use
+(two thread arenas of 40 and 38 MB plus a 45 MB heap; `malloc_trim` already returns the free pages). Under llvmpipe
+that is mostly compositing layers. The audit names only two levers that remove it, and both change UX: compositing
+off (OPEN2, −50/−40, unproven motion) and paging out the open window (OPEN3, swap-in on interaction). README's rule is
+that UX must not get worse, so neither is applied.
+
+**Decision.** Tools keeps the UX-neutral set (U1, W1, W3b, OPEN1 with Link 1.0.2's trim). The open-window cap stays a
+ratchet: it is set from Tools' own CI perf job (the same command on `ubuntu-24.04`, task 14) to the measured value
+plus at most 5 %, stated in `budgets.json` with this decision as its source, and it is only ever lowered. The
+background budget is met as written, and closed is held to 30/50 as written. README's fleet-level open-window budget
+(PSS ≤ 500 / RSS ≤ 680) is checked at the Fleet step. Whether to trade UX for memory (OPEN2) is the owner's call,
+listed in catalog `dev/v1/LOCAL.md`.

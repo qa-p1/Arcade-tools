@@ -287,6 +287,14 @@ fn reclaim_resident_memory(app: AppHandle, after: std::time::Duration) {
     });
 }
 const RELEASE_AFTER_CLOSE: std::time::Duration = std::time::Duration::from_secs(3);
+const RELEASE_AFTER_STARTUP: std::time::Duration = std::time::Duration::from_secs(15);
+
+/// W0 after background work (a scheduled update check): give back what it faulted in while no window is open.
+pub(crate) fn trim_if_hidden(app: &AppHandle) {
+    if app.webview_windows().is_empty() {
+        arcade_link::runtime::trim();
+    }
+}
 fn audit(app: &AppHandle, event: Value) {
     #[cfg(debug_assertions)]
     {
@@ -1325,7 +1333,10 @@ pub fn run(background: bool, quit: bool) {
                         json!({"event":"initialization-error", "message":error.message}),
                     );
                 } else {
-                    reclaim_resident_memory(handle, std::time::Duration::ZERO);
+                    reclaim_resident_memory(handle.clone(), std::time::Duration::ZERO);
+                    // The tray, Link's socket and the first update check run just after this and fault code back
+                    // in; release it once more when they have settled (one pass, not a timer).
+                    reclaim_resident_memory(handle, RELEASE_AFTER_STARTUP);
                 }
             });
             Ok(())

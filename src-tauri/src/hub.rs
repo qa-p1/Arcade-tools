@@ -143,6 +143,7 @@ pub(super) fn start_updates(
             if let Err(error) = check(&app, &state, &manager, Trigger::Timer, true) {
                 let _ = app.emit("manager-message", error.message);
             }
+            super::trim_if_hidden(&app);
         }
     });
     Ok(())

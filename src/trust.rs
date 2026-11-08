@@ -31,6 +31,7 @@ fn parse_keys(text: &str) -> Result<Vec<PublicKey>> {
 
 /// The keys a source trusts. `test` is true only for the debug-only loopback source.
 pub fn trusted_keys(test: bool) -> Result<Vec<PublicKey>> {
+    #[cfg_attr(not(debug_assertions), allow(unused_mut))]
     let mut keys = parse_keys(UPDATE_KEYS)?;
     #[cfg(debug_assertions)]
     if test {
