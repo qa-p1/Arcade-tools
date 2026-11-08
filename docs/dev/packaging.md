@@ -28,9 +28,14 @@ Built once, promoted byte for byte (catalog `dev/v1/PLAN.md` § Release):
 3. "Release" (`release.yml`) builds the three installers with LTO and publishes a hidden prerelease on the test
    channel with `arcade-release.json`, an unsigned manifest and `SHA256SUMS.txt`. Tools follows it only with
    `ARCADE_TOOLS_CHANNEL_OVERRIDE=test`.
-4. Run every exit gate against the published rc files (upgrade from the last stable release with
-   `scripts/verify-upgrade.py`, the rc.N → rc.N+1 self-update, N-1, desktop and performance). Anything that fails
-   is fixed and cut as rc.N+1; superseded rc's stay published.
+4. Actions → "Gates" (`gates.yml`), run on the rc tag, runs every exit gate against the published rc files:
+   it downloads them, checks `SHA256SUMS.txt` and the manifest, then runs conformance, the package smoke on all
+   three installers, the upgrade from the last stable release (`previous`, `scripts/verify-upgrade.py`),
+   maintenance, resident and tray checks, N-1, the memory and performance budgets, Tier 1 and Tier 2 desktop
+   suites, and Tools' delta, signature and tampered-chunk checks on the published AppImages. With `update-from`
+   set to an earlier rc it also installs that rc and lets it update itself to this one with a delta
+   (`scripts/verify-self-update.py`). Anything that fails is fixed and cut as rc.N+1; superseded rc's stay
+   published.
 5. Actions → "Promote" (`promote.yml`) with the verified rc tag republishes the same bytes as `vX.Y.Z` on the
    stable channel with a signed manifest. It fails, publishing nothing, while `ARCADE_UPDATE_SIGNING_KEY` is
    missing.

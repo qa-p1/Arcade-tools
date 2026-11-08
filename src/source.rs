@@ -564,7 +564,16 @@ impl Source {
         if let Some(entry) = &checked.entry {
             if let Some(plan) = delta::plan(have, entry) {
                 match self.download_delta(checked, entry, &plan, have, cache, cancel, progress) {
-                    Ok(file) => return Ok(file),
+                    Ok(file) => {
+                        // The record of a delta update: the self-update gate reads it from the log.
+                        let fetched: u64 =
+                            delta::requests(&plan).iter().map(|r| r.end - r.start).sum();
+                        eprintln!(
+                            "Downloaded {} with a delta: {fetched} of {} bytes",
+                            entry.name, entry.size
+                        );
+                        return Ok(file);
+                    }
                     Err(error) if error.code == "cancelled" => return Err(error),
                     Err(error) => eprintln!(
                         "Delta download failed; downloading the whole file: {}",

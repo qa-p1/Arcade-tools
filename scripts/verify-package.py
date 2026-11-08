@@ -11,13 +11,17 @@ import sys
 import tempfile
 
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument('--target', required=True)
+group = parser.add_mutually_exclusive_group(required=True)
+group.add_argument('--target', help='check the one installer built for this target under target/')
+group.add_argument('--package', type=Path, help='check this installer (a published file, for the release gates)')
 args = parser.parse_args()
 repo = Path(__file__).resolve().parents[1]
 version = json.loads((repo / 'src-tauri' / 'tauri.conf.json').read_text())['version']
-bundle = repo / 'target' / args.target / 'release' / 'bundle'
 extension = '.exe' if sys.platform == 'win32' else '.dmg' if sys.platform == 'darwin' else '.AppImage'
-packages = sorted(bundle.rglob('*' + extension))
+if args.package:
+    packages = [args.package.resolve(strict=True)] if args.package.name.endswith(extension) else []
+else:
+    packages = sorted((repo / 'target' / args.target / 'release' / 'bundle').rglob('*' + extension))
 if len(packages) != 1:
     raise SystemExit(f'Expected one installer: {packages}')
 package = packages[0]
@@ -156,7 +160,7 @@ with tempfile.TemporaryDirectory(prefix='arcade-tools-package-') as temporary:
             for name in ['arcade-tools', 'arcade-tools-overlay']:
                 executable = binaries / name
                 subprocess.run([str(executable),'--version'], env=environment,check=True,timeout=10)
-                if args.target == 'universal-apple-darwin':
+                if args.target == 'universal-apple-darwin' or 'universal' in package.name:
                     architectures = subprocess.run(['lipo','-archs',str(executable)],capture_output=True,text=True,check=True).stdout.split()
                     assert set(architectures) == {'arm64','x86_64'}, (name, architectures)
             # Link uses ARCADE_HOME as the home folder, so Applications is under it.

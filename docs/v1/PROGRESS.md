@@ -4,6 +4,20 @@ Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
 
 ## 2026-11-08 (session 2)
 
+- rc.2's Release (run 42492892679, from 6238329) built and checked Linux and Windows, but the macOS job failed
+  after its package smoke passed: "Stage the installer" compared `wc -l` as a string, and macOS pads it with
+  spaces. Nothing was published (publish needs every bundle). The comparison is numeric now, in Release and CI.
+- **Gates workflow (D14).** `gates.yml` runs every exit gate against a published rc's files: download, then
+  `SHA256SUMS.txt` and manifest checks, conformance, package smoke on all three installers
+  (`verify-package.py --package`), the upgrade from v0.4.6, maintenance, resident, tray and N-1 on the AppImage
+  itself, budgets, Tier 1 and Tier 2, and Tools' delta, signature and tampered-chunk checks on the published
+  AppImages (`tests/releases.rs` gate test; on 0.4.6 → the 1.0.0 build it fetched 15.3 of 92.7 MB). With
+  `update-from`, `verify-self-update.py` lets an earlier rc update itself to this one through GitHub with a delta.
+- Found while writing it: a login (background) start counted as use, so Tools' first check never auto-updated
+  Tools (put off 6 h); fixed with a test. A successful delta now logs a line, so the self-update gate can prove it.
+  The tray test follows the resident process, so it runs on the AppImage (which relaunches unpacked).
+- Next: PR → green CI → merge → rc.3 → Gates on rc.3 → rc.4 (a real change, so its bytes differ) → Gates on rc.4
+  with `update-from: v1.0.0-rc.3`. Stable stays blocked on B1.
 - **Step 8 started.** PR #23 green on every job at f3a609f (version 1.0.0, guide screenshots retaken, release
   steps in `docs/dev/packaging.md` rewritten for rc → Promote) and merged as 7682ac9. `v1.0.0-rc.1` tagged through
   "Tag a release", which started "Release" on the test channel (run 42487791767). Next, against the published
