@@ -15,3 +15,7 @@
 
 /* TL-9: the installed build's channel, next to the app's name. */
 .channel-badge { margin-left: var(--sp-6, 6px); vertical-align: middle; }
+
+/* The design kit (Link v1.0.1, arcade.css) removes the outline from a focused tab panel, so keyboard users lose sight
+   of focus when Tab lands on one. Restore the kit's ring for keyboard focus; fixed in the kit for the next Link tag. */
+.tab-panel:focus-visible { outline: var(--focus-ring) solid var(--accent); outline-offset: calc(-1 * var(--focus-ring)); }

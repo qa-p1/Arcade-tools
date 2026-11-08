@@ -8,7 +8,7 @@ if (!existsSync('dist/index.html')) {
   process.exit(2);
 }
 let failed = false;
-for (const scenario of ['races', 'ux', 'layout', 'lock']) {
+for (const scenario of ['races', 'ux', 'layout', 'lock', 'a11y']) {
   const run = spawnSync(process.execPath, ['scripts/ui-checks/harness.mjs', 'dist', `scripts/ui-checks/${scenario}.mjs`], { stdio: 'inherit' });
   failed ||= run.status !== 0;
 }
