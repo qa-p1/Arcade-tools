@@ -383,13 +383,13 @@ impl EngineCatalog {
     }
 }
 
-#[cfg(test)]
+// GTK/GLib own SIGCHLD only on Linux, and libc is a Linux-only dependency here.
+#[cfg(all(test, target_os = "linux"))]
 mod tests {
     use super::*;
 
     /// RD-TOOLS-2: inside Tools, GTK/GLib owns SIGCHLD. A wait that depends on receiving SIGCHLD never sees the
     /// engine exit and reports a timeout for every engine.
-    #[cfg(unix)]
     #[test]
     fn a_version_check_does_not_depend_on_receiving_sigchld() {
         extern "C" fn ignore(_: libc::c_int) {}

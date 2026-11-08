@@ -213,14 +213,34 @@ with tempfile.TemporaryDirectory(prefix='arcade-tools-package-') as temporary:
         shutil.copy2(package, download)
         window = dict(environment, APPIMAGE_EXTRACT_AND_RUN='1', OWD=str(work))
         window.pop('APPIMAGE')
+        # U1: the launcher copies the image to <data>/arcade/runtime/ once, starts Tools from there and exits 0.
+        # The shell keeps the display and bus alive after it exits; the copy must still run with its window open.
+        def running_unpacked():
+            found = {}
+            for proc in Path('/proc').iterdir():
+                try:
+                    exe = os.readlink(proc / 'exe')
+                except OSError:
+                    continue
+                if exe.startswith(str(root) + '/') and '/arcade/runtime/tools-' in exe and exe.endswith('/arcade-tools'):
+                    found[int(proc.name)] = exe
+            return found
         with tempfile.TemporaryFile() as log:
-            child = subprocess.Popen(['dbus-run-session', '--', 'xvfb-run', '-a', str(download)], cwd=work, env=window,
+            child = subprocess.Popen(['dbus-run-session', '--', 'xvfb-run', '-a', 'sh', '-c', '"$1" || exit $?; exec sleep 600',
+                                      'sh', str(download)], cwd=work, env=window,
                                      stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+            unpacked = {}
             try:
                 code = child.wait(timeout=20)
             except subprocess.TimeoutExpired:
                 code = None
+                unpacked = running_unpacked()
             finally:
+                for pid in list(unpacked) + list(running_unpacked()):
+                    try:
+                        os.kill(pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
                 try:
                     os.killpg(child.pid, signal.SIGKILL)
                 except ProcessLookupError:
@@ -234,5 +254,7 @@ with tempfile.TemporaryDirectory(prefix='arcade-tools-package-') as temporary:
                     if fusermount and mountpoint.startswith(str(root) + '/'):
                         subprocess.run([fusermount, '-uz', mountpoint], check=False)
             log.seek(0)
-            assert code is None, f'Tools exited {code} with its window open:\n{log.read().decode(errors="replace")[-4000:]}'
+            output = log.read().decode(errors="replace")[-4000:]
+            assert code is None, f'Tools exited {code} with its window open:\n{output}'
+            assert unpacked, f'Tools is not running from its unpacked copy (U1) with its window open:\n{output}'
 print(f'PASS: {sys.platform} package contains Tools and the native overlay; isolated package smoke')
