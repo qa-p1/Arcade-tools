@@ -327,3 +327,20 @@ only on the test channel; stable versions always differ.
 Since the old Tools makes this decision, the self-update gate needs two rc's with the fix: rc.7, then rc.8 with
 `update-from: v1.0.0-rc.7`.
 
+## D17 — Commands wait 2 s for the running Tools to answer
+
+rc.8's Release failed in the Linux bundle's resident check (run 42528082923): after `--restart`, the next `--quit`
+exited 1 with "Arcade Tools didn't respond in time", 0.85 s after the last close/reopen cycle. The same check had
+failed once before on PR #42 (and the rc.3 bundle hung once at a different step). The diagnostics added then show the
+cause: the restarted Tools had written its endpoint and was starting GTK and WebKit, and the command's `hello` used
+Link's 150 ms `HELLO_TIMEOUT`, which is the liveness probe for background checks. A person's `--quit`, `--restart` or
+`--status` right after a restart, or soon after a login start, could fail the same way, and `--status` reported such a
+Tools as not running. The start-up check that keeps legacy folders from moving under a running Tools used the same
+probe.
+
+**Decision.** These commands, and the folder check, connect with 2 s, the time Link's server itself waits for a hello.
+A Tools that is not running still fails at once (no endpoint, or the connection is refused), so only a live but busy
+Tools is waited for. A CLI test serves a fake Tools that answers `hello` after 600 ms: it failed with 150 ms and
+passes with 2 s. Link's background probes keep 150 ms. Since Release and Gates run from the tag, rc.8 stays
+unpublished and the fix goes into rc.9, with the self-update gate run as `update-from: v1.0.0-rc.7`.
+
