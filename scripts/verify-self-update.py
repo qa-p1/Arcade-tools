@@ -31,6 +31,15 @@ def digest(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
+def without_chunks(value):
+    """updates.json with the delta chunk index (thousands of hashes) left out."""
+    if isinstance(value, dict):
+        return {k: without_chunks(v) for k, v in value.items() if k not in ("chunks", "blocks")}
+    if isinstance(value, list):
+        return [without_chunks(v) for v in value]
+    return value
+
+
 def alive(pid):
     try:
         return Path(f"/proc/{pid}/stat").read_text().rpartition(") ")[2].split()[0] != "Z"
@@ -142,10 +151,22 @@ def main():
             subprocess.run([str(installed), "--quit"], env=env, capture_output=True, timeout=30)
         except Exception:
             print(logged().decode(errors="replace")[-6000:])
-            # Tools' own record of what its checks found and decided.
+            # Tools' own record of what its checks found and decided. updates.json is mostly the release's chunk
+            # index, so it is printed without it: what was found, for which channel, and whether it was an update.
             for name in ("preferences.json", "updates.json", "update-history.jsonl"):
                 file = state / name
-                print(f"--- {name}:\n{file.read_text()[-4000:] if file.is_file() else '(missing)'}")
+                text = file.read_text() if file.is_file() else None
+                if text and name == "updates.json":
+                    try:
+                        text = json.dumps(without_chunks(json.loads(text)), indent=1)
+                    except ValueError:
+                        pass
+                print(f"--- {name}:\n{text[-6000:] if text else '(missing)'}")
+            # What Tools knows about the installed copy (version, channel), which the update decision starts from.
+            if installed:
+                status = subprocess.run([str(installed), "--integration-status"], env=env, capture_output=True,
+                                        text=True, timeout=30)
+                print(f"--- receipt:\n{status.stdout[-3000:]}{status.stderr[-1000:]}")
             raise
         finally:
             if pid := resident():
