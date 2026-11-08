@@ -249,7 +249,21 @@ fn install_options(
 #[cfg(target_os = "linux")]
 fn repair(environment: &Environment) -> Result<arcade_link::receipt::Receipt> {
     let runtime = Runtime::discover()?;
-    repair_at(environment, runtime.appimage.as_deref())
+    let recorded = environment.receipts().read("arcade.tools")?.map(|receipt| receipt.path);
+    repair_at(
+        environment,
+        moved_installation(recorded.as_deref(), runtime.appimage.as_deref()),
+    )
+}
+/// The AppImage that `--repair` ran from replaces the recorded installation only when that file is gone (the user
+/// moved it). Repairing from another copy, such as the download, must not point the receipt, desktop entry and CLI
+/// at that copy: a later uninstall would delete the download and leave the installed copy behind.
+#[cfg(target_os = "linux")]
+fn moved_installation<'a>(
+    recorded: Option<&std::path::Path>,
+    running: Option<&'a std::path::Path>,
+) -> Option<&'a std::path::Path> {
+    running.filter(|_| recorded.is_some_and(|path| !path.is_file()))
 }
 #[cfg(target_os = "linux")]
 fn repair_at(
@@ -598,6 +612,22 @@ pub async fn dismiss_self_install() -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+
+    /// `--repair` from the download kept the installed copy; only a moved installation is adopted.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn repair_adopts_the_running_appimage_only_when_the_installation_moved() {
+        let dir = tempfile::tempdir().unwrap();
+        let installed = dir.path().join("Arcade-Tools.AppImage");
+        let download = dir.path().join("Downloads/Arcade-Tools.AppImage");
+        std::fs::write(&installed, b"tools").unwrap();
+        let moved = super::moved_installation;
+        assert_eq!(moved(Some(&installed), Some(&download)), None);
+        assert_eq!(moved(Some(&installed), None), None);
+        assert_eq!(moved(None, Some(&download)), None);
+        std::fs::remove_file(&installed).unwrap();
+        assert_eq!(moved(Some(&installed), Some(&download)), Some(download.as_path()));
+    }
 
     /// RD-TOOLS-6: Tools uses the fleet's OS identifier for its window and desktop entry, like every other app.
     #[cfg(target_os = "linux")]
