@@ -16,7 +16,9 @@ and versions follow [Semantic Versioning](https://semver.org/).
 - Third-party notices in Settings › About, and a security policy (`SECURITY.md`).
 
 ### Changed
-- Arcade Link 1.0.1: the 1.0 runtime, release manifests and update primitives.
+- Arcade Link 1.0.2: the 1.0 runtime, release manifests and update primitives. 1.0.2 trims read-only data too
+  (background memory about 40 → 15–18 MB PSS) and makes uninstall leave no lock file or empty icon/desktop cache.
+- Tools trims its memory again once startup settles and after each background update check.
 - Tools runs from an unpacked copy of its AppImage and trims its memory, and the WebView's, while the window is open
   and after it closes; unused unpacked copies are removed.
 - Tools' Linux desktop id and window class are `dev.arcade.Tools`, with a scalable and a symbolic icon.
