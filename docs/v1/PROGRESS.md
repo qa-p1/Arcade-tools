@@ -4,6 +4,13 @@ Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
 
 ## 2026-11-08 (session 2)
 
+- N-1 (D11): CI runs the tray test's peer checks (hosting, cached menu toggle, Start) with the mock peer served by
+  the v0.4.4 and v0.4.15 Link CLIs that the published apps were built with; both pass locally against this build
+  (3 s each). The full tray test also passes locally with the overlay built: its `--show-shortcuts` step expected
+  the old immediate return and now waits for the overlay to close. Bundling retries twice (GitHub's 504s on
+  NSIS/linuxdeploy downloads). Docs: the guide's screenshots come from `screens.mjs` (`SCREENS_DOCS=1`, retaken at
+  each version bump), and Features describes channels, signed manifests, deltas and withdrawn releases (d42c210).
+
 - On Link v1.0.3 (6e4ac67): page-out of every private mapping after the window closes (closed PSS 36 → 12) and the
   window-open cap of 281 PSS from CI measurements (D10). Tier 1 Hyprland test fixed: a layer surface has `x/y/w/h`,
   not `at/size`; the pointer now goes to a part of the other window the centred overlay does not cover; Escape goes

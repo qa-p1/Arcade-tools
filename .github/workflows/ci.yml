@@ -108,6 +108,40 @@ jobs:
         if: runner.os == 'Linux'
         timeout-minutes: 5
         run: python3 ../Arcade-link/tools/e2e.py run -- /usr/bin/python3 scripts/tray-resident-e2e.py --tools target/debug/arcade-tools --link "$(command -v arcade-link)" --seconds 10
+      # N-1 (DECISIONS.md D11): the published apps speak the Link of their release, v0.4.4 (oldest) to v0.4.15
+      # (newest). Each serves the tray test's mock peer while this Link watches the tray.
+      - name: Restore the published apps' Link CLIs
+        id: n1-cache
+        if: runner.os == 'Linux'
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.arcade-link-n1
+          key: arcade-link-n1-${{ runner.os }}-v0.4.4-v0.4.15
+      - name: The published apps' Link CLIs
+        if: runner.os == 'Linux' && steps.n1-cache.outputs.cache-hit != 'true'
+        timeout-minutes: 15
+        run: |
+          for tag in v0.4.4 v0.4.15; do
+            for i in 1 2 3; do
+              timeout 600 cargo install --locked --git https://github.com/qa-p1/Arcade-Link --tag "$tag" arcade-link-cli --root ~/.arcade-link-n1/"$tag" && break
+              sleep $((i * 5))
+            done
+            test -x ~/.arcade-link-n1/"$tag"/bin/arcade-link
+          done
+      - name: Save the published apps' Link CLIs
+        if: runner.os == 'Linux' && steps.n1-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.arcade-link-n1
+          key: ${{ steps.n1-cache.outputs.cache-primary-key }}
+      - name: Tray with the published apps' Link as the peer (N-1)
+        if: runner.os == 'Linux'
+        timeout-minutes: 5
+        run: |
+          for tag in v0.4.4 v0.4.15; do
+            echo "--- peer on Link $tag"
+            python3 ../Arcade-link/tools/e2e.py run -- /usr/bin/python3 scripts/tray-resident-e2e.py --tools target/debug/arcade-tools --link "$(command -v arcade-link)" --peer-link ~/.arcade-link-n1/"$tag"/bin/arcade-link --peer-only --seconds 10
+          done
       - name: Build both packaged binaries
         if: ${{ !inputs.skip_packages }}
         run: python3 scripts/prepare-overlay.py --target ${{ matrix.target }}
@@ -128,7 +162,14 @@ jobs:
         env:
           # Use the host libwayland-client; Ubuntu's copy breaks EGL on newer distributions.
           LINUXDEPLOY_EXCLUDED_LIBRARIES: 'libwayland-client.so*;libxkbcommon.so*'
-        run: npm run tauri -- build --config src-tauri/tauri.bundle.conf.json --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+        # Tauri downloads its bundler tools (NSIS, linuxdeploy) on a cold cache with one attempt; GitHub's release
+        # downloads return 504 at times. A retry reuses the finished build, so it only repeats the bundling.
+        run: |
+          for i in 1 2 3; do
+            npm run tauri -- build --config src-tauri/tauri.bundle.conf.json --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} && exit 0
+            [ "$i" = 3 ] || sleep $((i * 30))
+          done
+          exit 1
       - name: Save Tauri's bundler tools
         if: ${{ !inputs.skip_packages && steps.bundler-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@v4

@@ -205,3 +205,16 @@ plus at most 5 %, stated in `budgets.json` with this decision as its source, and
 background budget is met as written, and closed is held to 30/50 as written. README's fleet-level open-window budget
 (PSS ≤ 500 / RSS ≤ 680) is checked at the Fleet step. Whether to trade UX for memory (OPEN2) is the owner's call,
 listed in catalog `dev/v1/LOCAL.md`.
+
+## D11 — N-1: which peers, and how they are run
+
+PLAN's gate is that the rc talks to the previous released versions of its peers over Link. Tools' Link traffic with
+an app is the tray (own → hosted, the hosted menu, a toggle, Start from the manifest) and status. The released apps
+speak the Link of the release they were built with: Look and Clipboard v0.4.4, Find and Lens v0.4.14, Box and Shelf
+v0.4.15 (Wheel has no Link crate pin).
+
+**Decision.** CI runs the tray end to end a second and third time with the mock peer served by the v0.4.4 and v0.4.15
+`arcade-link` CLIs (the oldest and newest Link among published apps; between them the library changed only its design
+kit, install code and peer descriptions, not the wire format, so v0.4.14 is covered), while the current CLI watches the tray and reads status. Mocks are used instead of the published apps
+because they exercise the same protocol code without each app's GUI, engines and 30 s of start-up per run. When apps
+ship 1.0 on Link 1.0.x, the pair moves to the Link of the previous stable release of each peer.

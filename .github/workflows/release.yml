@@ -105,7 +105,14 @@ jobs:
         env:
           # Use the host libwayland-client; Ubuntu's copy breaks EGL on newer distributions.
           LINUXDEPLOY_EXCLUDED_LIBRARIES: 'libwayland-client.so*;libxkbcommon.so*'
-        run: npm run tauri -- build --config src-tauri/tauri.bundle.conf.json --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+        # Tauri downloads its bundler tools (NSIS, linuxdeploy) on a cold cache with one attempt; GitHub's release
+        # downloads return 504 at times. A retry reuses the finished build, so it only repeats the bundling.
+        run: |
+          for i in 1 2 3; do
+            npm run tauri -- build --config src-tauri/tauri.bundle.conf.json --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} && exit 0
+            [ "$i" = 3 ] || sleep $((i * 30))
+          done
+          exit 1
       - name: Verify the exact release install and uninstall
         run: python3 scripts/verify-package.py --target ${{ matrix.target }}
       - name: Notices cover the bundled native libraries
