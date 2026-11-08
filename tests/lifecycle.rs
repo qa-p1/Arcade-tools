@@ -382,3 +382,68 @@ fn stable_nightly_channel_switch_and_unknown_apps() {
         .set_channel("../../unsafe", Channel::Stable)
         .is_err());
 }
+
+/// README §Clean uninstall: removing an app with "Remove data" leaves nothing of it in a fresh HOME: no executable,
+/// launcher, autostart or command link, no Link registration, no retained installers, and none of its config, data or
+/// cache folders. Only Tools' own state remains.
+#[test]
+fn uninstalling_with_data_leaves_nothing_of_the_app_in_a_fresh_home() {
+    require_isolated_runner();
+    let server = FakeRelease::new();
+    let home = server.root.path().join("user");
+    let paths = Paths::under(&home);
+    let manager = Manager::new(paths.clone(), Source::test_server(&server.url).unwrap());
+    let cancel = AtomicBool::new(false);
+    for (version, body) in [("1.0.0", "1"), ("2.0.0", "2")] {
+        server.publish(
+            "arcade.look",
+            version,
+            "stable",
+            &[("Look_x64.AppImage", &app(&server, body))],
+            "nsis",
+        );
+        let operation = if version == "1.0.0" {
+            Operation::Install
+        } else {
+            Operation::Update
+        };
+        manager
+            .operate(&request("arcade.look", operation), &cancel, &mut |_| {})
+            .unwrap();
+    }
+    manager.start_at_login("arcade.look", true).unwrap();
+    // What the app itself writes while it is used.
+    for folder in paths.data_folders("arcade.look", Os::Linux) {
+        fs::create_dir_all(&folder).unwrap();
+        fs::write(folder.join("written-by-look"), "x").unwrap();
+    }
+    let mut remove = request("arcade.look", Operation::Uninstall);
+    remove.remove_data = true;
+    manager.operate(&remove, &cancel, &mut |_| {}).unwrap();
+
+    // Tools' own state and caches (its catalog and release records) stay: Tools is still installed.
+    let own = [
+        paths.state(),
+        paths.catalog().parent().unwrap().to_path_buf(),
+    ];
+    let mut left = Vec::new();
+    let mut stack = vec![home.clone()];
+    while let Some(dir) = stack.pop() {
+        for entry in fs::read_dir(&dir).unwrap().flatten() {
+            let path = entry.path();
+            if own.iter().any(|o| path.starts_with(o)) {
+                continue;
+            }
+            if entry.file_type().unwrap().is_dir() {
+                stack.push(path);
+            } else {
+                left.push(path.strip_prefix(&home).unwrap().display().to_string());
+            }
+        }
+    }
+    left.sort();
+    assert!(
+        left.is_empty(),
+        "left behind after removing Look with its data: {left:#?}"
+    );
+}

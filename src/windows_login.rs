@@ -147,7 +147,7 @@ pub fn write_shortcut(path: &Path, executable: &Path) -> Result<()> {
         Err(Error::new(
             "autostart",
             format!(
-                "Could not create the Windows login shortcut: {}",
+                "Couldn't create the Windows login shortcut. Windows said: {}. Try again, or turn Start at login off and on.",
                 String::from_utf8_lossy(&output.stderr).trim()
             ),
         ))

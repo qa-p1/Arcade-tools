@@ -12,3 +12,7 @@
 }
 
 #confirm-copy { white-space: pre-line; }
+
+/* TL-9: the installed build's channel, next to the app's name. */
+.channel-badge { margin-left: var(--sp-6, 6px); vertical-align: middle; }
+

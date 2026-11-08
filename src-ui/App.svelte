@@ -1,6 +1,7 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core';
   import { onMount, tick } from 'svelte';
+  import { clearFieldOnEscape } from './lib/escape';
   import AppDialog from './components/ConfirmDialog.svelte';
   import Message from './components/Message.svelte';
   import ProgressBar from './components/ProgressBar.svelte';
@@ -184,7 +185,7 @@
         openIntent(trayIntent);
       } catch (error) {
         ui.loadError = asFailure(error).message;
-        setMessage(ui.loadError, true);
+        setMessage(`Couldn't list your apps. ${ui.loadError}`, true);
       } finally {
         windowReady();
       }
@@ -270,6 +271,8 @@
   }
 </script>
 
+<svelte:window onkeydowncapture={clearFieldOnEscape} />
+
 <svelte:head>
   <title>Arcade Tools</title>
   <meta name="description" content="Install, update and take care of your Arcade apps." />
@@ -305,6 +308,7 @@
         apps={ui.apps}
         selected={ui.selected}
         releases={ui.releases}
+        updates={ui.updates}
         releaseNotesHtml={ui.releaseNotesHtml}
         catalogData={ui.catalogData}
         catalogLoading={ui.catalogLoading}

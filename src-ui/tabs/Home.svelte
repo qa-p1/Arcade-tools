@@ -29,7 +29,7 @@
   const lastChecked = $derived(updates?.lastCheck ? relativeInSentence(updates.lastCheck * 1000) : null);
   const stopped = $derived(installed.filter((app) => !app.running));
   let showIssues = $state(false);
-  const appName = (id: string) => apps.find((app) => app.id === id)?.name ?? id;
+  const appName = (id: string) => apps.find((app) => app.id === id)?.name ?? (id === 'arcade.tools' ? 'Arcade Tools' : id);
   const fixLabels: Record<HealthIssue['fixAction'], string> = {
     repair: 'Repair', adopt: 'Let Tools manage it', remove_stale_registry: 'Remove entry', remove_stale_receipt: 'Remove record',
     open_settings: 'Open settings', check_updates: 'Check for updates', open_engines: 'Open Engines', open_shortcuts: 'Open Shortcuts',
@@ -62,14 +62,18 @@
     if (active) void loadHealth().catch(() => undefined);
   });
 
-  // Usage is sampled only while Home is visible.
+  // Usage is sampled only while Home is on screen (ARCADE_APP.md RT-6).
   $effect(() => {
     if (!active) return;
     let stopped = false;
-    const sample = async () => { try { const next = await api.dashboard(); if (!stopped) dashboard = next; } catch { /* keep the last sample */ } };
+    const sample = async () => {
+      if (document.visibilityState !== 'visible') return;
+      try { const next = await api.dashboard(); if (!stopped) dashboard = next; } catch { /* keep the last sample */ }
+    };
     void sample();
-    const timer = setInterval(sample, 2000);
-    return () => { stopped = true; clearInterval(timer); };
+    const timer = setInterval(sample, 10_000);
+    document.addEventListener('visibilitychange', sample);
+    return () => { stopped = true; clearInterval(timer); document.removeEventListener('visibilitychange', sample); };
   });
 </script>
 
@@ -78,7 +82,7 @@
     <div>
       <h1>Home</h1>
       <p class="sub">
-        {ui.loaded ? `${installed.length} installed · ${running.length} running${dashboard?.totalMemoryBytes ? ` · ${formatSize(dashboard.totalMemoryBytes)} in use` : ''}` : 'Loading your apps…'}
+        {ui.loaded ? `${installed.length} installed · ${running.length} running${dashboard?.totalMemoryBytes ? ` · ${formatSize(dashboard.totalMemoryBytes)} in use` : ''}` : ui.loadError ? "Couldn't list your apps" : 'Loading your apps…'}
       </p>
     </div>
     <div class="page-actions">

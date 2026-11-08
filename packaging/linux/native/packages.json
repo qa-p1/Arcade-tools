@@ -1,0 +1,416 @@
+{
+  "host": "Ubuntu 22.04",
+  "packages": {
+    "dconf-gsettings-backend": {
+      "source": "dconf"
+    },
+    "gcc-12-base": {
+      "source": "gcc-12"
+    },
+    "gir1.2-atk-1.0": {
+      "source": "atk1.0"
+    },
+    "gir1.2-atspi-2.0": {
+      "source": "at-spi2-core"
+    },
+    "gir1.2-ayatanaappindicator3-0.1": {
+      "source": "libayatana-appindicator"
+    },
+    "gir1.2-ayatanaido3-0.4": {
+      "source": "ayatana-ido"
+    },
+    "gir1.2-dazzle-1.0": {
+      "source": "libdazzle"
+    },
+    "gir1.2-dbusmenu-glib-0.4": {
+      "source": "libdbusmenu"
+    },
+    "gir1.2-freedesktop": {
+      "source": "gobject-introspection"
+    },
+    "gir1.2-gdkpixbuf-2.0": {
+      "source": "gdk-pixbuf"
+    },
+    "gir1.2-glib-2.0": {
+      "source": "gobject-introspection"
+    },
+    "gir1.2-gtk-3.0": {
+      "source": "gtk+3.0"
+    },
+    "gir1.2-harfbuzz-0.0": {
+      "source": "harfbuzz"
+    },
+    "gir1.2-json-1.0": {
+      "source": "json-glib"
+    },
+    "gir1.2-pango-1.0": {
+      "source": "pango1.0"
+    },
+    "gir1.2-polkit-1.0": {
+      "source": "policykit-1"
+    },
+    "gir1.2-rsvg-2.0": {
+      "source": "librsvg"
+    },
+    "gir1.2-secret-1": {
+      "source": "libsecret"
+    },
+    "gir1.2-soup-3.0": {
+      "source": "libsoup3"
+    },
+    "glib-networking": {
+      "source": "glib-networking"
+    },
+    "gsettings-desktop-schemas": {
+      "source": "gsettings-desktop-schemas"
+    },
+    "libatk-bridge2.0-0": {
+      "source": "at-spi2-atk"
+    },
+    "libatk1.0-0": {
+      "source": "atk1.0"
+    },
+    "libatomic1": {
+      "source": "gcc-12"
+    },
+    "libatspi2.0-0": {
+      "source": "at-spi2-core"
+    },
+    "libavahi-client3": {
+      "source": "avahi"
+    },
+    "libavahi-common3": {
+      "source": "avahi"
+    },
+    "libayatana-appindicator3-1": {
+      "source": "libayatana-appindicator"
+    },
+    "libayatana-ido3-0.4-0": {
+      "source": "ayatana-ido"
+    },
+    "libayatana-indicator3-7": {
+      "source": "libayatana-indicator"
+    },
+    "libblkid1": {
+      "source": "util-linux"
+    },
+    "libbrotli1": {
+      "source": "brotli"
+    },
+    "libbsd0": {
+      "source": "libbsd"
+    },
+    "libbz2-1.0": {
+      "source": "bzip2"
+    },
+    "libcairo-gobject2": {
+      "source": "cairo"
+    },
+    "libcairo2": {
+      "source": "cairo"
+    },
+    "libcap2": {
+      "source": "libcap2"
+    },
+    "libcolord2": {
+      "source": "colord"
+    },
+    "libcups2": {
+      "source": "cups"
+    },
+    "libdatrie1": {
+      "source": "libdatrie"
+    },
+    "libdbus-1-3": {
+      "source": "dbus"
+    },
+    "libdbusmenu-glib4": {
+      "source": "libdbusmenu"
+    },
+    "libdbusmenu-gtk3-4": {
+      "source": "libdbusmenu"
+    },
+    "libdeflate0": {
+      "source": "libdeflate"
+    },
+    "libdw1": {
+      "source": "elfutils"
+    },
+    "libelf1": {
+      "source": "elfutils"
+    },
+    "libenchant-2-2": {
+      "source": "enchant-2"
+    },
+    "libepoxy0": {
+      "source": "libepoxy"
+    },
+    "libevdev2": {
+      "source": "libevdev"
+    },
+    "libffi8": {
+      "source": "libffi"
+    },
+    "libgcrypt20": {
+      "source": "libgcrypt20"
+    },
+    "libgdk-pixbuf-2.0-0": {
+      "source": "gdk-pixbuf"
+    },
+    "libgdk-pixbuf-2.0-dev": {
+      "source": "gdk-pixbuf"
+    },
+    "libglib2.0-0": {
+      "source": "glib2.0"
+    },
+    "libglib2.0-dev": {
+      "source": "glib2.0"
+    },
+    "libgnutls30": {
+      "source": "gnutls28"
+    },
+    "libgraphite2-3": {
+      "source": "graphite2"
+    },
+    "libgssapi-krb5-2": {
+      "source": "krb5"
+    },
+    "libgstreamer-gl1.0-0": {
+      "source": "gst-plugins-base1.0"
+    },
+    "libgstreamer-plugins-base1.0-0": {
+      "source": "gst-plugins-base1.0"
+    },
+    "libgstreamer1.0-0": {
+      "source": "gstreamer1.0"
+    },
+    "libgtk-3-0": {
+      "source": "gtk+3.0"
+    },
+    "libgtk-3-common": {
+      "source": "gtk+3.0"
+    },
+    "libgudev-1.0-0": {
+      "source": "libgudev"
+    },
+    "libharfbuzz-icu0": {
+      "source": "harfbuzz"
+    },
+    "libhogweed6": {
+      "source": "nettle"
+    },
+    "libhyphen0": {
+      "source": "hyphen"
+    },
+    "libicu70": {
+      "source": "icu"
+    },
+    "libidn2-0": {
+      "source": "libidn2"
+    },
+    "libjavascriptcoregtk-4.1-0": {
+      "source": "webkit2gtk"
+    },
+    "libjbig0": {
+      "source": "jbigkit"
+    },
+    "libjpeg-turbo8": {
+      "source": "libjpeg-turbo"
+    },
+    "libk5crypto3": {
+      "source": "krb5"
+    },
+    "libkeyutils1": {
+      "source": "keyutils"
+    },
+    "libkrb5-3": {
+      "source": "krb5"
+    },
+    "libkrb5support0": {
+      "source": "krb5"
+    },
+    "liblcms2-2": {
+      "source": "lcms2"
+    },
+    "liblz4-1": {
+      "source": "lz4"
+    },
+    "liblzma5": {
+      "source": "xz-utils"
+    },
+    "libmanette-0.2-0": {
+      "source": "libmanette"
+    },
+    "libmd0": {
+      "source": "libmd"
+    },
+    "libmount1": {
+      "source": "util-linux"
+    },
+    "libnettle8": {
+      "source": "nettle"
+    },
+    "libnghttp2-14": {
+      "source": "nghttp2"
+    },
+    "liborc-0.4-0": {
+      "source": "orc"
+    },
+    "libp11-kit0": {
+      "source": "p11-kit"
+    },
+    "libpango-1.0-0": {
+      "source": "pango1.0"
+    },
+    "libpango1.0-dev": {
+      "source": "pango1.0"
+    },
+    "libpangocairo-1.0-0": {
+      "source": "pango1.0"
+    },
+    "libpangoft2-1.0-0": {
+      "source": "pango1.0"
+    },
+    "libpcre2-8-0": {
+      "source": "pcre2"
+    },
+    "libpcre3": {
+      "source": "pcre3"
+    },
+    "libpixman-1-0": {
+      "source": "pixman"
+    },
+    "libpng16-16": {
+      "source": "libpng1.6"
+    },
+    "libproxy1v5": {
+      "source": "libproxy"
+    },
+    "libpsl5": {
+      "source": "libpsl"
+    },
+    "librsvg2-2": {
+      "source": "librsvg"
+    },
+    "librsvg2-common": {
+      "source": "librsvg"
+    },
+    "librsvg2-dev": {
+      "source": "librsvg"
+    },
+    "libseccomp2": {
+      "source": "libseccomp"
+    },
+    "libsecret-1-0": {
+      "source": "libsecret"
+    },
+    "libselinux1": {
+      "source": "libselinux"
+    },
+    "libsoup-3.0-0": {
+      "source": "libsoup3"
+    },
+    "libsqlite3-0": {
+      "source": "sqlite3"
+    },
+    "libsystemd0": {
+      "source": "systemd"
+    },
+    "libtasn1-6": {
+      "source": "libtasn1-6"
+    },
+    "libthai0": {
+      "source": "libthai"
+    },
+    "libtiff5": {
+      "source": "tiff"
+    },
+    "libudev1": {
+      "source": "systemd"
+    },
+    "libunistring2": {
+      "source": "libunistring"
+    },
+    "libunwind8": {
+      "source": "libunwind"
+    },
+    "libwayland-cursor0": {
+      "source": "wayland"
+    },
+    "libwayland-egl1": {
+      "source": "wayland"
+    },
+    "libwayland-server0": {
+      "source": "wayland"
+    },
+    "libwebkit2gtk-4.1-0": {
+      "source": "webkit2gtk"
+    },
+    "libwebp7": {
+      "source": "libwebp"
+    },
+    "libwebpdemux2": {
+      "source": "libwebp"
+    },
+    "libwebpmux3": {
+      "source": "libwebp"
+    },
+    "libwmf-dev": {
+      "source": "libwmf"
+    },
+    "libwoff1": {
+      "source": "woff2"
+    },
+    "libxau6": {
+      "source": "libxau"
+    },
+    "libxcb-randr0": {
+      "source": "libxcb"
+    },
+    "libxcb-render0": {
+      "source": "libxcb"
+    },
+    "libxcb-shm0": {
+      "source": "libxcb"
+    },
+    "libxcomposite1": {
+      "source": "libxcomposite"
+    },
+    "libxcursor1": {
+      "source": "libxcursor"
+    },
+    "libxdamage1": {
+      "source": "libxdamage"
+    },
+    "libxdmcp6": {
+      "source": "libxdmcp"
+    },
+    "libxext6": {
+      "source": "libxext"
+    },
+    "libxfixes3": {
+      "source": "libxfixes"
+    },
+    "libxi6": {
+      "source": "libxi"
+    },
+    "libxinerama1": {
+      "source": "libxinerama"
+    },
+    "libxml2": {
+      "source": "libxml2"
+    },
+    "libxrandr2": {
+      "source": "libxrandr"
+    },
+    "libxrender1": {
+      "source": "libxrender"
+    },
+    "libxslt1.1": {
+      "source": "libxslt"
+    },
+    "libzstd1": {
+      "source": "libzstd"
+    }
+  }
+}

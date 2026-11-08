@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/icon.svg" width="112" alt="Arcade Tools icon">
+  <img src="packaging/linux/dev.arcade.Tools.svg" width="112" alt="Arcade Tools icon">
 </p>
 
 <h1 align="center">Arcade Tools</h1>

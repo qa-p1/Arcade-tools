@@ -1,4 +1,6 @@
 #![allow(dead_code)]
+#[cfg(target_os = "linux")]
+pub mod hub;
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
@@ -59,6 +61,55 @@ pub fn catalog_repo(id: &str) -> String {
         .unwrap_or_else(|| compiled_repo(id))
 }
 
+/// The secret half of the update key debug builds of Tools trust for loopback sources (`src/trust.rs`).
+pub const TEST_SIGNING_KEY: &str = "untrusted comment: Arcade Tools test-only update key (debug loopback sources)
+RWQAAEIyAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAxxy+UWLj3N5hFGnqkvKJsyvUHsbiNvymSc0dQvPwRQ0qOQJlAH/VsXVyZ0cOljgX0qZSCxHAYATThhnxx/MOXLNgDan0zp+s9J/D2nvWbyFBVm9hCUSptoWCRiy9cLyMrLk91Q4LofI=
+";
+
+/// The tag a fixture release gets: the Nth release of `version`'s base on a channel.
+fn fixture_tag(version: &str, channel: &str, earlier: usize) -> String {
+    let base = version.split(['-', '+']).next().unwrap();
+    match channel {
+        "stable" => format!("v{version}"),
+        // A fixture version that already names its nightly build keeps it: `0.2.0-nightly.42` → `.42.1`.
+        "nightly" => match version.split_once('-').map(|(_, pre)| pre) {
+            Some(pre) if pre.starts_with("nightly.") => {
+                format!("v{base}-{}.{}", pre.split('+').next().unwrap(), earlier + 1)
+            }
+            _ => format!("v{base}-nightly.20261107.{}", earlier + 1),
+        },
+        _ => format!("v{base}-rc.{}", earlier + 1),
+    }
+}
+
+/// Writes `manifest.json` for every file in `dir` and, outside the test channel, its signature.
+pub fn sign_release(dir: &Path, id: &str, version: &str, tag: &str, channel: &str) {
+    use arcade_link::release as link;
+    let mut files: Vec<PathBuf> = std::fs::read_dir(dir)
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .filter(|p| {
+            let name = p.file_name().unwrap();
+            name != link::MANIFEST_NAME && name != link::SIGNATURE_NAME
+        })
+        .collect();
+    files.sort();
+    let channel: link::Channel = match channel {
+        "stable" | "nightly" => channel.parse().unwrap(),
+        _ => link::Channel::Test,
+    };
+    let manifest = link::ReleaseManifest::build(id, version, tag, channel, &files).unwrap();
+    let _ = std::fs::remove_file(dir.join(link::SIGNATURE_NAME));
+    if channel == link::Channel::Test {
+        std::fs::write(dir.join(link::MANIFEST_NAME), manifest.to_json()).unwrap();
+    } else {
+        let key = link::SecretKey::parse(TEST_SIGNING_KEY).unwrap();
+        let (json, signature) = link::sign_manifest(&manifest, &key);
+        std::fs::write(dir.join(link::MANIFEST_NAME), json).unwrap();
+        std::fs::write(dir.join(link::SIGNATURE_NAME), signature).unwrap();
+    }
+}
+
 #[derive(Clone)]
 pub struct HttpReply {
     pub status: String,
@@ -72,7 +123,12 @@ pub struct FakeRelease {
     pub url: String,
     pub routes: Arc<Mutex<HashMap<String, Vec<u8>>>>,
     pub replies: Arc<Mutex<HashMap<String, HttpReply>>>,
+    /// Bounded `Range: bytes=a-b` requests for these routes (delta chunks) are served from these bytes instead, as a
+    /// broken mirror or cache would; whole-file and open-ended resume requests still get the published file.
+    pub tampered_ranges: Arc<Mutex<HashMap<String, Vec<u8>>>>,
     pub requests: RecordedRequests,
+    /// Published releases, newest first: (repo, channel, version, GitHub release JSON).
+    releases: Mutex<Vec<(String, String, String, serde_json::Value)>>,
     worker: Option<JoinHandle<()>>,
 }
 impl FakeRelease {
@@ -84,6 +140,8 @@ impl FakeRelease {
         let server_routes = routes.clone();
         let replies: Arc<Mutex<HashMap<String, HttpReply>>> = Default::default();
         let server_replies = replies.clone();
+        let tampered_ranges: Arc<Mutex<HashMap<String, Vec<u8>>>> = Default::default();
+        let server_tampered = tampered_ranges.clone();
         let requests: RecordedRequests = Default::default();
         let server_requests = requests.clone();
         let worker = std::thread::spawn(move || {
@@ -126,15 +184,58 @@ impl FakeRelease {
                                     k.eq_ignore_ascii_case("if-none-match") && v.trim() == etag
                                 })
                             });
-                            HttpReply {
-                                status: if unchanged {
-                                    "304 Not Modified"
+                            if unchanged {
+                                return HttpReply {
+                                    status: "304 Not Modified".into(),
+                                    headers: vec![("ETag".into(), etag)],
+                                    body: vec![],
+                                };
+                            }
+                            // One `Range: bytes=a-b` or `bytes=a-`, as GitHub's release host serves.
+                            let range = headers.iter().find_map(|h| {
+                                let (k, v) = h.split_once(':')?;
+                                let spec = k.eq_ignore_ascii_case("range").then_some(v.trim())?;
+                                let (a, b) = spec.strip_prefix("bytes=")?.split_once('-')?;
+                                let start: usize = a.parse().ok()?;
+                                let end = if b.is_empty() {
+                                    body.len()
                                 } else {
-                                    "200 OK"
-                                }
-                                .into(),
-                                headers: vec![("ETag".into(), etag)],
-                                body: if unchanged { vec![] } else { body },
+                                    b.parse::<usize>().ok()? + 1
+                                };
+                                (start < end && end <= body.len()).then_some(start..end)
+                            });
+                            let bounded = headers.iter().any(|h| {
+                                h.split_once(':').is_some_and(|(k, v)| {
+                                    k.eq_ignore_ascii_case("range") && !v.trim().ends_with('-')
+                                })
+                            });
+                            let tampered = server_tampered.lock().unwrap().get(&route).cloned();
+                            let body = match tampered {
+                                Some(other) if bounded && other.len() == body.len() => other,
+                                _ => body,
+                            };
+                            match range {
+                                Some(r) => HttpReply {
+                                    status: "206 Partial Content".into(),
+                                    headers: vec![
+                                        ("ETag".into(), etag),
+                                        (
+                                            "Content-Range".into(),
+                                            format!(
+                                                "bytes {}-{}/{}",
+                                                r.start,
+                                                r.end - 1,
+                                                body.len()
+                                            ),
+                                        ),
+                                    ],
+                                    body: body[r].to_vec(),
+                                },
+                                None => HttpReply {
+                                    status: "200 OK".into(),
+                                    headers: vec![("ETag".into(), etag)],
+                                    body,
+                                },
                             }
                         },
                     )
@@ -159,7 +260,9 @@ impl FakeRelease {
             url,
             routes,
             replies,
+            tampered_ranges,
             requests,
+            releases: Mutex::new(Vec::new()),
             worker: Some(worker),
         };
         // Legacy lifecycle fixtures represent releases usable by Tools 0.1.0.
@@ -223,6 +326,15 @@ impl FakeRelease {
             String::from_utf8_lossy(&out.stderr)
         );
         println!("{}", String::from_utf8_lossy(&out.stdout).trim());
+        let earlier = self
+            .releases
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(r, c, v, _)| *r == repos(id)[0] && c == channel && v != version)
+            .count();
+        let tag = fixture_tag(version, channel, earlier);
+        sign_release(&dir, id, version, &tag, channel);
         let prefix = format!("assets/{}-{version}-{channel}/", id.replace('.', "-"));
         let mut assets = Vec::new();
         let mut routes = self.routes.lock().unwrap();
@@ -235,20 +347,17 @@ impl FakeRelease {
                 "size": bytes.len(), "digest": format!("sha256:{:x}", Sha256::digest(&bytes))}));
             routes.insert(format!("/{route}"), bytes);
         }
-        let endpoint = if channel == "stable" {
-            "latest"
-        } else {
-            "tags/nightly"
-        };
-        let api = serde_json::to_vec(&serde_json::json!({
-            "tag_name": if channel == "stable" { format!("v{version}") } else { "nightly".into() },
-            "draft": false, "prerelease": channel == "nightly", "assets": assets,
-        }))
-        .unwrap();
-        for repo in repos(id) {
-            routes.insert(format!("/repos/{repo}/releases/{endpoint}"), api.clone());
-        }
         drop(routes);
+        let mut releases = self.releases.lock().unwrap();
+        for repo in repos(id) {
+            let api = serde_json::json!({
+                "tag_name": tag, "draft": false, "prerelease": channel != "stable", "assets": assets,
+            });
+            releases.retain(|(r, c, v, _)| !(*r == repo && c == channel && v == version));
+            releases.insert(0, (repo, channel.to_owned(), version.to_owned(), api));
+        }
+        drop(releases);
+        self.relist(id);
         // Link v0.3.0's generator adds installArgs for AppImages and DMGs. These
         // fakes are plain scripts, so they publish as pre-0.3.0 releases; the hub
         // lifecycle tests opt back in with a receipt-writing installer.
@@ -276,16 +385,11 @@ impl FakeRelease {
         edit(&mut manifest);
         let bytes = serde_json::to_vec(&manifest).unwrap();
         routes.insert(route, bytes.clone());
-        for repo in repos(id) {
-            let endpoint = format!(
-                "/repos/{repo}/releases/{}",
-                if channel == "stable" {
-                    "latest"
-                } else {
-                    "tags/nightly"
-                }
-            );
-            let mut api: serde_json::Value = serde_json::from_slice(&routes[&endpoint]).unwrap();
+        drop(routes);
+        for (_, c, v, api) in self.releases.lock().unwrap().iter_mut() {
+            if c != channel || v != version {
+                continue;
+            }
             for asset in api["assets"].as_array_mut().unwrap() {
                 if asset["name"] == "arcade-release.json" {
                     asset["size"] = serde_json::json!(bytes.len());
@@ -293,7 +397,25 @@ impl FakeRelease {
                         serde_json::json!(format!("sha256:{:x}", Sha256::digest(&bytes)));
                 }
             }
-            routes.insert(endpoint, serde_json::to_vec(&api).unwrap());
+        }
+        self.relist(id);
+    }
+}
+impl FakeRelease {
+    /// Serve GitHub's release listing for each spelling of the app's repo, newest first.
+    fn relist(&self, id: &str) {
+        let releases = self.releases.lock().unwrap();
+        let mut routes = self.routes.lock().unwrap();
+        for repo in repos(id) {
+            let listing: Vec<&serde_json::Value> = releases
+                .iter()
+                .filter(|(r, _, _, _)| *r == repo)
+                .map(|(_, _, _, api)| api)
+                .collect();
+            routes.insert(
+                format!("/repos/{repo}/releases?per_page=30"),
+                serde_json::to_vec(&listing).unwrap(),
+            );
         }
     }
 }

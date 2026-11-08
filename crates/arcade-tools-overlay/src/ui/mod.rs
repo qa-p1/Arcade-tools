@@ -57,7 +57,7 @@ impl Overlay {
 
     fn key(&mut self, key: Key, shift: bool) -> bool {
         match key {
-            Key::Escape => return true,
+            Key::Escape => return !self.model.back(),
             Key::Tab => self.model.cycle(shift),
             Key::Backspace => self.model.backspace(),
             Key::Enter if self.model.picking => self.model.pick(None),
@@ -281,5 +281,30 @@ mod tests {
         );
         assert_eq!(gtk_dark("gtk-theme-name=Adwaita-dark"), Some(true));
         assert_eq!(gtk_dark("# ignored"), None);
+    }
+
+    fn overlay() -> Overlay {
+        let index =
+            crate::index::Index::parse(include_bytes!("../../tests/fixtures/shortcuts-index.json"))
+                .unwrap();
+        Overlay::new(Model::new(Some(index), None), false, false, Timing::start())
+    }
+
+    /// TL-6 and the fleet Escape rule: Escape undoes one step (picker, then filter) and closes only from the top.
+    #[test]
+    fn escape_clears_a_filter_before_it_closes() {
+        let mut o = overlay();
+        o.key(Key::Text("clip".into()), false);
+        let closed = o.key(Key::Escape, false);
+        assert!(
+            !closed && o.model.query.is_empty(),
+            "Escape closed with a filter typed (TL-6)"
+        );
+        assert!(o.key(Key::Escape, false));
+    }
+
+    #[test]
+    fn escape_closes_from_the_top() {
+        assert!(overlay().key(Key::Escape, false));
     }
 }

@@ -101,20 +101,20 @@ pub fn parse(raw: Vec<u8>) -> Result<BTreeMap<String, Vec<u8>>> {
     let mut remaining = MAX_ARCHIVE;
     for i in 0..zip.len() {
         let mut entry = zip.by_index(i).map_err(zip_error)?;
-        relative_path(entry.name())?;
+        let name = entry.name().map_err(zip_error)?.into_owned();
+        relative_path(&name)?;
         if entry.is_dir()
             || entry
                 .unix_mode()
                 .is_some_and(|m| m & 0o170000 != 0 && m & 0o170000 != 0o100000)
             || entry.size() > remaining
-            || files.contains_key(entry.name())
+            || files.contains_key(&name)
         {
             return Err(Error::new(
                 "archive",
                 "Unsafe, duplicate or oversized archive entry.",
             ));
         }
-        let name = entry.name().to_owned();
         let mut bytes = Vec::new();
         (&mut entry).take(remaining + 1).read_to_end(&mut bytes)?;
         if bytes.len() as u64 > remaining {
@@ -128,4 +128,49 @@ pub fn parse(raw: Vec<u8>) -> Result<BTreeMap<String, Vec<u8>>> {
 
 fn zip_error(error: zip::result::ZipError) -> Error {
     Error::new("archive", error.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+    use zip::write::SimpleFileOptions;
+
+    fn zip_with(build: impl FnOnce(&mut zip::ZipWriter<std::io::Cursor<Vec<u8>>>)) -> Vec<u8> {
+        let mut writer = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+        build(&mut writer);
+        writer.finish().unwrap().into_inner()
+    }
+
+    #[test]
+    fn parse_rejects_symlinks_bombs_and_garbage() {
+        let deflated = SimpleFileOptions::default();
+        let ok = zip_with(|z| {
+            z.start_file("backup.json", deflated).unwrap();
+            z.write_all(b"{}").unwrap();
+        });
+        assert_eq!(parse(ok).unwrap()["backup.json"], b"{}");
+
+        let symlink = zip_with(|z| {
+            z.add_symlink("settings.json", "/etc/passwd", deflated)
+                .unwrap();
+        });
+        assert_eq!(parse(symlink).unwrap_err().code, "archive");
+
+        // A few KiB that expand past the 32 MiB bound: refused while reading, never fully inflated.
+        let bomb = zip_with(|z| {
+            z.start_file("big.json", deflated.large_file(true)).unwrap();
+            let zeros = vec![0u8; 1024 * 1024];
+            for _ in 0..=MAX_ARCHIVE / zeros.len() as u64 {
+                z.write_all(&zeros).unwrap();
+            }
+        });
+        assert!(bomb.len() < 1024 * 1024);
+        assert!(parse(bomb).is_err());
+
+        assert_eq!(
+            parse(b"PK\x03\x04 not a zip".to_vec()).unwrap_err().code,
+            "archive"
+        );
+    }
 }

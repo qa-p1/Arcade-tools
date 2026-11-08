@@ -1,0 +1,7 @@
+Private profile p-t: Tools 0.4.6 + 7 apps self-installed (--install --silent --no-launch), all background. 489 MiB of AppImages in total.
+Background, window closed, after startup: 0.000% CPU, 42 threads, 54 fds (60 s).
+Startup burst: ~4.1 CPU-seconds in the first two minutes (index build + first check), then 0.
+Window open on onboarding/Apps/Settings/Learn/etc: 0.000% CPU, 83-87 threads, 85-91 fds.
+Window open on Home: 12.3% CPU over 60 s, all of it in two tokio-rt-worker threads (364 + 367 ticks); /proc/<pid>/io rchar: 3995 MiB read in 20 s.
+Navigating from Home to Apps: 0 MiB read in 20 s, 0.000% CPU.
+Thread census (Home open): 24-26 tokio-rt-worker, 19-20 arcade-tools, 7 tools-tray, 7 arcade-link-con, 4 notify-rs inoti, 1 tools-shortcut-index, 12 llvmpipe (software GL, Xvfb only).

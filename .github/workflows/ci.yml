@@ -38,6 +38,7 @@ jobs:
             target: universal-apple-darwin
             bundles: dmg
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
     defaults:
       run:
         shell: bash
@@ -56,7 +57,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: qa-p1/Arcade-Link
-          ref: v0.4.0
+          ref: v1.0.5
           path: Arcade-link
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -78,32 +79,154 @@ jobs:
           python-version: '3.12'
       - name: Linux dependencies and isolation tools
         if: runner.os == 'Linux'
+        timeout-minutes: 10
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libssl-dev libwayland-dev libxkbcommon-dev libxkbcommon-x11-0 patchelf desktop-file-utils xvfb dbus-x11 xdotool
+          for i in 1 2 3; do
+            sudo apt-get update -o Acquire::Retries=3 && sudo apt-get install -y -o Acquire::Retries=3 libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libssl-dev libwayland-dev libxkbcommon-dev libxkbcommon-x11-0 patchelf desktop-file-utils xvfb dbus-x11 xdotool python3-gi gir1.2-glib-2.0 && break
+            sleep $((i * 15))
+          done
       - name: Both macOS architectures
         if: runner.os == 'macOS'
         run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
       - run: npm ci
+        timeout-minutes: 5
       - name: Playwright's Chromium for the UI checks
         if: runner.os == 'Linux'
-        run: npx playwright install --with-deps chromium
+        timeout-minutes: 10
+        run: for i in 1 2 3; do npx playwright install --with-deps chromium && break; sleep $((i * 15)); done
       # The same list a contributor runs: typecheck, build, UI checks (Linux),
       # vendored files, versions, docs links, fmt, clippy and the tests (on
       # Linux in Link's disposable desktop session).
       - run: ARCADE_LINK=../Arcade-link scripts/check
+      - name: The arcade-link CLI (tray host and mock peer for the tray test)
+        if: runner.os == 'Linux'
+        timeout-minutes: 15
+        uses: ./Arcade-link/.github/actions/setup-arcade-link
+      # The tray, resident window, single instance, crash recovery and Link-off quit, through a real SNI host, on the
+      # debug build scripts/check just tested. Memory budgets are checked on the package below.
+      - name: Tray and resident end to end
+        if: runner.os == 'Linux'
+        timeout-minutes: 5
+        run: python3 ../Arcade-link/tools/e2e.py run -- /usr/bin/python3 scripts/tray-resident-e2e.py --tools target/debug/arcade-tools --link "$(command -v arcade-link)" --seconds 10
+      # N-1 (DECISIONS.md D11): the published apps speak the Link of their release, v0.4.4 (oldest) to v0.4.15
+      # (newest). Each serves the tray test's mock peer while this Link watches the tray.
+      - name: Restore the published apps' Link CLIs
+        id: n1-cache
+        if: runner.os == 'Linux'
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.arcade-link-n1
+          key: arcade-link-n1-${{ runner.os }}-v0.4.4-v0.4.15
+      - name: The published apps' Link CLIs
+        if: runner.os == 'Linux' && steps.n1-cache.outputs.cache-hit != 'true'
+        timeout-minutes: 15
+        run: |
+          for tag in v0.4.4 v0.4.15; do
+            for i in 1 2 3; do
+              timeout 600 cargo install --locked --git https://github.com/qa-p1/Arcade-Link --tag "$tag" arcade-link-cli --root ~/.arcade-link-n1/"$tag" && break
+              sleep $((i * 5))
+            done
+            test -x ~/.arcade-link-n1/"$tag"/bin/arcade-link
+          done
+      - name: Save the published apps' Link CLIs
+        if: runner.os == 'Linux' && steps.n1-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.arcade-link-n1
+          key: ${{ steps.n1-cache.outputs.cache-primary-key }}
+      - name: Tray with the published apps' Link as the peer (N-1)
+        if: runner.os == 'Linux'
+        timeout-minutes: 5
+        run: |
+          for tag in v0.4.4 v0.4.15; do
+            echo "--- peer on Link $tag"
+            python3 ../Arcade-link/tools/e2e.py run -- /usr/bin/python3 scripts/tray-resident-e2e.py --tools target/debug/arcade-tools --link "$(command -v arcade-link)" --peer-link ~/.arcade-link-n1/"$tag"/bin/arcade-link --peer-only --seconds 10
+          done
       - name: Build both packaged binaries
         if: ${{ !inputs.skip_packages }}
         run: python3 scripts/prepare-overlay.py --target ${{ matrix.target }}
+      # Tauri's bundler tools (NSIS on Windows, linuxdeploy on Linux) come from GitHub releases on every run; an
+      # outage there (HTTP 504 on nsis-3.11.zip) failed a run. Cached per OS and CLI version, and saved right after
+      # bundling so a later failing step does not throw a good download away.
+      - name: Restore Tauri's bundler tools
+        id: bundler-cache
+        if: ${{ !inputs.skip_packages }}
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.cache/tauri
+            ~/AppData/Local/tauri
+          key: tauri-bundler-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
       - name: Bundle the actual per-platform installer
         if: ${{ !inputs.skip_packages }}
         env:
           # Use the host libwayland-client; Ubuntu's copy breaks EGL on newer distributions.
-          LINUXDEPLOY_EXCLUDED_LIBRARIES: 'libwayland-client.so*'
-        run: npm run tauri -- build --config src-tauri/tauri.bundle.conf.json --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+          LINUXDEPLOY_EXCLUDED_LIBRARIES: 'libwayland-client.so*;libxkbcommon.so*'
+        # Tauri downloads its bundler tools (NSIS, linuxdeploy) on a cold cache with one attempt; GitHub's release
+        # downloads return 504 at times. A retry reuses the finished build, so it only repeats the bundling.
+        run: |
+          for i in 1 2 3; do
+            npm run tauri -- build --config src-tauri/tauri.bundle.conf.json --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} && exit 0
+            [ "$i" = 3 ] || sleep $((i * 30))
+          done
+          exit 1
+      - name: Save Tauri's bundler tools
+        if: ${{ !inputs.skip_packages && steps.bundler-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/.cache/tauri
+            ~/AppData/Local/tauri
+          key: ${{ steps.bundler-cache.outputs.cache-primary-key }}
+      # The AppImage this run builds, for the desktop jobs below (Link's Tier 1 and Tier 2 harness); uploaded
+      # before the checks so a failing check still leaves the desktop gates their file.
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Linux' && !inputs.skip_packages
+        with:
+          name: tools-appimage
+          path: Arcade-tools/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage
+          retention-days: 7
+          if-no-files-found: error
       - name: Package smoke in a disposable profile
         if: ${{ !inputs.skip_packages }}
         run: python3 scripts/verify-package.py --target ${{ matrix.target }}
+      # THIRD_PARTY_NOTICES covers the Ubuntu packages linuxdeploy bundled (WebKitGTK, GTK, ...); a new one fails here
+      # and the regenerated record is uploaded to commit.
+      - name: Notices cover the bundled native libraries
+        id: native
+        if: runner.os == 'Linux' && !inputs.skip_packages
+        timeout-minutes: 5
+        run: python3 scripts/native-notices.py --check target/${{ matrix.target }}/release/bundle/appimage/*.AppImage
+      - uses: actions/upload-artifact@v4
+        if: failure() && steps.native.outcome == 'failure'
+        with:
+          name: native-notices
+          path: Arcade-tools/packaging/linux/native
+      # The Arcade app standard (Link ARCADE_APP.md) on this repository and its AppImage.
+      - name: Conformance (repository and package)
+        if: runner.os == 'Linux' && !inputs.skip_packages
+        timeout-minutes: 5
+        run: arcade-link conformance . --binary target/${{ matrix.target }}/release/bundle/appimage/*.AppImage | tee -a "$GITHUB_STEP_SUMMARY"
+      # Link's fleet budget tool on this package alone (D7): background, window open, and after closing it, against
+      # the xvfb section of Link's tools/fleet/budgets.json. The tool follows the unpacked relaunch (U1).
+      - name: Memory budgets of the package
+        if: runner.os == 'Linux' && !inputs.skip_packages
+        timeout-minutes: 6
+        run: |
+          mkdir -p target/budget
+          cp target/${{ matrix.target }}/release/bundle/appimage/*.AppImage target/budget/Arcade-Tools.AppImage
+          python3 ../Arcade-link/tools/fleet/fleet_budget.py --apps target/budget --only tools --section xvfb \
+            --budgets ../Arcade-link/tools/fleet/budgets.json --settle 30 --open tools --close-wait 20 \
+            --json target/budget/memory.json | tee -a "$GITHUB_STEP_SUMMARY"
+      # Link's performance budgets on the same package (RT-6, PERF-2; DECISIONS.md D12): cold start and show latency,
+      # idle CPU and wakeups in the background, with Home open and after closing it, and disk use.
+      - name: Performance budgets of the package
+        if: runner.os == 'Linux' && !inputs.skip_packages
+        timeout-minutes: 10
+        run: |
+          python3 ../Arcade-link/tools/fleet/perf_budget.py --app target/budget/Arcade-Tools.AppImage --name tools \
+            --window '^Arcade Tools$' --budgets ../Arcade-link/tools/fleet/budgets.json --section xvfb \
+            --json target/budget/perf.json | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Automatic integration repair with the real AppImage
         if: runner.os == 'Linux' && !inputs.skip_packages
         run: dbus-run-session -- xvfb-run -a python3 scripts/verify-maintenance.py target/${{ matrix.target }}/release/bundle/appimage/*.AppImage
@@ -128,6 +251,55 @@ jobs:
           path: Arcade-tools/target/ci-installer/*
           retention-days: 14
           if-no-files-found: error
+      # The nightly workflow republishes these exact files (Link's app-nightly), so a nightly is what main CI tested.
+      - name: Stage the installer for the nightly
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && !inputs.skip_packages
+        run: |
+          mkdir -p target/release-files
+          for f in target/${{ matrix.target }}/release/bundle/*/*.{AppImage,exe,dmg}; do
+            if [ -f "$f" ]; then cp "$f" "target/release-files/$(basename "$f" | tr ' ' '-')"; fi
+          done
+          [ "$(ls target/release-files | wc -l)" = 1 ]
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && !inputs.skip_packages
+        with:
+          name: release-${{ runner.os }}
+          path: Arcade-tools/target/release-files/*
+          retention-days: 14
+          if-no-files-found: error
+
+  # Desktop end to end on the AppImage above (PLAN exit gate): Tier 1 is headless Hyprland and blocks on any
+  # failure; Tier 2 (sway, KWin, Mutter, X11) blocks on a crash or data loss.
+  desktop:
+    needs: check
+    # Its own gate: reports even when another check step failed, as long as the AppImage was uploaded.
+    if: ${{ !cancelled() && !inputs.skip_packages }}
+    uses: qa-p1/Arcade-Link/.github/workflows/desktop-e2e.yml@v1.0.5
+    with:
+      name: tools
+      test: tests/desktop/tools_desktop.py
+      args: '"$APP"'
+      artifact: tools-appimage
+      link-ref: v1.0.5
+  desktop-tier2:
+    needs: check
+    # Its own gate: reports even when another check step failed, as long as the AppImage was uploaded.
+    if: ${{ !cancelled() && !inputs.skip_packages }}
+    uses: qa-p1/Arcade-Link/.github/workflows/desktop-tier2.yml@v1.0.5
+    with:
+      artifact: tools-appimage
+      show: --settings
+      link-ref: v1.0.5
+
+  deny:
+    name: cargo deny (advisories, licences, bans, sources)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
 
   overlay:
     name: Overlay / ${{ matrix.os }} / Rust 1.88
@@ -136,6 +308,7 @@ jobs:
       matrix:
         os: [ubuntu-22.04, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     defaults:
       run:
         shell: bash
@@ -159,9 +332,12 @@ jobs:
           python-version: '3.12'
       - name: Linux overlay and isolated render dependencies
         if: runner.os == 'Linux'
+        timeout-minutes: 10
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libwayland-dev libxkbcommon-dev libxkbcommon-x11-0 libx11-dev fonts-dejavu-core xvfb xdotool imagemagick
+          for i in 1 2 3; do
+            sudo apt-get update -o Acquire::Retries=3 && sudo apt-get install -y -o Acquire::Retries=3 libwayland-dev libxkbcommon-dev libxkbcommon-x11-0 libx11-dev fonts-dejavu-core xvfb xdotool imagemagick && break
+            sleep $((i * 15))
+          done
       - run: cargo clippy -p arcade-tools-overlay --all-targets --locked -- -D warnings
       - run: cargo test -p arcade-tools-overlay --locked
       - run: cargo build --release -p arcade-tools-overlay --locked

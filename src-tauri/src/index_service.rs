@@ -238,7 +238,10 @@ fn update_watches(
                 RecursiveMode::NonRecursive
             };
             if let Err(error) = watcher.watch(new, mode) {
-                warnings.push(format!("Could not watch {}: {error}", new.display()));
+                warnings.push(format!(
+                    "Couldn't watch {} ({error}). Changes to it show after Tools restarts.",
+                    new.display()
+                ));
             } else {
                 watched.insert(new.clone(), *recursive);
             }
@@ -324,7 +327,7 @@ fn run(
                         .extend(update_watches(w, &mut watched, &roots));
                 } else {
                     index.wm.warnings.push(format!(
-                        "Shortcut file watching is unavailable; use Rebuild to refresh: {}",
+                        "Couldn't watch shortcut files ({}). Changes to them show after Tools restarts.",
                         watcher_error.as_deref().unwrap_or("unknown error")
                     ));
                 }

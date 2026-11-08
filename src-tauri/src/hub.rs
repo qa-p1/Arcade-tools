@@ -143,6 +143,7 @@ pub(super) fn start_updates(
             if let Err(error) = check(&app, &state, &manager, Trigger::Timer, true) {
                 let _ = app.emit("manager-message", error.message);
             }
+            super::trim_if_hidden(&app);
         }
     });
     Ok(())
@@ -332,9 +333,11 @@ pub async fn health(app: AppHandle) -> Result<Vec<health::HealthIssue>> {
                 .used_by
                 .iter()
                 .filter(|usage| {
-                    installed
-                        .iter()
-                        .any(|app| app.id == usage.app && app.installed)
+                    // An optional use (an example plugin) never needs attention (TL-12).
+                    !usage.optional
+                        && installed
+                            .iter()
+                            .any(|app| app.id == usage.app && app.installed)
                 })
                 .collect::<Vec<_>>();
             if affected.is_empty() {
@@ -352,12 +355,7 @@ pub async fn health(app: AppHandle) -> Result<Vec<health::HealthIssue>> {
                     app: usage.app.clone(),
                     kind: health::HealthKind::MissingEngine,
                     path: None,
-                    reason: format!(
-                        "{} is unavailable or too old for {}.",
-                        engine.name,
-                        // Catalog purposes are sentences of their own.
-                        usage.purpose.trim_end_matches(['.', ' '])
-                    ),
+                    reason: usage.missing_notice(&engine.name),
                     fix_action: health::FixAction::OpenEngines,
                     can_fix: true,
                 });
@@ -481,6 +479,15 @@ pub async fn open_logs_folder(app: AppHandle) -> Result<()> {
         app.opener()
             .open_path(folder.display().to_string(), None::<&str>)
             .map_err(|e| Error::new("open", e.to_string()))
+    })
+    .await
+}
+/// Settings › About › "Show licences": the bundled third-party notices.
+#[tauri::command]
+pub async fn third_party_notices(app: AppHandle) -> Result<String> {
+    worker(move || {
+        std::fs::read_to_string(super::notices_path(&app))
+            .map_err(|e| Error::new("notices", format!("The licence notices are missing: {e}")))
     })
     .await
 }

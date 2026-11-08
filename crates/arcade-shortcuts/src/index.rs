@@ -730,6 +730,11 @@ fn conflicts(arcade: &[ArcadeShortcut], wm: &WmIndex, apps: &[AppSheet]) -> Vec<
         for bind in wm.groups.iter().flat_map(|g| &g.shortcuts) {
             // Arcade globals have no submap, so they compete in every submap.
             for key in &a.keys {
+                // Arcade apps add their global shortcut to Hyprland at runtime: a runtime-only bind on exactly the
+                // app's keys is that shortcut, not a second binding (RD-TOOLS-1).
+                if bind.state == BindState::RuntimeOnly && *key == bind.chord {
+                    continue;
+                }
                 if keys::conflicts(key, &bind.chord) {
                     add(
                         if key.len() <= bind.chord.len() {
@@ -896,6 +901,67 @@ mod conflict_tests {
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].a.label, "Action A");
         assert_eq!(found[0].b.label, "Action B");
+    }
+
+    fn wm(state: BindState, chord: &str, label: &str) -> WmIndex {
+        WmIndex {
+            name: "Hyprland".into(),
+            config_kind: ConfigKind::default(),
+            groups: vec![WmGroup {
+                title: "Other".into(),
+                shortcuts: vec![WmShortcut {
+                    chord: chord.into(),
+                    display: chord.into(),
+                    label: label.into(),
+                    detail: None,
+                    submap: None,
+                    state,
+                    origin: None,
+                }],
+            }],
+            warnings: vec![],
+        }
+    }
+
+    fn find_toggle() -> ArcadeShortcut {
+        ArcadeShortcut {
+            app: "arcade.find".into(),
+            name: "Find".into(),
+            id: "toggle".into(),
+            title: "Show or hide Find".into(),
+            keys: vec!["Super+Space".into()],
+            display: vec![],
+            rebindable: true,
+        }
+    }
+
+    /// RD-TOOLS-1: Arcade apps add their global shortcut to Hyprland at runtime, so the runtime bind with exactly the
+    /// app's chord is that shortcut itself, not a second binding.
+    #[test]
+    fn an_apps_own_runtime_bind_is_not_a_conflict() {
+        let own = wm(
+            BindState::RuntimeOnly,
+            "Super+Space",
+            "Lua function (added at runtime)",
+        );
+        let found = conflicts(&[find_toggle()], &own, &[]);
+        assert!(found.is_empty(), "{found:?}");
+    }
+
+    #[test]
+    fn another_runtime_bind_that_overlaps_is_still_a_conflict() {
+        let other = wm(
+            BindState::RuntimeOnly,
+            "Super+Space Super+K",
+            "Lua function (added at runtime)",
+        );
+        assert_eq!(conflicts(&[find_toggle()], &other, &[]).len(), 1);
+    }
+
+    #[test]
+    fn a_configured_bind_on_the_same_keys_is_a_conflict() {
+        let configured = wm(BindState::Active, "Super+Space", "Launcher");
+        assert_eq!(conflicts(&[find_toggle()], &configured, &[]).len(), 1);
     }
 }
 

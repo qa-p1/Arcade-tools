@@ -26,6 +26,11 @@ package = packages[0]
 def lifecycle(executable, environment, root):
     def run(*args):
         return subprocess.run([str(executable), *args], env=environment, capture_output=True, text=True, encoding='utf-8', check=True, timeout=90)
+    # README §Clean uninstall: whatever Tools adds to a fresh profile, --uninstall --remove-data takes away again
+    # (the runtime folder only holds sockets of processes that have exited).
+    def files():
+        return {p for p in root.rglob('*') if not p.is_dir() and not p.is_relative_to(root / 'runtime')}
+    fresh = files()  # the package; on Linux also the legacy self-update copy staged below
     # Old Tools stages self-updates in this legacy cache. Migration must not
     # remove the executing AppImage before the installer copies its bytes.
     if sys.platform == 'linux':
@@ -35,6 +40,7 @@ def lifecycle(executable, environment, root):
         staged = legacy / 'self-update.AppImage'
         shutil.copy2(executable, staged)
         staged.chmod(0o755)
+        fresh.add(staged)
         result = subprocess.run([str(staged), '--install', '--silent', '--no-launch'],
             env=environment, capture_output=True, text=True, check=True, timeout=90)
         upgraded = json.loads(result.stdout)
@@ -50,6 +56,10 @@ def lifecycle(executable, environment, root):
     run('--repair')
     run('--uninstall', '--silent')
     assert not receipt_path.exists()
+    run('--install', '--silent', '--no-launch')
+    run('--uninstall', '--silent', '--remove-data')
+    left = sorted(str(p.relative_to(root)) for p in files() - fresh)
+    assert not left, f'--uninstall --remove-data left files in a fresh profile: {left}'
 
 
 with tempfile.TemporaryDirectory(prefix='arcade-tools-package-') as temporary:
@@ -183,6 +193,20 @@ with tempfile.TemporaryDirectory(prefix='arcade-tools-package-') as temporary:
         # distributions (WebKit aborts with EGL_BAD_PARAMETER, blank window).
         bundled = sorted(p.name for p in (root / 'squashfs-root').rglob('libwayland-client.so*'))
         assert not bundled, f'AppImage must use the host libwayland-client: {bundled}'
+        # The overlay's X11 path dlopens the host libxkbcommon-x11; a bundled libxkbcommon from another release
+        # beside it crashed on the first key press (TL-5). Both must come from the host.
+        bundled = sorted(p.name for p in (root / 'squashfs-root').rglob('libxkbcommon*.so*'))
+        assert not bundled, f'AppImage must use the host libxkbcommon: {bundled}'
+        # OPEN1: Tools preloads this into WebKit's helper processes (main.rs).
+        assert (root / 'squashfs-root' / 'usr' / 'lib' / 'libarcade-trim.so').is_file(), 'AppImage lacks libarcade-trim.so'
+        # The fleet identity (ARCADE_APP.md ID-1/ID-3): one dev.arcade.Tools entry, its icon and the symbolic icon.
+        share = root / 'squashfs-root' / 'usr' / 'share'
+        for identity in ('applications/dev.arcade.Tools.desktop', 'icons/hicolor/scalable/apps/dev.arcade.Tools.svg',
+                         'icons/hicolor/symbolic/apps/dev.arcade.Tools-symbolic.svg'):
+            assert (share / identity).is_file(), f'AppImage lacks {identity}'
+        # Settings › About › "Show licences" reads the bundled notices (REPO-1).
+        notices = list((root / 'squashfs-root' / 'usr' / 'lib').rglob('THIRD_PARTY_NOTICES.md'))
+        assert len(notices) == 1 and notices[0].stat().st_size > 100_000, f'AppImage lacks the notices: {notices}'
         subprocess.run([str(binaries / 'arcade-tools'),'--version'],env=environment,check=True,timeout=10)
         environment['APPIMAGE'] = str(staged_package)
         # Exercise the mounting runtime and full AppImage bytes, not only
@@ -199,14 +223,34 @@ with tempfile.TemporaryDirectory(prefix='arcade-tools-package-') as temporary:
         shutil.copy2(package, download)
         window = dict(environment, APPIMAGE_EXTRACT_AND_RUN='1', OWD=str(work))
         window.pop('APPIMAGE')
+        # U1: the launcher copies the image to <data>/arcade/runtime/ once, starts Tools from there and exits 0.
+        # The shell keeps the display and bus alive after it exits; the copy must still run with its window open.
+        def running_unpacked():
+            found = {}
+            for proc in Path('/proc').iterdir():
+                try:
+                    exe = os.readlink(proc / 'exe')
+                except OSError:
+                    continue
+                if exe.startswith(str(root) + '/') and '/arcade/runtime/tools-' in exe and exe.endswith('/arcade-tools'):
+                    found[int(proc.name)] = exe
+            return found
         with tempfile.TemporaryFile() as log:
-            child = subprocess.Popen(['dbus-run-session', '--', 'xvfb-run', '-a', str(download)], cwd=work, env=window,
+            child = subprocess.Popen(['dbus-run-session', '--', 'xvfb-run', '-a', 'sh', '-c', '"$1" || exit $?; exec sleep 600',
+                                      'sh', str(download)], cwd=work, env=window,
                                      stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+            unpacked = {}
             try:
                 code = child.wait(timeout=20)
             except subprocess.TimeoutExpired:
                 code = None
+                unpacked = running_unpacked()
             finally:
+                for pid in list(unpacked) + list(running_unpacked()):
+                    try:
+                        os.kill(pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
                 try:
                     os.killpg(child.pid, signal.SIGKILL)
                 except ProcessLookupError:
@@ -220,5 +264,7 @@ with tempfile.TemporaryDirectory(prefix='arcade-tools-package-') as temporary:
                     if fusermount and mountpoint.startswith(str(root) + '/'):
                         subprocess.run([fusermount, '-uz', mountpoint], check=False)
             log.seek(0)
-            assert code is None, f'Tools exited {code} with its window open:\n{log.read().decode(errors="replace")[-4000:]}'
+            output = log.read().decode(errors="replace")[-4000:]
+            assert code is None, f'Tools exited {code} with its window open:\n{output}'
+            assert unpacked, f'Tools is not running from its unpacked copy (U1) with its window open:\n{output}'
 print(f'PASS: {sys.platform} package contains Tools and the native overlay; isolated package smoke')

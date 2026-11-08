@@ -148,7 +148,10 @@ def main():
                     # close, then exercise two quick create/destroy cycles.
                     deadline = time.monotonic() + (26 if cycle == 0 else 1)
                     while time.monotonic() < deadline:
-                        assert child.poll() is None, 'Closing a window exited/restarted the app'
+                        # The installed AppImage hands over to its unpacked copy (Link U1): its launcher exits 0 and
+                        # the resident named by the endpoint carries on, so follow that PID.
+                        assert child.poll() in (None, 0), f'Tools launcher exited {child.returncode}'
+                        assert Path(f'/proc/{original}').exists(), 'Closing a window exited the app'
                         assert pid() == original, 'Closing a window changed the resident PID'
                         time.sleep(.1)
                     wait(lambda: not renderers(original), 'closed WebView releases its renderer', seconds=10)

@@ -30,10 +30,19 @@
     onUpdateChecks, onOnboarding, onSelectTab, onTheme, onLink, run,
   }: Props = $props();
   const themes: { id: Theme; label: string }[] = [{ id: 'system', label: 'System' }, { id: 'light', label: 'Light' }, { id: 'dark', label: 'Dark' }];
-  const channelName = $derived(toolsApp?.managed ? (toolsApp.channel === 'nightly' ? 'Nightly' : 'Stable') : 'Development build');
+  // Any installed Tools follows a channel, whoever installed it; only a dev build has none (TL-10).
+  const channelName = $derived(!toolsApp ? null : toolsApp.installationClass === 'dev' ? 'Development build' : toolsApp.channel === 'nightly' ? 'Nightly' : 'Stable');
 
   async function copyDiagnostics(): Promise<void> {
     await copyText(await api.diagnosticsText());
+  }
+
+  // The notices are about 1 MB of text: loaded when the dialog opens and dropped when it closes.
+  let noticesDialog: HTMLDialogElement;
+  let notices = $state('');
+  async function showNotices(): Promise<void> {
+    notices = await api.thirdPartyNotices();
+    noticesDialog.showModal();
   }
 
   let supportApp = $state('arcade.tools');
@@ -58,8 +67,16 @@
     report = await api.createDiagnostics(supportApp);
   }
 
+  // A backup takes seconds: say so at once and drop the previous result, so the click visibly did something (TL-12).
+  let backingUp = $state(false);
   async function exportBackup(): Promise<void> {
-    backup = await api.exportBackup();
+    backingUp = true;
+    backup = null;
+    try {
+      backup = await api.exportBackup();
+    } finally {
+      backingUp = false;
+    }
   }
 
   async function planRestore(): Promise<void> {
@@ -181,9 +198,9 @@
     <div class="section-head"><h2 id="backup-heading">Backup and restore</h2></div>
     <div class="list">
       <div class="row">
-        <div class="row-main"><div class="row-title">Back up settings</div><div class="row-sub">{backup ? `Saved to ${backup.file}` : 'Save the settings of every installed app in one file.'}</div></div>
+        <div class="row-main"><div class="row-title">Back up settings</div><div class="row-sub" aria-live="polite">{backingUp ? 'Backing up the settings of every installed app…' : backup ? `Saved to ${backup.file}` : 'Save the settings of every installed app in one file.'}</div></div>
         {#if backup}<button type="button" class="btn sm ghost" onclick={() => run(() => api.revealArchive(backup!.file))}>Show file</button>{/if}
-        <button type="button" class="btn sm" disabled={busy} onclick={() => run(exportBackup)}>Back up</button>
+        <button type="button" class="btn sm" disabled={busy || backingUp} aria-busy={backingUp} onclick={() => run(exportBackup)}>{backingUp ? 'Backing up…' : 'Back up'}</button>
       </div>
       {#if backup?.apps.some((app) => app.notIncluded)}
         <div class="row-extra flush"><ul class="plain-list">{#each backup.apps.filter((app) => app.notIncluded) as app (app.id)}<li><strong>{appName(app.id)}</strong> <span class="muted">· not included: {app.notIncluded}</span></li>{/each}</ul></div>
@@ -231,7 +248,7 @@
         <span class="glyph-tile"><img src={glyph('arcade.tools')} alt="" width="18" height="18" /></span>
         <div class="row-main">
           <div class="row-title about-version selectable">Version {toolsApp?.version ?? __TOOLS_VERSION__}</div>
-          <div class="row-sub">{channelName} · The optional home for the Arcade apps.</div>
+          <div class="row-sub">{channelName ? `${channelName} · ` : ''}The optional home for the Arcade apps.</div>
           {#if toolsApp?.reason}<div class="row-sub">{toolsApp.reason}</div>{/if}
         </div>
         {#if toolsApp?.installed}
@@ -268,7 +285,7 @@
       {/if}
       <div class="row">
         <div class="row-main"><div class="row-title">Licences</div><div class="row-sub">Arcade Tools is MIT licensed. It includes Inter (SIL Open Font License) and other open-source parts.</div></div>
-        <a class="btn sm" href="https://github.com/qa-p1/Arcade-tools/blob/main/VENDORED" target="_blank" rel="noreferrer">Show licences</a>
+        <button type="button" class="btn sm" onclick={() => run(showNotices)}>Show licences</button>
       </div>
       <details class="tech" aria-labelledby="diagnostics-heading">
         <summary class="row"><span class="row-main row-title" id="diagnostics-heading">Technical details</span><Icon name="chevronDown" size={15} /></summary>
@@ -296,9 +313,19 @@
   </section>
 </div>
 
+<dialog id="notices" class="notices" bind:this={noticesDialog} onclose={() => (notices = '')} aria-labelledby="notices-title">
+  <form method="dialog">
+    <h2 id="notices-title">Licences</h2>
+    <!-- A scrollable region must take focus so the keyboard can scroll it. -->
+    <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+    <pre class="selectable" tabindex="0" aria-label="Third-party notices">{notices}</pre>
+    <div class="dialog-actions"><button class="btn primary" type="submit">Close</button></div>
+  </form>
+</dialog>
+
 <style>
   label.row .row-title, label.row .row-sub { display: block; }
-  .row-extra.flush { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0 14px 14px; }
+  .row-extra.flush { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 14px 14px; }
   .uninstall { padding-top: 2px; }
   .spacer { flex: 1; }
   .plain-list { display: grid; flex: 1 1 100%; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: var(--fs-control); }
@@ -309,4 +336,6 @@
   .tech summary::-webkit-details-marker { display: none; }
   .tech[open] summary :global(.icon) { transform: rotate(180deg); }
   #diagnostics { margin: 0; padding: 0 14px 14px; color: var(--muted); font-size: var(--fs-caption); line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .notices { width: min(760px, calc(100vw - 48px)); }
+  .notices pre { margin: 0; height: min(60vh, 560px); overflow: auto; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--muted); font-size: var(--fs-caption); line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
 </style>

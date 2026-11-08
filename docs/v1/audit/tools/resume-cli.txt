@@ -1,0 +1,28 @@
+--help (0.150s) exit=0
+Usage: arcade-tools [OPTION]
+
+Without options, opens the Arcade Tools window.
+
+  --background            Start in the tray without opening the window
+  --settings              Open the Arcade Tools window at Settings
+  --quit                  Quit the running Arcade Tools
+  --restart               Restart the running Arcade Tools
+  --show-shortcuts        Show the shortcuts overlay
+  --install [--channel stable|nightly] [--start-at-login] [--no-launch] [--keep-download]
+                          Install this copy for the current user. An image in
+                          Downloads is removed afterwards unless --keep-download.
+  --repair                Recreate the launcher, command and autostart entries
+  --uninstall [--silent [--remove-data]]
+                          Review removing Arcade Tools (and optionally its apps)
+                          in the window; --silent removes Tools without asking
+                          and leaves the apps installed, updating themselves
+  --integration-status    Print the installation state as JSON
+  -V, --version           Print the version
+  -h, --help              Print this help
+
+STDERR:
+
+--version (0.144s) exit=0
+Arcade Tools 0.4.6
+
+STDERR:

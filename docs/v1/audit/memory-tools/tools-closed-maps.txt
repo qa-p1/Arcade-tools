@@ -1,0 +1,14 @@
+    pid name                  RSS      PSS     anon     file    shmem     swap  thr
+ 236280 arcade-tools        188.7    113.2     37.1    146.0      5.6      8.3   71
+ 237957 WebKitNetworkPr      59.8     38.0     18.7     41.1      0.0      0.0    8
+  TOTAL 2                   248.5    151.1     55.8    187.1      5.6      8.3   79   (+AppImage runtime stub rss=21.0 pss=21.0)
+
+by mapping class (MB): rss  pss  anon  swap  nmaps
+  anon(mmap/arena)           41.1     41.1     41.1      0.0    361
+  webkit-libs                53.0     35.5      4.0      3.0     28
+  other-libs                 59.2     27.5      3.8      1.8   1519
+  mesa/llvm                  62.5     20.7      0.2      2.7      9
+  file:other                 19.2     16.7      0.0      0.8     25
+  heap(brk)                   6.5      6.5      6.5      0.0      2
+  shm                         5.6      2.8      0.0      0.0      1
+  fonts                       0.8      0.0      0.0      0.0      2

@@ -33,7 +33,10 @@ FILES = [
     ("design/fonts/OFL.txt", "src-ui/design/fonts/OFL.txt"),
     ("design/glyphs/", "src-ui/design/glyphs/"),
     ("design/app-icons/tools/tauri/", "src-tauri/icons/"),
-    ("design/app-icons/tools/icon.svg", "assets/icon.svg"),
+    # The Linux identity (ARCADE_APP.md ID-1/ID-3): the app icon, and the monochrome glyph the tray already draws
+    # as the symbolic icon; both go into the AppImage's usr/share/icons (tauri.bundle.conf.json).
+    ("design/app-icons/tools/icon.svg", "packaging/linux/dev.arcade.Tools.svg"),
+    ("design/glyphs/arcade.tools.svg", "packaging/linux/dev.arcade.Tools-symbolic.svg"),
 ]
 
 

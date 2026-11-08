@@ -1,0 +1,28 @@
+== 236280 arcade-tools
+    RSS     PSS    anon   swap    n  path
+   50.5    18.8     0.0    1.3    4  /usr/lib/libLLVM.so.23.1
+   29.0    29.0    29.0    0.0  254  [anon]
+   18.7    12.5     0.4    2.8    7  $MNT/usr/lib/libwebkit2gtk-4.1.so.0
+   16.6    16.6     0.0    0.8    6  $MNT/usr/bin/arcade-tools
+   11.9     1.9     0.2    1.4    5  /usr/lib/libgallium-26.2.5-arch3.1.so
+   11.4     8.9     0.2    0.2    7  $MNT/usr/lib/libjavascriptcoregtk-4.1.so.0
+    6.1     6.1     6.1    0.0    1  [heap]
+    5.6     2.8     0.0    0.0    1  /SYSV00000000 (deleted)
+    4.7     4.3     0.0    0.1    6  $MNT/usr/lib/libgtk-3.so.0
+    1.9     0.0     0.0    0.0    5  /usr/lib/libc.so.6
+    1.8     0.1     0.0    0.1    5  /usr/lib/libstdc++.so.6.0.36
+    1.6     0.8     0.0    0.0    6  $MNT/usr/lib/libgio-2.0.so.0
+== 237957 WebKitNetworkPr
+    RSS     PSS    anon   swap    n  path
+   17.4    11.1     3.2    0.0    7  $MNT/usr/lib/libwebkit2gtk-4.1.so.0
+   12.1    12.1    12.1    0.0  107  [anon]
+    5.5     3.0     0.4    0.0    7  $MNT/usr/lib/libjavascriptcoregtk-4.1.so.0
+    1.9     0.1     0.1    0.0    5  /usr/lib/libstdc++.so.6.0.36
+    1.8     0.0     0.0    0.0    5  /usr/lib/libc.so.6
+    1.6     0.8     0.0    0.0    6  $MNT/usr/lib/libgio-2.0.so.0
+    1.3     0.7     0.1    0.0    6  $MNT/usr/lib/libicui18n.so.70
+    1.1     1.0     0.0    0.0    5  $MNT/usr/lib/libsqlite3.so.0
+    0.9     0.4     0.0    0.0    7  $MNT/usr/lib/libglib-2.0.so.0
+    0.8     0.5     0.1    0.0    6  $MNT/usr/lib/libgtk-3.so.0
+    0.6     0.3     0.1    0.0    6  $MNT/usr/lib/libepoxy.so.0
+    0.6     0.5     0.0    0.0    7  $MNT/usr/lib/libgcrypt.so.20

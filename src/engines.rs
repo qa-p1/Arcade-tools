@@ -8,7 +8,6 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::Duration;
-use wait_timeout::ChildExt;
 
 pub const VERSION_TIMEOUT: Duration = Duration::from_secs(2);
 const MAX_VERSION_OUTPUT: u64 = 64 * 1024;
@@ -225,7 +224,7 @@ fn version_output(binary: &Path, args: &[String], timeout: Duration) -> Result<S
         command.creation_flags(0x08000000); // CREATE_NO_WINDOW
     }
     let mut child = command.spawn()?;
-    let status = match child.wait_timeout(timeout) {
+    let status = match wait_polling(&mut child, timeout) {
         Ok(Some(status)) => status,
         outcome => {
             let _ = child.kill();
@@ -253,6 +252,26 @@ fn version_output(binary: &Path, args: &[String], timeout: Duration) -> Result<S
         bytes.push(b'\n');
     }
     Ok(String::from_utf8_lossy(&bytes).into_owned())
+}
+/// Waits for `child` by polling `try_wait` (`waitpid(WNOHANG)`), never by SIGCHLD: inside Tools, GTK/GLib owns the
+/// SIGCHLD handler, and a signal-based wait never saw the engine exit (RD-TOOLS-2). Polls every 5 ms rising to 50 ms.
+pub(crate) fn wait_polling(
+    child: &mut std::process::Child,
+    timeout: Duration,
+) -> std::io::Result<Option<std::process::ExitStatus>> {
+    let deadline = std::time::Instant::now() + timeout;
+    let mut pause = Duration::from_millis(5);
+    loop {
+        if let Some(status) = child.try_wait()? {
+            return Ok(Some(status));
+        }
+        let now = std::time::Instant::now();
+        if now >= deadline {
+            return Ok(None);
+        }
+        std::thread::sleep(pause.min(deadline - now));
+        pause = (pause * 2).min(Duration::from_millis(50));
+    }
 }
 /// Parse common engine version output in memory, safe on any thread. Two-part
 /// versions get patch 0; numeric components with leading zeroes are normalized.
@@ -309,8 +328,25 @@ pub struct Detection {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EngineUse {
     pub app: String,
+    /// What the app does with it: a sentence starting with a verb.
     #[serde(rename = "for")]
     pub purpose: String,
+    /// The app works fully without it (an example plugin): listed, never reported as needing attention.
+    #[serde(default)]
+    pub optional: bool,
+}
+impl EngineUse {
+    /// The health notice for a missing engine, e.g. "Tesseract OCR is missing or too old; it's needed to recognize
+    /// text in images." Pure; the catalog purpose keeps its own wording (TL-12).
+    pub fn missing_notice(&self, engine: &str) -> String {
+        let purpose = self.purpose.trim().trim_end_matches(['.', ' ']);
+        let mut chars = purpose.chars();
+        let purpose = match chars.next() {
+            Some(first) => first.to_lowercase().chain(chars).collect::<String>(),
+            None => return format!("{engine} is missing or too old."),
+        };
+        format!("{engine} is missing or too old; it's needed to {purpose}.")
+    }
 }
 impl EngineCatalog {
     /// Parse metadata in memory, safe on any thread; unknown fields are ignored.
@@ -344,5 +380,89 @@ impl EngineCatalog {
             }
         }
         Ok(catalog)
+    }
+}
+
+// GTK/GLib own SIGCHLD only on Linux, and libc is a Linux-only dependency here.
+#[cfg(all(test, target_os = "linux"))]
+mod tests {
+    use super::*;
+
+    /// RD-TOOLS-2: inside Tools, GTK/GLib owns SIGCHLD. A wait that depends on receiving SIGCHLD never sees the
+    /// engine exit and reports a timeout for every engine.
+    #[test]
+    fn a_version_check_does_not_depend_on_receiving_sigchld() {
+        extern "C" fn ignore(_: libc::c_int) {}
+        // Warm any lazily installed handler, then replace it the way GLib's child watch does.
+        let _ = version_output(
+            Path::new("/bin/sh"),
+            &["-c".into(), "exit 0".into()],
+            Duration::from_secs(2),
+        );
+        unsafe {
+            let mut action: libc::sigaction = std::mem::zeroed();
+            action.sa_sigaction = ignore as usize;
+            action.sa_flags = libc::SA_RESTART;
+            libc::sigemptyset(&mut action.sa_mask);
+            assert_eq!(
+                libc::sigaction(libc::SIGCHLD, &action, std::ptr::null_mut()),
+                0
+            );
+        }
+        let began = std::time::Instant::now();
+        let output = version_output(
+            Path::new("/bin/sh"),
+            &["-c".into(), "sleep 0.2; echo tool 1.2.3".into()],
+            Duration::from_secs(2),
+        )
+        .expect("the engine answered in 0.2 s");
+        assert!(output.contains("1.2.3"));
+        assert!(
+            began.elapsed() < Duration::from_secs(1),
+            "{:?}",
+            began.elapsed()
+        );
+    }
+}
+
+#[cfg(test)]
+mod notice_tests {
+    use super::*;
+
+    #[test]
+    fn missing_engine_notices_read_as_sentences() {
+        let usage = |purpose: &str| EngineUse {
+            app: "arcade.box".into(),
+            purpose: purpose.into(),
+            optional: false,
+        };
+        assert_eq!(
+            usage("Recognize text in images and create searchable PDFs.").missing_notice("Tesseract OCR"),
+            "Tesseract OCR is missing or too old; it's needed to recognize text in images and create searchable PDFs."
+        );
+        assert_eq!(
+            usage("").missing_notice("qpdf"),
+            "qpdf is missing or too old."
+        );
+    }
+
+    #[test]
+    fn the_snapshot_marks_look_example_plugins_optional() {
+        let catalog = EngineCatalog::parse(crate::catalog::ENGINE_SNAPSHOT.as_bytes()).unwrap();
+        let optional: Vec<_> = catalog
+            .engines
+            .iter()
+            .flat_map(|e| e.used_by.iter().map(move |u| (e.id.as_str(), u)))
+            .filter(|(_, u)| u.optional)
+            .map(|(id, u)| (id, u.app.as_str()))
+            .collect();
+        assert_eq!(
+            optional,
+            [
+                ("ffmpeg", "arcade.look"),
+                ("pandoc", "arcade.look"),
+                ("libreoffice", "arcade.look")
+            ]
+        );
     }
 }

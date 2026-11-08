@@ -150,12 +150,19 @@ def main():
     parser.add_argument("--screenshot", type=Path, help="Save the isolated Tools window as a user-guide screenshot")
     parser.add_argument("--tools", type=Path, default=Path("target/release/arcade-tools"))
     parser.add_argument("--link", type=Path, default=Path("target/link-cli/debug/arcade-link"))
+    parser.add_argument("--peer-link", type=Path, help="Run the mock peer with this arcade-link CLI, such as the Link "
+                        "release a published app was built with (N-1); --link still watches and checks")
+    parser.add_argument("--peer-only", action="store_true", help="Stop after the peer checks (hosting, menu, Start)")
     parser.add_argument("--seconds", type=int, default=30)
     parser.add_argument("--check-budgets", action="store_true", help="Fail on the 40 MiB RSS and zero-CPU-ticks performance targets")
     parser.add_argument("--expect-login", action="store_true", help="Check the generated login entry of an installed/release build")
     parser.add_argument("--check-ui", action="store_true", help="Verify debug GUI reports and live tray/hotkey settings through native clicks")
     args = parser.parse_args()
     tools, link = args.tools.resolve(), args.link.resolve()
+    peer_link = (args.peer_link or args.link).resolve()
+    print("Peer:", subprocess.run([str(peer_link), "--version"], capture_output=True, text=True, timeout=5).stdout.strip(),
+          "· tray and status:", subprocess.run([str(link), "--version"], capture_output=True, text=True, timeout=5).stdout.strip(),
+          flush=True)
     state = Path(os.environ["ARCADE_HOME"]) / ".local/share/arcade/tools"
     state.mkdir(parents=True, exist_ok=True)
     smoke = Path(os.environ["ARCADE_HOME"]) / "tray-ui.jsonl"
@@ -219,7 +226,7 @@ def main():
         raise AssertionError("Could not bring the isolated GUI control into view")
 
     try:
-        mock = start([str(link), "mock", "--as", "find", "--actions", str(fixture)], stdout=subprocess.DEVNULL)
+        mock = start([str(peer_link), "mock", "--as", "find", "--actions", str(fixture)], stdout=subprocess.DEVNULL)
         wait(lambda: status("find"))
         watcher = start([str(link), "tray", "find"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, bufsize=1)
         lines = queue.Queue()
@@ -266,6 +273,8 @@ def main():
         host.click(item, "Start Arcade Find")
         wait(lambda: status("find"))
         print("PASS: Start launches stopped peer in background and activates it", flush=True)
+        if args.peer_only:
+            return
 
         overlay = tools.with_name("arcade-tools-overlay")
         if overlay.is_file():
@@ -276,9 +285,11 @@ def main():
             assert overlay_window
             subprocess.run([str(overlay), "--hide"], check=True, timeout=3)
             wait(lambda: not subprocess.run(["xdotool", "search", "--onlyvisible", "--name", "^Arcade Tools Shortcuts$"], capture_output=True, text=True).stdout.strip())
-            subprocess.run([str(tools), "--show-shortcuts"], check=True, timeout=3)
+            # --show-shortcuts returns when the overlay closes (it keeps an AppImage mounted meanwhile).
+            shown = subprocess.Popen([str(tools), "--show-shortcuts"])
             wait(lambda: subprocess.run(["xdotool", "search", "--onlyvisible", "--name", "^Arcade Tools Shortcuts$"], capture_output=True, text=True).stdout.strip())
             subprocess.run([str(overlay), "--hide"], check=True, timeout=3)
+            assert shown.wait(timeout=5) == 0, f"--show-shortcuts exited {shown.returncode}"
             print("PASS: Super+/ and --show-shortcuts launch the companion overlay", flush=True)
 
         host.call(item, "org.kde.StatusNotifierItem", "Activate", GLib.Variant("(ii)", (0, 0)))

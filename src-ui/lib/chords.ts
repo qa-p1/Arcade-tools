@@ -1,7 +1,7 @@
 // Key chords as Tools stores them ("Ctrl+Alt+S", "Super+Slash"): read from a
 // key press, compared, checked and shown with platform names (STANDARD §5.1).
 
-export const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 
 const MODIFIERS = ['Ctrl', 'Alt', 'Shift', 'Super'] as const;
 const MAC_SYMBOLS: Record<string, string> = { Ctrl: '⌃', Alt: '⌥', Option: '⌥', Shift: '⇧', Super: '⌘', Cmd: '⌘' };

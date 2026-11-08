@@ -34,6 +34,10 @@ export interface AppView {
   installSupported: boolean;
   installationClass: 'managed' | 'legacyManaged' | 'selfInstalled' | 'manual' | 'dev';
   rollbackVersion: string | null;
+  /** The channel of the installed build; differs from `channel` until a switch is installed (TL-9). */
+  installedChannel: Channel | null;
+  /** Why the installed release was withdrawn by the catalog, if it was. */
+  withdrawn: string | null;
 }
 
 export interface Release {
@@ -113,7 +117,7 @@ export interface EngineView {
   linkDownload: boolean;
   downloaded: boolean;
 }
-export interface Preferences {
+interface Preferences {
   linkEnabled: boolean;
   channels: Record<string, Channel>;
   updates: { enabled: boolean; autoUpdate: Record<string, boolean> };
@@ -174,7 +178,7 @@ export interface OperationRequest {
   version?: string | null;
 }
 
-export interface Bootstrap {
+interface Bootstrap {
   apps: AppView[];
   preferences: Preferences;
   updates: UpdateState;
@@ -259,6 +263,7 @@ export const api = {
   createDiagnostics: (id: string) => invoke<DiagnosticsReport>('create_diagnostics', { id }),
   diagnosticsText: () => invoke<string>('diagnostics_text'),
   openLogsFolder: () => invoke<void>('open_logs_folder'),
+  thirdPartyNotices: () => invoke<string>('third_party_notices'),
   exportBackup: () => invoke<BackupReport>('export_backup'),
   planRestore: (path: string) => invoke<RestorePlan>('plan_restore', { path }),
   restoreBackup: (path: string, sha256: string) => invoke<RestoreResult[]>('restore_backup', { path, sha256 }),

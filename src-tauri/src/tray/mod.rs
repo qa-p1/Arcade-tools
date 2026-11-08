@@ -121,7 +121,7 @@ impl Service {
         }) {
             return Err(Error::new(
                 "tray_watch",
-                "Could not watch installed Arcade apps.",
+                "Couldn't watch installed Arcade apps. The tray won't follow changes until Tools restarts. Restart Tools.",
             ));
         }
         let weak = Arc::downgrade(&service);

@@ -6,23 +6,33 @@ use std::path::Path;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Preferences {
+    /// Version of `tray-preferences.json`: 0.x wrote none (the same fields). A newer Tools may write a higher one,
+    /// kept with the fields this version does not know (DECISIONS.md D9).
+    pub schema: u32,
     pub host_icons: bool,
     pub excluded: Vec<String>,
     pub show_update_badge: bool,
     pub start_at_login: bool,
     pub shortcuts_enabled: bool,
     pub shortcut: String,
+    #[serde(flatten)]
+    pub extra: serde_json::Map<String, serde_json::Value>,
 }
+
+/// The `tray-preferences.json` schema this version writes.
+pub const SCHEMA: u32 = 1;
 
 impl Default for Preferences {
     fn default() -> Self {
         Self {
+            schema: SCHEMA,
             host_icons: true,
             excluded: vec![],
             show_update_badge: true,
             start_at_login: true,
             shortcuts_enabled: true,
             shortcut: arcade_tools_overlay::registration::default_accelerator().into(),
+            extra: serde_json::Map::new(),
         }
     }
 }
@@ -30,7 +40,11 @@ impl Default for Preferences {
 impl Preferences {
     pub fn load(paths: &Paths) -> Result<Self> {
         match std::fs::read(paths.state().join("tray-preferences.json")) {
-            Ok(bytes) => Ok(serde_json::from_slice(&bytes)?),
+            Ok(bytes) => {
+                let mut prefs: Self = serde_json::from_slice(&bytes)?;
+                prefs.schema = prefs.schema.max(SCHEMA);
+                Ok(prefs)
+            }
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Self::default()),
             Err(e) => Err(e.into()),
         }
@@ -58,7 +72,11 @@ impl Preferences {
     pub fn save(&self, paths: &Paths) -> Result<()> {
         let path = paths.state().join("tray-preferences.json");
         paths.guard(&path)?;
-        arcade_link::paths::write_atomic(&path, &serde_json::to_vec_pretty(self)?, true)?;
+        let prefs = Self {
+            schema: self.schema.max(SCHEMA),
+            ..self.clone()
+        };
+        arcade_link::paths::write_atomic(&path, &serde_json::to_vec_pretty(&prefs)?, true)?;
         Ok(())
     }
 
@@ -82,6 +100,52 @@ pub fn login_available(paths: &Paths) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// D9: every released 0.x (0.2.0–0.4.6) wrote these six fields and no schema.
+    #[test]
+    fn released_tray_preferences_load_and_gain_a_schema() {
+        let root = tempfile::tempdir().unwrap();
+        let paths = Paths::under(root.path());
+        std::fs::create_dir_all(paths.state()).unwrap();
+        let file = paths.state().join("tray-preferences.json");
+        std::fs::write(
+            &file,
+            br#"{"hostIcons":false,"excluded":["arcade.find"],"showUpdateBadge":false,"startAtLogin":false,"shortcutsEnabled":true,"shortcut":"Super+Shift+Slash"}"#,
+        )
+        .unwrap();
+        let prefs = Preferences::load(&paths).unwrap();
+        assert_eq!(prefs.schema, SCHEMA);
+        assert!(!prefs.host_icons && !prefs.show_update_badge && !prefs.start_at_login);
+        assert_eq!(prefs.excluded, [ids::FIND]);
+        assert_eq!(prefs.shortcut, "Super+Shift+Slash");
+        prefs.save(&paths).unwrap();
+        let written: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&file).unwrap()).unwrap();
+        assert_eq!(written["schema"], SCHEMA);
+        assert_eq!(written["shortcut"], "Super+Shift+Slash");
+    }
+
+    /// D9 downgrade rule: a file from a newer Tools keeps its schema and the fields this version doesn't know.
+    #[test]
+    fn a_newer_tray_preferences_file_keeps_what_this_version_does_not_know() {
+        let root = tempfile::tempdir().unwrap();
+        let paths = Paths::under(root.path());
+        std::fs::create_dir_all(paths.state()).unwrap();
+        let file = paths.state().join("tray-preferences.json");
+        std::fs::write(
+            &file,
+            br#"{"schema":7,"hostIcons":true,"futureOption":{"a":1}}"#,
+        )
+        .unwrap();
+        let mut prefs = Preferences::load(&paths).unwrap();
+        prefs.show_update_badge = false;
+        prefs.save(&paths).unwrap();
+        let written: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&file).unwrap()).unwrap();
+        assert_eq!(written["schema"], 7);
+        assert_eq!(written["futureOption"], serde_json::json!({"a": 1}));
+        assert_eq!(written["showUpdateBadge"], false);
+    }
 
     #[test]
     fn hosting_enables_login_once_and_preferences_survive_core_changes() {

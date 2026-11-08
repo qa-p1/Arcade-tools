@@ -81,7 +81,8 @@
         },
         {
           "app": "arcade.look",
-          "for": "Optional example plugin to transcode unsupported video."
+          "for": "Transcode unsupported video (an optional example plugin).",
+          "optional": true
         }
       ],
       "install": {
@@ -270,7 +271,8 @@
       "usedBy": [
         {
           "app": "arcade.look",
-          "for": "Optional example plugin to preview documents as HTML."
+          "for": "Preview documents as HTML (an optional example plugin).",
+          "optional": true
         }
       ],
       "install": {
@@ -297,7 +299,8 @@
       "usedBy": [
         {
           "app": "arcade.look",
-          "for": "Optional example plugin to convert older Office files to PDF."
+          "for": "Convert older Office files to PDF (an optional example plugin).",
+          "optional": true
         }
       ],
       "install": {

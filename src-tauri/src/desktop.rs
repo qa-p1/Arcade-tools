@@ -50,6 +50,8 @@ struct Desktop {
     /// A new window stays hidden until its page has drawn real content, so
     /// opening Tools never flashes an empty window.
     reveal_pending: AtomicBool,
+    /// The open-window trimmer (OPEN1) is running.
+    trimming: AtomicBool,
     #[cfg(debug_assertions)]
     audit: Mutex<()>,
 }
@@ -79,6 +81,7 @@ impl Desktop {
             update_wake: Mutex::new(None),
             update_running: AtomicBool::new(false),
             reveal_pending: AtomicBool::new(false),
+            trimming: AtomicBool::new(false),
             #[cfg(debug_assertions)]
             audit: Mutex::new(()),
         }
@@ -228,7 +231,27 @@ fn reveal_pending_window(app: &AppHandle) {
 #[tauri::command]
 fn window_ready(app: AppHandle) {
     reveal_pending_window(&app);
+    trim_while_open(app);
 }
+
+/// OPEN1 (AUDIT/memory.md): while the window is open, this process gives freed heap and cold code pages back 2 s
+/// after the page is ready and every 20 s after. Code refaults from the page cache in microseconds; WebKit's own
+/// helper processes do the same through `libarcade-trim.so` (see `main.rs`).
+fn trim_while_open(app: AppHandle) {
+    if desktop(&app).trimming.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    std::thread::spawn(move || {
+        std::thread::sleep(OPEN_TRIM_FIRST);
+        while app.get_webview_window("main").is_some() {
+            arcade_link::runtime::trim();
+            std::thread::sleep(OPEN_TRIM_EVERY);
+        }
+        desktop(&app).trimming.store(false, Ordering::SeqCst);
+    });
+}
+const OPEN_TRIM_FIRST: std::time::Duration = std::time::Duration::from_secs(2);
+const OPEN_TRIM_EVERY: std::time::Duration = std::time::Duration::from_secs(20);
 
 /// Start a successor that waits for this process, then quit. Apps keep their
 /// tray icons hidden through Link's restart grace, so the tray doesn't flicker.
@@ -250,15 +273,27 @@ fn restart_process(app: &AppHandle, background: bool) -> std::io::Result<()> {
 
 // Closing the window releases GUI resources in place. Only an explicit
 // restart or the update flow may replace the resident process.
-fn reclaim_resident_memory(app: AppHandle) {
-    // Let GTK/WebKit finish deferred destruction, then release unused
-    // allocator and library pages once. No periodic idle timer.
+/// W1 + W3b (AUDIT/memory.md): once no window is left, end WebKit's network process (WebKit starts a new one with
+/// the next window), return freed heap and code pages, and let the kernel page out the idle heap (free unless memory
+/// is short). After a close the wait lets GTK/WebKit finish deferred destruction and the network process flush
+/// localStorage (the onboarding flag); after startup it runs once the manager is ready. No periodic idle timer.
+fn reclaim_resident_memory(app: AppHandle, after: std::time::Duration) {
     std::thread::spawn(move || {
-        std::thread::sleep(std::time::Duration::from_millis(500));
-        if app.get_webview_window("main").is_none() {
-            resident::release_unused_runtime_pages();
+        std::thread::sleep(after);
+        if app.webview_windows().is_empty() {
+            arcade_link::runtime::release_webkit();
+            arcade_link::runtime::page_out_hidden();
         }
     });
+}
+const RELEASE_AFTER_CLOSE: std::time::Duration = std::time::Duration::from_secs(3);
+const RELEASE_AFTER_STARTUP: std::time::Duration = std::time::Duration::from_secs(15);
+
+/// W0 after background work (a scheduled update check): give back what it faulted in while no window is open.
+pub(crate) fn trim_if_hidden(app: &AppHandle) {
+    if app.webview_windows().is_empty() {
+        arcade_link::runtime::trim();
+    }
 }
 fn audit(app: &AppHandle, event: Value) {
     #[cfg(debug_assertions)]
@@ -456,6 +491,20 @@ struct ConnectionPeerView {
 struct ConnectionsView {
     link_enabled: bool,
     peers: Vec<ConnectionPeerView>,
+}
+
+/// The bundled THIRD_PARTY_NOTICES.md (the repository's copy in debug builds run from the tree).
+fn notices_path(app: &AppHandle) -> PathBuf {
+    let bundled = app
+        .path()
+        .resource_dir()
+        .map(|root| root.join("THIRD_PARTY_NOTICES.md"))
+        .unwrap_or_else(|_| PathBuf::from("__arcade_notices_missing__"));
+    #[cfg(debug_assertions)]
+    if !bundled.exists() {
+        return PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../THIRD_PARTY_NOTICES.md");
+    }
+    bundled
 }
 
 fn docs_resource_dir(app: &AppHandle) -> PathBuf {
@@ -708,7 +757,7 @@ fn initialize_desktop(app: &AppHandle) -> Result<Arc<Manager>> {
                 let _ = handle.emit("registry-changed", ());
             }
         }) {
-            return Err(Error::new("watch", "Could not watch the Arcade registry."));
+            return Err(Error::new("watch", "Couldn't watch the Arcade registry. App changes won't show until Tools restarts. Restart Tools."));
         }
         *state.registry.lock().unwrap_or_else(|e| e.into_inner()) = Some(registry);
         // Optional integration housekeeping must never prevent Tools itself
@@ -778,11 +827,7 @@ async fn list_engines(app: AppHandle, refresh: bool) -> Result<Vec<EngineView>> 
         let manager = desktop(&app).manager()?;
         let catalog = manager.engines(refresh)?;
         let os = Os::current();
-        let os_release = if os == Os::Linux {
-            std::fs::read_to_string("/etc/os-release").unwrap_or_default()
-        } else {
-            String::new()
-        };
+        let os_release = arcade_tools_core::engines::read_os_release().unwrap_or_default();
         // Each probe may wait on a slow version command: run them together.
         let statuses: Vec<_> = std::thread::scope(|scope| {
             let probes: Vec<_> = catalog
@@ -1230,7 +1275,15 @@ pub fn set_update_count(app: &AppHandle, count: usize) {
         service.set_updates(count);
     }
 }
+/// The fleet's OS identity (`dev.arcade.<App>`, STANDARD §10): the X11 WM_CLASS and Wayland app_id, matching the
+/// desktop entry (RD-TOOLS-6). GTK reads the program name when it starts, so this runs first. Linux only: Windows
+/// and macOS take their identity from the bundle.
+#[cfg(target_os = "linux")]
+pub const OS_IDENTIFIER: &str = "dev.arcade.Tools";
+
 pub fn run(background: bool, quit: bool) {
+    #[cfg(target_os = "linux")]
+    gtk::glib::set_prgname(Some(OS_IDENTIFIER));
     tauri::Builder::default()
         .manage(Arc::new(Desktop::new(background)))
         .manage(Arc::new(hotkey::Service::default()))
@@ -1280,7 +1333,10 @@ pub fn run(background: bool, quit: bool) {
                         json!({"event":"initialization-error", "message":error.message}),
                     );
                 } else {
-                    reclaim_resident_memory(handle);
+                    reclaim_resident_memory(handle.clone(), std::time::Duration::ZERO);
+                    // The tray, Link's socket and the first update check run just after this and fault code back
+                    // in; release it once more when they have settled (one pass, not a timer).
+                    reclaim_resident_memory(handle, RELEASE_AFTER_STARTUP);
                 }
             });
             Ok(())
@@ -1331,6 +1387,7 @@ pub fn run(background: bool, quit: bool) {
             hub::restart_app,
             hub::create_diagnostics,
             hub::open_logs_folder,
+            hub::third_party_notices,
             hub::diagnostics_text,
             hub::export_backup,
             hub::plan_restore,
@@ -1368,7 +1425,7 @@ pub fn run(background: bool, quit: bool) {
             }
             if let tauri::WindowEvent::Destroyed = event {
                 desktop(window.app_handle()).resident.lock().unwrap_or_else(|e| e.into_inner()).destroyed();
-                reclaim_resident_memory(window.app_handle().clone());
+                reclaim_resident_memory(window.app_handle().clone(), RELEASE_AFTER_CLOSE);
             }
         })
         .build(tauri::generate_context!())

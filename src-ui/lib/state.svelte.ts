@@ -4,9 +4,9 @@ import type { CatalogData } from './catalog';
 import type { ShellTab } from './tabs.svelte';
 
 export type Theme = 'system' | 'light' | 'dark';
-export type ConfirmationKind = 'remove-data' | 'background' | 'reopen-mode' | 'app-closed' | null;
+type ConfirmationKind = 'remove-data' | 'background' | 'reopen-mode' | 'app-closed' | null;
 
-export interface ConfirmationState {
+interface ConfirmationState {
   title: string;
   copy: string;
   action: string;
@@ -19,7 +19,7 @@ export interface ConfirmationState {
   appClosed: boolean;
 }
 
-export interface ConfirmationResult {
+interface ConfirmationResult {
   confirmed: boolean;
   removeData: boolean;
   background: boolean;

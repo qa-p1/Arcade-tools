@@ -1,5 +1,5 @@
 export type ShellTab = 'home' | 'apps' | 'updates' | 'shortcuts' | 'learn' | 'connections' | 'engines' | 'settings' | 'onboarding';
-export interface ShellTabModel {
+interface ShellTabModel {
   id: ShellTab;
   label: string;
   enabled: boolean;

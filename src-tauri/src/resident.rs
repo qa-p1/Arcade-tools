@@ -1,8 +1,6 @@
 //! Window lifetime decisions, independent of Tauri and the tray backend.
 
 pub mod login;
-mod memory;
-pub use memory::release_unused_runtime_pages;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Close {

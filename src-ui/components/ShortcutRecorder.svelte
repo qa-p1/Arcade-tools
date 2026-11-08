@@ -48,7 +48,7 @@
     if (event.key === 'Tab') { recording = false; return; }
     event.preventDefault();
     event.stopPropagation();
-    if (event.key === 'Escape') { recording = false; hint = ''; return; }
+    if (event.key === 'Escape') { event.preventDefault(); recording = false; hint = ''; return; }
     const plain = !event.ctrlKey && !event.altKey && !event.shiftKey && !event.metaKey;
     if (event.key === 'Backspace' && plain && allowEmpty) {
       recording = false;
@@ -91,7 +91,7 @@
     type="button"
     class="shortcut-recorder"
     class:recording
-    aria-label="{label}: {value ? chordParts(value).join(' ') : 'no shortcut'}. {recording ? 'Press the new keys, or Escape to cancel.' : 'Press Enter to change.'}"
+    aria-label="{label}: {recording ? 'Press keys…' : value ? chordParts(value).join(' ') : 'No shortcut'}. {recording ? 'Escape cancels.' : 'Press Enter to change.'}"
     {disabled}
     onclick={start}
     onkeydown={key}
@@ -100,7 +100,7 @@
     {#if recording}
       Press keys…
     {:else if value}
-      <span class="key-chip-list">{#each chordParts(value) as part, i (`${part}-${i}`)}<kbd class="key-chip">{part}</kbd>{/each}</span>
+      <span class="key-chip-list">{#each chordParts(value) as part, i (`${part}-${i}`)}{#if i > 0}{' '}{/if}<kbd class="key-chip">{part}</kbd>{/each}</span>
     {:else}
       <span class="faint">No shortcut</span>
     {/if}

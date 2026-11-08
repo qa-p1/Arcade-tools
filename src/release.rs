@@ -11,12 +11,57 @@ pub enum Channel {
     #[default]
     Stable,
     Nightly,
+    /// Release candidates (`vX.Y.Z-rc.N` prereleases): never shown or stored, only followed while
+    /// `ARCADE_TOOLS_CHANNEL_OVERRIDE=test` is set, for the release gates (DECISIONS.md D5).
+    Test,
 }
 impl Channel {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Stable => "stable",
             Self::Nightly => "nightly",
+            Self::Test => "test",
+        }
+    }
+    /// The channel the release gates force on every app, if any.
+    pub fn overridden() -> Option<Self> {
+        (std::env::var("ARCADE_TOOLS_CHANNEL_OVERRIDE").as_deref() == Ok("test"))
+            .then_some(Self::Test)
+    }
+    /// The channel Tools follows for an app set to `self`: Test while the override is set, otherwise the stored
+    /// channel. A Test left in a record or a hand-edited file is followed as Stable, never as Test.
+    pub fn followed(self) -> Self {
+        Self::overridden().unwrap_or(self.stored())
+    }
+    /// The channel to keep in preferences and backups: Test is never stored.
+    pub fn stored(self) -> Self {
+        match self {
+            Self::Test => Self::Stable,
+            channel => channel,
+        }
+    }
+    /// Whether a release tag belongs to this channel: `v1.2.3`, `v1.2.3-nightly.20261107.1`, `v1.2.3-rc.2`.
+    pub fn owns_tag(self, tag: &str) -> bool {
+        let Some(version) = tag
+            .strip_prefix('v')
+            .and_then(|v| semver::Version::parse(v).ok())
+        else {
+            return false;
+        };
+        let pre = version.pre.as_str();
+        let numbered = |prefix: &str, parts: usize| {
+            pre.strip_prefix(prefix).is_some_and(|rest| {
+                let fields: Vec<&str> = rest.split('.').collect();
+                fields.len() == parts
+                    && fields
+                        .iter()
+                        .all(|f| !f.is_empty() && f.bytes().all(|b| b.is_ascii_digit()))
+            })
+        };
+        match self {
+            Self::Stable => pre.is_empty(),
+            Self::Nightly => numbered("nightly.", 2),
+            Self::Test => numbered("rc.", 1),
         }
     }
 }
@@ -113,6 +158,12 @@ pub struct ReleaseCache {
     pub asset: Asset,
     pub download_url: String,
     pub body: String,
+    /// The installer's verified manifest entry; caches written before signed manifests have none and are refetched.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub entry: Option<arcade_link::release::FileEntry>,
+    /// The release tag the cache describes; caches without one are refetched.
+    #[serde(default)]
+    pub tag: String,
 }
 
 /// Receipts may record the compiled base version for a nightly build. Its
@@ -120,7 +171,8 @@ pub struct ReleaseCache {
 pub(crate) fn versions_match(left: &str, right: &str, channel: Channel) -> bool {
     left == right
         || match (semver::Version::parse(left), semver::Version::parse(right)) {
-            (Ok(left), Ok(right)) if channel == Channel::Stable => {
+            // Release candidates are built as the final version (Link D4).
+            (Ok(left), Ok(right)) if channel != Channel::Nightly => {
                 left.cmp_precedence(&right).is_eq()
             }
             (Ok(left), Ok(right)) => {
@@ -246,7 +298,13 @@ pub fn safe_filename(name: &str) -> Result<()> {
     Ok(())
 }
 /// File/hash work on a worker thread; never a UI thread.
+static CHECKSUM_READS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+/// How many full-file hashes this process has read; tests pin hash caching with it.
+pub fn checksum_reads() -> u64 {
+    CHECKSUM_READS.load(std::sync::atomic::Ordering::Relaxed)
+}
 pub fn checksum(path: &Path) -> Result<String> {
+    CHECKSUM_READS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let mut reader = std::fs::File::open(path)?;
     let mut hash = Sha256::new();
     let mut block = [0u8; 65536];

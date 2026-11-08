@@ -15,7 +15,7 @@
       startAtLogin: false, loginSupported: true, executable: `/home/u/Applications/Arcade/${id}.AppImage`,
       dataFolders: [`/home/u/.config/${id}`], reason: null, description: entry.description, category: entry.category,
       icon: entry.icon, platforms: entry.platforms, minTools: entry.minTools, installReason: null,
-      installSupported: true, installationClass: 'managed', rollbackVersion: null, ...extra,
+      installSupported: true, installationClass: 'managed', rollbackVersion: null, withdrawn: null, installedChannel: 'stable', ...extra,
     };
   };
   const state = {

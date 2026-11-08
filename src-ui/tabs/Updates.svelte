@@ -52,6 +52,7 @@
   }
 
   const rollbacks = $derived(apps.filter((app) => app.managed && app.rollbackVersion));
+  const withdrawn = $derived(apps.filter((app) => app.installed && app.withdrawn));
   const managedApps = $derived(apps.filter((app) => app.managed));
   const appName = (id: string) => apps.find((app) => app.id === id)?.name ?? (id === 'arcade.tools' ? 'Arcade Tools' : id);
   const resultLabels: Record<string, string> = { success: 'Done', failed: 'Failed', rolled_back: 'Rolled back', rollback_failed: 'Rollback failed' };
@@ -151,6 +152,21 @@
         {/each}
       </div>
       <p class="section-note">A running app updates only when it's idle; if it reports when it was last used, Tools waits ten minutes after that.</p>
+    </section>
+  {/if}
+
+  {#if withdrawn.length}
+    <section class="section" aria-labelledby="withdrawn-heading">
+      <div class="section-head"><h2 id="withdrawn-heading">Withdrawn versions</h2><span class="meta">Their developers pulled these releases</span></div>
+      <div class="list">
+        {#each withdrawn as app (app.id)}
+          <div class="row compact">
+            <span class="glyph-tile sm"><img src={glyph(app.id)} alt="" width="15" height="15" /></span>
+            <div class="row-main"><div class="row-title">{app.name} v{app.version ?? '?'}</div><div class="row-sub">{app.withdrawn}</div></div>
+            {#if app.managed && app.rollbackVersion}<button type="button" class="btn sm" disabled={busy || checking} onclick={() => run(() => onRollback(app), app.name)}>{rollbackLabel(app)}</button>{/if}
+          </div>
+        {/each}
+      </div>
     </section>
   {/if}
 

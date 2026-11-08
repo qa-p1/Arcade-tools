@@ -7,159 +7,20 @@ use arcade_link::wire::{InvokeRequest, PeerInfo};
 use arcade_link::{Action, LinkError};
 use arcade_tools_core::health::{FixAction, HealthKind};
 use arcade_tools_core::manager::{InstallationClass, LaunchMode, Manager, Operation, Request};
-use arcade_tools_core::paths::Paths;
 use arcade_tools_core::release::{checksum, Os};
 use arcade_tools_core::self_update::{SelfUpdatePlan, StagedSelfUpdate};
 use arcade_tools_core::source::Source;
 use arcade_tools_core::updates::{Clock, HistoryEntry, HistoryResult};
 use serde_json::{json, Value};
+use sha2::Digest;
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use support::FakeRelease;
+use support::hub::{fake_app, fixture, installed, operate, publish, request, wait_for};
 
-fn fixture() -> (FakeRelease, Manager) {
-    support::require_isolated_session();
-    let server = FakeRelease::new();
-    let manager = Manager::new(
-        Paths::under(&server.root.path().join("user")),
-        Source::test_server(&server.url).unwrap(),
-    );
-    (server, manager)
-}
-fn request(id: &str, operation: Operation) -> Request {
-    Request {
-        id: id.into(),
-        operation,
-        mode: Some(LaunchMode::Background),
-        remove_data: false,
-        app_closed: false,
-        channel: None,
-        version: None,
-    }
-}
-fn operate(manager: &Manager, id: &str, operation: Operation) -> arcade_tools_core::Result<String> {
-    manager.operate(
-        &request(id, operation),
-        &AtomicBool::new(false),
-        &mut |_| {},
-    )
-}
-fn fake_app(paths: &Paths, id: &str, version: &str, fail: bool) -> Vec<u8> {
-    let exe = paths.executable(id, Os::Linux, false);
-    let manifest = Manifest::new(id, version, exe.to_str().unwrap());
-    let source = r#"#!/usr/bin/env python3
-import json, os, pathlib, shutil, sys
-ID, VERSION, FAIL, DOC, DATA = __CONSTANTS__
-home = pathlib.Path(os.environ['ARCADE_HOME'])
-assert pathlib.Path(os.environ['HOME']) == home
-args = sys.argv[1:]
-log = home / 'installer-events'
-home.mkdir(parents=True, exist_ok=True)
-with log.open('a') as f: f.write(json.dumps({'id': ID, 'version': VERSION, 'args': args}) + '\n')
-receipt_file = home / 'installs' / (ID + '.json')
-registry = home / 'apps' / (ID + '.json')
-dest = pathlib.Path(DOC['executable'])
-desktop = home / '.local/share/applications' / (ID.replace('.', '-') + '.desktop')
-cli = home / '.local/bin' / ID.replace('.', '-')
-stamp = '2026-10-11T10:00:00Z'
-def write(path, value):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(value)); path.chmod(0o600)
-def remove(path):
-    if path.is_symlink() or path.is_file(): path.unlink()
-    elif path.is_dir(): shutil.rmtree(path)
-if '--install' in args:
-    # A real resident such as Find execs itself unless Tools suppresses launch.
-    # Refuse here so a missing --no-launch fails promptly instead of hanging.
-    assert '--no-launch' in args, 'Managed installer would launch a resident'
-    old = json.loads(receipt_file.read_text()) if receipt_file.exists() else None
-    previous = old.get('previous') if old else None
-    source = pathlib.Path(sys.argv[0]).resolve()
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    if source != dest.resolve():
-        if dest.exists():
-            assert old and pathlib.Path(old['path']) == dest
-            prev = dest.parent / '.previous' / dest.name
-            prev.parent.mkdir(parents=True, exist_ok=True)
-            if prev.exists(): assert old.get('previous') and pathlib.Path(old['previous']['path']) == prev
-            shutil.copy2(dest, prev)
-            previous = {'version': old['version'], 'path': str(prev)}
-        shutil.copy2(source, dest)
-    dest.chmod(0o755)
-    desktop.parent.mkdir(parents=True, exist_ok=True)
-    desktop.write_text('[Desktop Entry]\nType=Application\nExec=' + str(dest) + '\nX-Arcade-Id=' + ID + '\n')
-    cli.parent.mkdir(parents=True, exist_ok=True)
-    if cli.is_symlink(): cli.unlink()
-    cli.symlink_to(dest)
-    channel = args[args.index('--channel')+1] if '--channel' in args else 'stable'
-    write(receipt_file, {'schema': 1, 'id': ID, 'version': VERSION, 'channel': channel, 'method': 'appimage', 'managedBy': 'self',
-        'path': str(dest), 'integration': {'desktopEntry': str(desktop), 'icons': [], 'cli': str(cli), 'autostart': None, 'uninstaller': None},
-        'previous': previous, 'installedAt': old['installedAt'] if old else stamp, 'updatedAt': stamp})
-    if source != dest.resolve(): source.unlink() # Find's default remove_download
-    if FAIL: sys.exit(9)
-elif '--uninstall' in args:
-    receipt = json.loads(receipt_file.read_text())
-    remove(pathlib.Path(receipt['path']))
-    remove(desktop); remove(cli)
-    if receipt.get('previous'): remove(pathlib.Path(receipt['previous']['path']))
-    if '--remove-data' in args:
-        for folder in DATA: remove(pathlib.Path(folder))
-    remove(receipt_file); remove(registry)
-else:
-    DOC['install'] = 'appimage'
-    write(registry, DOC)
-"#;
-    let constants = format!(
-        "{}, {}, {}, json.loads({}), json.loads({})",
-        json!(id),
-        json!(version),
-        if fail { "True" } else { "False" },
-        json!(manifest.to_json()),
-        json!(serde_json::to_string(&paths.data_folders(id, Os::Linux)).unwrap())
-    );
-    source.replace("__CONSTANTS__", &constants).into_bytes()
-}
-fn publish(server: &FakeRelease, manager: &Manager, id: &str, version: &str, fail: bool) {
-    server.publish(
-        id,
-        version,
-        "stable",
-        &[(
-            "App_x64.AppImage",
-            &fake_app(&manager.paths, id, version, fail),
-        )],
-        "nsis",
-    );
-    server.amend_manifest(id, version, "stable", |manifest| {
-        manifest["assets"][0]["installArgs"] = json!(["--install", "--silent"]);
-    });
-}
-fn wait_for(path: &Path, check: impl Fn(&str) -> bool) {
-    let until = Instant::now() + Duration::from_secs(5);
-    loop {
-        if fs::read_to_string(path).is_ok_and(|text| check(&text)) {
-            break;
-        }
-        assert!(
-            Instant::now() < until,
-            "Timed out waiting for {}",
-            path.display()
-        );
-        std::thread::sleep(Duration::from_millis(20));
-    }
-}
-fn installed(server: &FakeRelease, manager: &Manager, id: &str) {
-    publish(server, manager, id, "1.0.0", false);
-    operate(manager, id, Operation::Install).unwrap();
-    wait_for(
-        &manager.paths.link.registry.join(format!("{id}.json")),
-        |text| text.contains("1.0.0"),
-    );
-}
 fn history(manager: &Manager) -> Vec<HistoryEntry> {
     fs::read_to_string(manager.paths.state().join("update-history.jsonl"))
         .unwrap()
@@ -256,12 +117,12 @@ fn hub_lifecycle_wheel_build_metadata_receipts_updates_and_rollback() {
         .verify(&manager.paths, id)
         .unwrap();
 
+    // An older release published later is never offered: the listing's newest version (build 41,
+    // which the user rolled back from) stays the update, as it would on GitHub (D5).
     publish_build("0.2.9+build.99");
-    assert!(!manager.check(id).unwrap().update_available);
-    assert_eq!(
-        operate(&manager, id, Operation::Update).unwrap(),
-        "Already up to date."
-    );
+    let check = manager.check(id).unwrap();
+    assert!(check.update_available);
+    assert_eq!(check.version, "0.3.0+build.41");
     publish_build("0.3.0+build.40");
     let mut plain_record = manager.record(id).unwrap().unwrap();
     plain_record.version = "0.3.0".into();
@@ -382,7 +243,12 @@ fn hub_lifecycle_install_update_rollback_repeated_updates_and_uninstall() {
     assert!(data.join("keep").exists());
     assert!(manager.receipt("arcade.look").unwrap().is_none());
     assert!(!receipt.path.exists());
-    installed(&server, &manager, "arcade.look");
+    // Reinstalling takes the newest listed release, 3.0.0 (D5).
+    operate(&manager, "arcade.look", Operation::Install).unwrap();
+    wait_for(
+        &manager.paths.link.registry.join("arcade.look.json"),
+        |text| text.contains("3.0.0"),
+    );
     let mut removal = request("arcade.look", Operation::Uninstall);
     removal.remove_data = true;
     manager
@@ -558,7 +424,7 @@ fn hub_lifecycle_rate_limited_checks_and_updates_use_release_downloads() {
     let repo = support::catalog_repo("arcade.look");
     // GitHub's anonymous API limit is used up...
     server.replies.lock().unwrap().insert(
-        format!("/repos/{repo}/releases/latest"),
+        format!("/repos/{repo}/releases?per_page=30"),
         support::HttpReply {
             status: "403 Forbidden".into(),
             headers: vec![
@@ -569,7 +435,7 @@ fn hub_lifecycle_rate_limited_checks_and_updates_use_release_downloads() {
         },
     );
     // When the download host fails too, the rate limit is what's reported.
-    let fallback = format!("/{repo}/releases/latest/download/arcade-release.json");
+    let fallback = format!("/{repo}/releases/latest/download/manifest.json");
     server.replies.lock().unwrap().insert(
         fallback.clone(),
         support::HttpReply {
@@ -590,12 +456,12 @@ fn hub_lifecycle_rate_limited_checks_and_updates_use_release_downloads() {
     {
         let mut routes = server.routes.lock().unwrap();
         let prefix = "/assets/arcade-look-2.0.0-stable/";
-        let manifest = routes[&format!("{prefix}arcade-release.json")].clone();
+        // The signed manifest and its signature are release files too.
+        for file in ["arcade-release.json", "manifest.json", "manifest.json.sig"] {
+            let bytes = routes[&format!("{prefix}{file}")].clone();
+            routes.insert(format!("/{repo}/releases/latest/download/{file}"), bytes);
+        }
         let image = routes[&format!("{prefix}App_x64.AppImage")].clone();
-        routes.insert(
-            format!("/{repo}/releases/latest/download/arcade-release.json"),
-            manifest,
-        );
         routes.insert(
             format!("/{repo}/releases/download/v2.0.0/App_x64.AppImage"),
             image,
@@ -1304,4 +1170,347 @@ fn hub_lifecycle_refuses_corrupt_rollback_and_cleans_first_install_failure() {
         "checksum"
     );
     assert_eq!(manager.receipt("arcade.look").unwrap().unwrap(), before);
+}
+
+#[test]
+fn hub_lifecycle_releases_need_a_trusted_signature_and_a_matching_manifest() {
+    use arcade_link::release as link;
+    let (server, manager) = fixture();
+    installed(&server, &manager, "arcade.look");
+    publish(&server, &manager, "arcade.look", "2.0.0", false);
+    let prefix = "/assets/arcade-look-2.0.0-stable/";
+    let refused = |code: &str| {
+        let error = manager.check("arcade.look").unwrap_err();
+        assert_eq!(error.code, code, "{error:?}");
+        assert_eq!(
+            operate(&manager, "arcade.look", Operation::Update)
+                .unwrap_err()
+                .code,
+            code
+        );
+        assert_eq!(
+            manager.record("arcade.look").unwrap().unwrap().version,
+            "1.0.0"
+        );
+    };
+    // A valid signature from a key Tools doesn't trust is no signature.
+    let sig_route = format!("{prefix}manifest.json.sig");
+    let genuine = server.routes.lock().unwrap()[&sig_route].clone();
+    let json = server.routes.lock().unwrap()[&format!("{prefix}manifest.json")].clone();
+    let foreign = link::SecretKey::generate().unwrap();
+    let (_, signature) =
+        link::sign_manifest(&link::ReleaseManifest::from_json(&json).unwrap(), &foreign);
+    server
+        .routes
+        .lock()
+        .unwrap()
+        .insert(sig_route.clone(), signature.into_bytes());
+    refused("signature");
+    server.routes.lock().unwrap().insert(sig_route, genuine);
+    // arcade-release.json is unsigned: an installer the signed manifest doesn't describe is refused.
+    server.amend_manifest("arcade.look", "2.0.0", "stable", |manifest| {
+        manifest["assets"][0]["sha256"] = json!("0".repeat(64));
+    });
+    refused("manifest");
+    let sha = checksum(
+        &server
+            .root
+            .path()
+            .join("arcade-look-2.0.0-stable/App_x64.AppImage"),
+    )
+    .unwrap();
+    server.amend_manifest("arcade.look", "2.0.0", "stable", |manifest| {
+        manifest["assets"][0]["sha256"] = json!(sha);
+    });
+    assert!(manager.check("arcade.look").unwrap().update_available);
+}
+
+#[test]
+fn hub_lifecycle_updates_download_only_the_changed_chunks() {
+    let (server, manager) = fixture();
+    let id = "arcade.look";
+    // The script changes between versions; a large shared payload (a comment) does not.
+    let mut x = 0x9e37_79b9_7f4a_7c15u64;
+    let payload: String = (0..512 * 1024)
+        .map(|_| {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            format!("{:02x}", x as u8)
+        })
+        .collect();
+    let release = |version: &str| {
+        let mut bytes = fake_app(&manager.paths, id, version, false);
+        bytes.extend_from_slice(format!("\n# {payload}\n").as_bytes());
+        server.publish(
+            id,
+            version,
+            "stable",
+            &[("App_x64.AppImage", &bytes)],
+            "nsis",
+        );
+        server.amend_manifest(id, version, "stable", |manifest| {
+            manifest["assets"][0]["installArgs"] = json!(["--install", "--silent"]);
+        });
+        bytes.len() as u64
+    };
+    release("1.0.0");
+    operate(&manager, id, Operation::Install).unwrap();
+    wait_for(
+        &manager.paths.link.registry.join(format!("{id}.json")),
+        |text| text.contains("1.0.0"),
+    );
+    let size = release("2.0.0");
+    server.requests.lock().unwrap().clear();
+    operate(&manager, id, Operation::Update).unwrap();
+    assert_eq!(manager.record(id).unwrap().unwrap().version, "2.0.0");
+    let installer = "/assets/arcade-look-2.0.0-stable/App_x64.AppImage";
+    let ranges: Vec<(u64, u64)> = server
+        .requests
+        .lock()
+        .unwrap()
+        .iter()
+        .filter(|(route, _)| route == installer)
+        .map(|(_, headers)| {
+            let spec = headers
+                .iter()
+                .find_map(|h| {
+                    h.strip_prefix("range: bytes=")
+                        .or(h.strip_prefix("Range: bytes="))
+                })
+                .expect("every installer request asks for a range");
+            let (a, b) = spec.split_once('-').unwrap();
+            (a.parse().unwrap(), b.parse().unwrap())
+        })
+        .collect();
+    let fetched: u64 = ranges.iter().map(|(a, b)| b - a + 1).sum();
+    assert!(
+        !ranges.is_empty() && fetched * 4 < size,
+        "{ranges:?} of {size} bytes"
+    );
+    // The new package's chunk list is kept for the next update; the old one goes with its package.
+    let installers = arcade_tools_core::installation::installers(&manager.paths, id);
+    let saved = fs::read_dir(&installers)
+        .unwrap()
+        .filter(|e| {
+            e.as_ref()
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .ends_with(".manifest.json")
+        })
+        .count();
+    assert!(saved >= 1);
+
+    // A host that ignores Range (answers 200 with the whole file) breaks the delta; the full download still works.
+    release("3.0.0");
+    let route = "/assets/arcade-look-3.0.0-stable/App_x64.AppImage".to_string();
+    let whole = server.routes.lock().unwrap()[&route].clone();
+    server.replies.lock().unwrap().insert(
+        route,
+        support::HttpReply {
+            status: "200 OK".into(),
+            headers: vec![],
+            body: whole,
+        },
+    );
+    operate(&manager, id, Operation::Update).unwrap();
+    assert_eq!(manager.record(id).unwrap().unwrap().version, "3.0.0");
+
+    // A tampered chunk is rejected (PLAN exit gate): a mirror serves wrong bytes for the delta's ranges, the
+    // assembled file fails its check, and the intact whole file is installed instead.
+    release("4.0.0");
+    let route = "/assets/arcade-look-4.0.0-stable/App_x64.AppImage".to_string();
+    let published = server.routes.lock().unwrap()[&route].clone();
+    let tampered: Vec<u8> = published.iter().map(|b| b ^ 0x5a).collect();
+    server
+        .tampered_ranges
+        .lock()
+        .unwrap()
+        .insert(route.clone(), tampered);
+    server.requests.lock().unwrap().clear();
+    operate(&manager, id, Operation::Update).unwrap();
+    let record = manager.record(id).unwrap().unwrap();
+    assert_eq!(record.version, "4.0.0");
+    assert_eq!(
+        record.sha256,
+        format!("{:x}", sha2::Sha256::digest(&published)),
+        "the installed package is the published one"
+    );
+    let asked: Vec<Option<String>> = server
+        .requests
+        .lock()
+        .unwrap()
+        .iter()
+        .filter(|(r, _)| *r == route)
+        .map(|(_, headers)| {
+            headers.iter().find_map(|h| {
+                h.to_ascii_lowercase()
+                    .strip_prefix("range: bytes=")
+                    .map(str::to_owned)
+            })
+        })
+        .collect();
+    assert!(
+        asked
+            .iter()
+            .any(|r| r.as_deref().is_some_and(|r| !r.ends_with('-'))),
+        "the delta was tried: {asked:?}"
+    );
+    assert!(
+        asked
+            .iter()
+            .any(|r| r.as_deref().is_none_or(|r| r.ends_with('-'))),
+        "then the whole file was fetched: {asked:?}"
+    );
+
+    // A tampered file is never installed: when the host serves wrong bytes for the delta and the whole file alike,
+    // the update fails and 4.0.0 stays. (Bytes the delta takes from the installed copy are never fetched, so the
+    // tampering covers the whole file.)
+    release("5.0.0");
+    let route = "/assets/arcade-look-5.0.0-stable/App_x64.AppImage".to_string();
+    {
+        let mut routes = server.routes.lock().unwrap();
+        for byte in routes.get_mut(&route).unwrap().iter_mut() {
+            *byte ^= 0x5a;
+        }
+    }
+    assert!(operate(&manager, id, Operation::Update).is_err());
+    let record = manager.record(id).unwrap().unwrap();
+    assert_eq!(record.version, "4.0.0");
+    assert_eq!(
+        record.sha256,
+        format!("{:x}", sha2::Sha256::digest(&published))
+    );
+}
+
+#[test]
+fn hub_lifecycle_a_withdrawn_release_is_never_offered_and_installed_copies_are_told_to_roll_back() {
+    let (server, manager) = fixture();
+    installed(&server, &manager, "arcade.look");
+    publish(&server, &manager, "arcade.look", "2.0.0", false);
+    operate(&manager, "arcade.look", Operation::Update).unwrap();
+    let view = |manager: &Manager| {
+        manager
+            .list(false)
+            .unwrap()
+            .into_iter()
+            .find(|app| app.id == "arcade.look")
+            .unwrap()
+    };
+    assert_eq!(view(&manager).withdrawn, None);
+    // The catalog withdraws 2.0.0.
+    let mut catalog: Value =
+        serde_json::from_slice(&server.routes.lock().unwrap()["/catalog.json"]).unwrap();
+    for app in catalog["apps"].as_array_mut().unwrap() {
+        if app["id"] == "arcade.look" {
+            app["bad"] = json!([{"tag": "v2.0.0", "reason": "Loses your settings on start."}]);
+        }
+    }
+    server.routes.lock().unwrap().insert(
+        "/withdrawn/catalog.json".into(),
+        serde_json::to_vec(&catalog).unwrap(),
+    );
+    arcade_tools_core::catalog::CatalogClient::with_url(
+        manager.paths.clone(),
+        Source::test_server(&server.url).unwrap(),
+        &format!("{}withdrawn/catalog.json", server.url),
+    )
+    .unwrap()
+    .refresh_catalog();
+    assert_eq!(
+        view(&manager).withdrawn.as_deref(),
+        Some("Loses your settings on start.")
+    );
+    // Discovery skips it: the newest release Tools offers is 1.0.0, which is older, so no update.
+    let check = manager.check("arcade.look").unwrap();
+    assert_eq!(check.version, "1.0.0");
+    assert!(!check.update_available);
+    operate(&manager, "arcade.look", Operation::Rollback).unwrap();
+    assert_eq!(
+        manager.record("arcade.look").unwrap().unwrap().version,
+        "1.0.0"
+    );
+    assert_eq!(view(&manager).withdrawn, None);
+}
+
+#[test]
+fn hub_lifecycle_nightly_and_back_to_stable_installs_and_backs_up_the_data_first() {
+    let (server, manager) = fixture();
+    let id = "arcade.look";
+    installed(&server, &manager, id);
+    let data = manager.paths.data_folders(id, Os::Linux)[0].clone();
+    fs::create_dir_all(&data).unwrap();
+    fs::write(data.join("settings.json"), r#"{"schema":1}"#).unwrap();
+    // Stable 1.0.0 → Nightly 1.1.0: the switch is an update even though stable is current.
+    server.publish(
+        id,
+        "1.1.0",
+        "nightly",
+        &[(
+            "App_x64.AppImage",
+            &fake_app(&manager.paths, id, "1.1.0", false),
+        )],
+        "nsis",
+    );
+    server.amend_manifest(id, "1.1.0", "nightly", |manifest| {
+        manifest["assets"][0]["installArgs"] = json!(["--install", "--silent"]);
+    });
+    manager
+        .set_channel(id, arcade_tools_core::release::Channel::Nightly)
+        .unwrap();
+    let view = |manager: &Manager| {
+        let value = serde_json::to_value(
+            manager
+                .list(false)
+                .unwrap()
+                .into_iter()
+                .find(|app| app.id == id)
+                .unwrap(),
+        )
+        .unwrap();
+        (value["channel"].clone(), value["installedChannel"].clone())
+    };
+    assert_eq!(view(&manager), (json!("nightly"), json!("stable")));
+    assert!(manager.check(id).unwrap().update_available);
+    operate(&manager, id, Operation::Update).unwrap();
+    assert_eq!(view(&manager), (json!("nightly"), json!("nightly")));
+    // The nightly migrates the data forward.
+    fs::write(data.join("settings.json"), r#"{"schema":2}"#).unwrap();
+    // Back to Stable: the lower stable version is installed, after a backup of the data.
+    manager
+        .set_channel(id, arcade_tools_core::release::Channel::Stable)
+        .unwrap();
+    let check = manager.check(id).unwrap();
+    assert_eq!(check.version, "1.0.0");
+    assert!(check.update_available);
+    let message = operate(&manager, id, Operation::Update).unwrap();
+    assert!(message.contains("backed up"), "{message}");
+    assert_eq!(manager.record(id).unwrap().unwrap().version, "1.0.0");
+    assert_eq!(view(&manager), (json!("stable"), json!("stable")));
+    let backup = arcade_tools_core::channel_backup::root(&manager.paths, id);
+    let copied: Vec<_> = walk(&backup)
+        .into_iter()
+        .filter(|p| p.file_name().is_some_and(|n| n == "settings.json"))
+        .collect();
+    assert_eq!(copied.len(), 1, "{copied:?}");
+    assert_eq!(fs::read_to_string(&copied[0]).unwrap(), r#"{"schema":2}"#);
+    assert_eq!(
+        fs::read_to_string(data.join("settings.json")).unwrap(),
+        r#"{"schema":2}"#,
+        "the live data is left for the app's own downgrade rule"
+    );
+}
+
+fn walk(dir: &Path) -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    for entry in fs::read_dir(dir).into_iter().flatten().flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            out.extend(walk(&path));
+        } else {
+            out.push(path);
+        }
+    }
+    out
 }

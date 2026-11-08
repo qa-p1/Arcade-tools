@@ -291,6 +291,9 @@ def broken_links(root):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--self-version", metavar="X.Y.Z",
+                        help="Take Arcade Tools' own guide from this working tree, labeled as the version being built "
+                             "(network mode; the release being built is not published yet)")
     parser.add_argument("--keep-bundled", action="store_true", help="Keep a labeled bundled snapshot if a released tag has no docs")
     parser.add_argument("--from-local", type=Path, help="Root containing sibling app checkouts (no network)")
     parser.add_argument("--app-checkout", action="append", default=[], metavar="ID=PATH", help="Override one local app checkout, for integration worktrees")
@@ -351,7 +354,13 @@ def main(argv=None):
             entry = {"id": app_id, "repo": repo, "version": "local" if local else "main",
                      "ref": "working-tree" if local else "main", "status": "no_docs", "files": []}
             snapshot.entries.append(entry)
-            if local:
+            if app_id == "arcade.tools" and args.self_version and not local:
+                if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:-rc\.[0-9]+)?", args.self_version):
+                    raise ValueError("--self-version must be X.Y.Z or X.Y.Z-rc.N")
+                # Tools' own guide is the one in the tree being built, so it never lags the running version (TL-12).
+                entry["version"], entry["ref"] = args.self_version, f"v{args.self_version}"
+                snapshot.local(entry, Path(__file__).resolve().parents[1], docs_path)
+            elif local:
                 snapshot.local(entry, overrides.get(app_id) or checkout(local, repo), docs_path)
             else:
                 if app_id != "arcade.ecosystem":

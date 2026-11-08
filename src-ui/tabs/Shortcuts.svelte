@@ -408,7 +408,7 @@
   .toolbar .segmented { justify-self: start; }
   .view-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
   .view-note { margin-bottom: 14px; }
-  .group + .group { margin-top: 22px; }
+  .group + .group { margin-top: 24px; }
   .group-title { display: flex; align-items: baseline; gap: 8px; margin: 0 0 8px 2px; color: var(--muted); font-size: var(--fs-caption); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
   .group-title span { font-weight: 500; letter-spacing: 0; text-transform: none; }
   .plain { margin: 0; padding: 0; list-style: none; }
@@ -425,5 +425,5 @@
   .wm-warnings ul { margin: 0; padding-left: 16px; }
   .wm-warnings { margin-bottom: 14px; }
   .no-results { padding: 20px; border: 1px dashed var(--line-strong); border-radius: var(--radius); color: var(--muted); text-align: center; }
-  .overlay-note { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 28px; }
+  .overlay-note { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 24px; }
 </style>

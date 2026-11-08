@@ -1,0 +1,4 @@
+# Arcade update signing keys (minisign ed25519), one base64 `RW…` line each: the current key and, during a rotation,
+# the next. Stable and nightly releases verify against these (docs/v1/DECISIONS.md D5). Empty until the owner creates
+# the key with `arcade-link keygen --secret-to-gh` (Arcade-catalog dev/v1/LOCAL.md §1); until then Tools refuses
+# stable and nightly updates instead of accepting them unsigned.

@@ -1,0 +1,30 @@
+cycle 1: window_mapped=0.38s painted=0.44s px=161619
+cycle1-open              RSS  525 PSS  314 anon  162 swap   8 thr 145 | WebKitWebP:267 arcade-too:198 WebKitNetw:60
+cycle1-closed            RSS  249 PSS  151 anon   56 swap   8 thr  83 | arcade-too:189 WebKitNetw:60
+cycle 2: window_mapped=0.38s painted=0.45s px=161619
+cycle2-open              RSS  525 PSS  314 anon  162 swap   8 thr 143 | WebKitWebP:267 arcade-too:198 WebKitNetw:60
+cycle2-closed            RSS  249 PSS  152 anon   57 swap   8 thr  83 | arcade-too:189 WebKitNetw:60
+cycle 3: window_mapped=0.44s painted=0.45s px=161619
+cycle3-open              RSS  527 PSS  315 anon  164 swap   8 thr 144 | WebKitWebP:268 arcade-too:200 WebKitNetw:60
+cycle3-closed            RSS  251 PSS  153 anon   58 swap   8 thr  83 | arcade-too:191 WebKitNetw:60
+cycle 4: window_mapped=0.38s painted=0.44s px=161619
+cycle4-open              RSS  527 PSS  315 anon  163 swap   8 thr 141 | WebKitWebP:267 arcade-too:200 WebKitNetw:60
+cycle4-closed            RSS  251 PSS  153 anon   58 swap   8 thr  83 | arcade-too:191 WebKitNetw:60
+cycle 5: window_mapped=0.44s painted=0.46s px=161619
+cycle5-open              RSS  527 PSS  315 anon  164 swap   8 thr 145 | WebKitWebP:266 arcade-too:201 WebKitNetw:60
+cycle5-closed            RSS  251 PSS  153 anon   58 swap   8 thr  83 | arcade-too:191 WebKitNetw:60
+cycle 6: window_mapped=0.38s painted=0.45s px=161619
+cycle6-open              RSS  525 PSS  313 anon  161 swap   8 thr 144 | WebKitWebP:266 arcade-too:199 WebKitNetw:60
+cycle6-closed            RSS  250 PSS  152 anon   57 swap   8 thr  83 | arcade-too:190 WebKitNetw:60
+cycle 7: window_mapped=0.38s painted=0.45s px=161619
+cycle7-open              RSS  524 PSS  313 anon  161 swap   8 thr 144 | WebKitWebP:265 arcade-too:199 WebKitNetw:60
+cycle7-closed            RSS  250 PSS  152 anon   57 swap   8 thr  83 | arcade-too:190 WebKitNetw:60
+cycle 8: window_mapped=0.39s painted=0.45s px=161619
+cycle8-open              RSS  524 PSS  313 anon  161 swap   8 thr 145 | WebKitWebP:266 arcade-too:199 WebKitNetw:60
+cycle8-closed            RSS  250 PSS  152 anon   57 swap   8 thr  83 | arcade-too:190 WebKitNetw:60
+cycle 9: window_mapped=0.38s painted=0.45s px=161619
+cycle9-open              RSS  527 PSS  315 anon  164 swap   8 thr 152 | WebKitWebP:267 arcade-too:200 WebKitNetw:60
+cycle9-closed            RSS  250 PSS  153 anon   57 swap   8 thr  91 | arcade-too:190 WebKitNetw:60
+cycle 10: window_mapped=0.38s painted=0.44s px=161619
+cycle10-open             RSS  531 PSS  320 anon  168 swap   8 thr 143 | WebKitWebP:268 arcade-too:204 WebKitNetw:60
+cycle10-closed           RSS  253 PSS  156 anon   60 swap   8 thr  83 | arcade-too:193 WebKitNetw:60

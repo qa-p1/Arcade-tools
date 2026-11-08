@@ -4,12 +4,12 @@
 use std::num::NonZeroU32;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use winit::application::ApplicationHandler;
 use winit::dpi::{LogicalSize, PhysicalPosition};
 use winit::event::{ElementState, Ime, MouseButton, MouseScrollDelta, WindowEvent};
-use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
+use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{Key as WinitKey, ModifiersState, NamedKey};
 use winit::window::{Window, WindowId, WindowLevel};
 
@@ -27,8 +27,6 @@ struct App {
     surface: Option<softbuffer::Surface<Rc<Window>, Rc<Window>>>,
     mods: ModifiersState,
     cursor: (f32, f32),
-    focused: bool,
-    leave_at: Option<Instant>,
     error: Option<String>,
     ime: bool,
 }
@@ -59,8 +57,6 @@ pub fn run(overlay: Overlay, focus: Focus, instance: &Instance) -> Result<(), St
         surface: None,
         mods: ModifiersState::empty(),
         cursor: (0.0, 0.0),
-        focused: false,
-        leave_at: None,
         error: None,
         ime: false,
     };
@@ -231,15 +227,6 @@ impl ApplicationHandler<Command> for App {
                 self.overlay.renderer.dark = theme == winit::window::Theme::Dark;
                 self.redraw();
             }
-            WindowEvent::Focused(true) => {
-                self.focused = true;
-                self.leave_at = None;
-                event_loop.set_control_flow(ControlFlow::Wait);
-            }
-            WindowEvent::Focused(false) if self.focused => {
-                self.leave_at = Some(Instant::now() + Duration::from_millis(150));
-                event_loop.set_control_flow(ControlFlow::WaitUntil(self.leave_at.unwrap()));
-            }
             WindowEvent::CursorMoved { position, .. } => {
                 self.cursor = (
                     position.x as f32 / self.overlay.scale,
@@ -318,15 +305,6 @@ impl ApplicationHandler<Command> for App {
                 }
             }
             _ => {}
-        }
-    }
-
-    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
-        if self
-            .leave_at
-            .is_some_and(|deadline| Instant::now() >= deadline)
-        {
-            self.close(event_loop, false);
         }
     }
 }
