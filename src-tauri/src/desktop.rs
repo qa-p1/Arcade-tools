@@ -485,6 +485,20 @@ struct ConnectionsView {
     peers: Vec<ConnectionPeerView>,
 }
 
+/// The bundled THIRD_PARTY_NOTICES.md (the repository's copy in debug builds run from the tree).
+fn notices_path(app: &AppHandle) -> PathBuf {
+    let bundled = app
+        .path()
+        .resource_dir()
+        .map(|root| root.join("THIRD_PARTY_NOTICES.md"))
+        .unwrap_or_else(|_| PathBuf::from("__arcade_notices_missing__"));
+    #[cfg(debug_assertions)]
+    if !bundled.exists() {
+        return PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../THIRD_PARTY_NOTICES.md");
+    }
+    bundled
+}
+
 fn docs_resource_dir(app: &AppHandle) -> PathBuf {
     let root = app
         .path()
@@ -1360,6 +1374,7 @@ pub fn run(background: bool, quit: bool) {
             hub::restart_app,
             hub::create_diagnostics,
             hub::open_logs_folder,
+            hub::third_party_notices,
             hub::diagnostics_text,
             hub::export_backup,
             hub::plan_restore,

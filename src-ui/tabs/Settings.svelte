@@ -37,6 +37,14 @@
     await copyText(await api.diagnosticsText());
   }
 
+  // The notices are about 1 MB of text: loaded when the dialog opens and dropped when it closes.
+  let noticesDialog: HTMLDialogElement;
+  let notices = $state('');
+  async function showNotices(): Promise<void> {
+    notices = await api.thirdPartyNotices();
+    noticesDialog.showModal();
+  }
+
   let supportApp = $state('arcade.tools');
   let report = $state<DiagnosticsReport | null>(null);
   let backup = $state<BackupReport | null>(null);
@@ -277,7 +285,7 @@
       {/if}
       <div class="row">
         <div class="row-main"><div class="row-title">Licences</div><div class="row-sub">Arcade Tools is MIT licensed. It includes Inter (SIL Open Font License) and other open-source parts.</div></div>
-        <a class="btn sm" href="https://github.com/qa-p1/Arcade-tools/blob/main/VENDORED" target="_blank" rel="noreferrer">Show licences</a>
+        <button type="button" class="btn sm" onclick={() => run(showNotices)}>Show licences</button>
       </div>
       <details class="tech" aria-labelledby="diagnostics-heading">
         <summary class="row"><span class="row-main row-title" id="diagnostics-heading">Technical details</span><Icon name="chevronDown" size={15} /></summary>
@@ -305,6 +313,16 @@
   </section>
 </div>
 
+<dialog id="notices" class="notices" bind:this={noticesDialog} onclose={() => (notices = '')} aria-labelledby="notices-title">
+  <form method="dialog">
+    <h2 id="notices-title">Licences</h2>
+    <!-- A scrollable region must take focus so the keyboard can scroll it. -->
+    <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+    <pre class="selectable" tabindex="0" aria-label="Third-party notices">{notices}</pre>
+    <div class="dialog-actions"><button class="btn primary" type="submit">Close</button></div>
+  </form>
+</dialog>
+
 <style>
   label.row .row-title, label.row .row-sub { display: block; }
   .row-extra.flush { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 14px 14px; }
@@ -318,4 +336,6 @@
   .tech summary::-webkit-details-marker { display: none; }
   .tech[open] summary :global(.icon) { transform: rotate(180deg); }
   #diagnostics { margin: 0; padding: 0 14px 14px; color: var(--muted); font-size: var(--fs-caption); line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .notices { width: min(760px, calc(100vw - 48px)); }
+  .notices pre { margin: 0; height: min(60vh, 560px); overflow: auto; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--muted); font-size: var(--fs-caption); line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
 </style>

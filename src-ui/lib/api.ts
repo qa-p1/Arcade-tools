@@ -263,6 +263,7 @@ export const api = {
   createDiagnostics: (id: string) => invoke<DiagnosticsReport>('create_diagnostics', { id }),
   diagnosticsText: () => invoke<string>('diagnostics_text'),
   openLogsFolder: () => invoke<void>('open_logs_folder'),
+  thirdPartyNotices: () => invoke<string>('third_party_notices'),
   exportBackup: () => invoke<BackupReport>('export_backup'),
   planRestore: (path: string) => invoke<RestorePlan>('plan_restore', { path }),
   restoreBackup: (path: string, sha256: string) => invoke<RestoreResult[]>('restore_backup', { path, sha256 }),

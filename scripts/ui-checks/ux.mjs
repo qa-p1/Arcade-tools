@@ -190,4 +190,17 @@ export default {
     const updated = await page.evaluate(() => window.__mock.calls.some(([c]) => c === 'self_update'));
     assert(asked === 1 && !updated, `dialog ${asked}, self_update called ${updated}`);
   },
+  async 'About shows the bundled licences in a dialog that Escape closes'(page) {
+    await page.evaluate(() => window.__mock.on('third_party_notices', () => '# Third-party notices\n\n- svelte 5 (MIT)'));
+    await tab(page, 'settings');
+    await page.getByRole('button', { name: 'Show licences' }).click();
+    await page.waitForSelector('#notices[open]', { timeout: 3000 });
+    const shown = await text(page, '#notices pre');
+    assert(shown.includes('svelte 5 (MIT)'), `notices dialog shows "${shown}"`);
+    await page.keyboard.press('Escape');
+    await sleep(200);
+    const open = await page.locator('#notices[open]').count();
+    const kept = await page.textContent('#notices pre');
+    assert(open === 0 && kept === '', `after Escape: open ${open}, text kept ${kept.length} chars`);
+  },
 };

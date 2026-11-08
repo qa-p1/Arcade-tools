@@ -56,7 +56,8 @@
     },
     "resources": {
       "resources/docs/": "docs/",
-      "resources/catalog/": "catalog/"
+      "resources/catalog/": "catalog/",
+      "../THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md"
     }
   }
 }

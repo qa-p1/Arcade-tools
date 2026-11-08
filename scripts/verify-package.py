@@ -194,6 +194,9 @@ with tempfile.TemporaryDirectory(prefix='arcade-tools-package-') as temporary:
         for identity in ('applications/dev.arcade.Tools.desktop', 'icons/hicolor/scalable/apps/dev.arcade.Tools.svg',
                          'icons/hicolor/symbolic/apps/dev.arcade.Tools-symbolic.svg'):
             assert (share / identity).is_file(), f'AppImage lacks {identity}'
+        # Settings › About › "Show licences" reads the bundled notices (REPO-1).
+        notices = list((root / 'squashfs-root' / 'usr' / 'lib').rglob('THIRD_PARTY_NOTICES.md'))
+        assert len(notices) == 1 and notices[0].stat().st_size > 100_000, f'AppImage lacks the notices: {notices}'
         subprocess.run([str(binaries / 'arcade-tools'),'--version'],env=environment,check=True,timeout=10)
         environment['APPIMAGE'] = str(staged_package)
         # Exercise the mounting runtime and full AppImage bytes, not only

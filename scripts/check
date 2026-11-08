@@ -15,6 +15,7 @@ step npm run build
 if [ "$(uname -s)" = Linux ]; then step npm run ui-checks; fi
 step python3 scripts/ui-size.py
 step python3 scripts/verify-vendored.py
+step python3 scripts/notices.py --check
 step python3 scripts/check-versions.py
 step python3 scripts/validate_shortcuts.py docs/user/shortcuts.json
 step python3 scripts/test-docs-snapshot.py

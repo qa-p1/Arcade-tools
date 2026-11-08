@@ -481,6 +481,15 @@ pub async fn open_logs_folder(app: AppHandle) -> Result<()> {
     })
     .await
 }
+/// Settings › About › "Show licences": the bundled third-party notices.
+#[tauri::command]
+pub async fn third_party_notices(app: AppHandle) -> Result<String> {
+    worker(move || {
+        std::fs::read_to_string(super::notices_path(&app))
+            .map_err(|e| Error::new("notices", format!("The licence notices are missing: {e}")))
+    })
+    .await
+}
 /// "Copy diagnostics": Link's shared header (STANDARD §10), then Tools' own
 /// lines. No paths inside the user's documents, no secrets.
 #[tauri::command]
