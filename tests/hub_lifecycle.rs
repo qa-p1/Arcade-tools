@@ -990,6 +990,79 @@ fn hub_lifecycle_tools_self_update_handoff_verification_and_helper_flow() {
         .any(|entry| entry.app == "arcade.tools"));
 }
 
+/// A Tools release that fails to install is not tried again automatically. The restarted Tools checks a minute after
+/// it starts, so it used to download and try the same release every minute (found by the rc self-update gate).
+#[test]
+fn hub_lifecycle_a_tools_release_that_fails_to_install_is_not_retried_automatically() {
+    let (server, manager) = fixture();
+    let file = manager.paths.executable("arcade.tools", Os::Linux, false);
+    fs::create_dir_all(file.parent().unwrap()).unwrap();
+    fs::write(
+        &file,
+        fake_app(&manager.paths, "arcade.tools", "1.0.0", false),
+    )
+    .unwrap();
+    fs::set_permissions(&file, fs::Permissions::from_mode(0o755)).unwrap();
+    arcade_tools_core::platform::CommandSpec {
+        program: file.clone(),
+        args: vec!["--install".into(), "--silent".into(), "--no-launch".into()],
+    }
+    .run(&manager.paths)
+    .unwrap();
+    manager.set_updates_enabled(true).unwrap();
+    manager.set_auto_update("arcade.tools", true).unwrap();
+    let release = |version: &str, fail: bool| {
+        server.publish(
+            "arcade.tools",
+            version,
+            "stable",
+            &[(
+                "Tools_x64.AppImage",
+                &fake_app(&manager.paths, "arcade.tools", version, fail),
+            )],
+            "nsis",
+        );
+        server.amend_manifest("arcade.tools", version, "stable", |manifest| {
+            manifest["assets"][0]["installArgs"] = json!(["--install", "--silent"]);
+        });
+        manager.check_updates().unwrap();
+    };
+    let auto = |manager: &Manager| {
+        manager
+            .prepare_auto_self_update(
+                Some(0),
+                &Time(10_000_000_000),
+                LaunchMode::Background,
+                &AtomicBool::new(false),
+                &mut |_: &StagedSelfUpdate| Ok(()),
+            )
+            .unwrap()
+    };
+
+    release("2.0.0", true);
+    let staged = auto(&manager).expect("2.0.0 is offered and staged");
+    let mut plan = staged.plan.clone();
+    plan.parent_pid = 2_000_000_000; // the exited parent
+    assert!(manager
+        .finish_self_update(&plan, &AtomicBool::new(false), &mut |_| {})
+        .is_err());
+    assert_eq!(
+        manager
+            .preferences()
+            .unwrap()
+            .updates
+            .rolled_back
+            .get("arcade.tools")
+            .map(String::as_str),
+        Some("2.0.0")
+    );
+    manager.check_updates().unwrap();
+    assert!(auto(&manager).is_none(), "2.0.0 is not tried again");
+
+    release("3.0.0", false);
+    assert!(auto(&manager).is_some(), "a newer release is");
+}
+
 struct RunningApp {
     server: Mutex<Option<Server>>,
     busy: AtomicBool,

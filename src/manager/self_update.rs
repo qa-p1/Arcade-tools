@@ -232,6 +232,10 @@ impl Manager {
         {
             return Ok(None);
         }
+        // As for apps (`auto_update`): a release Tools rolled back from, or failed to install, waits for a newer one.
+        if self.skipped_after_rollback(ids::TOOLS)?.is_some() {
+            return Ok(None);
+        }
         self.prepare_self_update_locked(mode, cancel, &mut |_| {}, hook)
             .map(Some)
     }
@@ -337,6 +341,14 @@ impl Manager {
             reason: result.as_ref().err().map(ToString::to_string),
         };
         if result.is_err() {
+            // Automatic updates leave this release alone from now on (a newer one, or an update by hand, clears the
+            // mark): the restarted Tools checks a minute after it starts, so a release that fails to install was
+            // downloaded and tried again every minute.
+            self.remember_rollback(
+                ids::TOOLS,
+                Operation::Rollback,
+                Some(&plan.package.release.version),
+            );
             let _ = platform::spawn_detached(&self.paths, &plan.expected_path, &plan.mode.args());
         }
         if let Err(error) = updates::append_history(&self.paths, &history) {

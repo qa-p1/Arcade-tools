@@ -288,3 +288,22 @@ itself and with the published apps' Link as the peer (N-1); the memory and perfo
   helper path is relative to the AppDir, and AppRun's GTK environment is missing). The macOS release job compared
   `wc -l` output as a string, which macOS pads with spaces; it compares numbers now (rc.2 failed on it).
 
+## D15 — An rc installs as Stable; a release that fails to install is not retried automatically
+
+The rc.3 → rc.4 self-update gate (Gates run 42506931186, then reproduced locally on the published files) found that
+Tools could not install any rc: it called the installer with `--channel test`, and the install contract (Tools' own
+`--install`, every app's, and `/ARCADECHANNEL` on Windows) takes stable or nightly only. Tools rolled back,
+restarted, and its first check a minute later tried again, every minute. The delta itself worked: 79 KB of 94 MB.
+
+**Decision.** D5 already says Test is never stored, so an rc installs as Stable: installers get the stored channel,
+the receipt is checked against it, and at equal versions an installed rc and the next rc are compared by package
+hash, not by channel (`is_newer` compares stored channels). README: a failed update must never become a loop, so a
+Tools release that fails to install is marked like a rollback (`updates.rolledBack`), and Tools' own auto-update now
+honours that mark as apps' already did (it ignored even a manual rollback). A newer release or an update by hand
+clears it. The test installer now refuses any other channel, as the real ones do, which is why the tests had not
+caught it. Since the old Tools runs the new installer, the self-update gate needs two rc's with this fix: rc.5, then
+rc.6 with `update-from: v1.0.0-rc.5`.
+
+The gate's profile also changed: it set `ARCADE_HOME`, which marks a test profile in which Tools never runs timed
+update checks, so no update could have happened. It now uses a private `HOME` and XDG folders, as a user has.
+

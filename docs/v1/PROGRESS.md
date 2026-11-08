@@ -4,6 +4,13 @@ Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
 
 ## 2026-11-08 (session 2)
 
+- **rc.4 published** (0ea5ca2, PR #41; first attempt). [Gates on rc.4](https://github.com/qa-p1/Arcade-tools/actions/runs/42506931186)
+  with `update-from: v1.0.0-rc.3`: every gate passed (the delta job too, now) except the self-update. Reproduced
+  locally on the published files: the gate's `ARCADE_HOME` profile never runs timed checks (fixed in the script),
+  and then the real bug (D15): Tools called the installer with `--channel test`, which every installer refuses, and
+  retried every minute. The rc.3 → rc.4 delta was 79 KB of 94 MB. Fixed with regression tests (strict test
+  installer, no-retry test, equal-version rc test). Next: rc.5 with the fix, Gates on it, then rc.6 and Gates with
+  `update-from: v1.0.0-rc.5` (the old Tools runs the new installer, so the fix must be on both sides).
 - **Gates on rc.3** ([run 42500704532](https://github.com/qa-p1/Arcade-tools/actions/runs/42500704532)), the
   workflow's first run, on the published files: SHA256SUMS, manifest and prerelease checks pass; conformance (every
   rule), package smoke on the AppImage, exe and dmg, upgrade 0.4.6 → 1.0.0 with data kept, maintenance, resident
