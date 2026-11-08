@@ -12,7 +12,9 @@ Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
   and Updates section, hub test + UI check.
 - TL-9 done (D6): `installedChannel`, Nightly badge, pending-switch notice, switch opens the reviewed update,
   Nightly→Stable backs up data first (`src/channel_backup.rs`); lock test flipped, hub test + UI check added.
-- Next: TL-1, TL-5, RD-TOOLS-2/3/6, TL-12; then T3 after Link 1.0.1; then PLAN steps 4–8.
+- TL-1 done: `--show-shortcuts` runs the overlay and waits (`hotkey::run_overlay`), so an AppImage mount outlives it;
+  the tray keeps the detached launch. CLI test with a fake overlay fails without the fix.
+- Next: TL-5, RD-TOOLS-2/3/6, TL-12; then T3 after Link 1.0.1; then PLAN steps 4–8.
 
 ## 2026-11-07 — paused for the usage-limit reset
 

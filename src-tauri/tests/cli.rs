@@ -125,3 +125,34 @@ fn an_unknown_argument_prints_usage_and_exits_2() {
         out.status.code()
     );
 }
+
+/// TL-1: the command line waits for the overlay, so an AppImage mount it was started from outlives it.
+#[cfg(unix)]
+#[test]
+fn show_shortcuts_keeps_running_until_the_overlay_closes() {
+    use std::os::unix::fs::PermissionsExt;
+    let home = profile();
+    let overlay = home.path().join("fake-overlay");
+    let closed = home.path().join("overlay-closed");
+    std::fs::write(
+        &overlay,
+        format!(
+            "#!/bin/sh\n[ \"$1\" = --toggle ] || exit 3\nsleep 1\ntouch '{}'\n",
+            closed.display()
+        ),
+    )
+    .unwrap();
+    std::fs::set_permissions(&overlay, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let mut command = Command::new(env!("CARGO_BIN_EXE_arcade-tools"));
+    command
+        .arg("--show-shortcuts")
+        .env("HOME", home.path())
+        .env("ARCADE_TOOLS_OVERLAY_FOR_TESTS", &overlay)
+        .stdin(Stdio::null());
+    let status = command.status().unwrap();
+    assert!(status.success(), "{status}");
+    assert!(
+        closed.exists(),
+        "--show-shortcuts returned while the overlay was still open"
+    );
+}

@@ -21,6 +21,11 @@ pub struct Status {
 pub struct Service(Mutex<Status>);
 
 pub fn overlay_path() -> Option<PathBuf> {
+    // Debug builds only: tests stand in a fake overlay.
+    #[cfg(debug_assertions)]
+    if let Some(path) = std::env::var_os("ARCADE_TOOLS_OVERLAY_FOR_TESTS") {
+        return Some(PathBuf::from(path)).filter(|path| path.is_file());
+    }
     let name = if cfg!(windows) {
         "arcade-tools-overlay.exe"
     } else {
@@ -39,10 +44,37 @@ pub fn overlay_path() -> Option<PathBuf> {
         })
 }
 
+/// From the running Tools (tray, hotkey): the overlay outlives nothing it depends on, so it is detached.
 pub fn launch_overlay() -> Result<()> {
     let path = overlay_path()
         .ok_or_else(|| Error::new("overlay", "The shortcut overlay is not installed."))?;
     arcade_link::client::spawn_detached(&path.to_string_lossy(), &["--toggle".into()])?;
+    Ok(())
+}
+
+/// From the command line (`--show-shortcuts`): run the overlay and wait for it. Started from an AppImage, the
+/// overlay binary lives in this process's mount, which the AppImage runtime removes when this process exits; a
+/// detached overlay then died with SIGBUS on its next page fault (TL-1). An overlay that is already open receives
+/// the toggle and returns at once.
+pub fn run_overlay() -> Result<()> {
+    let path = overlay_path()
+        .ok_or_else(|| Error::new("overlay", "The shortcut overlay is not installed."))?;
+    let status = std::process::Command::new(&path)
+        .arg("--toggle")
+        .stdin(std::process::Stdio::null())
+        .status()
+        .map_err(|e| {
+            Error::new(
+                "overlay",
+                format!("The shortcut overlay did not start: {e}"),
+            )
+        })?;
+    if !status.success() {
+        return Err(Error::new(
+            "overlay",
+            format!("The shortcut overlay stopped with {status}."),
+        ));
+    }
     Ok(())
 }
 

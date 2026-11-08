@@ -93,7 +93,7 @@ fn main() {
         return;
     }
     if args.iter().any(|a| a == "--show-shortcuts") {
-        if let Err(error) = hotkey::launch_overlay() {
+        if let Err(error) = hotkey::run_overlay() {
             eprintln!("{}", error.message);
             std::process::exit(1);
         }
