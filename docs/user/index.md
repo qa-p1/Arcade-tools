@@ -6,7 +6,9 @@ since: 0.2.0
 
 # Arcade Tools
 
-Arcade Tools 0.2.0 is the optional home for Box, Lens, Look, Wheel, Clipboard, Find and Shelf. Install and update apps, host their tray icons, find shortcuts and read guides. Every app works independently.
+Arcade Tools is the optional home for Box, Lens, Look, Wheel, Clipboard, Find and Shelf. Install and update apps, host their tray icons, find shortcuts and read guides. Every app works independently.
+
+![Arcade Tools showing Home: each installed app with whether it is running, a Start button and its settings](images/home.png)
 
 ![Arcade Tools showing the Apps tab: each installed app with its one-line description, channel and actions](images/apps.png)
 

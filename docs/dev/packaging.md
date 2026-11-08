@@ -14,6 +14,8 @@
 The version lives in `[workspace.package]` in `Cargo.toml`. `package.json`,
 `package-lock.json` and `src-tauri/tauri.conf.json` repeat it;
 `python3 scripts/check-versions.py --set X.Y.Z` writes all of them, and the check fails on drift.
+After a bump, retake the guide's screenshots, whose sidebar shows the version:
+`npm run build && SCREENS_DOCS=1 node scripts/ui-checks/harness.mjs dist scripts/ui-checks/screens.mjs`.
 
 ## Release
 
