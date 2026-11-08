@@ -124,11 +124,14 @@ pub struct AppUpdate {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateState {
+    /// 1 since Tools 0.2. A newer Tools may write a higher one, kept with its unknown fields (DECISIONS.md D9).
     pub schema: u32,
     pub last_check: Option<u64>,
     pub last_success: Option<u64>,
     pub last_failure: Option<CheckFailure>,
     pub apps: BTreeMap<String, AppUpdate>,
+    #[serde(flatten)]
+    pub extra: serde_json::Map<String, serde_json::Value>,
 }
 impl Default for UpdateState {
     fn default() -> Self {
@@ -138,6 +141,7 @@ impl Default for UpdateState {
             last_success: None,
             last_failure: None,
             apps: BTreeMap::new(),
+            extra: serde_json::Map::new(),
         }
     }
 }
@@ -190,11 +194,9 @@ impl<C: Clock, S: ReleaseSource> Scheduler<C, S> {
         let state = match read_bounded(&path, 16 * 1024 * 1024) {
             Ok(bytes) => {
                 let state: UpdateState = serde_json::from_slice(&bytes)?;
-                if state.schema != 1 {
-                    return Err(Error::new(
-                        "schema",
-                        "Only update state schema 1 is supported.",
-                    ));
+                // A newer schema is read for the fields this version knows (the downgrade rule, D9).
+                if state.schema < 1 {
+                    return Err(Error::new("schema", "Unknown update state schema."));
                 }
                 state
             }

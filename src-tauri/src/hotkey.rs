@@ -90,7 +90,7 @@ pub fn status(app: &AppHandle) -> Status {
 /// to the platform event loop, including macOS and Windows.
 #[cfg(target_os = "linux")]
 enum Configuration {
-    Apply(AppHandle, crate::tray::settings::Preferences),
+    Apply(AppHandle, Box<crate::tray::settings::Preferences>),
     Stop(std::sync::mpsc::Sender<()>),
 }
 #[cfg(target_os = "linux")]
@@ -116,7 +116,7 @@ pub fn configure(app: &AppHandle, prefs: &crate::tray::settings::Preferences) {
             });
             tx
         });
-        let _ = worker.send(Configuration::Apply(app.clone(), prefs.clone()));
+        let _ = worker.send(Configuration::Apply(app.clone(), Box::new(prefs.clone())));
     }
     #[cfg(not(target_os = "linux"))]
     {

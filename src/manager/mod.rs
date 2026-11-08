@@ -98,9 +98,15 @@ impl Record {
         )
     }
 }
+/// Version of `preferences.json`. Tools 0.x wrote none (read as 0: the same fields), so loading raises it to this. A
+/// newer Tools may write a higher one: it is kept, with the fields this version does not know (DECISIONS.md D9).
+pub const PREFERENCES_SCHEMA: u32 = 1;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Preferences {
+    #[serde(default)]
+    pub schema: u32,
     #[serde(default = "yes")]
     pub link_enabled: bool,
     #[serde(default)]
@@ -113,6 +119,9 @@ pub struct Preferences {
     pub theme: String,
     #[serde(default)]
     pub onboarding_complete: bool,
+    /// Fields written by a newer Tools, kept as they are.
+    #[serde(flatten)]
+    pub extra: serde_json::Map<String, serde_json::Value>,
 }
 fn system_theme() -> String {
     "system".into()
@@ -123,12 +132,14 @@ fn yes() -> bool {
 impl Default for Preferences {
     fn default() -> Self {
         Self {
+            schema: PREFERENCES_SCHEMA,
             link_enabled: true,
             channels: BTreeMap::new(),
             updates: UpdateSettings::default(),
             notifications_enabled: true,
             theme: system_theme(),
             onboarding_complete: false,
+            extra: serde_json::Map::new(),
         }
     }
 }

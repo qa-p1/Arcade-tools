@@ -148,3 +148,22 @@ file is replaced) and the per-OS installer kinds (the platforms differ).
 - **CI** keeps one job per OS (lint, tests, package, package smoke). Every apt, npm and Playwright step has a timeout
   and three tries. Linux also runs `scripts/tray-resident-e2e.py` (tray host, resident window, single instance,
   crash recovery, Link-off quit) on the debug build the tests produced, with Link's cached CLI.
+
+## D9 — Schema versions and the downgrade rule for Tools' own files
+
+README Round 5: every settings and data file carries a schema version, with migrations tested from each released 0.x,
+and Stable reads data from a newer Tools without breaking it.
+
+| File | Schema | Notes |
+|---|---|---|
+| `preferences.json` | `schema` 1 (new) | 0.x wrote none: read as 0 (the same fields), stamped 1 on load and on every save, restored backups included |
+| `tray-preferences.json` | `schema` 1 (new) | same rule |
+| `updates.json` | `schema` 1 (since 0.2) | a higher schema was refused, which would have stopped update checks after a downgrade; now read |
+| `update-history.jsonl` | none | append-only lines; unknown fields are ignored on read and the file is never rewritten |
+| receipts, self-update plans, backups, channel backups | `schema` 1 | unchanged (Link receipts; Tools-written plans and archives) |
+| `maintenance/latest.json`, caches | — | regenerated reports and caches, not user data |
+
+A file from a newer Tools keeps its higher schema number and every field this version does not know (a flattened
+map), so a Nightly → Stable switch never loses settings; the switch also backs up the app's data first (D6). The
+three 0.x shapes (0.1.0; 0.2.0–0.2.1; 0.3.0–0.4.6), each in its own folder (`<data>/arcade-tools` until 0.3.8), are
+loaded in `tests/schema_migrations.rs`; the tray file in `tray::settings` tests.

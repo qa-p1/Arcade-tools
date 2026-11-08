@@ -4,14 +4,21 @@ impl Manager {
     /// Read persisted preferences on a worker thread; no network work.
     pub fn preferences(&self) -> Result<Preferences> {
         let path = self.paths.state().join("preferences.json");
-        match fs::read(&path) {
-            Ok(bytes) => Ok(serde_json::from_slice(&bytes)?),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Preferences::default()),
-            Err(e) => Err(e.into()),
-        }
+        let mut prefs: Preferences = match fs::read(&path) {
+            Ok(bytes) => serde_json::from_slice(&bytes)?,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Preferences::default()),
+            Err(e) => return Err(e.into()),
+        };
+        prefs.schema = prefs.schema.max(PREFERENCES_SCHEMA);
+        Ok(prefs)
     }
     pub(super) fn save_preferences(&self, prefs: &Preferences) -> Result<()> {
-        self.write(&self.paths.state().join("preferences.json"), prefs)
+        // A restored 0.x backup carries no schema; what is written always does.
+        let prefs = Preferences {
+            schema: prefs.schema.max(PREFERENCES_SCHEMA),
+            ..prefs.clone()
+        };
+        self.write(&self.paths.state().join("preferences.json"), &prefs)
     }
     pub fn validate_preferences(&self, prefs: &Preferences) -> Result<()> {
         if !matches!(prefs.theme.as_str(), "system" | "light" | "dark") {
