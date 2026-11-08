@@ -14,7 +14,11 @@ Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
   Nightly→Stable backs up data first (`src/channel_backup.rs`); lock test flipped, hub test + UI check added.
 - TL-1 done: `--show-shortcuts` runs the overlay and waits (`hotkey::run_overlay`), so an AppImage mount outlives it;
   the tray keeps the detached launch. CLI test with a fake overlay fails without the fix.
-- Next: TL-5, RD-TOOLS-2/3/6, TL-12; then T3 after Link 1.0.1; then PLAN steps 4–8.
+- TL-5 fixed in packaging: `libxkbcommon.so*` joins `libwayland-client.so*` in `LINUXDEPLOY_EXCLUDED_LIBRARIES`
+  (CI, release, `scripts/package`; linuxdeploy splits on `;`), and `verify-package.py` asserts no bundled
+  libxkbcommon. Ubuntu 22.04 runners can't reproduce the crash (host = bundled), so typing in the packaged overlay
+  on a newer X11 host is part of the rc gate (Tier 2 X11 smoke).
+- Next: RD-TOOLS-2/3/6, TL-12; then T3 after Link 1.0.1; then PLAN steps 4–8.
 
 ## 2026-11-07 — paused for the usage-limit reset
 

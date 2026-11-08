@@ -183,6 +183,10 @@ with tempfile.TemporaryDirectory(prefix='arcade-tools-package-') as temporary:
         # distributions (WebKit aborts with EGL_BAD_PARAMETER, blank window).
         bundled = sorted(p.name for p in (root / 'squashfs-root').rglob('libwayland-client.so*'))
         assert not bundled, f'AppImage must use the host libwayland-client: {bundled}'
+        # The overlay's X11 path dlopens the host libxkbcommon-x11; a bundled libxkbcommon from another release
+        # beside it crashed on the first key press (TL-5). Both must come from the host.
+        bundled = sorted(p.name for p in (root / 'squashfs-root').rglob('libxkbcommon*.so*'))
+        assert not bundled, f'AppImage must use the host libxkbcommon: {bundled}'
         subprocess.run([str(binaries / 'arcade-tools'),'--version'],env=environment,check=True,timeout=10)
         environment['APPIMAGE'] = str(staged_package)
         # Exercise the mounting runtime and full AppImage bytes, not only
