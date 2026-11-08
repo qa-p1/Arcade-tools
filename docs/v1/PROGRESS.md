@@ -4,6 +4,12 @@ Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
 
 ## 2026-11-08 (session 2)
 
+- **rc.7 published** (f5b5ecc, PR #44 with D16). Checked on the published file: installed from the download with the
+  test channel, its first check finds `v1.0.0-rc.7`, offers nothing and attempts no install, now by package hash (the
+  same check on rc.5 passed only because it had no hash). It cannot pass the self-update gate itself (rc.6 decides
+  without D16), so Gates on rc.7 run without `update-from`. rc.8 comes from the next commit, which makes the
+  self-update gate print the update state without its chunk index and the receipt when it fails (the rc.6 failure
+  printed only chunk hashes); Gates on rc.8 then run with `update-from: v1.0.0-rc.7`.
 - **rc.6 published** (d7ad568, PR #43; every Release job green first time). [Gates on rc.6](https://github.com/qa-p1/Arcade-tools/actions/runs/42520824716)
   with `update-from: v1.0.0-rc.5`: the tray test passed (the race is fixed), and so did conformance, package smoke
   on all three OSes, upgrade, maintenance, resident, N-1, Tier 1 + 2 and the delta. Two failures:
