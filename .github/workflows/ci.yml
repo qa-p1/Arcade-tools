@@ -112,10 +112,12 @@ jobs:
         if: ${{ !inputs.skip_packages }}
         run: python3 scripts/prepare-overlay.py --target ${{ matrix.target }}
       # Tauri's bundler tools (NSIS on Windows, linuxdeploy on Linux) come from GitHub releases on every run; an
-      # outage there (HTTP 504 on nsis-3.11.zip) failed a run. Cached per OS and CLI version.
-      - name: Cache Tauri's bundler tools
+      # outage there (HTTP 504 on nsis-3.11.zip) failed a run. Cached per OS and CLI version, and saved right after
+      # bundling so a later failing step does not throw a good download away.
+      - name: Restore Tauri's bundler tools
+        id: bundler-cache
         if: ${{ !inputs.skip_packages }}
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: |
             ~/.cache/tauri
@@ -127,6 +129,14 @@ jobs:
           # Use the host libwayland-client; Ubuntu's copy breaks EGL on newer distributions.
           LINUXDEPLOY_EXCLUDED_LIBRARIES: 'libwayland-client.so*;libxkbcommon.so*'
         run: npm run tauri -- build --config src-tauri/tauri.bundle.conf.json --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+      - name: Save Tauri's bundler tools
+        if: ${{ !inputs.skip_packages && steps.bundler-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/.cache/tauri
+            ~/AppData/Local/tauri
+          key: ${{ steps.bundler-cache.outputs.cache-primary-key }}
       # The AppImage this run builds, for the desktop jobs below (Link's Tier 1 and Tier 2 harness); uploaded
       # before the checks so a failing check still leaves the desktop gates their file.
       - uses: actions/upload-artifact@v4
