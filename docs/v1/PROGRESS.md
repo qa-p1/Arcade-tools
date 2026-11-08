@@ -4,6 +4,14 @@ Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
 
 ## 2026-11-08 (session 2)
 
+- **rc.5 published** (f903b6e, PR #42). Its first check on the published binary finds rc.5 and offers nothing
+  (local run: no re-offer, no install attempt). [Gates on rc.5](https://github.com/qa-p1/Arcade-tools/actions/runs/42514624358):
+  everything passed except the tray test's last section. Reproduced locally (2 of 6 runs on the rc.5 AppImage) and
+  traced: a second launch's AppImage launcher exits at once (U1), the test killed the resident before the launch's
+  unpacked copy had handed over, so that copy became a foreground instance and the Link-off section's `--background`
+  start handed over to it. A test race, not Tools: the test now waits for the hand-over (`handed_over`); 0 of 10
+  failures after. Next: rc.6 with it, then Gates with `update-from: v1.0.0-rc.5`. Still open: verify-resident's two
+  one-off launch failures (rc.3 bundle, PR #42), now printing their output.
 - **rc.4 published** (0ea5ca2, PR #41; first attempt). [Gates on rc.4](https://github.com/qa-p1/Arcade-tools/actions/runs/42506931186)
   with `update-from: v1.0.0-rc.3`: every gate passed (the delta job too, now) except the self-update. Reproduced
   locally on the published files: the gate's `ARCADE_HOME` profile never runs timed checks (fixed in the script),

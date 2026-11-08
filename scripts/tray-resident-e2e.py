@@ -138,18 +138,16 @@ class Watcher:
         self.call(menu, "com.canonical.dbusmenu", "Event", GLib.Variant("(isvu)", (identifier, "clicked", GLib.Variant("s", ""), 0)))
 
 
-def resident_pid():
-    """The resident Tools of this private profile: the one `--background` arcade-tools process with this ARCADE_HOME.
-    A published AppImage relaunches from its unpacked copy (U1) and the launcher exits, so the process this script
-    started is not always the resident one."""
+def tools_processes():
+    """Every live arcade-tools process of this private profile (by its ARCADE_HOME), with its arguments."""
     home = f"ARCADE_HOME={os.environ['ARCADE_HOME']}".encode()
-    found = []
+    found = {}
     for entry in Path("/proc").iterdir():
         if not entry.name.isdigit():
             continue
         try:
             argv = (entry / "cmdline").read_bytes().split(b"\0")
-            if Path(os.readlink(entry / "exe")).name != "arcade-tools" or b"--background" not in argv:
+            if Path(os.readlink(entry / "exe")).name != "arcade-tools":
                 continue
             if home not in (entry / "environ").read_bytes().split(b"\0"):
                 continue
@@ -157,9 +155,23 @@ def resident_pid():
                 continue
         except OSError:
             continue
-        found.append(int(entry.name))
+        found[int(entry.name)] = argv
+    return found
+
+
+def resident_pid():
+    """The resident Tools of this private profile: the one `--background` arcade-tools process with this ARCADE_HOME.
+    A published AppImage relaunches from its unpacked copy (U1) and the launcher exits, so the process this script
+    started is not always the resident one."""
+    found = [pid for pid, argv in tools_processes().items() if b"--background" in argv]
     assert len(found) <= 1, f"More than one resident Tools: {found}"
     return found[0] if found else None
+
+
+def handed_over(resident):
+    """A second launch has finished: its launcher exits at once (U1), so wait for its unpacked copy to hand over and
+    exit too, leaving only the resident. Killing the resident before that lets the copy become the instance."""
+    wait(lambda: set(tools_processes()) == {resident}, timeout=15)
 
 
 def metrics(pid):
@@ -383,6 +395,7 @@ def main():
         print(f"PASS: Open keeps the same resident PID and creates the window in {(time.monotonic()-started)*1000:.3f} ms", flush=True)
         duplicate = start([str(tools)], stdout=subprocess.DEVNULL)
         assert duplicate.wait(timeout=5) == 0
+        handed_over(successor)
         assert Path(f"/proc/{successor}").exists() and window() == identifier
         print("PASS: a second foreground launch activates the resident instance", flush=True)
         close_window(identifier)
@@ -400,11 +413,13 @@ def main():
         (state / "preferences.json").write_text(json.dumps({"linkEnabled": False}))
         process = start([str(tools), "--background"], stdout=subprocess.DEVNULL)
         wait(lambda: len(host.items) > count + 1)
+        background = wait(resident_pid)
         duplicate = start([str(tools)], stdout=subprocess.DEVNULL)
         assert duplicate.wait(timeout=5) == 0
         wait(window)
+        handed_over(background)
         quitting = resident_pid()
-        assert quitting, "Tools exited after the second launch"
+        assert quitting == background, "Tools exited after the second launch"
         subprocess.run([str(tools), "--quit"], check=True, timeout=5)
         wait(lambda: not Path(f"/proc/{quitting}").exists() or "zombie" in Path(f"/proc/{quitting}/status").read_text())
         if process.pid == quitting:
