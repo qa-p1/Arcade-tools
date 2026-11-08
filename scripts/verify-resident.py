@@ -113,8 +113,18 @@ def main():
         installed = Path(receipt['path'])
         endpoint = root / 'profile/run' / (app + '.endpoint')
         def run(*args):
-            return subprocess.run([str(installed), *args], env=env, check=True,
-                                  capture_output=True, text=True, timeout=25)
+            try:
+                return subprocess.run([str(installed), *args], env=env, check=True,
+                                      capture_output=True, text=True, timeout=25)
+            except subprocess.TimeoutExpired as error:
+                # What the hung launch said, and every process of this profile's app (a second instance that
+                # failed to hand over would hold the pipes open).
+                print(f'{" ".join(args)} did not return in 25 s; its output:\n{error.stdout or ""}{error.stderr or ""}',
+                      file=sys.stderr)
+                ps = subprocess.run(['ps', '-eo', 'pid,ppid,stat,etimes,args'], capture_output=True, text=True).stdout
+                print('\n'.join(line for line in ps.splitlines() if 'PID' in line or 'arcade' in line.lower()),
+                      file=sys.stderr)
+                raise
         def pid():
             try:
                 return json.loads(endpoint.read_text())['pid']

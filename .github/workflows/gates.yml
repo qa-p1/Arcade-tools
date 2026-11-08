@@ -244,8 +244,8 @@ jobs:
         run: |
           export ARCADE_TOOLS_GATE_DELTA="$PWD/$(ls previous/*.AppImage):$PWD/$(ls rc/*.AppImage)"
           python3 ../Arcade-link/tools/e2e.py run -- cargo test --locked -p arcade-tools-core --test releases \
-            gate_published_files -- --nocapture 2>&1 | tee target/delta.log
-          grep -E '^delta: ' target/delta.log >> "$GITHUB_STEP_SUMMARY"
+            gate_published_files -- --nocapture 2>&1 | tee "$RUNNER_TEMP/delta.log"
+          grep -E '^delta: ' "$RUNNER_TEMP/delta.log" >> "$GITHUB_STEP_SUMMARY"
 
   windows:
     name: Windows installer smoke (published file)
