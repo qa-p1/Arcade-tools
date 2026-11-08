@@ -92,11 +92,17 @@ export async function initialize(): Promise<void> {
   } else if (!bootstrap.testing && !ui.tabChosen) ui.tab = bootstrap.preferences.onboardingComplete ? 'home' : 'onboarding';
 }
 
+/** Selecting a channel installs it right away, through the reviewed update (TL-9). Declining the review keeps the
+ * choice; the card shows the switch as pending until it is installed. */
 export async function changeChannel(app: AppView, channel: Channel): Promise<void> {
   await api.setChannel(app.id, channel);
   forgetRelease(app.id);
   await refresh();
-  setMessage(`Selected ${channel} for ${app.name}. Check for updates to switch versions.`);
+  if (!app.installed || !app.managed || app.installedChannel === channel) {
+    setMessage(`Selected ${channel} for ${app.name}.`);
+    return;
+  }
+  await reviewUpdate({ ...app, channel });
 }
 
 export async function changeLogin(app: AppView, enabled: boolean): Promise<void> {
@@ -252,6 +258,8 @@ export async function confirmOperation(app: AppView, operation: Operation): Prom
     ? 'The app will close and its installation will be removed. Settings and data are kept unless you select the option below.'
     : operation === 'install'
       ? `Install the ${channel} release for your user account and open the app.`
+      : app.installedChannel === 'nightly' && channel === 'stable'
+      ? `Switch back to the stable release${release ? ` (${release.version})` : ''}, which may be older than the nightly. Tools backs up the app's settings and data first, then replaces its installation.`
       : `Download a fresh ${channel} release, close the app, and replace its installation. Settings and data are kept.${app.reason ? `\n${app.reason}` : ''}`;
   const choice = await askForConfirmation({
     title,

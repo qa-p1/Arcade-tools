@@ -111,7 +111,7 @@
   <header class="detail-head">
     <span class="glyph-tile lg"><img src={glyph(app.id)} alt="" width="26" height="26" /></span>
     <div class="row-main">
-      <h1 id="catalog-detail-title">{app.name}</h1>
+      <h1 id="catalog-detail-title">{app.name}{#if installedApp?.installedChannel === 'nightly'}<span class="badge accent channel-badge">Nightly</span>{/if}</h1>
       <p class="sub">{app.tagline}</p>
     </div>
     <div class="detail-actions" aria-label="Catalog app actions">
@@ -226,6 +226,7 @@
       {#if installedApp && installed}
         <div class="card side-card" aria-label="Installed app management" role="group">
           <h3>Manage</h3>
+          {#if installedApp.managed && installedApp.installedChannel && installedApp.installedChannel !== installedApp.channel}<p class="notice pending-channel">Switching to {installedApp.channel}: not installed yet.</p>{/if}
           {#if installedApp.withdrawn}<p class="notice warn withdrawn"><Icon name="alert" /><span>This version was withdrawn: {installedApp.withdrawn} {installedApp.rollbackVersion ? `Roll back to ${installedApp.rollbackVersion}.` : 'Reinstall to get the current release.'}</span></p>{/if}
           <label class="switch-row"><span>Channel</span><select class="select sm" value={installedApp.channel} disabled={busy} onchange={(event) => run(() => changeChannel(installedApp!, event.currentTarget.value as 'stable' | 'nightly'), app.name)}><option value="stable">Stable</option><option value="nightly">Nightly</option></select></label>
           {#if installedApp.loginSupported}<label class="switch-row"><span>Start at login</span><input class="switch" type="checkbox" checked={installedApp.startAtLogin} disabled={busy} onchange={(event) => run(() => changeLogin(installedApp!, event.currentTarget.checked), app.name)} /></label>{/if}

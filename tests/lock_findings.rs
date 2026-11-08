@@ -54,7 +54,6 @@ fn startup_cleanup_bounds_the_installer_cache() {
 }
 
 #[test]
-#[should_panic(expected = "KNOWN BUG TL-9")]
 fn the_app_list_tells_the_installed_channel_apart_from_the_selected_one() {
     let f = fixture();
     f.manager
@@ -71,7 +70,7 @@ fn the_app_list_tells_the_installed_channel_apart_from_the_selected_one() {
     assert_eq!(value["channel"], "nightly");
     assert_eq!(
         value["installedChannel"], "stable",
-        "KNOWN BUG TL-9: the list shows only the selected channel: {value}"
+        "TL-9: the list shows only the selected channel: {value}"
     );
 }
 

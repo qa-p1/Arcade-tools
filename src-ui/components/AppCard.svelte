@@ -33,12 +33,13 @@
   <div class="app-card-head">
     <span class="glyph-tile"><img src={glyph(app.id)} alt="" width="18" height="18" /></span>
     <div class="row-main">
-      <h2><button type="button" class="title-button" disabled={busy} onclick={() => onDetails(app)}>{app.name}</button></h2>
+      <h2><button type="button" class="title-button" disabled={busy} onclick={() => onDetails(app)}>{app.name}</button>{#if app.installedChannel === 'nightly'}<span class="badge accent channel-badge">Nightly</span>{/if}</h2>
       <p class="pitch">{app.tagline}</p>
     </div>
     {#if release?.updateAvailable}<span class="badge ok">Update {release.version}</span>{:else if status}<span class="badge {tone}">{#if tone}<span class="dot {tone}"></span>{/if}{status}</span>{/if}
   </div>
   {#if app.reason}<p class="reason">{app.reason}</p>{/if}
+  {#if app.installed && app.managed && app.installedChannel && app.installedChannel !== app.channel}<p class="reason pending-channel">Switching to {app.channel}: not installed yet.</p>{/if}
   <div class="app-card-meta">
     <select class="select sm" aria-label="{app.name} channel" value={app.channel} disabled={busy || (app.installed && !app.managed)} onchange={(event) => run(() => onChannel(app, event.currentTarget.value as Channel), app.name)}>
       <option value="stable">Stable</option>

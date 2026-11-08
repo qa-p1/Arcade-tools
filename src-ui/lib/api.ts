@@ -34,6 +34,8 @@ export interface AppView {
   installSupported: boolean;
   installationClass: 'managed' | 'legacyManaged' | 'selfInstalled' | 'manual' | 'dev';
   rollbackVersion: string | null;
+  /** The channel of the installed build; differs from `channel` until a switch is installed (TL-9). */
+  installedChannel: Channel | null;
   /** Why the installed release was withdrawn by the catalog, if it was. */
   withdrawn: string | null;
 }

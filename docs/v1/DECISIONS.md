@@ -93,3 +93,16 @@ file is replaced) and the per-OS installer kinds (the platforms differ).
   withdrawn tags (the next newest on the channel is offered) and never reuses a cached release that has since been
   withdrawn. Retained packages record their tag, so an installed withdrawn release shows the reason in the app's
   Manage card and in Updates › Withdrawn versions, with the rollback when one is kept.
+
+## D6 — Nightly switch (TL-9, SPEC.md §Updater 2)
+
+- `AppView` reports the selected `channel` and the `installedChannel` separately. Choosing a channel in the card or
+  Details stores it and immediately opens the reviewed update for it; declining keeps the choice, and the card and
+  Manage card say "Switching to …: not installed yet." until it is installed. An installed nightly shows a Nightly
+  badge.
+- A channel change counts as an update even to a lower version (`updates::is_newer` already did this; now tested).
+- Nightly → Stable backs up the app's settings and data folders (not its cache) to
+  `state/channel-backups/<app>/<nightly version>/` with a `backup.json` index, after the download and before the
+  swap, and the result message names the folder. One backup per app; a later switch replaces it. Larger than 2 GiB
+  refuses the switch rather than fill the disk. The live data is left for the app's own FS-2 downgrade rule, which
+  may restore this backup.

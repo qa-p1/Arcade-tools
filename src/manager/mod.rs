@@ -144,7 +144,10 @@ pub struct AppView {
     pub managed: bool,
     pub installed: bool,
     pub running: bool,
+    /// The selected channel (what the next update follows).
     pub channel: Channel,
+    /// The channel of the installed build; differs from `channel` until the switch has been installed (TL-9).
+    pub installed_channel: Option<Channel>,
     pub healthy: bool,
     pub start_at_login: bool,
     pub login_supported: bool,

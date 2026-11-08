@@ -15,7 +15,7 @@ use arcade_tools_core::updates::{Clock, HistoryEntry, HistoryResult};
 use serde_json::{json, Value};
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -1505,4 +1505,85 @@ fn hub_lifecycle_a_withdrawn_release_is_never_offered_and_installed_copies_are_t
         "1.0.0"
     );
     assert_eq!(view(&manager).withdrawn, None);
+}
+
+#[test]
+fn hub_lifecycle_nightly_and_back_to_stable_installs_and_backs_up_the_data_first() {
+    let (server, manager) = fixture();
+    let id = "arcade.look";
+    installed(&server, &manager, id);
+    let data = manager.paths.data_folders(id, Os::Linux)[0].clone();
+    fs::create_dir_all(&data).unwrap();
+    fs::write(data.join("settings.json"), r#"{"schema":1}"#).unwrap();
+    // Stable 1.0.0 → Nightly 1.1.0: the switch is an update even though stable is current.
+    server.publish(
+        id,
+        "1.1.0",
+        "nightly",
+        &[(
+            "App_x64.AppImage",
+            &fake_app(&manager.paths, id, "1.1.0", false),
+        )],
+        "nsis",
+    );
+    server.amend_manifest(id, "1.1.0", "nightly", |manifest| {
+        manifest["assets"][0]["installArgs"] = json!(["--install", "--silent"]);
+    });
+    manager
+        .set_channel(id, arcade_tools_core::release::Channel::Nightly)
+        .unwrap();
+    let view = |manager: &Manager| {
+        let value = serde_json::to_value(
+            manager
+                .list(false)
+                .unwrap()
+                .into_iter()
+                .find(|app| app.id == id)
+                .unwrap(),
+        )
+        .unwrap();
+        (value["channel"].clone(), value["installedChannel"].clone())
+    };
+    assert_eq!(view(&manager), (json!("nightly"), json!("stable")));
+    assert!(manager.check(id).unwrap().update_available);
+    operate(&manager, id, Operation::Update).unwrap();
+    assert_eq!(view(&manager), (json!("nightly"), json!("nightly")));
+    // The nightly migrates the data forward.
+    fs::write(data.join("settings.json"), r#"{"schema":2}"#).unwrap();
+    // Back to Stable: the lower stable version is installed, after a backup of the data.
+    manager
+        .set_channel(id, arcade_tools_core::release::Channel::Stable)
+        .unwrap();
+    let check = manager.check(id).unwrap();
+    assert_eq!(check.version, "1.0.0");
+    assert!(check.update_available);
+    let message = operate(&manager, id, Operation::Update).unwrap();
+    assert!(message.contains("backed up"), "{message}");
+    assert_eq!(manager.record(id).unwrap().unwrap().version, "1.0.0");
+    assert_eq!(view(&manager), (json!("stable"), json!("stable")));
+    let backup = arcade_tools_core::channel_backup::root(&manager.paths, id);
+    let copied: Vec<_> = walk(&backup)
+        .into_iter()
+        .filter(|p| p.file_name().is_some_and(|n| n == "settings.json"))
+        .collect();
+    assert_eq!(copied.len(), 1, "{copied:?}");
+    assert_eq!(fs::read_to_string(&copied[0]).unwrap(), r#"{"schema":2}"#);
+    assert_eq!(
+        fs::read_to_string(data.join("settings.json")).unwrap(),
+        r#"{"schema":2}"#,
+        "the live data is left for the app's own downgrade rule"
+    );
+}
+
+fn walk(dir: &Path) -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    for entry in fs::read_dir(dir).into_iter().flatten().flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            out.extend(walk(&path));
+        } else {
+            out.push(path);
+        }
+    }
+    out
 }

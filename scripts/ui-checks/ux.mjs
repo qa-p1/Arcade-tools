@@ -107,6 +107,34 @@ export default {
     const section = await text(page, '#panel-updates [aria-labelledby="withdrawn-heading"]');
     assert(section.includes('Loses your settings on start.') && section.includes('Roll back to v1.0.0'), section);
   },
+  async 'Nightly: choosing it reviews the switch at once and the card says what is installed (TL-9)'(page) {
+    await page.evaluate(() => {
+      const m = window.__mock;
+      m.on('set_channel', ({ id, channel }) => {
+        m.state.apps = m.state.apps.map((a) => a.id === id ? { ...a, channel } : a);
+      });
+      m.on('check_release', ({ id }) => ({ id, version: '1.1.0', channel: 'nightly', file: 'x.AppImage', notes: '', updateAvailable: true }));
+    });
+    await tab(page, 'apps');
+    await sleep(200);
+    await page.selectOption('select[aria-label="Arcade Look channel"]', 'nightly');
+    await sleep(400);
+    const dialog = await text(page, '#confirm');
+    assert(dialog.includes('Update Arcade Look 1.1.0'), dialog);
+    await page.keyboard.press('Escape');
+    await sleep(300);
+    const card = await text(page, 'article[aria-label="Arcade Look"]');
+    const badges = () => page.locator('article[aria-label="Arcade Look"] .channel-badge').count();
+    assert(card.includes('Switching to nightly: not installed yet.') && await badges() === 0, card);
+    await page.evaluate(() => {
+      const m = window.__mock;
+      m.state.apps = m.state.apps.map((a) => a.id === 'arcade.look' ? { ...a, installedChannel: 'nightly' } : a);
+      m.emit('registry-changed', null);
+    });
+    await sleep(300);
+    const after = await text(page, 'article[aria-label="Arcade Look"]');
+    assert(await badges() === 1 && !after.includes('not installed yet'), after);
+  },
   async 'Details show notes even when rendering fails'(page) {
     await page.evaluate(() => {
       const m = window.__mock;

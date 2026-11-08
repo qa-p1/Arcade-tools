@@ -249,7 +249,8 @@ impl Manager {
                 else { record.as_ref().and_then(first_update_rollback_notice).map(str::to_owned) };
             Ok(AppView { id: id.to_string(), name: app.name.clone(), pitch: app.pitch.clone(), tagline: app.display_tagline(), releases_url: app.releases_url(),
                 version: record.as_ref().map(|r| r.version.clone()).or_else(|| peer.map(|m| m.version.clone())), managed: matches!(class, InstallationClass::Managed | InstallationClass::LegacyManaged), installed: healthy,
-                running, channel: prefs.channels.get(id).copied().or(record.as_ref().map(|r| r.channel)).unwrap_or_default(), healthy,
+                running, channel: prefs.channels.get(id).copied().or(record.as_ref().map(|r| r.channel)).unwrap_or_default(),
+                installed_channel: record.as_ref().map(|r| r.channel).or_else(|| receipt.as_ref().and_then(|r| receipt_channel(r).ok())), healthy,
                 start_at_login: platform::autostart_enabled(&self.paths, id), login_supported: app.supported_install() && platform::login_supported(id, Os::current()), executable: executable.map(|p| p.display().to_string()),
                 data_folders: self.paths.data_folders(id, Os::current()).iter().map(|p| p.display().to_string()).collect(), reason,
                 description: app.description.clone(), category: app.category.clone(), icon: app.icon.clone(),

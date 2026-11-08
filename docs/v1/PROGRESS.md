@@ -10,7 +10,9 @@ Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
   new hub test checks an update fetches < ¼ of the file and that a Range-ignoring host falls back to a full download.
 - Catalog `bad` flag done (D5): schema + validator in the catalog, discovery/cache skip, `AppView.withdrawn`, UI notice
   and Updates section, hub test + UI check.
-- Next: TL-9 (`installedChannel`, badge, immediate install on channel switch, backup before Nightly→Stable).
+- TL-9 done (D6): `installedChannel`, Nightly badge, pending-switch notice, switch opens the reviewed update,
+  Nightly→Stable backs up data first (`src/channel_backup.rs`); lock test flipped, hub test + UI check added.
+- Next: TL-1, TL-5, RD-TOOLS-2/3/6, TL-12; then T3 after Link 1.0.1; then PLAN steps 4–8.
 
 ## 2026-11-07 — paused for the usage-limit reset
 

@@ -207,7 +207,18 @@ impl Manager {
         self.precheck_peer(id, peer, request)?;
         let package = self.download_package(id, &checked, cancel, progress)?;
         check_cancel(cancel)?;
-        self.apply_package(
+        // Leaving Nightly may mean an older build reads data a newer one migrated: back it up first (FS-2).
+        let backup = match old.as_ref() {
+            Some(record)
+                if record.channel == Channel::Nightly
+                    && checked.release.channel == Channel::Stable =>
+            {
+                progress(Progress::new(id, "Backing up app data", None, false));
+                crate::channel_backup::back_up(&self.paths, id, &record.version)?
+            }
+            _ => None,
+        };
+        let done = self.apply_package(
             request,
             &package,
             Prior {
@@ -218,7 +229,14 @@ impl Manager {
             cancel,
             progress,
             replaced,
-        )
+        )?;
+        Ok(match backup {
+            Some(path) => format!(
+                "{done} Your data from the nightly build was backed up to {}.",
+                path.display()
+            ),
+            None => done,
+        })
     }
 
     /// The app's retained installers and installed file, as chunk sources for a delta download (D5). Worker thread.
