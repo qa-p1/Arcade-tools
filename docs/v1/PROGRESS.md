@@ -4,6 +4,15 @@ Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
 
 ## 2026-11-08 (session 2)
 
+- On Link v1.0.3 (6e4ac67): page-out of every private mapping after the window closes (closed PSS 36 → 12) and the
+  window-open cap of 281 PSS from CI measurements (D10). Tier 1 Hyprland test fixed: a layer surface has `x/y/w/h`,
+  not `at/size`; the pointer now goes to a part of the other window the centred overlay does not cover; Escape goes
+  to the focused surface; the app runs from a private Downloads copy (the CI artifact sits in a git checkout, which
+  Link treats as a dev build that refuses to install; fixed in Link PR #51 for 1.0.4). Bundler tools are cached in
+  CI (a GitHub 504 on NSIS failed a run).
+- Performance budgets: Link's new `perf_budget.py` (PR #51) measured locally: cold start 690 ms, show 614 ms, idle
+  CPU 0.0 / 0.4 / 0.03 % (background / Home open 60 s / closed), wakeups 0.2 / 2.2 / 0.4 per second, disk 370 MB
+  (88 AppImage + 282 unpacked runtime). The CI step joins once Tools moves to Link 1.0.4.
 - Done since: schema versions + migrations from every 0.x (D9, a94668e); clean uninstall leaves nothing in a fresh
   home (lifecycle test + package smoke, 67355d2); accessibility checks (axe WCAG A/AA on every tab in both themes,
   Tab reachability with a visible ring, 125 %/150 % scaling, reduced motion; a8591a3) — the kit's tab-panel focus rule

@@ -111,6 +111,16 @@ jobs:
       - name: Build both packaged binaries
         if: ${{ !inputs.skip_packages }}
         run: python3 scripts/prepare-overlay.py --target ${{ matrix.target }}
+      # Tauri's bundler tools (NSIS on Windows, linuxdeploy on Linux) come from GitHub releases on every run; an
+      # outage there (HTTP 504 on nsis-3.11.zip) failed a run. Cached per OS and CLI version.
+      - name: Cache Tauri's bundler tools
+        if: ${{ !inputs.skip_packages }}
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/tauri
+            ~/AppData/Local/tauri
+          key: tauri-bundler-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
       - name: Bundle the actual per-platform installer
         if: ${{ !inputs.skip_packages }}
         env:
