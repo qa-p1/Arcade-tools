@@ -218,12 +218,15 @@ def main():
         return process
 
     def endpoint_pid(app):
+        """The PID the app's endpoint names, while that process lives. Whether it answers is `status`'s question: one
+        `arcade-link status` gives up after Link's 150 ms hello, which a debug build tearing down a WebView can miss,
+        and that is not a restart (PR #46's CI read it as one)."""
         path = Path(os.environ["ARCADE_HOME"]) / "run" / f"arcade.{app}.endpoint"
         try:
             pid = json.loads(path.read_text())["pid"]
         except (OSError, ValueError, KeyError):
             return None
-        return pid if status(app) else None
+        return pid if Path(f"/proc/{pid}").exists() else None
 
     def status(app):
         result = subprocess.run([str(link), "status", app], capture_output=True, text=True, timeout=3)
@@ -359,12 +362,15 @@ def main():
         wait(lambda: window() is None)
         # Closing the UI must never replace the resident process, including
         # beyond the old 20-second memory-cleanup restart deadline.
-        initial_pid = endpoint_pid("tools")
+        initial_pid = wait(lambda: status("tools") and endpoint_pid("tools"))
         deadline = time.monotonic() + 25
         while time.monotonic() < deadline:
             assert resident_pid() == initial_pid, "Tools exited after closing its window"
             assert endpoint_pid("tools") == initial_pid, "Window close restarted Tools"
             time.sleep(0.1)
+        # Still serving Link from the same process.
+        wait(lambda: status("tools"))
+        assert endpoint_pid("tools") == initial_pid, "Window close restarted Tools"
         successor = initial_pid
         took_back = False
         try:
