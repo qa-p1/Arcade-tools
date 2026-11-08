@@ -123,6 +123,9 @@ pub struct FakeRelease {
     pub url: String,
     pub routes: Arc<Mutex<HashMap<String, Vec<u8>>>>,
     pub replies: Arc<Mutex<HashMap<String, HttpReply>>>,
+    /// Bounded `Range: bytes=a-b` requests for these routes (delta chunks) are served from these bytes instead, as a
+    /// broken mirror or cache would; whole-file and open-ended resume requests still get the published file.
+    pub tampered_ranges: Arc<Mutex<HashMap<String, Vec<u8>>>>,
     pub requests: RecordedRequests,
     /// Published releases, newest first: (repo, channel, version, GitHub release JSON).
     releases: Mutex<Vec<(String, String, String, serde_json::Value)>>,
@@ -137,6 +140,8 @@ impl FakeRelease {
         let server_routes = routes.clone();
         let replies: Arc<Mutex<HashMap<String, HttpReply>>> = Default::default();
         let server_replies = replies.clone();
+        let tampered_ranges: Arc<Mutex<HashMap<String, Vec<u8>>>> = Default::default();
+        let server_tampered = tampered_ranges.clone();
         let requests: RecordedRequests = Default::default();
         let server_requests = requests.clone();
         let worker = std::thread::spawn(move || {
@@ -199,6 +204,16 @@ impl FakeRelease {
                                 };
                                 (start < end && end <= body.len()).then_some(start..end)
                             });
+                            let bounded = headers.iter().any(|h| {
+                                h.split_once(':').is_some_and(|(k, v)| {
+                                    k.eq_ignore_ascii_case("range") && !v.trim().ends_with('-')
+                                })
+                            });
+                            let tampered = server_tampered.lock().unwrap().get(&route).cloned();
+                            let body = match tampered {
+                                Some(other) if bounded && other.len() == body.len() => other,
+                                _ => body,
+                            };
                             match range {
                                 Some(r) => HttpReply {
                                     status: "206 Partial Content".into(),
@@ -245,6 +260,7 @@ impl FakeRelease {
             url,
             routes,
             replies,
+            tampered_ranges,
             requests,
             releases: Mutex::new(Vec::new()),
             worker: Some(worker),

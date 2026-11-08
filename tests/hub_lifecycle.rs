@@ -12,6 +12,7 @@ use arcade_tools_core::self_update::{SelfUpdatePlan, StagedSelfUpdate};
 use arcade_tools_core::source::Source;
 use arcade_tools_core::updates::{Clock, HistoryEntry, HistoryResult};
 use serde_json::{json, Value};
+use sha2::Digest;
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -1315,6 +1316,72 @@ fn hub_lifecycle_updates_download_only_the_changed_chunks() {
     );
     operate(&manager, id, Operation::Update).unwrap();
     assert_eq!(manager.record(id).unwrap().unwrap().version, "3.0.0");
+
+    // A tampered chunk is rejected (PLAN exit gate): a mirror serves wrong bytes for the delta's ranges, the
+    // assembled file fails its check, and the intact whole file is installed instead.
+    release("4.0.0");
+    let route = "/assets/arcade-look-4.0.0-stable/App_x64.AppImage".to_string();
+    let published = server.routes.lock().unwrap()[&route].clone();
+    let tampered: Vec<u8> = published.iter().map(|b| b ^ 0x5a).collect();
+    server
+        .tampered_ranges
+        .lock()
+        .unwrap()
+        .insert(route.clone(), tampered);
+    server.requests.lock().unwrap().clear();
+    operate(&manager, id, Operation::Update).unwrap();
+    let record = manager.record(id).unwrap().unwrap();
+    assert_eq!(record.version, "4.0.0");
+    assert_eq!(
+        record.sha256,
+        format!("{:x}", sha2::Sha256::digest(&published)),
+        "the installed package is the published one"
+    );
+    let asked: Vec<Option<String>> = server
+        .requests
+        .lock()
+        .unwrap()
+        .iter()
+        .filter(|(r, _)| *r == route)
+        .map(|(_, headers)| {
+            headers.iter().find_map(|h| {
+                h.to_ascii_lowercase()
+                    .strip_prefix("range: bytes=")
+                    .map(str::to_owned)
+            })
+        })
+        .collect();
+    assert!(
+        asked
+            .iter()
+            .any(|r| r.as_deref().is_some_and(|r| !r.ends_with('-'))),
+        "the delta was tried: {asked:?}"
+    );
+    assert!(
+        asked
+            .iter()
+            .any(|r| r.as_deref().is_none_or(|r| r.ends_with('-'))),
+        "then the whole file was fetched: {asked:?}"
+    );
+
+    // A tampered file is never installed: when the host serves wrong bytes for the delta and the whole file alike,
+    // the update fails and 4.0.0 stays. (Bytes the delta takes from the installed copy are never fetched, so the
+    // tampering covers the whole file.)
+    release("5.0.0");
+    let route = "/assets/arcade-look-5.0.0-stable/App_x64.AppImage".to_string();
+    {
+        let mut routes = server.routes.lock().unwrap();
+        for byte in routes.get_mut(&route).unwrap().iter_mut() {
+            *byte ^= 0x5a;
+        }
+    }
+    assert!(operate(&manager, id, Operation::Update).is_err());
+    let record = manager.record(id).unwrap().unwrap();
+    assert_eq!(record.version, "4.0.0");
+    assert_eq!(
+        record.sha256,
+        format!("{:x}", sha2::Sha256::digest(&published))
+    );
 }
 
 #[test]

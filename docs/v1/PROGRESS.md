@@ -4,6 +4,11 @@ Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
 
 ## 2026-11-08 (session 2)
 
+- Delta gate, tampered chunk: `hub_lifecycle_updates_download_only_the_changed_chunks` now also has a mirror serve
+  wrong bytes for the delta's Range requests (the fake server's `tampered_ranges`): the chunk is rejected (Link's
+  per-chunk BLAKE3, then the file's SHA-256, then Tools' own check) and the intact whole file is installed; with the
+  whole file tampered too, the update fails and the previous version stays. At rc time the same path runs on the
+  published files: rc.N updates itself to rc.N+1 under `ARCADE_TOOLS_CHANNEL_OVERRIDE=test`.
 - Upgrade gate script `scripts/verify-upgrade.py OLD NEW` (under `dbus-run-session -- xvfb-run -a`): installs the
   published OLD from a download with Start at login, runs it on a user's settings, tray choices, update state and
   history (in OLD's own file shapes, read back after OLD ran), installs NEW over it while OLD runs, then checks NEW
