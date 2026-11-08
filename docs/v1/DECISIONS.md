@@ -307,3 +307,23 @@ rc.6 with `update-from: v1.0.0-rc.5`.
 The gate's profile also changed: it set `ARCADE_HOME`, which marks a test profile in which Tools never runs timed
 update checks, so no update could have happened. It now uses a private `HOME` and XDG folders, as a user has.
 
+## D16 — A self-installed AppImage's executable hash stands for its package hash
+
+Gates on rc.6 (run 42520824716, `update-from: v1.0.0-rc.5`) found rc.6 on GitHub but rc.5 offered no update, and
+never updated (reproduced locally on the published files). Every rc of a release carries the same version, since
+the last one is promoted byte for byte as `1.0.0`, so at equal versions `is_newer` decides by the installed package
+hash. Tools installed from the downloaded file has a receipt but no record of the package it came from, so that hash
+was unknown and the answer was always "no update". rc.5's "offers nothing on its own release" check (PROGRESS) passed
+for the same wrong reason.
+
+**Decision.** An AppImage installs by copying itself, so its executable is the package, byte for byte (the self-update
+gate asserts exactly that). An AppImage that installed itself, with a receipt and no record from Tools, takes its
+executable's hash as the package hash (`record_from_receipt`; adoption already did this, and now shares it). Bytes
+replaced outside Tools under a record Tools wrote still get no hash, as before: they came from an unknown package, so
+an equal version is not offered over them (the Wheel lifecycle test locks that). Other kinds unpack an installer, so their package hash stays unknown until Tools
+installs them, as before: an equal-version rc is not offered to a self-installed Windows or macOS Tools. That matters
+only on the test channel; stable versions always differ.
+
+Since the old Tools makes this decision, the self-update gate needs two rc's with the fix: rc.7, then rc.8 with
+`update-from: v1.0.0-rc.7`.
+

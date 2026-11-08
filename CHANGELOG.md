@@ -37,6 +37,8 @@ and versions follow [Semantic Versioning](https://semver.org/).
 - Updating to a release candidate on the test channel no longer fails in the installer, and an update that fails
   to install is not retried every minute; automatic updates wait for a newer release. Tools' own automatic update
   also respects a rollback now.
+- A self-installed AppImage at the same version as a published release with other bytes (the next release
+  candidate) is offered that release; before, only the version was compared when Tools had not installed it.
 - Tools started at login updates itself at the first check when automatic updates are on for it; a background
   start used to count as use, which put the update off by six hours.
 - `--show-shortcuts` waits for the overlay, so the AppImage stays mounted while it is open.
