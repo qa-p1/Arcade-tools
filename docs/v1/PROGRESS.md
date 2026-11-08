@@ -4,6 +4,13 @@ Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
 
 ## 2026-11-08 (session 2)
 
+- **rc.3 published** ([v1.0.0-rc.3](https://github.com/qa-p1/Arcade-tools/releases/tag/v1.0.0-rc.3), from f246c5b,
+  PR #40). Release run 42497501163: the first attempt's Linux bundle timed out in `verify-resident.py` (the first
+  window open after a background start did not return in 25 s); macOS and Windows passed. The same step passed on
+  main CI for this commit, on rc.2's bundle and 3/3 locally on main CI's AppImage, and no reader of the `last_used`
+  change runs then. One re-run of the failed job passed and published. **Open:** the hang is unexplained;
+  `verify-resident.py` now prints the hung launch's output and the app's processes (09e7838, for rc.4), and Gates
+  runs the same check on the published AppImage. Gates on rc.3 started.
 - rc.2's Release (run 42492892679, from 6238329) built and checked Linux and Windows, but the macOS job failed
   after its package smoke passed: "Stage the installer" compared `wc -l` as a string, and macOS pads it with
   spaces. Nothing was published (publish needs every bundle). The comparison is numeric now, in Release and CI.
