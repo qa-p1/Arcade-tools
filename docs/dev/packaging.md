@@ -19,12 +19,21 @@ After a bump, retake the guide's screenshots, whose sidebar shows the version:
 
 ## Release
 
-1. Merge to main after CI is green on Linux, Windows and macOS.
-2. Actions → "Tag a release" (`tag.yml`) with `v<version>` and the main commit. Tags are never
-   pushed by hand.
-3. Actions → "Release" (`release.yml`) on the tag with channel `stable`. It refreshes the docs
-   snapshot from the apps' latest stable tags, checks its links, builds the three installers with
-   LTO, and publishes them with `arcade-release.json` and `SHA256SUMS.txt`.
+Built once, promoted byte for byte (catalog `dev/v1/PLAN.md` § Release):
+
+1. Set the version with `python3 scripts/check-versions.py --set X.Y.Z`, retake the guide's screenshots (above),
+   and merge to main after CI is green on Linux, Windows, macOS and the desktop jobs.
+2. Actions → "Tag a release" (`tag.yml`) with `vX.Y.Z-rc.N` and the main commit. It checks the commit is on
+   main and carries version X.Y.Z, pushes the tag (tags are never pushed by hand) and starts "Release" on it.
+3. "Release" (`release.yml`) builds the three installers with LTO and publishes a hidden prerelease on the test
+   channel with `arcade-release.json`, an unsigned manifest and `SHA256SUMS.txt`. Tools follows it only with
+   `ARCADE_TOOLS_CHANNEL_OVERRIDE=test`.
+4. Run every exit gate against the published rc files (upgrade from the last stable release with
+   `scripts/verify-upgrade.py`, the rc.N → rc.N+1 self-update, N-1, desktop and performance). Anything that fails
+   is fixed and cut as rc.N+1; superseded rc's stay published.
+5. Actions → "Promote" (`promote.yml`) with the verified rc tag republishes the same bytes as `vX.Y.Z` on the
+   stable channel with a signed manifest. It fails, publishing nothing, while `ARCADE_UPDATE_SIGNING_KEY` is
+   missing.
 
 Release notes start from [release-notes-template.md](release-notes-template.md).
 Every push to main also uploads the Linux installer as `tools-installer-ubuntu-<sha>`

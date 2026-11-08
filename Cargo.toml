@@ -14,7 +14,7 @@ resolver = "2"
 
 # The one version source; scripts/check-versions.py keeps npm and Tauri in step.
 [workspace.package]
-version = "0.4.6"
+version = "1.0.0"
 
 [dependencies]
 # Released Link installer, engines and tray contracts. To build

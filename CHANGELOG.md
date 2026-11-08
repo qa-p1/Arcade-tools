@@ -5,6 +5,8 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.0.0] — not yet promoted (release candidates on the test channel from 2026-11-08)
+
 ### Added
 - Signed updates: a release is trusted only through its `manifest.json`, signed with ed25519 and bound to the app,
   channel and tag. Release candidates live on a hidden test channel that Tools never offers.
