@@ -4,6 +4,9 @@ Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
 
 ## 2026-11-08 (session 2)
 
+- On Link v1.0.4 (37ba008; Link's crate code is unchanged from 1.0.3, the design kit re-syncs with no differences):
+  the desktop workflows run the app from outside the checkout, and CI's Linux job runs `perf_budget.py` against the
+  package with the budgets of D12 (3913326). Waiting for PR #23's full run.
 - Delta gate, tampered chunk: `hub_lifecycle_updates_download_only_the_changed_chunks` now also has a mirror serve
   wrong bytes for the delta's Range requests (the fake server's `tampered_ranges`): the chunk is rejected (Link's
   per-chunk BLAKE3, then the file's SHA-256, then Tools' own check) and the intact whole file is installed; with the
