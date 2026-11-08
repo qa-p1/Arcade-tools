@@ -249,7 +249,10 @@ fn install_options(
 #[cfg(target_os = "linux")]
 fn repair(environment: &Environment) -> Result<arcade_link::receipt::Receipt> {
     let runtime = Runtime::discover()?;
-    let recorded = environment.receipts().read("arcade.tools")?.map(|receipt| receipt.path);
+    let recorded = environment
+        .receipts()
+        .read("arcade.tools")?
+        .map(|receipt| receipt.path);
     repair_at(
         environment,
         moved_installation(recorded.as_deref(), runtime.appimage.as_deref()),
@@ -626,7 +629,10 @@ mod tests {
         assert_eq!(moved(Some(&installed), None), None);
         assert_eq!(moved(None, Some(&download)), None);
         std::fs::remove_file(&installed).unwrap();
-        assert_eq!(moved(Some(&installed), Some(&download)), Some(download.as_path()));
+        assert_eq!(
+            moved(Some(&installed), Some(&download)),
+            Some(download.as_path())
+        );
     }
 
     /// RD-TOOLS-6: Tools uses the fleet's OS identifier for its window and desktop entry, like every other app.
