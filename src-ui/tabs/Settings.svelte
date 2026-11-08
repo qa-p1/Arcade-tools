@@ -59,8 +59,16 @@
     report = await api.createDiagnostics(supportApp);
   }
 
+  // A backup takes seconds: say so at once and drop the previous result, so the click visibly did something (TL-12).
+  let backingUp = $state(false);
   async function exportBackup(): Promise<void> {
-    backup = await api.exportBackup();
+    backingUp = true;
+    backup = null;
+    try {
+      backup = await api.exportBackup();
+    } finally {
+      backingUp = false;
+    }
   }
 
   async function planRestore(): Promise<void> {
@@ -182,9 +190,9 @@
     <div class="section-head"><h2 id="backup-heading">Backup and restore</h2></div>
     <div class="list">
       <div class="row">
-        <div class="row-main"><div class="row-title">Back up settings</div><div class="row-sub">{backup ? `Saved to ${backup.file}` : 'Save the settings of every installed app in one file.'}</div></div>
+        <div class="row-main"><div class="row-title">Back up settings</div><div class="row-sub" aria-live="polite">{backingUp ? 'Backing up the settings of every installed app…' : backup ? `Saved to ${backup.file}` : 'Save the settings of every installed app in one file.'}</div></div>
         {#if backup}<button type="button" class="btn sm ghost" onclick={() => run(() => api.revealArchive(backup!.file))}>Show file</button>{/if}
-        <button type="button" class="btn sm" disabled={busy} onclick={() => run(exportBackup)}>Back up</button>
+        <button type="button" class="btn sm" disabled={busy || backingUp} aria-busy={backingUp} onclick={() => run(exportBackup)}>{backingUp ? 'Backing up…' : 'Back up'}</button>
       </div>
       {#if backup?.apps.some((app) => app.notIncluded)}
         <div class="row-extra flush"><ul class="plain-list">{#each backup.apps.filter((app) => app.notIncluded) as app (app.id)}<li><strong>{appName(app.id)}</strong> <span class="muted">· not included: {app.notIncluded}</span></li>{/each}</ul></div>
@@ -299,7 +307,7 @@
 
 <style>
   label.row .row-title, label.row .row-sub { display: block; }
-  .row-extra.flush { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0 14px 14px; }
+  .row-extra.flush { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 14px 14px; }
   .uninstall { padding-top: 2px; }
   .spacer { flex: 1; }
   .plain-list { display: grid; flex: 1 1 100%; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: var(--fs-control); }

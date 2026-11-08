@@ -119,6 +119,17 @@ class SnapshotTests(unittest.TestCase):
             self.assertEqual(entries["arcade.look"]["version"], "1.2.3")
             self.assertTrue(any("/v1.2.3/docs/user/index.md" in url for url in calls))
 
+            # TL-12: Tools' own guide comes from the tree being built, labeled with the version being released.
+            calls.clear()
+            self.run_snapshot(["--out", str(out), "--self-version", "9.9.9"])
+            entries = {entry["id"]: entry for entry in json.loads((out / "manifest.json").read_bytes())["entries"]}
+            self.assertEqual((entries["arcade.tools"]["version"], entries["arcade.tools"]["ref"]), ("9.9.9", "v9.9.9"))
+            self.assertIn("index.md", [item["path"] for item in entries["arcade.tools"]["files"]])
+            self.assertFalse(any("/Arcade-tools/" in url for url in calls), calls)
+            self.assertEqual(entries["arcade.look"]["version"], "1.2.3")
+            with self.assertRaises(ValueError):
+                SNAPSHOT.main(["--out", str(out), "--self-version", "latest"])
+
     def test_symlinks_and_unsafe_urls_paths_are_rejected(self):
         for url in ["http://api.github.com/x", "https://evil.example/x", "https://api.github.com.evil/x", "https://user@api.github.com/x"]:
             with self.assertRaises(ValueError):

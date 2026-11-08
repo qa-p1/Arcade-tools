@@ -328,8 +328,25 @@ pub struct Detection {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EngineUse {
     pub app: String,
+    /// What the app does with it: a sentence starting with a verb.
     #[serde(rename = "for")]
     pub purpose: String,
+    /// The app works fully without it (an example plugin): listed, never reported as needing attention.
+    #[serde(default)]
+    pub optional: bool,
+}
+impl EngineUse {
+    /// The health notice for a missing engine, e.g. "Tesseract OCR is missing or too old; it's needed to recognize
+    /// text in images." Pure; the catalog purpose keeps its own wording (TL-12).
+    pub fn missing_notice(&self, engine: &str) -> String {
+        let purpose = self.purpose.trim().trim_end_matches(['.', ' ']);
+        let mut chars = purpose.chars();
+        let purpose = match chars.next() {
+            Some(first) => first.to_lowercase().chain(chars).collect::<String>(),
+            None => return format!("{engine} is missing or too old."),
+        };
+        format!("{engine} is missing or too old; it's needed to {purpose}.")
+    }
 }
 impl EngineCatalog {
     /// Parse metadata in memory, safe on any thread; unknown fields are ignored.
@@ -404,6 +421,48 @@ mod tests {
             began.elapsed() < Duration::from_secs(1),
             "{:?}",
             began.elapsed()
+        );
+    }
+}
+
+#[cfg(test)]
+mod notice_tests {
+    use super::*;
+
+    #[test]
+    fn missing_engine_notices_read_as_sentences() {
+        let usage = |purpose: &str| EngineUse {
+            app: "arcade.box".into(),
+            purpose: purpose.into(),
+            optional: false,
+        };
+        assert_eq!(
+            usage("Recognize text in images and create searchable PDFs.").missing_notice("Tesseract OCR"),
+            "Tesseract OCR is missing or too old; it's needed to recognize text in images and create searchable PDFs."
+        );
+        assert_eq!(
+            usage("").missing_notice("qpdf"),
+            "qpdf is missing or too old."
+        );
+    }
+
+    #[test]
+    fn the_snapshot_marks_look_example_plugins_optional() {
+        let catalog = EngineCatalog::parse(crate::catalog::ENGINE_SNAPSHOT.as_bytes()).unwrap();
+        let optional: Vec<_> = catalog
+            .engines
+            .iter()
+            .flat_map(|e| e.used_by.iter().map(move |u| (e.id.as_str(), u)))
+            .filter(|(_, u)| u.optional)
+            .map(|(id, u)| (id, u.app.as_str()))
+            .collect();
+        assert_eq!(
+            optional,
+            [
+                ("ffmpeg", "arcade.look"),
+                ("pandoc", "arcade.look"),
+                ("libreoffice", "arcade.look")
+            ]
         );
     }
 }

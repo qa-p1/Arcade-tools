@@ -109,7 +109,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          python3 scripts/docs-snapshot.py --keep-bundled
+          python3 scripts/docs-snapshot.py --keep-bundled --self-version "${{ needs.prepare.outputs.version }}"
           python3 scripts/docs-snapshot.py --check-links src-tauri/resources/docs
       - name: Build the packaged native shortcut overlay
         run: python scripts/prepare-overlay.py --target ${{ matrix.target }}

@@ -29,7 +29,13 @@ Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
   desktop id is `dev.arcade.Tools` with `app.arcadetools` kept as a legacy id Link cleans up. The Tauri `identifier`
   stays `app.arcadetools` (it keys the Windows installer and macOS bundle). The window class itself is to be checked
   in the desktop harness (PLAN step 6).
-- Next: TL-12; then T3 after Link 1.0.1; then PLAN steps 4–8.
+- TL-12 fixed: Home names Arcade Tools; optional engine uses (catalog `optional`, Arcade-catalog 382e1f3) never need
+  attention, and missing-engine notices read as sentences; Back up shows "Backing up…" and clears the old result;
+  Tools' own bundled guide comes from the tree being built (`docs-snapshot.py --self-version`, used by release.yml).
+  Other apps' bundled guides are their latest stable at build time by design (Learn fetches newer ones).
+- CI's Link checkout (for `tools/e2e.py`) moved from v0.4.0 to v1.0.0.
+- All audit findings for Tools are fixed except T3 (needs Link 1.0.1).
+- Next: Link 1.0.1 (migration archive fix + template lockfile), then T3; then PLAN steps 4–8.
 
 ## 2026-11-07 — paused for the usage-limit reset
 

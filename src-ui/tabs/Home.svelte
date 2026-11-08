@@ -29,7 +29,7 @@
   const lastChecked = $derived(updates?.lastCheck ? relativeInSentence(updates.lastCheck * 1000) : null);
   const stopped = $derived(installed.filter((app) => !app.running));
   let showIssues = $state(false);
-  const appName = (id: string) => apps.find((app) => app.id === id)?.name ?? id;
+  const appName = (id: string) => apps.find((app) => app.id === id)?.name ?? (id === 'arcade.tools' ? 'Arcade Tools' : id);
   const fixLabels: Record<HealthIssue['fixAction'], string> = {
     repair: 'Repair', adopt: 'Let Tools manage it', remove_stale_registry: 'Remove entry', remove_stale_receipt: 'Remove record',
     open_settings: 'Open settings', check_updates: 'Check for updates', open_engines: 'Open Engines', open_shortcuts: 'Open Shortcuts',

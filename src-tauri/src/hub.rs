@@ -332,9 +332,11 @@ pub async fn health(app: AppHandle) -> Result<Vec<health::HealthIssue>> {
                 .used_by
                 .iter()
                 .filter(|usage| {
-                    installed
-                        .iter()
-                        .any(|app| app.id == usage.app && app.installed)
+                    // An optional use (an example plugin) never needs attention (TL-12).
+                    !usage.optional
+                        && installed
+                            .iter()
+                            .any(|app| app.id == usage.app && app.installed)
                 })
                 .collect::<Vec<_>>();
             if affected.is_empty() {
@@ -352,12 +354,7 @@ pub async fn health(app: AppHandle) -> Result<Vec<health::HealthIssue>> {
                     app: usage.app.clone(),
                     kind: health::HealthKind::MissingEngine,
                     path: None,
-                    reason: format!(
-                        "{} is unavailable or too old for {}.",
-                        engine.name,
-                        // Catalog purposes are sentences of their own.
-                        usage.purpose.trim_end_matches(['.', ' '])
-                    ),
+                    reason: usage.missing_notice(&engine.name),
                     fix_action: health::FixAction::OpenEngines,
                     can_fix: true,
                 });

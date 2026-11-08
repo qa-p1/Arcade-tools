@@ -43,6 +43,34 @@ export default {
     assert(facts.includes('Latest') && facts.includes('v1.0.0') && !facts.includes('Not checked'), facts);
     assert(actions.includes('Up to date') && !/Update/.test(actions), actions);
   },
+  async 'Home names Arcade Tools in health notices (TL-12)'(page) {
+    await page.evaluate(() => {
+      const m = window.__mock;
+      m.on('health', () => [{ app: 'arcade.tools', kind: 'shortcutConflict', path: null, reason: 'Super+V is claimed by two apps.', fixAction: 'openShortcuts', canFix: true }]);
+    });
+    await page.click('#tab-settings');
+    await page.click('#tab-home');
+    await sleep(400);
+    await page.locator('#panel-home button', { hasText: 'Show' }).first().click();
+    await sleep(200);
+    const home = await page.textContent('#panel-home');
+    assert(home.includes('Arcade Tools') && !home.includes('arcade.tools'), home);
+  },
+  async 'Back up says it is working until it finishes (TL-12)'(page) {
+    await page.evaluate(() => {
+      const m = window.__mock;
+      m.on('export_backup', () => m.later(800, { file: '/home/u/Arcade-backup.zip', apps: [] }));
+    });
+    await page.click('#tab-settings');
+    await sleep(200);
+    await page.locator('#panel-settings button', { hasText: 'Back up' }).first().click();
+    await sleep(200);
+    const during = await page.textContent('#panel-settings [aria-labelledby="backup-heading"]');
+    assert(during.includes('Backing up'), during);
+    await sleep(1000);
+    const after = await page.textContent('#panel-settings [aria-labelledby="backup-heading"]');
+    assert(after.includes('Saved to /home/u/Arcade-backup.zip') && !after.includes('Backing up'), after);
+  },
   async 'Escape returns from the details page (TL-3)'(page) {
     await openDetails(page);
     await page.keyboard.press('Escape');
