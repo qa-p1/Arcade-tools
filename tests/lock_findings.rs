@@ -96,7 +96,7 @@ fn choosing_a_channel_is_remembered() {
 fn legacy_folders_are_retired_once_the_current_ones_exist() {
     let root = tempfile::tempdir().unwrap();
     let paths = Paths::under(root.path());
-    let legacy = paths.data.join("arcade-tools");
+    let legacy = legacy_state(&paths);
     fs::create_dir_all(&legacy).unwrap();
     fs::write(legacy.join("preferences.json"), br#"{"theme":"dark"}"#).unwrap();
     fs::create_dir_all(paths.state()).unwrap();
@@ -134,4 +134,19 @@ fn walkdir(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
         }
     }
     out
+}
+
+/// Tools 0.1–0.3's state folder on this platform (`arcade-tools` under the user's data, roaming or Application
+/// Support folder), as Link's migration table records it.
+fn legacy_state(paths: &Paths) -> std::path::PathBuf {
+    use arcade_link::paths::{current_os, legacy_dirs_in, Kind};
+    legacy_dirs_in(
+        &paths.user_dirs(),
+        current_os(),
+        arcade_link::manifest::ids::TOOLS,
+    )
+    .into_iter()
+    .find(|dir| dir.kind == Kind::Data && dir.path.ends_with("arcade-tools"))
+    .expect("Link knows Tools' legacy state folder")
+    .path
 }

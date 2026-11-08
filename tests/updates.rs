@@ -376,7 +376,7 @@ impl ReleaseSource for OfflineSource {
     }
 }
 #[test]
-fn transport_failure_stops_the_check_and_future_state_schemas_are_rejected() {
+fn transport_failure_stops_the_check_and_state_schemas_follow_the_downgrade_rule() {
     let root = tempfile::tempdir().unwrap();
     let paths = Paths::under(root.path());
     let calls = Arc::new(AtomicUsize::new(0));
@@ -396,13 +396,15 @@ fn transport_failure_stops_the_check_and_future_state_schemas_are_rejected() {
         .is_some());
     assert_eq!(calls.load(Ordering::SeqCst), 1);
     assert!(scheduler.state().last_failure.is_some());
+    // D9: a state file from a newer Tools is read (downgrade rule); one with no valid schema is refused.
     let mut state = serde_json::to_value(scheduler.state()).unwrap();
+    let file = paths.state().join("updates.json");
     state["schema"] = json!(2);
-    std::fs::write(
-        paths.state().join("updates.json"),
-        serde_json::to_vec(&state).unwrap(),
-    )
-    .unwrap();
+    std::fs::write(&file, serde_json::to_vec(&state).unwrap()).unwrap();
+    let newer = Scheduler::new(paths.clone(), clock.clone(), OfflineSource(calls.clone())).unwrap();
+    assert_eq!(newer.state().schema, 2);
+    state["schema"] = json!(0);
+    std::fs::write(&file, serde_json::to_vec(&state).unwrap()).unwrap();
     assert!(Scheduler::new(paths, clock, OfflineSource(calls)).is_err());
 }
 

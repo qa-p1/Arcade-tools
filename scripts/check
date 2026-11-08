@@ -26,7 +26,7 @@ if [ "$(uname -s)" = Linux ]; then
   link="${ARCADE_LINK:-../Arcade-link}"
   [ -f "$link/tools/e2e.py" ] || { echo "No Arcade-Link checkout at $link (set ARCADE_LINK)"; exit 1; }
   step env CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}" RUSTUP_HOME="${RUSTUP_HOME:-$HOME/.rustup}" \
-    python3 "$link/tools/e2e.py" run -- cargo test --workspace --locked
+    python3 "$link/tools/e2e.py" run -- cargo test --workspace --locked --no-fail-fast
 else
-  step cargo test --workspace --locked
+  step cargo test --workspace --locked --no-fail-fast
 fi

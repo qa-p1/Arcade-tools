@@ -69,7 +69,7 @@ fn every_released_state_is_read_after_its_folder_moves() {
         let root = tempfile::tempdir().unwrap();
         let paths = Paths::under(root.path());
         let folder = if *legacy {
-            paths.data.join("arcade-tools")
+            legacy_state(&paths)
         } else {
             paths.state()
         };
@@ -181,4 +181,19 @@ fn a_newer_update_state_is_read_not_refused() {
     assert_eq!(scheduler.state().schema, 2);
     assert_eq!(scheduler.state().extra["futureField"], json!([1, 2]));
     assert!(scheduler.state().apps.contains_key("arcade.look"));
+}
+
+/// Tools 0.1–0.3's state folder on this platform (`arcade-tools` under the user's data, roaming or Application
+/// Support folder), as Link's migration table records it.
+fn legacy_state(paths: &Paths) -> std::path::PathBuf {
+    use arcade_link::paths::{current_os, legacy_dirs_in, Kind};
+    legacy_dirs_in(
+        &paths.user_dirs(),
+        current_os(),
+        arcade_link::manifest::ids::TOOLS,
+    )
+    .into_iter()
+    .find(|dir| dir.kind == Kind::Data && dir.path.ends_with("arcade-tools"))
+    .expect("Link knows Tools' legacy state folder")
+    .path
 }
