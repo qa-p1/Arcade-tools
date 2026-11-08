@@ -121,10 +121,15 @@ d.screenshot("overlay")
 panel, target = rect(shown), rect(other_w)
 d.pointer_move(panel[0] + panel[2] // 2, panel[1] + panel[3] // 2)
 time.sleep(0.5)
-# A point of the other window that the overlay does not cover (the panel is centred over both windows).
-spot = next(((x, target[1] + target[3] // 2) for x in range(target[0] + target[2] - 20, target[0], -20)
-             if not inside((x, target[1] + target[3] // 2), panel)), None)
-check(spot is not None, f"the overlay {panel} covers the whole other window {target}")
+# The point of the other window farthest from the overlay's centre: off the centred panel. The layer overlay is a
+# full-screen backdrop (its surface covers every window), so there the pointer leaves the panel over the other
+# window's area; a windowed overlay must leave the other window's point uncovered.
+centre = panel[0] + panel[2] // 2
+x = max((target[0] + 20, target[0] + target[2] - 20), key=lambda v: abs(v - centre))
+spot = (x, target[1] + target[3] // 2)
+monitor = next(m for m in d.monitors() if m["x"] <= spot[0] < m["x"] + m["width"])
+fullscreen = panel == (monitor["x"], monitor["y"], monitor["width"], monitor["height"])
+check(fullscreen or not inside(spot, panel), f"the overlay {panel} covers the whole other window {target}")
 d.pointer_move(*spot)
 time.sleep(3)
 if overlay() is None:
