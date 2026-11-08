@@ -317,9 +317,10 @@ was unknown and the answer was always "no update". rc.5's "offers nothing on its
 for the same wrong reason.
 
 **Decision.** An AppImage installs by copying itself, so its executable is the package, byte for byte (the self-update
-gate asserts exactly that). When no package hash is recorded, an AppImage's record takes its executable's hash as the
-package hash, in `record_from_receipt` and when a record is refreshed after its executable changed. Adoption already
-did this; it now has one place. Other kinds unpack an installer, so their package hash stays unknown until Tools
+gate asserts exactly that). An AppImage that installed itself, with a receipt and no record from Tools, takes its
+executable's hash as the package hash (`record_from_receipt`; adoption already did this, and now shares it). Bytes
+replaced outside Tools under a record Tools wrote still get no hash, as before: they came from an unknown package, so
+an equal version is not offered over them (the Wheel lifecycle test locks that). Other kinds unpack an installer, so their package hash stays unknown until Tools
 installs them, as before: an equal-version rc is not offered to a self-installed Windows or macOS Tools. That matters
 only on the test channel; stable versions always differ.
 
