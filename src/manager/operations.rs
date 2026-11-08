@@ -714,9 +714,6 @@ impl Manager {
                 record.package = Some(package.clone());
                 record.sha256 = package.asset.sha256.clone();
             }
-            if record.kind == Kind::Appimage && migration.is_none() {
-                record.sha256 = record.executable_sha256.clone();
-            }
             self.write(
                 &self.paths.state().join(format!("{}.json", request.id)),
                 &record,

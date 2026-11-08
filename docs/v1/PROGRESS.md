@@ -4,6 +4,18 @@ Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
 
 ## 2026-11-08 (session 2)
 
+- **rc.6 published** (d7ad568, PR #43; every Release job green first time). [Gates on rc.6](https://github.com/qa-p1/Arcade-tools/actions/runs/42520824716)
+  with `update-from: v1.0.0-rc.5`: the tray test passed (the race is fixed), and so did conformance, package smoke
+  on all three OSes, upgrade, maintenance, resident, N-1, Tier 1 + 2 and the delta. Two failures:
+  - **Self-update**: rc.5 found rc.6 and offered nothing. Reproduced locally on the published files: a self-installed
+    Tools has no package hash, and rc's share the version `1.0.0`, so `is_newer` always said no. rc.5's "offers
+    nothing on its own release" check passed for the same wrong reason. Fixed (D16) with a regression test that
+    failed before. Next: rc.7, then rc.8 with `update-from: v1.0.0-rc.7`.
+  - **Open-window memory**: PSS 301 / RSS 338 MB against budgets 281 / 310. Every other run today measured
+    255.9–262.2 MB PSS (30 CI runs, 3 earlier Gates runs, PR #43 on the same code at 260). The rc.5 and rc.6
+    AppImages measure the same locally (140.6 vs 141.7 MB, 3 rounds each, alternating), and the runner image and
+    WebKit (2.50.4) were the same as rc.5's. Unexplained, one in 35: open item; the budget is unchanged, so rc.8 has
+    to pass it.
 - **rc.5 published** (f903b6e, PR #42). Its first check on the published binary finds rc.5 and offers nothing
   (local run: no re-offer, no install attempt). [Gates on rc.5](https://github.com/qa-p1/Arcade-tools/actions/runs/42514624358):
   everything passed except the tray test's last section. Reproduced locally (2 of 6 runs on the rc.5 AppImage) and

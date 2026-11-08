@@ -74,9 +74,9 @@ impl Manager {
                     record.version = receipt.version.clone();
                     record.channel = receipt_channel(&receipt)?;
                     record.package = None;
-                    record.sha256 = String::new();
                     record.executable_sha256 =
                         self.cached_checksum(&executable).unwrap_or_default();
+                    record.sha256 = package_hash(record.kind, &record.executable_sha256);
                 }
                 record.executable = Some(executable);
                 return Ok(Some(record));
@@ -118,13 +118,14 @@ impl Manager {
                 Os::Macos => Kind::Dmg,
             },
         };
+        let executable_sha256 = self.cached_checksum(&executable).unwrap_or_default();
         Ok(Record {
             id: receipt.id.clone(),
             version: receipt.version.clone(),
             channel: receipt_channel(receipt)?,
             kind,
-            sha256: String::new(),
-            executable_sha256: self.cached_checksum(&executable).unwrap_or_default(),
+            sha256: package_hash(kind, &executable_sha256),
+            executable_sha256,
             last_mode: None,
             executable: Some(executable),
             package: None,
@@ -258,5 +259,16 @@ impl Manager {
                 install_supported: app.supported_install(), installation_class: class, rollback_version: if app.supported_install() { self.rollback_version(id)? } else { None },
                 withdrawn: record.as_ref().and_then(|r| r.package.as_ref()?.tag.as_deref()).and_then(|tag| app.withdrawn_reason(tag)).map(str::to_owned) })
         }).collect()
+    }
+}
+/// The hash of the package an app was installed from, when only its executable is known (it installed itself, or
+/// changed under Tools). An AppImage installs by copying itself, so its executable is the package, byte for byte, and
+/// every rc of a release has the same version: without this hash an installed rc never saw the next one (D16). Other
+/// kinds unpack an installer, so their package hash is unknown until Tools installs them.
+fn package_hash(kind: Kind, executable_sha256: &str) -> String {
+    if kind == Kind::Appimage {
+        executable_sha256.to_owned()
+    } else {
+        String::new()
     }
 }
