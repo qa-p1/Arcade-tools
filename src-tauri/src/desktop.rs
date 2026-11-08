@@ -1230,7 +1230,13 @@ pub fn set_update_count(app: &AppHandle, count: usize) {
         service.set_updates(count);
     }
 }
+/// The fleet's OS identity (`dev.arcade.<App>`, STANDARD §10): the X11 WM_CLASS and Wayland app_id, matching the
+/// desktop entry (RD-TOOLS-6). GTK reads the program name when it starts, so this runs first.
+pub const OS_IDENTIFIER: &str = "dev.arcade.Tools";
+
 pub fn run(background: bool, quit: bool) {
+    #[cfg(target_os = "linux")]
+    gtk::glib::set_prgname(Some(OS_IDENTIFIER));
     tauri::Builder::default()
         .manage(Arc::new(Desktop::new(background)))
         .manage(Arc::new(hotkey::Service::default()))

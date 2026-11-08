@@ -25,7 +25,11 @@ Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
 - RD-TOOLS-3 fixed: Details falls back to the scheduler's last result for the selected channel; the action reads
   "Update to vX" only when one is available, "Up to date" (disabled) when current, "Check for updates" when unknown.
   UI check in `lock.mjs`.
-- Next: RD-TOOLS-6, TL-12; then T3 after Link 1.0.1; then PLAN steps 4–8.
+- RD-TOOLS-6 fixed: GTK program name `dev.arcade.Tools` before Tauri starts (window class/app_id), and the Linux
+  desktop id is `dev.arcade.Tools` with `app.arcadetools` kept as a legacy id Link cleans up. The Tauri `identifier`
+  stays `app.arcadetools` (it keys the Windows installer and macOS bundle). The window class itself is to be checked
+  in the desktop harness (PLAN step 6).
+- Next: TL-12; then T3 after Link 1.0.1; then PLAN steps 4–8.
 
 ## 2026-11-07 — paused for the usage-limit reset
 

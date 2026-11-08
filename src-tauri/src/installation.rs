@@ -9,10 +9,11 @@ fn info() -> arcade_link::install::AppInfo {
         id: "arcade.tools".into(),
         name: "Arcade Tools".into(),
         filename: "Arcade-Tools.AppImage".into(),
-        desktop_id: "app.arcadetools".into(),
+        // The window's app_id/WM_CLASS (`desktop::OS_IDENTIFIER`), so desktops match windows to the entry.
+        desktop_id: crate::desktop::OS_IDENTIFIER.into(),
         cli_name: "arcade-tools".into(),
         background_args: vec!["--background".into()],
-        legacy_desktop_ids: vec!["arcade-tools".into()],
+        legacy_desktop_ids: vec!["arcade-tools".into(), "app.arcadetools".into()],
         autostart_id: "arcade-tools".into(),
     }
 }
@@ -584,6 +585,18 @@ pub async fn dismiss_self_install() -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+
+    /// RD-TOOLS-6: Tools uses the fleet's OS identifier for its window and desktop entry, like every other app.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn the_desktop_entry_and_window_use_the_fleet_identifier() {
+        let expected = arcade_link::manifest::os_identifier("arcade.tools").unwrap();
+        assert_eq!(crate::desktop::OS_IDENTIFIER, expected);
+        assert_eq!(super::info().desktop_id, expected);
+        assert!(super::info()
+            .legacy_desktop_ids
+            .contains(&"app.arcadetools".to_string()));
+    }
     use super::*;
     use arcade_link::receipt::{InstallMethod, Integration, ManagedBy, Receipt, Store};
     use std::fs;
