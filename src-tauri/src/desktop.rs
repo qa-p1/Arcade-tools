@@ -778,11 +778,7 @@ async fn list_engines(app: AppHandle, refresh: bool) -> Result<Vec<EngineView>> 
         let manager = desktop(&app).manager()?;
         let catalog = manager.engines(refresh)?;
         let os = Os::current();
-        let os_release = if os == Os::Linux {
-            std::fs::read_to_string("/etc/os-release").unwrap_or_default()
-        } else {
-            String::new()
-        };
+        let os_release = arcade_tools_core::engines::read_os_release().unwrap_or_default();
         // Each probe may wait on a slow version command: run them together.
         let statuses: Vec<_> = std::thread::scope(|scope| {
             let probes: Vec<_> = catalog

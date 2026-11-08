@@ -117,7 +117,7 @@ export interface EngineView {
   linkDownload: boolean;
   downloaded: boolean;
 }
-export interface Preferences {
+interface Preferences {
   linkEnabled: boolean;
   channels: Record<string, Channel>;
   updates: { enabled: boolean; autoUpdate: Record<string, boolean> };
@@ -178,7 +178,7 @@ export interface OperationRequest {
   version?: string | null;
 }
 
-export interface Bootstrap {
+interface Bootstrap {
   apps: AppView[];
   preferences: Preferences;
   updates: UpdateState;

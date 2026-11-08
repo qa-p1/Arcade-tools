@@ -96,7 +96,7 @@ pub fn export(manager: &Manager, cancel: &AtomicBool) -> Result<BackupReport> {
                     cancelled(cancel)?;
                     // Apps hand over their own formats: Lens a `file/code`
                     // JSON file, Shelf a binary `file/any` archive.
-                    let path = crate::portable_backup::handoff_source(
+                    let path = crate::settings_export::handoff_source(
                         &manager.paths.link.handoff,
                         &output,
                         &app.id,
@@ -394,7 +394,7 @@ fn settings_format(id: &str, bytes: &[u8]) -> Result<bool> {
             "Settings contain excluded identity, secrets, history, index or cache fields.",
         )
     };
-    let opaque = crate::portable_backup::export_is_opaque(bytes, id).ok_or_else(excluded)?;
+    let opaque = crate::settings_export::export_is_opaque(bytes, id).ok_or_else(excluded)?;
     if !opaque && forbidden(&serde_json::from_slice(bytes)?) {
         return Err(excluded());
     }

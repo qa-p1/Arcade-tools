@@ -1,7 +1,7 @@
 export type ShortcutSource = 'catalog' | 'arcade';
 export type WindowManagerShortcutState = 'active' | 'configuredOnly' | 'runtimeOnly';
 
-export interface ShortcutKeys {
+interface ShortcutKeys {
   keys: string[];
   display: string[];
 }

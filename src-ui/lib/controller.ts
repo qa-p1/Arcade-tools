@@ -213,7 +213,7 @@ export async function reviewInstall(app: AppView): Promise<void> {
   await confirmOperation(app, 'install');
 }
 
-export async function reviewHandoff(): Promise<void> {
+async function reviewHandoff(): Promise<void> {
   if (reviewingInstall || ui.busy || ui.dialog || !pendingInstall) return;
   reviewingInstall = true;
   try {
@@ -289,7 +289,7 @@ export async function cancelOperation(): Promise<void> {
   setMessage('Cancelling…');
 }
 
-export function appName(id: string): string {
+function appName(id: string): string {
   if (id === 'arcade.tools') return 'Arcade Tools';
   return ui.apps.find((app) => app.id === id)?.name ?? id;
 }
@@ -301,7 +301,7 @@ export function receiveProgress(progress: OperationProgress): void {
   ui.cancellable = progress.cancellable;
 }
 
-export async function runOperation(request: OperationRequest): Promise<void> {
+async function runOperation(request: OperationRequest): Promise<void> {
   ui.busy = true;
   try {
     const text = await api.operate(request);
@@ -360,7 +360,7 @@ export async function confirmSelfUpdate(): Promise<void> {
   });
   if (choice.confirmed) await withBusy(api.selfUpdate, 'Updating Arcade Tools');
 }
-export async function withBusy(action: () => Promise<void>, phase: string): Promise<void> {
+async function withBusy(action: () => Promise<void>, phase: string): Promise<void> {
   ui.busy = true;
   ui.phase = phase;
   ui.progress = null;

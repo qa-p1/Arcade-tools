@@ -38,7 +38,19 @@ Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
   gains the `test` channel and `arcade.css` the emoji font fallbacks, both copied unchanged. This fixed PR #23's red
   `verify-vendored` step ("VENDORED names Link tags ['v0.4.15'], but Cargo.toml pins v1.0.0").
 - All audit findings for Tools are fixed except T3 (needs Link 1.0.1).
-- Next: Link 1.0.1 (migration archive fix + template lockfile), then T3; then PLAN steps 4–8.
+- Found in step 4: `ARCADE_TOOLS_CHANNEL_OVERRIDE=test` was never read, so the rc gates could not install rc files
+  through Tools, and `set_channel("test")` or a restored backup could store Test and make Tools trust unsigned rc
+  manifests. Fixed (D5 Test bullet), regression test `tests/channel_override.rs` (own binary: the variable is
+  process-wide). Hub test helpers moved to `tests/support/hub.rs`.
+- Step 4 (dead code): `cargo machete` clean. Removed the unused second backup implementation
+  (`portable_backup.rs`, ~1,300 lines; the app uses `backup.rs` + `archive.rs`), keeping its live export screening
+  as `settings_export.rs`; `archive::parse` gained unit tests for symlink entries, expansion bombs and garbage (the
+  removed module had tested its own parser for these). Removed `issue_apps`; engines use the bounded
+  `read_os_release`. knip: 14 exports used only in their own file are no longer exported; `design/format.ts` is
+  vendored. `scripts/tray-resident-e2e.py` (tray, resident, crash recovery, guide screenshot) is not in CI yet:
+  step 6 wires it in.
+- Link 1.0.1 is up for review: https://github.com/qa-p1/Arcade-Link/pull/45.
+- Next: tag Link v1.0.1, bump Tools to it and flip T3; PLAN steps 5 (memory), 6 (CI), 7 (round 5), 8 (rc).
 
 ## 2026-11-07 — paused for the usage-limit reset
 

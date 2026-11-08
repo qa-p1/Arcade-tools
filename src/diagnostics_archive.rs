@@ -43,13 +43,6 @@ pub struct SavedArchive {
     pub included_receipts: usize,
 }
 
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct IssueApp {
-    pub id: String,
-    pub name: String,
-}
-
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct DiagnosticsDocument {
@@ -213,25 +206,6 @@ pub fn create_archive(
         included_manifests,
         included_receipts,
     })
-}
-
-/// The issue form is opened locally. Tools never attaches or uploads the ZIP.
-pub fn issue_apps() -> Vec<IssueApp> {
-    let catalog = Catalog::snapshot();
-    let mut apps: Vec<_> = catalog
-        .apps
-        .iter()
-        .map(|app| IssueApp {
-            id: app.id.clone(),
-            name: app.name.clone(),
-        })
-        .collect();
-    apps.push(IssueApp {
-        id: catalog.tools.id,
-        name: catalog.tools.name,
-    });
-    apps.sort_by(|a, b| a.name.cmp(&b.name));
-    apps
 }
 
 /// Returns a GitHub issue form URL for an Arcade app, with a concise report

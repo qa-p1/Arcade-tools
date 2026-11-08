@@ -4,7 +4,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { ui } from './state.svelte';
 
-export type TrayPreferences = {
+type TrayPreferences = {
   hostIcons: boolean;
   excluded: string[];
   showUpdateBadge: boolean;
@@ -12,7 +12,7 @@ export type TrayPreferences = {
   shortcutsEnabled: boolean;
   shortcut: string;
 };
-export type TrayView = {
+type TrayView = {
   preferences: TrayPreferences;
   apps: { id: string; name: string; excluded: boolean }[];
   loginAvailable: boolean;
