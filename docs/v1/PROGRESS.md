@@ -4,6 +4,11 @@ Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
 
 ## 2026-11-08 (session 2)
 
+- **Step 8 started.** PR #23 green on every job at f3a609f (version 1.0.0, guide screenshots retaken, release
+  steps in `docs/dev/packaging.md` rewritten for rc → Promote) and merged as 7682ac9. `v1.0.0-rc.1` tagged through
+  "Tag a release", which started "Release" on the test channel (run 42487791767). Next, against the published
+  rc files: upgrade from published 0.4.6 (`verify-upgrade.py`), N-1, desktop and performance; then rc.2 for the
+  rc.1 → rc.2 self-update (delta path) under `ARCADE_TOOLS_CHANNEL_OVERRIDE=test`.
 - On Link v1.0.5 (601af05): the Tier 2 smoke polls `--status` instead of a fixed 8 s sleep (the sway job once
   missed Tools' first start), and `perf_budget.py` counts wakeups per thread: CI's first perf run read open-window
   wakeups as -2.3/s, which passes any budget. Measured correctly: about 11/s open (budget 20), D12 corrected.
