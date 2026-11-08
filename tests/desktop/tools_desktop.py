@@ -9,6 +9,7 @@ into another window (UI-1, TL-2) and closing on Escape, and Quit from the tray. 
 any other failure is the harness's or the app's.
 """
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -19,9 +20,15 @@ sys.path.insert(0, ".arcade-link/tools/desktop")
 from arcade_desktop import Desktop  # noqa: E402
 
 RULE_BROKEN = 10
-app = sys.argv[1]
 d = Desktop()
 home = tempfile.mkdtemp(prefix="tools-desktop-")
+# Run a downloaded copy, as a user would: the CI artifact sits inside a git checkout, which Link treats as a dev
+# build that refuses to install.
+downloads = Path(home, "Downloads")
+downloads.mkdir()
+app = str(downloads / "Arcade-Tools.AppImage")
+shutil.copy2(sys.argv[1], app)
+os.chmod(app, 0o755)
 env = {**os.environ, "HOME": home, "XDG_CONFIG_HOME": f"{home}/.config", "XDG_DATA_HOME": f"{home}/.local/share",
        "XDG_CACHE_HOME": f"{home}/.cache", "ARCADE_HOME": f"{home}/arcade-link"}
 log = open(d.artifact("tools.log"), "wb")
@@ -43,7 +50,12 @@ def check(ok, message):
         raise SystemExit(f"FAILED: {message}")
 
 
-run("--install", "--silent", "--no-launch", timeout=120)
+installed = run("--install", "--silent", "--no-launch", timeout=120)
+check(installed.returncode == 0, f"--install --silent exited {installed.returncode}")
+# From here on, the installed copy (the install may remove the download).
+copies = [p for p in Path(home).rglob("Arcade-Tools*.AppImage") if downloads not in p.parents]
+check(len(copies) == 1, f"installed copies: {copies}")
+app = str(copies[0])
 resident = subprocess.Popen([app, "--background"], env=env, stdout=log, stderr=subprocess.STDOUT)
 
 def tray_labels():
@@ -91,17 +103,34 @@ def overlay():
     return d.find_window(title="Arcade Tools Shortcuts") or d.find_layer("arcade-tools-overlay")
 
 
+def rect(surface):
+    """(x, y, w, h) of a window (`at`/`size`) or a layer surface (`x`/`y`/`w`/`h`)."""
+    if "at" in surface:
+        return (*surface["at"], *surface["size"])
+    return surface["x"], surface["y"], surface["w"], surface["h"]
+
+
+def inside(point, r):
+    return r[0] <= point[0] < r[0] + r[2] and r[1] <= point[1] < r[1] + r[3]
+
+
 shown = d.wait(overlay, 30, "the shortcuts overlay")
+is_window = "at" in shown
 time.sleep(2)
 d.screenshot("overlay")
-if "address" in shown:
-    d.pointer_move(*d.center_of(shown))
-    time.sleep(0.5)
-d.pointer_move(*d.center_of(other_w))
+panel, target = rect(shown), rect(other_w)
+d.pointer_move(panel[0] + panel[2] // 2, panel[1] + panel[3] // 2)
+time.sleep(0.5)
+# A point of the other window that the overlay does not cover (the panel is centred over both windows).
+spot = next(((x, target[1] + target[3] // 2) for x in range(target[0] + target[2] - 20, target[0], -20)
+             if not inside((x, target[1] + target[3] // 2), panel)), None)
+check(spot is not None, f"the overlay {panel} covers the whole other window {target}")
+d.pointer_move(*spot)
 time.sleep(3)
 if overlay() is None:
     broken("UI-1", "the shortcuts overlay closed when the pointer moved into another window")
-d.escape(shown.get("address"))
+# A layer surface has exclusive keyboard focus and no window address: Escape goes to the focused surface.
+d.escape(shown["address"] if is_window else None)
 d.wait(lambda: overlay() is None, 10, "Escape to close the overlay")
 overlay_proc.wait(timeout=15)
 other.terminate()

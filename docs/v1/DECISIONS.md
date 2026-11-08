@@ -186,6 +186,13 @@ packages on 22.04, so the WebKit it bundles differs, one more reason the cap bel
 | open, after the helpers' 20 s trim | — | 261 / 278 | 225 / 310 |
 | closed +20 s | 71 | 28–45 (29 and 34 with swap, 45 without) | 30 / 50 |
 
+CI's own run (ubuntu-22.04 runner, the WebKit Tools ships, Link v1.0.2, 2026-11-08): background **12.6 / 13.3**,
+window open **267.7 / 293.2**, closed +20 s **35.8 / 38.7**. Closed was over its 30 PSS because W3b's page-out
+skipped the heap and the written pages of library mappings (libLLVM's RELRO alone is 6.6 MB under llvmpipe); Link
+1.0.3 pages out every private mapping of a hidden app: locally background 15 → 4 and closed 29–34 → 12 PSS, reopen
+latency unchanged (mean 1.41 → 1.40 s over 8 reopens). A second CI run gave open 263.3 / 288.8 and closed 36.0 / 38.8, so Link 1.0.3's
+`budgets.json` sets Tools' open cap to **281 PSS** (267.7 + 5 %), RSS unchanged at 310.
+
 What is left with the window open is WebKitWebProcess: 211 MB anonymous, of which ~123 MB is glibc malloc in use
 (two thread arenas of 40 and 38 MB plus a 45 MB heap; `malloc_trim` already returns the free pages). Under llvmpipe
 that is mostly compositing layers. The audit names only two levers that remove it, and both change UX: compositing
