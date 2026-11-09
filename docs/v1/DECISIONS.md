@@ -403,3 +403,14 @@ candidate.
   the machine before the text was on screen. The issue link is built in Rust from the catalog repository (checked
   against the owner allowlist), cut at a line boundary to GitHub's URL limit with a note; the browser shows it for
   the user to submit or not. A UI check covers the order (no issue before viewing), Escape and Dismiss.
+
+## D20 — cargo deny checks the whole workspace
+
+Found while setting up Box's `deny.toml` (2026-11-09): Tools' root `Cargo.toml` is itself a package, so
+`cargo deny check` gathered only that crate's 266 dependencies and skipped the desktop app's (Tauri, GTK, zbus,
+the overlay). The "clean cargo deny" of step 7 and rc.1–rc.10 therefore covered only part of Tools. CI now runs
+`cargo deny --workspace --all-features check`. Across the workspace, a yanked `async-executor` 1.14.0 is updated
+and ten "unmaintained" notices are accepted in `deny.toml`, each with its reason. None is a known vulnerability.
+All come through Tauri 2 (urlpattern's unic-* crates, gtk-rs 0.18's proc-macro-error), zbus 5 (zvariant,
+zbus_names, zvariant_derive) or cosmic-text (ttf-parser), with no maintained replacement that those can take yet.
+Licences, bans and sources pass across the workspace.

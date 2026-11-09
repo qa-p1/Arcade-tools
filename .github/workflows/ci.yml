@@ -298,8 +298,11 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+      # --workspace: the root manifest is itself a package, and without it cargo deny checks only that crate, not
+      # the desktop app's dependencies (D20).
       - uses: EmbarkStudios/cargo-deny-action@v2
         with:
+          arguments: --workspace --all-features
           command: check
 
   overlay:

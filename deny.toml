@@ -5,8 +5,21 @@ all-features = true
 [advisories]
 version = 2
 yanked = "deny"
-# No accepted advisories: add one here only with a reason, and say so in SECURITY.md.
-ignore = []
+# Accepted advisories, each with its reason (also in SECURITY.md). All are "unmaintained" notices, not known
+# vulnerabilities, for crates that only come in through Tauri, gtk-rs, zbus 5 or cosmic-text and have no maintained
+# replacement those can take yet; revisit when they move.
+ignore = [
+  { id = "RUSTSEC-2024-0370", reason = "proc-macro-error: build-time macro of gtk-rs 0.18 (glib-macros), which Tauri 2 pins on Linux" },
+  { id = "RUSTSEC-2025-0075", reason = "unic-char-range: urlpattern 0.3 in tauri-utils" },
+  { id = "RUSTSEC-2025-0080", reason = "unic-common: urlpattern 0.3 in tauri-utils" },
+  { id = "RUSTSEC-2025-0081", reason = "unic-char-property: urlpattern 0.3 in tauri-utils" },
+  { id = "RUSTSEC-2025-0098", reason = "unic-ucd-version: urlpattern 0.3 in tauri-utils" },
+  { id = "RUSTSEC-2025-0100", reason = "unic-ucd-ident: urlpattern 0.3 in tauri-utils" },
+  { id = "RUSTSEC-2026-0192", reason = "ttf-parser: fontdb in cosmic-text, the shortcut overlay's text layout" },
+  { id = "RUSTSEC-2026-0370", reason = "zvariant: merged into zbus 6; ksni, notify-rust and the Tauri plugins are on zbus 5" },
+  { id = "RUSTSEC-2026-0371", reason = "zbus_names: merged into zbus 6; ksni, notify-rust and the Tauri plugins are on zbus 5" },
+  { id = "RUSTSEC-2026-0372", reason = "zvariant_derive: merged into zbus 6; ksni, notify-rust and the Tauri plugins are on zbus 5" },
+]
 
 [licenses]
 version = 2
