@@ -72,7 +72,34 @@ pub(crate) fn child_environment(command: &mut Command, paths: &Paths) {
     // Inheriting them also kept each old Tools image mounted after a
     // self-update: the new Tools loaded its libraries from there.
     arcade_link::childenv::sanitize(command);
+    // Tools' own allocator setting is not theirs either (D18); a value the user set is kept.
+    if CAPPED_ARENAS.get().is_some() {
+        command.env_remove(ARENA_MAX);
+    }
     paths_environment(command, paths);
+}
+
+const ARENA_MAX: &str = "MALLOC_ARENA_MAX";
+/// Set when [`cap_malloc_arenas`] set `MALLOC_ARENA_MAX` itself, so programs Tools starts do not inherit it.
+static CAPPED_ARENAS: std::sync::OnceLock<()> = std::sync::OnceLock::new();
+
+/// Caps glibc's malloc arenas at two in Tools and the WebKit processes it starts, unless the user set
+/// `MALLOC_ARENA_MAX`. glibc gives a thread its own arena when the main one is contended, so how many WebKit created
+/// while a window opened varied with timing: the budget gate measured window-open PSS at about 257 or about 300 MB
+/// on the same build. Capped, eight runners measured 252.2–253.5 (D18). WebKit's processes inherit the variable;
+/// Tools itself started allocating before `main`, so it gets `mallopt`. Call it first in `main`, while Tools has
+/// one thread (`set_var` is only sound then).
+pub fn cap_malloc_arenas() {
+    #[cfg(all(target_os = "linux", target_env = "gnu"))]
+    {
+        if std::env::var_os(ARENA_MAX).is_some() {
+            return;
+        }
+        std::env::set_var(ARENA_MAX, "2");
+        let _ = CAPPED_ARENAS.set(());
+        // SAFETY: mallopt only changes allocator tuning; M_ARENA_MAX limits arenas created from now on.
+        unsafe { libc::mallopt(libc::M_ARENA_MAX, 2) };
+    }
 }
 fn paths_environment(command: &mut Command, paths: &Paths) {
     command

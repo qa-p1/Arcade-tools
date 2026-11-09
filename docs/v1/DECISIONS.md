@@ -355,9 +355,26 @@ or pinned to one CPU): the memory peaks at 2.4 s and is flat from 4.4 s, so the 
 The high level is about 40 MB above the normal one, about one glibc thread arena of the WebKit process (D10 found two
 of 38–40 MB), which a thread gets or not depending on lock contention; this is a hypothesis, not yet a finding.
 
-**Decision.** The cap stays at 281 (D10: it is only lowered) and a run that fails it is not re-run until it passes:
-two of five Gates runs measured above it, so the budget is not met as it stands. The memory probe workflow measures a
-published AppImage on eight runners at once, with the gate's own command and `scripts/open-memory.py` (PSS per
-process and per kind of mapping 6 s after the window opens), then both again with `MALLOC_ARENA_MAX=2`, to find what
-the high level is. What it finds decides the fix.
+The cap stays at 281 (D10: it is only lowered) and a run that fails it is not re-run until it passes: two of five
+Gates runs measured above it, so the budget was not met. The memory probe workflow (run 42536860332) measured rc.9's
+published AppImage on eight `ubuntu-22.04` runners (five CPU models) with the gate's own command, then with
+`MALLOC_ARENA_MAX=2`:
+
+| | runs | open-window PSS (MB) |
+|---|---|---|
+| default | 8 | 256.6, 256.9, 257.1, 259.1, 260.5, **298.0, 302.2, 307.5** |
+| `MALLOC_ARENA_MAX=2` | 8 | 252.2–253.5 |
+
+`scripts/open-memory.py` shows where it goes at the normal level: the WebKit process holds 72 MB in 28–30 thread
+arenas and 25 MB in `[heap]`; capped, 3 arenas hold 26 MB and `[heap]` 68 MB. So the hypothesis holds: glibc gives a
+thread its own arena when the main one is contended, how many the WebKit process made while the window opened
+depended on timing, and every arena keeps the memory it handed out.
+
+**Decision.** Tools caps malloc arenas at two, for itself and the WebKit processes it starts, unless the user set
+`MALLOC_ARENA_MAX` (`platform::cap_malloc_arenas`, first in `main`: WebKit's processes inherit the variable, Tools
+itself gets `mallopt`). Apps and installers Tools starts do not inherit it (`child_environment` removes it; a test
+binary locks both). It removes the high level and lowers the normal one by about 4 MB. Fewer arenas means more lock
+contention: the perf budgets (cold start, show, wakeups) were compared with and without it before applying it, and the
+gate checks them on every rc. The cap stays 281 until rc.10's figures are in; lowering it is a Link `budgets.json`
+change.
 

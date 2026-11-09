@@ -37,6 +37,8 @@ and versions follow [Semantic Versioning](https://semver.org/).
 - Updating to a release candidate on the test channel no longer fails in the installer, and an update that fails
   to install is not retried every minute; automatic updates wait for a newer release. Tools' own automatic update
   also respects a rollback now.
+- Memory with the Tools window open no longer jumps by about 40 MB on some starts: glibc's malloc arenas are capped
+  at two for Tools and its WebKit processes (a `MALLOC_ARENA_MAX` you set is kept).
 - `--quit`, `--restart` and `--status` wait for a Tools that is still starting (just restarted or started at login)
   instead of failing with "didn't respond in time" or reporting it as not running.
 - A self-installed AppImage at the same version as a published release with other bytes (the next release
