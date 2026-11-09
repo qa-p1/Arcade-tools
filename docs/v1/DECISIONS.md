@@ -377,7 +377,9 @@ binary locks both). It removes the high level and lowers the normal one by about
 contention, so the gate's perf command was run on rc.9 with and without the cap, two rounds each, alternating (local,
 4 CPUs): show 574 → 582 ms (means of 6), first start 1522 → 1391 ms, open-window wakeups 14.8 → 10.9 per second,
 idle CPU 0 both, cold start 621 → 687 ms (means of 4; the ranges overlap, 581–637 and 602–750). Cold start may be
-about 10 % slower, which four samples cannot settle; it is far inside its 1500 ms budget, a background start nobody
-waits on, and the gate checks it on every rc. The cap stays 281 until rc.10's figures are in; lowering it is a Link `budgets.json`
+about 10 % slower, which four samples cannot settle. That is the wait from clicking the launcher, with Tools not
+running, to its window, so it is a real cost if it holds: about 66 ms, against about 40 MB less while the window is
+open on the starts that took the high level, and inside the 1500 ms budget the gate checks on every rc. If rc.10's
+gate or later runs show it holds, this trade is recorded in catalog `LOCAL.md` for the owner with D10's OPEN2. The cap stays 281 until rc.10's figures are in; lowering it is a Link `budgets.json`
 change.
 
