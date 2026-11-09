@@ -16,6 +16,8 @@ and versions follow [Semantic Versioning](https://semver.org/).
 - A release the catalog marks as bad is no longer offered, and Tools offers to roll back an installed copy.
 - Apps on the Nightly channel show a badge; switching back to Stable backs up the app's data first.
 - Third-party notices in Settings › About, and a security policy (`SECURITY.md`).
+- Crash reports: when an Arcade app or Tools crashes, Home shows "<App> crashed". The full report opens first;
+  from there it can be copied or opened as a pre-filled GitHub issue. Reports stay on this computer.
 
 ### Changed
 - Arcade Link 1.0.3: the 1.0 runtime, release manifests and update primitives. 1.0.2 trims read-only data too

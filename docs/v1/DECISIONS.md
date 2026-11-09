@@ -385,3 +385,21 @@ did not: on CI, with the cap, PR #47's build measured 630 ms and rc.10's gate 38
 trade is recorded. rc.10's gate measured window-open PSS at 252.0. The cap stays 281 until rc.10's figures are in; lowering it is a Link `budgets.json`
 change.
 
+
+## D19 — Crash reports were missing from the 1.0 candidates
+
+TOOLS.md §Crash reports (and the owner checklist) asks for "<App> crashed" with "Copy report" and "Open GitHub
+issue", reviewed before anything is sent, and ARCADE_APP.md RT-4 for every app's own reports. rc.1–rc.10 had
+neither: Tools never installed Link's crash handler and listed no reports. No exit gate checked it, so rc.10's green
+Gates did not cover it; it was found while moving Box onto Link's runtime. rc.10 is therefore not a promotion
+candidate.
+
+- Tools installs `runtime::install_crash_reports` first in `main`. A CLI test sends SIGSEGV to the running binary and
+  finds the report under `arcade/tools/crashes/`.
+- `crashes.rs` lists the reports of Tools and every catalog app that are not dismissed, reads one (only a
+  `*.crash` name in that app's folder), and remembers dismissals in `crashes-dismissed.json`, which forgets files
+  Link has pruned. Home reads the list when shown, like health; nothing polls.
+- The notice offers only View and Dismiss; Copy and Open GitHub issue live in the report dialog, so nothing leaves
+  the machine before the text was on screen. The issue link is built in Rust from the catalog repository (checked
+  against the owner allowlist), cut at a line boundary to GitHub's URL limit with a note; the browser shows it for
+  the user to submit or not. A UI check covers the order (no issue before viewing), Escape and Dismiss.

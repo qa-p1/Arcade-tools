@@ -4,7 +4,8 @@
   import { glyph } from '../lib/glyphs';
   import { ui } from '../lib/state.svelte';
   import { refresh } from '../lib/controller';
-  import { api, type AppView, type Dashboard, type HealthIssue, type Operation, type UpdateState } from '../lib/api';
+  import { api, type AppView, type CrashSummary, type Dashboard, type HealthIssue, type Operation, type UpdateState } from '../lib/api';
+  import CrashReport from '../components/CrashReport.svelte';
   import type { ShellTab } from '../lib/tabs.svelte';
   import Icon from '../components/Icon.svelte';
 
@@ -39,6 +40,17 @@
     issues = await api.health();
   }
 
+  // Crash reports are read when Home is shown, like health; nothing polls (RT-6).
+  let crashes = $state<CrashSummary[]>([]);
+  let viewing = $state<CrashSummary | null>(null);
+  async function loadCrashes(): Promise<void> {
+    crashes = await api.crashReports();
+  }
+  async function dismissCrash(crash: CrashSummary): Promise<void> {
+    await api.dismissCrash(crash.app, crash.file);
+    await loadCrashes();
+  }
+
   async function fix(issue: HealthIssue): Promise<void> {
     const app = apps.find((candidate) => candidate.id === issue.app);
     switch (issue.fixAction) {
@@ -60,6 +72,9 @@
   $effect(() => {
     void apps;
     if (active) void loadHealth().catch(() => undefined);
+  });
+  $effect(() => {
+    if (active) void loadCrashes().catch(() => undefined);
   });
 
   // Usage is sampled only while Home is on screen (ARCADE_APP.md RT-6).
@@ -98,6 +113,16 @@
       <button type="button" class="btn sm primary" onclick={() => onSelectTab('updates')}>Review</button>
     </div>
   {/if}
+
+  {#each crashes as crash (`${crash.app}/${crash.file}`)}
+    <div class="notice danger crash-notice" role="status">
+      <Icon name="alert" />
+      <span class="row-main"><span class="row-title">{appName(crash.app)} crashed {relativeInSentence(crash.created * 1000)}</span>{#if crash.message}<span class="row-sub">{crash.message}</span>{/if}</span>
+      <button type="button" class="btn sm" onclick={() => (viewing = crash)}>View report</button>
+      <button type="button" class="btn sm ghost" disabled={busy} onclick={() => run(() => dismissCrash(crash))}>Dismiss</button>
+    </div>
+  {/each}
+  <CrashReport crash={viewing} appName={viewing ? appName(viewing.app) : ''} onClose={() => (viewing = null)} {run} />
 
   {#if issues.length}
     <section class="home-issues" aria-labelledby="home-health-heading">

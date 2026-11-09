@@ -203,4 +203,40 @@ export default {
     const kept = await page.textContent('#notices pre');
     assert(open === 0 && kept === '', `after Escape: open ${open}, text kept ${kept.length} chars`);
   },
+  async 'A crash report is read before it can leave the machine (TOOLS.md)'(page) {
+    const report = 'app: Arcade Box\nversion: 1.0.0\nkind: panic\nmessage: index out of bounds\n\nbacktrace:\n   0: arcade_box::main\n';
+    await page.evaluate((report) => {
+      const m = window.__mock;
+      m.state.crashes = [{ app: 'arcade.box', file: '00001794190000-41-panic.crash', created: Date.now() / 1000 - 120, kind: 'panic', message: 'index out of bounds' }];
+      m.on('crash_reports', () => m.state.crashes);
+      m.on('crash_report', () => report);
+      m.on('dismiss_crash', ({ file }) => { m.state.crashes = m.state.crashes.filter((c) => c.file !== file); });
+      m.on('open_crash_issue', () => null);
+    }, report);
+    await tab(page, 'settings');
+    await tab(page, 'home');
+    await page.waitForSelector('.crash-notice', { timeout: 3000 });
+    const notice = await text(page, '.crash-notice');
+    assert(/Arcade Box crashed/.test(notice) && notice.includes('index out of bounds'), notice);
+    assert(await page.locator('.crash-notice', { hasText: 'Open GitHub issue' }).count() === 0, 'the notice offers an issue before the report was read');
+    await page.click('.crash-notice >> text=View report');
+    await page.waitForSelector('#crash-report[open]', { timeout: 3000 });
+    await page.waitForFunction(() => document.querySelector('#crash-report textarea')?.value.includes('arcade_box::main'), null, { timeout: 3000 });
+    await page.click('#crash-report >> text=Open GitHub issue');
+    await sleep(200);
+    const issue = await page.evaluate(() => window.__mock.calls.find(([c]) => c === 'open_crash_issue'));
+    assert(issue && issue[1].id === 'arcade.box' && issue[1].file === '00001794190000-41-panic.crash', JSON.stringify(issue));
+    await page.keyboard.press('Escape');
+    await sleep(200);
+    assert(await page.locator('#crash-report[open]').count() === 0, 'Escape left the report open');
+    await page.click('.crash-notice >> text=Dismiss');
+    await sleep(300);
+    assert(await page.locator('.crash-notice').count() === 0, 'the dismissed report is still listed');
+  },
+  async 'Home shows no crash notice when there are no reports'(page) {
+    await tab(page, 'home');
+    await sleep(300);
+    assert(await page.locator('.crash-notice').count() === 0, 'a crash notice without reports');
+    assert(await page.evaluate(() => window.__mock.calls.some(([c]) => c === 'crash_reports')), 'Home never asked for crash reports');
+  },
 };

@@ -6,7 +6,9 @@ since: 0.2.0
 
 # Features
 
-Home shows installed versions, channels, uptime, memory, CPU, tray and Link state. Metrics refresh every two seconds while Home is visible. Health checks link to repair, adoption, engines and shortcut fixes.
+Home shows installed versions, channels, uptime, memory, CPU, tray and Link state. Metrics refresh every 10 seconds while Home is visible. Health checks link to repair, adoption, engines and shortcut fixes.
+
+When an Arcade app (or Tools itself) crashes, it writes a report on this computer and Home shows **<App> crashed**. **View report** shows the whole report; from there you can **Copy report**, or **Open GitHub issue**, which opens a new issue in your browser filled in with the report for you to review and submit. **Dismiss** hides it. Nothing is sent anywhere unless you submit it.
 
 Apps provides catalog details, bundles, install, update, repair, rollback, adoption, uninstall and app settings. Updates shows compatibility holds, sanitized notes, history and per-app automatic updates. Tools checks after 60 seconds, every six hours, and when an opened window has an hour-old check.
 
