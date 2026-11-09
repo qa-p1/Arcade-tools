@@ -380,6 +380,8 @@ idle CPU 0 both, cold start 621 â†’ 687 ms (means of 4; the ranges overlap, 581â
 about 10 % slower, which four samples cannot settle. That is the wait from clicking the launcher, with Tools not
 running, to its window, so it is a real cost if it holds: about 66 ms, against about 40 MB less while the window is
 open on the starts that took the high level, and inside the 1500 ms budget the gate checks on every rc. If rc.10's
-gate or later runs show it holds, this trade is recorded in catalog `LOCAL.md` for the owner with D10's OPEN2. The cap stays 281 until rc.10's figures are in; lowering it is a Link `budgets.json`
+gate or later runs show it holds, this trade is recorded in catalog `LOCAL.md` for the owner with D10's OPEN2. They
+did not: on CI, with the cap, PR #47's build measured 630 ms and rc.10's gate 388 ms (rc.7 without it, 350), so no
+trade is recorded. rc.10's gate measured window-open PSS at 252.0. The cap stays 281 until rc.10's figures are in; lowering it is a Link `budgets.json`
 change.
 
