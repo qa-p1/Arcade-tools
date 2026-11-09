@@ -2,6 +2,20 @@
 
 Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
 
+## 2026-11-09 (session 2)
+
+- **rc.10 published** (873eab1, PR #47 with D18). **[Gates on rc.10](https://github.com/qa-p1/Arcade-tools/actions/runs/42544104046):
+  every gate passed on the published files** (11 of 11 jobs), with `previous: v0.4.6` and `update-from: v1.0.0-rc.9`:
+  checksums, manifest and prerelease; conformance; package smoke on Linux, Windows and macOS; upgrade 0.4.6 → 1.0.0
+  keeping data and integration; maintenance; resident; tray; N-1; Tier 1 Hyprland and Tier 2 KWin, Mutter, sway, X11;
+  delta from 0.4.6 (14.1 of 94.5 MB in 8 requests), signature and tampered chunk; **self-update rc.9 → rc.10 with a
+  delta of 8.9 of 94.5 MB (9.5 %), back in the background after 65 s, receipt, history and Start at login agreeing**;
+  budgets: PSS background 1.4, window open **252.0** (cap 281), closed 12.0; cold start 388 ms, show 342 ms, first
+  start 956 ms; idle CPU 0.0 %, wakeups 0.3 / 11.0 / 0.7 per second; disk 371.5 MB. D18's cold-start question: 388 ms
+  here, against rc.7's 350 and rc.9's CI 630 with the cap; no slowdown holds on CI, so no trade goes to the owner.
+- **Tools is ready to promote, except B1**: `promote.yml` needs `ARCADE_UPDATE_SIGNING_KEY`, which only the owner can
+  create (catalog `LOCAL.md`). rc.10 is the candidate; promote it byte for byte once the key is set.
+
 ## 2026-11-08 (session 2)
 
 - **rc.9 published** (b6ac23f, PR #46). [Gates on rc.9](https://github.com/qa-p1/Arcade-tools/actions/runs/42535663129)
