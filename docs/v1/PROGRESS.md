@@ -4,6 +4,12 @@ Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
 
 ## 2026-11-08 (session 2)
 
+- **rc.9 published** (b6ac23f, PR #46). [Gates on rc.9](https://github.com/qa-p1/Arcade-tools/actions/runs/42535663129)
+  with `update-from: v1.0.0-rc.7`: **every gate passed, the self-update included** (rc.7 → rc.9 with a delta of 8.5 of
+  94.5 MB, 9 %, restarted in the background after 67 s; receipt, history and Start at login agree), **except the
+  open-window memory**: 297.5 / 333.3 against 281 / 310, the second such reading after rc.6's 301.4. Not re-run to
+  green (D18): a memory probe workflow measures the published file on eight runners, with and without
+  `MALLOC_ARENA_MAX=2`, to find the cause first.
 - **rc.8 not published**: its Release (run 42528082923, from d3f6c5b, PR #45) failed in the Linux bundle's resident
   check. The diagnostics from PR #42 caught it: after `--restart`, `--quit` exited 1 with "didn't respond in time"
   0.85 s later, because the restarted Tools, still starting, missed Link's 150 ms hello window. A real bug for anyone

@@ -344,3 +344,42 @@ Tools is waited for. A CLI test serves a fake Tools that answers `hello` after 6
 passes with 2 s. Link's background probes keep 150 ms. Since Release and Gates run from the tag, rc.8 stays
 unpublished and the fix goes into rc.9, with the self-update gate run as `update-from: v1.0.0-rc.7`.
 
+## D18 — Window-open memory has two levels on CI; find the cause before any rc passes on it
+
+Gates on rc.9 (run 42535663129, `update-from: v1.0.0-rc.7`) passed every gate, the self-update included (rc.7 → rc.9
+with a delta of 8.5 of 94.5 MB, back in the background after 67 s), except the open-window memory: PSS 297.5 / RSS
+333.3 against D10's cap of 281 / 310. rc.6 measured 301.4 / 338.3. Every other run measured 255.8–262.2 PSS: 30 CI
+runs and three Gates runs, rc.7's among them. Background (1.3) and closed (11.3) were normal in both high runs, and
+so were the runner image and the WebKit installed. Locally the same file measures 141 at 6 s on every run (full speed
+or pinned to one CPU): the memory peaks at 2.4 s and is flat from 4.4 s, so the sample does not sit on a slope there.
+The high level is about 40 MB above the normal one, about one glibc thread arena of the WebKit process (D10 found two
+of 38–40 MB), which a thread gets or not depending on lock contention; this is a hypothesis, not yet a finding.
+
+The cap stays at 281 (D10: it is only lowered) and a run that fails it is not re-run until it passes: two of five
+Gates runs measured above it, so the budget was not met. The memory probe workflow (run 42536860332) measured rc.9's
+published AppImage on eight `ubuntu-22.04` runners (five CPU models) with the gate's own command, then with
+`MALLOC_ARENA_MAX=2`:
+
+| | runs | open-window PSS (MB) |
+|---|---|---|
+| default | 8 | 256.6, 256.9, 257.1, 259.1, 260.5, **298.0, 302.2, 307.5** |
+| `MALLOC_ARENA_MAX=2` | 8 | 252.2–253.5 |
+
+`scripts/open-memory.py` shows where it goes at the normal level: the WebKit process holds 72 MB in 28–30 thread
+arenas and 25 MB in `[heap]`; capped, 3 arenas hold 26 MB and `[heap]` 68 MB. So the hypothesis holds: glibc gives a
+thread its own arena when the main one is contended, how many the WebKit process made while the window opened
+depended on timing, and every arena keeps the memory it handed out.
+
+**Decision.** Tools caps malloc arenas at two, for itself and the WebKit processes it starts, unless the user set
+`MALLOC_ARENA_MAX` (`platform::cap_malloc_arenas`, first in `main`: WebKit's processes inherit the variable, Tools
+itself gets `mallopt`). Apps and installers Tools starts do not inherit it (`child_environment` removes it; a test
+binary locks both). It removes the high level and lowers the normal one by about 4 MB. Fewer arenas means more lock
+contention, so the gate's perf command was run on rc.9 with and without the cap, two rounds each, alternating (local,
+4 CPUs): show 574 → 582 ms (means of 6), first start 1522 → 1391 ms, open-window wakeups 14.8 → 10.9 per second,
+idle CPU 0 both, cold start 621 → 687 ms (means of 4; the ranges overlap, 581–637 and 602–750). Cold start may be
+about 10 % slower, which four samples cannot settle. That is the wait from clicking the launcher, with Tools not
+running, to its window, so it is a real cost if it holds: about 66 ms, against about 40 MB less while the window is
+open on the starts that took the high level, and inside the 1500 ms budget the gate checks on every rc. If rc.10's
+gate or later runs show it holds, this trade is recorded in catalog `LOCAL.md` for the owner with D10's OPEN2. The cap stays 281 until rc.10's figures are in; lowering it is a Link `budgets.json`
+change.
+
