@@ -457,3 +457,31 @@ went quiet. Before changing the gate on that, CI must show the same, judged by t
 on every runner, (a) the busy pass's 6 s excess over its own end-of-timeline level is file-backed in the web process,
 with heap + arena + anon within 5 MB of the end level, and (b) the series falls to that runner's default-pass level
 and stays there. A runner with anonymous growth, or that does not settle, means real memory: the gate is not changed.
+
+**Result (probe run 42764576055, PR #49's CI build, 7 runners; runner 4 lost its apt step to the mirror outage):**
+default passes 217.4–220.4 MB with the web process's file-backed part at 20.7–21.0. Busy pass, per second:
+
+- (a) **met on all 7.** Five runners had already settled at 6 s (206.7–215.7, web file 19.8–20.7). Runners 1 and 8
+  read 293.9 and 292.8 at 6 s with web file 101.0 and 94.7; their heap + arena + anon was 3.8 and 4.3 MB above the
+  end level. The excess is file-backed code in the web process.
+- (b) **met for the load, with one thing the rule did not foresee.** Every runner fell to its default-pass level
+  (206–222) by 7–10 s after the open and stayed there, load or not, until about 27–29 s, when every runner rose to
+  252–266 with web file at 60 and heap + arena + anon unchanged. That is not the load (the spinners end at 11 s):
+  it is Tools' first update check, which every process delays by 60 s after its start (`FIRST_CHECK`,
+  `src/updates.rs:16`); the probe opens the window 32 s after the start, so the check lands 28 s after the open and
+  the page re-renders. The 20 s periodic trim before it shows at 24–27 s (186–199).
+
+So the high 6 s reading under load is the page still loading, and the gate may wait for the app to be quiet (D22).
+What the update check does to an open window is real and within the 281 cap (266 at most here), and it bounds how
+far the cap can be lowered: recorded as an open item, with the trimmer's settle check after such a burst as the
+possible follow-up. Still open: under load the gate's close request did not close the window (seen on CI once and
+locally), so the busy pass's "closed" figures are not used.
+
+## D22 — The open-window gate measures the open, idle window
+
+Link's `fleet_budget.py` slept a fixed 6 s after opening the window. With every CPU busy the page was still loading
+then on some runners, and the sample read its code (D21's result above). From Link v1.0.7 the gate measures 6 s
+after the open when the app's process tree used under 5 % of a CPU in the 2 s before, and otherwise after its first
+quiet 2 s; an app that is not quiet within 30 s fails the gate. An idle runner is measured exactly as before, never
+earlier than 6 s, and the budget is unchanged. It does not measure load-time peaks; neither did the fixed 6 s (idle
+runs peak at 268–312 MB at 2 s), and load time is held by the performance budgets (cold start, show latency).
