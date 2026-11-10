@@ -210,6 +210,7 @@ jobs:
       # Link's fleet budget tool on this package alone (D7): background, window open, and after closing it, against
       # the xvfb section of Link's tools/fleet/budgets.json. The tool follows the unpacked relaunch (U1).
       - name: Memory budgets of the package
+        id: memory
         if: runner.os == 'Linux' && !inputs.skip_packages
         timeout-minutes: 6
         run: |
@@ -218,6 +219,19 @@ jobs:
           python3 ../Arcade-link/tools/fleet/fleet_budget.py --apps target/budget --only tools --section xvfb \
             --budgets ../Arcade-link/tools/fleet/budgets.json --settle 30 --open tools --close-wait 20 \
             --json target/budget/memory.json | tee -a "$GITHUB_STEP_SUMMARY"
+      # A failing memory gate carries its own per-process breakdown (D21: PR #49's 309 MB run had none).
+      - name: Where the window-open memory went
+        if: failure() && steps.memory.outcome == 'failure'
+        timeout-minutes: 3
+        run: |
+          xvfb-run -a python3 scripts/open-memory.py ../Arcade-link/tools/fleet target/budget/Arcade-Tools.AppImage \
+            --label "ci ${{ github.sha }}" | tee target/budget/open-memory.jsonl
+      - uses: actions/upload-artifact@v4
+        if: always() && (steps.memory.outcome == 'success' || steps.memory.outcome == 'failure')
+        with:
+          name: memory-budget
+          path: Arcade-tools/target/budget/*.json*
+          if-no-files-found: warn
       # Link's performance budgets on the same package (RT-6, PERF-2; DECISIONS.md D12): cold start and show latency,
       # idle CPU and wakeups in the background, with Home open and after closing it, and disk use.
       - name: Performance budgets of the package

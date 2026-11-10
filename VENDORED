@@ -9,7 +9,7 @@ scripts/validate_shortcuts.py  sha256:3b5d2981ab87fdf07437daa294dce825d59b635804
 packaging/windows/arcade.iss  sha256:fe152028ff674fdacdef4aed8970bb0a7afeb2dd67d2a3af075d7d95683bf96b  source:packaging/windows/arcade.iss
 packaging/windows/arcade.nsh  sha256:1f548b420bc08b479d6c65801a208aa67dc80fef851b5e2a49696d307562831e  source:packaging/windows/arcade.nsh
 packaging/windows/arcade-integration.ps1  sha256:2b2a8b699dc1e6c81c02bb9ad9be1ddf2f8a5447541eb1dfe886056aa5dc4fd6  source:packaging/windows/arcade-integration.ps1
-packaging/linux/arcade-trim-preload.c  sha256:ef153c6182bd91999b7c088e8225dd15bb979a12086937f609740a880387fcd3  source:packaging/linux/arcade-trim-preload.c
+packaging/linux/arcade-trim-preload.c  sha256:5460b9871e905128abe46e6c02a7ed9c4c3b3d99ac9beb6c9ea2526f733612fc  source:packaging/linux/arcade-trim-preload.c
 packaging/linux/arcade_trim.h  sha256:9c1d65cac63d7aa59b705c442b8840a7f9576a9bfcbeaf39e5630bb303485131  source:qt/arcade_trim.h
 
 Tauri NSIS template

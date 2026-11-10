@@ -414,3 +414,37 @@ and ten "unmaintained" notices are accepted in `deny.toml`, each with its reason
 All come through Tauri 2 (urlpattern's unic-* crates, gtk-rs 0.18's proc-macro-error), zbus 5 (zvariant,
 zbus_names, zvariant_derive) or cosmic-text (ttf-parser), with no maintained replacement that those can take yet.
 Licences, bans and sources pass across the workspace.
+
+## D21 — The open-window gate's second level was runner speed, not PR #49; one more trim and Link's arena cap
+
+PR #49 (crash reports, D19/D20, Link v1.0.6) failed only the open-window gate: 309.3 / 346.7 MB PSS / RSS against
+281 / 310. It was not the PR's code. The memory probe on **unchanged rc.10** (run 42750339792, 8 runners) measured
+247.6–251.5 on seven runners and 281–295 on the eighth, where the gate's own command failed at 289.5. That runner
+was the slow one (its dependency step took 108 s against 27–55 s). The difference was entirely WebKitWebProcess's
+file-backed pages, 104 MB instead of 56 (libwebkit2gtk 34, libLLVM 18, libjavascriptcoregtk 16 MB). Link's WebKit
+trimmer dropped those clean code pages once 2 s after the helper started and then every 20 s; when the page was
+still loading at 2 s, the code it ran afterwards stayed resident until 22 s, past the gate's 6 s sample. rc.10's
+252.0 and PR #47's 253.3 were samples on normal runners, so rc.10's green Gates did not prove the budget either. The
+arena cap (D18) does reach WebKit: `/proc/<pid>/environ` of both helpers holds `MALLOC_ARENA_MAX=2` on both builds.
+Ruled out with evidence: `install_crash_reports` (no thread, environment change or exec), Link's v1.0.5..v1.0.6 diff
+under `crates/` (nothing in relaunch, trim or the fleet tool), the crash-report UI (the gate opens Settings; the
+process breakdown is the same for rc.10 and the branch).
+
+- **Fix (Link v1.0.7, Link D14):** for its first 15 s a WebKit helper's trimmer trims again each time the page
+  faults stop, then every 20 s as before. Locally the gate command on PR #49's own AppImage read 302–351 MB before
+  and 265–274 after, idle or with every CPU busy.
+- **Also found (rc.10 has it):** apps and installers Tools started inherited `MALLOC_ARENA_MAX=2`, against D18. The
+  AppImage launcher set the cap and the unpacked relaunch (U1) passed it on; the resident then took it for the
+  user's value and did not remove it. Link v1.0.7's `relaunch_unpacked` drops a cap its process set, with a test that
+  failed before. Tools now uses Link's `runtime::cap_malloc_arenas` (Link D13) instead of its own copy, because only
+  Link's cap is known to the relaunch and to `childenv::sanitize`.
+- **Verification without re-running to green:** the memory probe can now measure a CI run's AppImage (`run`), and
+  adds a pass with every CPU busy while the window opens (locally, that load reproduced the high level with rc.10's
+  trimmer). A failing
+  memory gate in CI now runs `open-memory.py` and uploads `memory.json` with the breakdown.
+- **Background reading (1.4 MB PSS, 2 processes), unchanged since rc.3:** the two processes are the AppImage launcher,
+  exited but not yet reaped by `fleet_budget.py` (0 MB), and the unpacked resident. 1.4 MB is the resident after
+  `page_out_hidden` 15 s after start: PSS counts only pages in RAM, and the runners have swap (about 13 MB sits there;
+  the same state reads 14–15 MB on a machine without swap). It is a real measure of RAM held, not a measurement bug.
+
+Diagnosed with Fable 5.2's advice (owner rule, catalog PROGRESS 2026-11-10); reviewed, reproduced and fixed here.
