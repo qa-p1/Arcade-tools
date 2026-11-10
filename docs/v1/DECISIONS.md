@@ -448,3 +448,12 @@ process breakdown is the same for rc.10 and the branch).
   the same state reads 14–15 MB on a machine without swap). It is a real measure of RAM held, not a measurement bug.
 
 Diagnosed with Fable 5.2's advice (owner rule, catalog PROGRESS 2026-11-10); reviewed, reproduced and fixed here.
+
+**Follow-up (2026-11-10): the busy-CPU pass.** The probe on PR #49's CI build (run 42758214825) read 206–222 MB in
+every pass on 7 runners, except the pass that keeps every CPU busy from 1 s before the open through the 6 s sample:
+289.7 on runner 7, 263.0 on runner 3, 206–217 elsewhere (rc.10's trimmer read 292–296 in that pass). Locally the
+excess at 6 s was file-backed code in the web process while the page was still loading, gone about 1 s after its CPU
+went quiet. Before changing the gate on that, CI must show the same, judged by this rule fixed before the results:
+on every runner, (a) the busy pass's 6 s excess over its own end-of-timeline level is file-backed in the web process,
+with heap + arena + anon within 5 MB of the end level, and (b) the series falls to that runner's default-pass level
+and stays there. A runner with anonymous growth, or that does not settle, means real memory: the gate is not changed.
