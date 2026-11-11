@@ -485,3 +485,18 @@ after the open when the app's process tree used under 5 % of a CPU in the 2 s be
 quiet 2 s; an app that is not quiet within 30 s fails the gate. An idle runner is measured exactly as before, never
 earlier than 6 s, and the budget is unchanged. It does not measure load-time peaks; neither did the fixed 6 s (idle
 runs peak at 268–312 MB at 2 s), and load time is held by the performance budgets (cold start, show latency).
+
+## D23 — Quit always quits; the "close under load" item was Link's harness
+
+- **Close under load (open item since rc.9):** not a Tools bug. Link's fleet harness `tools/fleet/wmclose.c` flushed
+  and exited, and a loaded X server dropped its WM_DELETE_WINDOW unread (7 of 13 local runs; 0 of 10 with `XSync` +
+  `XCloseDisplay`). Fixed in Link 1.0.7 (Link #61). Tools needed no close fix.
+- **Install-relaunch quit (Link real-fleet e2e run 42988304697):** after `--install --silent` relaunched the
+  installed copy, `app.quit` was answered but the process (same pid as the endpoint) was still running 15 s later.
+  Not reproduced locally in 13 runs of the same check on the same code (rc.10 = c68b245 minus docs): headless, inside
+  the e2e's own X session, and with all 12 cores saturated. The quit path's cleanup (presence, tray host and
+  renderer, index watcher, then the event loop's exit) is best effort, but nothing bounded it.
+- **Decision:** a quit request starts a 5 s watchdog. If the cleanup or the event loop's exit hasn't ended the process
+  by then, Tools writes `Quit did not finish within 5 s (stuck in: <step>)` to stderr (its log) and exits. A quit
+  can no longer leave Tools running with its endpoint alive, and the next occurrence names its own cause. Link's
+  e2e now also prints each thread's state and kernel wait channel when an app does not quit.
