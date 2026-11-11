@@ -5,8 +5,8 @@ use crate::release::{versions_match, Asset, Channel, Release};
 use crate::{Error, Result};
 use arcade_link::release::{self as link, FileEntry, PublicKey, ReleaseManifest};
 
-/// The production keys (current and next, one base64 `RW…` line each). Empty until the owner creates the signing
-/// key (PROGRESS.md B1); until then stable and nightly updates are refused, never accepted unsigned.
+/// The production keys (current and next, one base64 `RW…` line each). Stable and nightly updates are verified
+/// against them and never accepted unsigned.
 const UPDATE_KEYS: &str = include_str!("../resources/update-keys.pub");
 
 /// Trusted only by debug builds talking to a loopback test server; its secret is in `tests/support`.

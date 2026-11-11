@@ -1,4 +1,6 @@
 # Arcade update signing keys (minisign ed25519), one base64 `RW…` line each: the current key and, during a rotation,
-# the next. Stable and nightly releases verify against these (docs/v1/DECISIONS.md D5). Empty until the owner creates
-# the key with `arcade-link keygen --secret-to-gh` (Arcade-catalog dev/v1/LOCAL.md §1); until then Tools refuses
-# stable and nightly updates instead of accepting them unsigned.
+# the next. Stable and nightly releases verify against these (docs/v1/DECISIONS.md D5). The private key exists only
+# as the ARCADE_UPDATE_SIGNING_KEY Actions secret of each app repo (Link docs/SIGNING.md).
+# Current key, created 2026-11-11 with `arcade-link keygen --secret-to-gh` (key id 960D066D55F93A94):
+untrusted comment: minisign public key 960D066D55F93A94
+RWSUOvlVbQYNllRw2PgYmp2vg3GsQv3DJy868cCpzxQMnSL1ygcN/EXt

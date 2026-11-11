@@ -77,7 +77,7 @@ file is replaced) and the per-OS installer kinds (the platforms differ).
   keys built into Tools (`resources/update-keys.pub`: current and next). The trusted comment must name this app and
   channel. The chosen asset's size and SHA-256 must equal its manifest entry; `arcade-release.json` only supplies
   install arguments. Test manifests are unsigned (Link D4) and are reachable only through the override. Until the
-  owner adds the public key (B1, `LOCAL.md` §1), the key file is empty and stable/nightly updates are refused with a
+  owner added the public key (B1, done 2026-11-11, key id 960D066D55F93A94), the key file was empty and stable/nightly updates were refused with a
   clear message: never unsigned. Debug-only loopback test sources trust a fixed test key whose secret lives in
   `tests/support`; release builds cannot use it.
 - **Chunk store:** the "shared store" is the files Tools already keeps: every installed executable and every retained
