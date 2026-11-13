@@ -1253,7 +1253,10 @@ fn request_quit(app: &AppHandle) {
         std::thread::spawn(|| {
             std::thread::sleep(QUIT_DEADLINE);
             let step = STEPS[usize::from(STEP.load(Ordering::SeqCst)).min(STEPS.len() - 1)];
-            eprintln!("Quit did not finish within {} s (stuck in: {step}); exiting", QUIT_DEADLINE.as_secs());
+            eprintln!(
+                "Quit did not finish within {} s (stuck in: {step}); exiting",
+                QUIT_DEADLINE.as_secs()
+            );
             std::process::exit(0);
         });
     }
