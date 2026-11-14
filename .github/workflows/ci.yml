@@ -74,7 +74,7 @@ jobs:
           node-version-file: Arcade-tools/.nvmrc
           cache: npm
           cache-dependency-path: Arcade-tools/package-lock.json
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Linux dependencies and isolation tools
@@ -345,7 +345,7 @@ jobs:
         with:
           workspaces: Arcade-tools
           save-if: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Linux overlay and isolated render dependencies
