@@ -4,6 +4,14 @@ Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
 
 ## 2026-11-09 (session 2)
 
+- **Not ready to promote rc.10:** TOOLS.md requires local crash reports ("<App> crashed", Copy report, Open
+  GitHub issue) and rc.10 had none; no gate checked it. Built (50e5349, D19): Tools installs Link's crash reports,
+  Home lists new reports from Tools and every catalog app, CLI test `a_fatal_signal_leaves_a_crash_report`. It
+  needed Link 1.0.6's lazy crash folder (CLI-4: `--version` left `crashes/` behind). cargo deny now checks the whole
+  workspace (85e46a0, D20: the job had been green while checking only the root package; 10 advisories, each fixed
+  or accepted with a reason). Pins, workflows, VENDORED and notices move from Link v1.0.5 to v1.0.6 (cd380d6); the
+  vendored files and the design kit are unchanged. Next: PR → green → merge → rc.11 → Gates with
+  `update-from: v1.0.0-rc.10`.
 - **rc.10 published** (873eab1, PR #47 with D18). **[Gates on rc.10](https://github.com/qa-p1/Arcade-tools/actions/runs/42544104046):
   every gate passed on the published files** (11 of 11 jobs), with `previous: v0.4.6` and `update-from: v1.0.0-rc.9`:
   checksums, manifest and prerelease; conformance; package smoke on Linux, Windows and macOS; upgrade 0.4.6 → 1.0.0

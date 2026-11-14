@@ -22,5 +22,7 @@ flag: Tools stops offering it and tells installed copies to roll back.
 ## Dependencies
 
 `cargo deny check` (advisories, licences, bans, sources) runs in CI; Dependabot watches Cargo, npm and GitHub
-Actions. Accepted advisories are listed with a reason in `deny.toml`. Third-party licences are in
+Actions. Accepted advisories are listed with a reason in `deny.toml`: today only "unmaintained" notices (no known
+vulnerability) for crates that come in through Tauri, gtk-rs, zbus 5 and cosmic-text with no maintained
+replacement yet. Third-party licences are in
 `THIRD_PARTY_NOTICES.md`, also shown in Settings → About.

@@ -32,8 +32,14 @@ Without options, opens the Arcade Tools window.
 ";
 
 fn main() {
-    // First, while Tools has one thread: WebKit's processes inherit it (D18).
-    arcade_tools_core::platform::cap_malloc_arenas();
+    // First, while Tools has one thread: WebKit's processes inherit it, apps Tools starts do not (D18, D21).
+    arcade_link::runtime::cap_malloc_arenas();
+    // RT-4: a panic or a fatal signal leaves a local report; Home lists it with every app's (TOOLS.md).
+    arcade_link::runtime::install_crash_reports(
+        "Arcade Tools",
+        env!("CARGO_PKG_VERSION"),
+        arcade_link::runtime::crash_dir(arcade_link::ids::TOOLS),
+    );
     arcade_link::childenv::on_startup();
     // Tools takes no file paths, and the Uninstall review, Settings and the
     // tray all open webviews: WebKit needs the AppImage's own directory.

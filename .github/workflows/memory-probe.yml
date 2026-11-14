@@ -1,14 +1,22 @@
 name: Memory probe
 
-# Where the window-open memory of a published AppImage goes, on several runners at once (Tools docs/v1/DECISIONS.md
-# D18). Each runner runs the budget gate's own command, then scripts/open-memory.py for a per-process breakdown,
-# then both again with MALLOC_ARENA_MAX=2. A diagnostic, never a gate: it does not fail on a budget.
+# Where the window-open memory of an AppImage goes, on several runners at once (Tools docs/v1/DECISIONS.md D18).
+# It measures a published release, or with `run` the AppImage a CI run built (a pull request's own build, before
+# anything is published). Each runner runs the budget gate's own command, then scripts/open-memory.py for a
+# per-process breakdown, then both again with MALLOC_ARENA_MAX=2, then the gate's command once more with every CPU
+# busy while the window opens (a slow runner on purpose). A diagnostic, never a gate: it does not fail on a budget.
 on:
   workflow_dispatch:
     inputs:
       tag:
         description: Published release to measure (vX.Y.Z or vX.Y.Z-rc.N)
-        default: v1.0.0-rc.9
+        default: v1.0.0-rc.10
+      run:
+        description: CI run id whose tools-appimage artifact to measure instead of a release (optional)
+        default: ''
+      link-ref:
+        description: Arcade Link ref whose fleet tools measure (default the pinned tag; a commit to try a gate change)
+        default: ''
   pull_request:
     paths:
       - .github/workflows/memory-probe.yml
@@ -16,11 +24,13 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 env:
   GH_TOKEN: ${{ github.token }}
   PYTHONUTF8: '1'
-  TAG: ${{ inputs.tag || 'v1.0.0-rc.9' }}
+  TAG: ${{ inputs.tag || 'v1.0.0-rc.10' }}
+  RUN: ${{ inputs.run }}
 
 jobs:
   probe:
@@ -38,7 +48,7 @@ jobs:
       - uses: actions/checkout@v4
         with: { path: Arcade-tools }
       - uses: actions/checkout@v4
-        with: { repository: qa-p1/Arcade-Link, ref: v1.0.5, path: Arcade-link }
+        with: { repository: qa-p1/Arcade-Link, ref: "${{ inputs.link-ref || 'v1.0.7' }}", path: Arcade-link }
       - uses: actions/setup-python@v5
         with: { python-version: '3.12' }
       - name: Linux dependencies (as the budget gate)
@@ -48,15 +58,20 @@ jobs:
             sudo apt-get update -o Acquire::Retries=3 && sudo apt-get install -y -o Acquire::Retries=3 libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libssl-dev libwayland-dev libxkbcommon-dev libxkbcommon-x11-0 patchelf desktop-file-utils xvfb dbus-x11 xdotool python3-gi gir1.2-glib-2.0 && break
             sleep $((i * 15))
           done
-      - name: The published AppImage
+      - name: The AppImage (a CI run's, or the published one)
         timeout-minutes: 5
         run: |
           mkdir -p target/budget target/published
           for i in 1 2 3; do
-            gh release download "$TAG" -R "$GITHUB_REPOSITORY" -D target/published -p '*.AppImage' -p SHA256SUMS.txt --clobber && break
+            if [ -n "$RUN" ]; then
+              gh run download "$RUN" -R "$GITHUB_REPOSITORY" -n tools-appimage -D target/published && break
+            else
+              gh release download "$TAG" -R "$GITHUB_REPOSITORY" -D target/published -p '*.AppImage' -p SHA256SUMS.txt --clobber && break
+            fi
             sleep $((i * 10))
           done
-          (cd target/published && sha256sum --strict --ignore-missing -c SHA256SUMS.txt)
+          if [ -z "$RUN" ]; then (cd target/published && sha256sum --strict --ignore-missing -c SHA256SUMS.txt); fi
+          echo "### Measuring $([ -n "$RUN" ] && echo "CI run $RUN" || echo "$TAG"): $(cd target/published && sha256sum *.AppImage)" | tee -a "$GITHUB_STEP_SUMMARY"
           cp target/published/*.AppImage target/budget/Arcade-Tools.AppImage
           chmod +x target/budget/Arcade-Tools.AppImage
           nproc; grep -m1 'model name' /proc/cpuinfo; free -m
@@ -72,6 +87,31 @@ jobs:
             xvfb-run -a python3 scripts/open-memory.py ../Arcade-link/tools/fleet target/budget/Arcade-Tools.AppImage \
               --label "runner ${{ matrix.runner }} arenas ${arenas:-unset}" | tee -a target/open-memory.jsonl
           done
+      # A machine with no CPU to spare while the window opens (D22). The gate's own command first: the window opens
+      # 32 s after it starts (2 s launch, 30 s settle), so every CPU is kept busy from 31 s for 12 s. Then
+      # open-memory.py under the same load, reading the memory every second for 30 s: when the window was mapped,
+      # what a high reading at 6 s is made of, when it settles and at what level.
+      - name: Measure with every CPU busy while the window opens
+        timeout-minutes: 8
+        run: |
+          unset MALLOC_ARENA_MAX
+          busy=$(( $(nproc) + 2 ))
+          echo "### CPUs busy while the window opens" | tee -a "$GITHUB_STEP_SUMMARY"
+          (sleep 31; for cpu in $(seq "$busy"); do timeout 12 sh -c 'while :; do :; done' & done; wait) &
+          python3 ../Arcade-link/tools/fleet/fleet_budget.py --apps target/budget --only tools --section xvfb \
+            --budgets ../Arcade-link/tools/fleet/budgets.json --settle 30 --open tools --close-wait 20 \
+            | tee -a "$GITHUB_STEP_SUMMARY" || true
+          wait
+          xvfb-run -a python3 scripts/open-memory.py ../Arcade-link/tools/fleet target/budget/Arcade-Tools.AppImage \
+            --label "runner ${{ matrix.runner }} busy $busy" --busy "$busy" --timeline 30 | tee -a target/open-memory.jsonl \
+            | python3 -c 'import json, sys
+          d = json.loads(sys.stdin.readline())
+          web = lambda ps: next((p for name, p in ps.items() if name.startswith("WebKitWebProces")), {"pss": 0, "by_kind": {}})
+          six, end = web(d["processes"]), web(d["at_end"])
+          print("window mapped after", d["mapped_at"], "s; at 6 s", d["total_pss"], "MB, web process", six["pss"], six["by_kind"])
+          print("at the end: web process", end["pss"], end["by_kind"])
+          print("seconds:PSS/web file-backed", " ".join("%s:%.0f/%.0f" % (t, total, file) for t, total, _, file in d["timeline"]))' \
+            | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
           name: open-memory-${{ matrix.runner }}

@@ -1244,21 +1244,44 @@ fn request_quit(app: &AppHandle) {
         return;
     }
     let app = app.clone();
+    // Quit always quits (D23): the cleanup below is best effort. If a step or the event loop's exit hangs, the
+    // watchdog names the step on stderr (the app log) and ends the process, so a quit request can't leave Tools
+    // running with its endpoint alive (Link real-fleet e2e run 42988304697).
+    static STEP: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
+    const STEPS: [&str; 5] = ["start", "presence", "tray", "index", "event loop exit"];
+    if STEP.swap(1, Ordering::SeqCst) == 0 {
+        std::thread::spawn(|| {
+            std::thread::sleep(QUIT_DEADLINE);
+            let step = STEPS[usize::from(STEP.load(Ordering::SeqCst)).min(STEPS.len() - 1)];
+            eprintln!(
+                "Quit did not finish within {} s (stuck in: {step}); exiting",
+                QUIT_DEADLINE.as_secs()
+            );
+            std::process::exit(0);
+        });
+    }
     std::thread::spawn(move || {
+        STEP.store(1, Ordering::SeqCst);
         state
             .presence
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .take();
+        STEP.store(2, Ordering::SeqCst);
         if let Ok(service) = tray::service(&app) {
             service.stop(state.restarting.load(Ordering::SeqCst));
         }
+        STEP.store(3, Ordering::SeqCst);
         if let Some(index) = app.try_state::<Arc<index_service::IndexService>>() {
             index.stop();
         }
+        STEP.store(4, Ordering::SeqCst);
         app.exit(0);
     });
 }
+
+/// How long a quit's cleanup may take before the process ends anyway.
+const QUIT_DEADLINE: std::time::Duration = std::time::Duration::from_secs(5);
 
 /// Core self-update/restart calls this on its worker before stopping Tools.
 pub fn announce_restarting(app: &AppHandle) {
@@ -1386,6 +1409,10 @@ pub fn run(background: bool, quit: bool) {
             hub::refresh_shortcut_sheets,
             hub::dashboard,
             hub::health,
+            hub::crash_reports,
+            hub::crash_report,
+            hub::dismiss_crash,
+            hub::open_crash_issue,
             hub::fix_health,
             hub::open_app_settings,
             hub::restart_app,

@@ -77,7 +77,7 @@ file is replaced) and the per-OS installer kinds (the platforms differ).
   keys built into Tools (`resources/update-keys.pub`: current and next). The trusted comment must name this app and
   channel. The chosen asset's size and SHA-256 must equal its manifest entry; `arcade-release.json` only supplies
   install arguments. Test manifests are unsigned (Link D4) and are reachable only through the override. Until the
-  owner adds the public key (B1, `LOCAL.md` §1), the key file is empty and stable/nightly updates are refused with a
+  owner added the public key (B1, done 2026-11-11, key id 960D066D55F93A94), the key file was empty and stable/nightly updates were refused with a
   clear message: never unsigned. Debug-only loopback test sources trust a fixed test key whose secret lives in
   `tests/support`; release builds cannot use it.
 - **Chunk store:** the "shared store" is the files Tools already keeps: every installed executable and every retained
@@ -385,3 +385,118 @@ did not: on CI, with the cap, PR #47's build measured 630 ms and rc.10's gate 38
 trade is recorded. rc.10's gate measured window-open PSS at 252.0. The cap stays 281 until rc.10's figures are in; lowering it is a Link `budgets.json`
 change.
 
+
+## D19 — Crash reports were missing from the 1.0 candidates
+
+TOOLS.md §Crash reports (and the owner checklist) asks for "<App> crashed" with "Copy report" and "Open GitHub
+issue", reviewed before anything is sent, and ARCADE_APP.md RT-4 for every app's own reports. rc.1–rc.10 had
+neither: Tools never installed Link's crash handler and listed no reports. No exit gate checked it, so rc.10's green
+Gates did not cover it; it was found while moving Box onto Link's runtime. rc.10 is therefore not a promotion
+candidate.
+
+- Tools installs `runtime::install_crash_reports` first in `main`. A CLI test sends SIGSEGV to the running binary and
+  finds the report under `arcade/tools/crashes/`.
+- `crashes.rs` lists the reports of Tools and every catalog app that are not dismissed, reads one (only a
+  `*.crash` name in that app's folder), and remembers dismissals in `crashes-dismissed.json`, which forgets files
+  Link has pruned. Home reads the list when shown, like health; nothing polls.
+- The notice offers only View and Dismiss; Copy and Open GitHub issue live in the report dialog, so nothing leaves
+  the machine before the text was on screen. The issue link is built in Rust from the catalog repository (checked
+  against the owner allowlist), cut at a line boundary to GitHub's URL limit with a note; the browser shows it for
+  the user to submit or not. A UI check covers the order (no issue before viewing), Escape and Dismiss.
+
+## D20 — cargo deny checks the whole workspace
+
+Found while setting up Box's `deny.toml` (2026-11-09): Tools' root `Cargo.toml` is itself a package, so
+`cargo deny check` gathered only that crate's 266 dependencies and skipped the desktop app's (Tauri, GTK, zbus,
+the overlay). The "clean cargo deny" of step 7 and rc.1–rc.10 therefore covered only part of Tools. CI now runs
+`cargo deny --workspace --all-features check`. Across the workspace, a yanked `async-executor` 1.14.0 is updated
+and ten "unmaintained" notices are accepted in `deny.toml`, each with its reason. None is a known vulnerability.
+All come through Tauri 2 (urlpattern's unic-* crates, gtk-rs 0.18's proc-macro-error), zbus 5 (zvariant,
+zbus_names, zvariant_derive) or cosmic-text (ttf-parser), with no maintained replacement that those can take yet.
+Licences, bans and sources pass across the workspace.
+
+## D21 — The open-window gate's second level was runner speed, not PR #49; one more trim and Link's arena cap
+
+PR #49 (crash reports, D19/D20, Link v1.0.6) failed only the open-window gate: 309.3 / 346.7 MB PSS / RSS against
+281 / 310. It was not the PR's code. The memory probe on **unchanged rc.10** (run 42750339792, 8 runners) measured
+247.6–251.5 on seven runners and 281–295 on the eighth, where the gate's own command failed at 289.5. That runner
+was the slow one (its dependency step took 108 s against 27–55 s). The difference was entirely WebKitWebProcess's
+file-backed pages, 104 MB instead of 56 (libwebkit2gtk 34, libLLVM 18, libjavascriptcoregtk 16 MB). Link's WebKit
+trimmer dropped those clean code pages once 2 s after the helper started and then every 20 s; when the page was
+still loading at 2 s, the code it ran afterwards stayed resident until 22 s, past the gate's 6 s sample. rc.10's
+252.0 and PR #47's 253.3 were samples on normal runners, so rc.10's green Gates did not prove the budget either. The
+arena cap (D18) does reach WebKit: `/proc/<pid>/environ` of both helpers holds `MALLOC_ARENA_MAX=2` on both builds.
+Ruled out with evidence: `install_crash_reports` (no thread, environment change or exec), Link's v1.0.5..v1.0.6 diff
+under `crates/` (nothing in relaunch, trim or the fleet tool), the crash-report UI (the gate opens Settings; the
+process breakdown is the same for rc.10 and the branch).
+
+- **Fix (Link v1.0.7, Link D14):** for its first 15 s a WebKit helper's trimmer trims again each time the page
+  faults stop, then every 20 s as before. Locally the gate command on PR #49's own AppImage read 302–351 MB before
+  and 265–274 after, idle or with every CPU busy.
+- **Also found (rc.10 has it):** apps and installers Tools started inherited `MALLOC_ARENA_MAX=2`, against D18. The
+  AppImage launcher set the cap and the unpacked relaunch (U1) passed it on; the resident then took it for the
+  user's value and did not remove it. Link v1.0.7's `relaunch_unpacked` drops a cap its process set, with a test that
+  failed before. Tools now uses Link's `runtime::cap_malloc_arenas` (Link D13) instead of its own copy, because only
+  Link's cap is known to the relaunch and to `childenv::sanitize`.
+- **Verification without re-running to green:** the memory probe can now measure a CI run's AppImage (`run`), and
+  adds a pass with every CPU busy while the window opens (locally, that load reproduced the high level with rc.10's
+  trimmer). A failing
+  memory gate in CI now runs `open-memory.py` and uploads `memory.json` with the breakdown.
+- **Background reading (1.4 MB PSS, 2 processes), unchanged since rc.3:** the two processes are the AppImage launcher,
+  exited but not yet reaped by `fleet_budget.py` (0 MB), and the unpacked resident. 1.4 MB is the resident after
+  `page_out_hidden` 15 s after start: PSS counts only pages in RAM, and the runners have swap (about 13 MB sits there;
+  the same state reads 14–15 MB on a machine without swap). It is a real measure of RAM held, not a measurement bug.
+
+Diagnosed with Fable 5.2's advice (owner rule, catalog PROGRESS 2026-11-10); reviewed, reproduced and fixed here.
+
+**Follow-up (2026-11-10): the busy-CPU pass.** The probe on PR #49's CI build (run 42758214825) read 206–222 MB in
+every pass on 7 runners, except the pass that keeps every CPU busy from 1 s before the open through the 6 s sample:
+289.7 on runner 7, 263.0 on runner 3, 206–217 elsewhere (rc.10's trimmer read 292–296 in that pass). Locally the
+excess at 6 s was file-backed code in the web process while the page was still loading, gone about 1 s after its CPU
+went quiet. Before changing the gate on that, CI must show the same, judged by this rule fixed before the results:
+on every runner, (a) the busy pass's 6 s excess over its own end-of-timeline level is file-backed in the web process,
+with heap + arena + anon within 5 MB of the end level, and (b) the series falls to that runner's default-pass level
+and stays there. A runner with anonymous growth, or that does not settle, means real memory: the gate is not changed.
+
+**Result (probe run 42764576055, PR #49's CI build, 7 runners; runner 4 lost its apt step to the mirror outage):**
+default passes 217.4–220.4 MB with the web process's file-backed part at 20.7–21.0. Busy pass, per second:
+
+- (a) **met on all 7.** Five runners had already settled at 6 s (206.7–215.7, web file 19.8–20.7). Runners 1 and 8
+  read 293.9 and 292.8 at 6 s with web file 101.0 and 94.7; their heap + arena + anon was 3.8 and 4.3 MB above the
+  end level. The excess is file-backed code in the web process.
+- (b) **met for the load, with one thing the rule did not foresee.** Every runner fell to its default-pass level
+  (206–222) by 7–10 s after the open and stayed there, load or not, until about 27–29 s, when every runner rose to
+  252–266 with web file at 60 and heap + arena + anon unchanged. That is not the load (the spinners end at 11 s):
+  it is Tools' first update check, which every process delays by 60 s after its start (`FIRST_CHECK`,
+  `src/updates.rs:16`); the probe opens the window 32 s after the start, so the check lands 28 s after the open and
+  the page re-renders. The 20 s periodic trim before it shows at 24–27 s (186–199).
+
+So the high 6 s reading under load is the page still loading, and the gate may wait for the app to be quiet (D22).
+What the update check does to an open window is real and within the 281 cap (266 at most here), and it bounds how
+far the cap can be lowered: recorded as an open item, with the trimmer's settle check after such a burst as the
+possible follow-up. Still open: under load the gate's close request did not close the window (seen on CI once and
+locally), so the busy pass's "closed" figures are not used.
+
+## D22 — The open-window gate measures the open, idle window
+
+Link's `fleet_budget.py` slept a fixed 6 s after opening the window. With every CPU busy the page was still loading
+then on some runners, and the sample read its code (D21's result above). From Link v1.0.7 the gate measures 6 s
+after the open when the app's process tree used under 5 % of a CPU in the 2 s before, and otherwise after its first
+quiet 2 s; an app that is not quiet within 30 s fails the gate. An idle runner is measured exactly as before, never
+earlier than 6 s, and the budget is unchanged. It does not measure load-time peaks; neither did the fixed 6 s (idle
+runs peak at 268–312 MB at 2 s), and load time is held by the performance budgets (cold start, show latency).
+
+## D23 — Quit always quits; the "close under load" item was Link's harness
+
+- **Close under load (open item since rc.9):** not a Tools bug. Link's fleet harness `tools/fleet/wmclose.c` flushed
+  and exited, and a loaded X server dropped its WM_DELETE_WINDOW unread (7 of 13 local runs; 0 of 10 with `XSync` +
+  `XCloseDisplay`). Fixed in Link 1.0.7 (Link #61). Tools needed no close fix.
+- **Install-relaunch quit (Link real-fleet e2e run 42988304697):** after `--install --silent` relaunched the
+  installed copy, `app.quit` was answered but the process (same pid as the endpoint) was still running 15 s later.
+  Not reproduced locally in 13 runs of the same check on the same code (rc.10 = c68b245 minus docs): headless, inside
+  the e2e's own X session, and with all 12 cores saturated. The quit path's cleanup (presence, tray host and
+  renderer, index watcher, then the event loop's exit) is best effort, but nothing bounded it.
+- **Decision:** a quit request starts a 5 s watchdog. If the cleanup or the event loop's exit hasn't ended the process
+  by then, Tools writes `Quit did not finish within 5 s (stuck in: <step>)` to stderr (its log) and exits. A quit
+  can no longer leave Tools running with its endpoint alive, and the next occurrence names its own cause. Link's
+  e2e now also prints each thread's state and kernel wait channel when an app does not quit.

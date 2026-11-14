@@ -130,6 +130,15 @@ export interface Dashboard {
   totalMemoryBytes: number;
   totalCpuPercent: number;
 }
+/** A local crash report not dismissed yet (TOOLS.md §Crash reports). */
+export interface CrashSummary {
+  app: string;
+  file: string;
+  created: number;
+  kind: string;
+  message: string;
+}
+
 export interface HealthIssue {
   app: string; kind: string; path: string | null; reason: string; canFix: boolean;
   fixAction: 'repair' | 'adopt' | 'remove_stale_registry' | 'remove_stale_receipt' | 'open_settings' | 'check_updates' | 'open_engines' | 'open_shortcuts';
@@ -254,6 +263,10 @@ export const api = {
   completeOnboarding: () => invoke<void>('complete_onboarding'),
   dashboard: () => invoke<Dashboard>('dashboard'),
   health: () => invoke<HealthIssue[]>('health'),
+  crashReports: () => invoke<CrashSummary[]>('crash_reports'),
+  crashReport: (id: string, file: string) => invoke<string>('crash_report', { id, file }),
+  dismissCrash: (id: string, file: string) => invoke<void>('dismiss_crash', { id, file }),
+  openCrashIssue: (id: string, file: string) => invoke<void>('open_crash_issue', { id, file }),
   fixHealth: (id: string, action: HealthIssue['fixAction']) => invoke<string>('fix_health', { id, action }),
   openAppSettings: (id: string) => invoke<void>('open_app_settings', { id }),
   restartApp: (id: string) => invoke<void>('restart_app', { id }),

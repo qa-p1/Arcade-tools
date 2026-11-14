@@ -1,9 +1,10 @@
 #![cfg(all(target_os = "linux", target_env = "gnu"))]
-//! Tools caps glibc's malloc arenas for itself and the WebKit processes it starts (DECISIONS.md D18): they inherit
-//! `MALLOC_ARENA_MAX`, apps and installers Tools starts do not. A test binary of its own because the setting is
-//! process-wide.
+//! Tools caps glibc's malloc arenas for itself and the WebKit processes it starts (DECISIONS.md D18; Link's cap
+//! since D21): they inherit `MALLOC_ARENA_MAX`, apps and installers Tools starts do not. Link's own U1 test covers
+//! the unpacked copy. A test binary of its own because the setting is process-wide.
+use arcade_link::runtime::cap_malloc_arenas;
 use arcade_tools_core::paths::Paths;
-use arcade_tools_core::platform::{cap_malloc_arenas, spawn_detached};
+use arcade_tools_core::platform::spawn_detached;
 use std::time::{Duration, Instant};
 
 #[test]

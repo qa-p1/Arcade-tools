@@ -241,3 +241,65 @@ fn status_and_quit_wait_for_a_tools_that_is_still_starting() {
         "--quit never asked Tools to quit"
     );
 }
+
+/// RT-4 (TOOLS.md §Crash reports): a fatal signal leaves a local report under `arcade/tools/crashes/`, which Home
+/// lists. The overlay stand-in keeps `--show-shortcuts` running long enough to be signalled; Tools starts it well
+/// after installing the handler, so the signal waits for the stand-in, never for a fixed time (a freshly linked debug
+/// binary can take more than a second to reach `main`).
+#[cfg(target_os = "linux")]
+#[test]
+fn a_fatal_signal_leaves_a_crash_report() {
+    use std::os::unix::fs::PermissionsExt;
+    let home = profile();
+    let overlay = home.path().join("slow-overlay");
+    let started = home.path().join("overlay-started");
+    std::fs::write(
+        &overlay,
+        format!("#!/bin/sh\ntouch '{}'\nsleep 20\n", started.display()),
+    )
+    .unwrap();
+    std::fs::set_permissions(&overlay, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let child = Command::new(env!("CARGO_BIN_EXE_arcade-tools"))
+        .arg("--show-shortcuts")
+        .env_clear()
+        .env("PATH", std::env::var_os("PATH").unwrap_or_default())
+        .env("HOME", home.path())
+        .env("XDG_DATA_HOME", home.path().join(".local/share"))
+        .env("XDG_RUNTIME_DIR", home.path().join("run"))
+        .env("ARCADE_TOOLS_OVERLAY_FOR_TESTS", &overlay)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    let start = Instant::now();
+    while !started.exists() {
+        assert!(
+            start.elapsed() < Duration::from_secs(20),
+            "the overlay stand-in never started"
+        );
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    // SAFETY: a signal to the child this test started.
+    unsafe { libc::kill(child.id() as libc::pid_t, libc::SIGSEGV) };
+    let status = child.wait_with_output().unwrap().status;
+    let crashes = home.path().join(".local/share/arcade/tools/crashes");
+    let reports: Vec<_> = std::fs::read_dir(&crashes)
+        .unwrap_or_else(|e| panic!("after {status}: no crash folder {}: {e}", crashes.display()))
+        .flatten()
+        .map(|e| e.path())
+        .collect();
+    assert_eq!(
+        reports.len(),
+        1,
+        "after {status}: {reports:?} in {}",
+        crashes.display()
+    );
+    let text = std::fs::read_to_string(&reports[0]).unwrap();
+    assert!(
+        text.contains("app: Arcade Tools")
+            && text.contains(env!("CARGO_PKG_VERSION"))
+            && text.contains("signal: 11"),
+        "{text}"
+    );
+}

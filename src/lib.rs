@@ -3,6 +3,7 @@ pub mod archive;
 pub mod backup;
 pub mod catalog;
 pub mod channel_backup;
+pub mod crashes;
 pub mod dashboard;
 pub mod delta;
 pub mod diagnostics;

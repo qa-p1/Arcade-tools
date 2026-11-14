@@ -828,3 +828,66 @@ pub async fn refresh_shortcut_sheets(app: AppHandle) -> Result<usize> {
     })
     .await
 }
+
+/// (id, name, repo) of Tools and every catalog app: whose crash reports Tools lists.
+fn crash_apps(catalog: &arcade_tools_core::catalog::Catalog) -> Vec<(String, String, String)> {
+    std::iter::once((
+        catalog.tools.id.clone(),
+        catalog.tools.name.clone(),
+        catalog.tools.repo.clone(),
+    ))
+    .chain(
+        catalog
+            .apps
+            .iter()
+            .map(|app| (app.id.clone(), app.name.clone(), app.repo.clone())),
+    )
+    .collect()
+}
+/// Crash reports not dismissed yet, newest first (TOOLS.md §Crash reports). Read on demand; nothing polls.
+#[tauri::command]
+pub async fn crash_reports(
+    app: AppHandle,
+) -> Result<Vec<arcade_tools_core::crashes::CrashSummary>> {
+    worker(move || {
+        let manager = desktop(&app).manager()?;
+        let ids: Vec<String> = crash_apps(&manager.catalog()?)
+            .into_iter()
+            .map(|(id, _, _)| id)
+            .collect();
+        Ok(arcade_tools_core::crashes::list(&manager.paths, &ids))
+    })
+    .await
+}
+#[tauri::command]
+pub async fn crash_report(app: AppHandle, id: String, file: String) -> Result<String> {
+    worker(move || arcade_tools_core::crashes::read(&desktop(&app).manager()?.paths, &id, &file))
+        .await
+}
+#[tauri::command]
+pub async fn dismiss_crash(app: AppHandle, id: String, file: String) -> Result<()> {
+    worker(move || arcade_tools_core::crashes::dismiss(&desktop(&app).manager()?.paths, &id, &file))
+        .await
+}
+/// Opens a GitHub issue pre-filled with the report, in the browser, where the user still decides whether to submit.
+/// The link is built here from the catalog's repository (checked against the owner allowlist), never from the page.
+#[tauri::command]
+pub async fn open_crash_issue(app: AppHandle, id: String, file: String) -> Result<()> {
+    worker(move || {
+        use tauri_plugin_opener::OpenerExt;
+        let manager = desktop(&app).manager()?;
+        let (_, name, repo) = crash_apps(&manager.catalog()?)
+            .into_iter()
+            .find(|(app_id, _, _)| *app_id == id)
+            .ok_or_else(|| Error::new("crash", "Arcade Tools doesn't know that app."))?;
+        arcade_tools_core::catalog::allowed_repo(&repo)?;
+        let report = arcade_tools_core::crashes::read(&manager.paths, &id, &file)?;
+        app.opener()
+            .open_url(
+                arcade_tools_core::crashes::issue_url(&repo, &name, &report),
+                None::<&str>,
+            )
+            .map_err(|e| Error::new("open", e.to_string()))
+    })
+    .await
+}
