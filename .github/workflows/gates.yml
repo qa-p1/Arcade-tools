@@ -33,7 +33,7 @@ jobs:
     outputs:
       tag: ${{ steps.files.outputs.tag }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: qa-p1/Arcade-Link
           ref: v1.0.7
@@ -90,9 +90,9 @@ jobs:
         shell: bash
         working-directory: Arcade-tools
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { path: Arcade-tools }
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { repository: qa-p1/Arcade-Link, ref: v1.0.7, path: Arcade-link }
       - uses: dtolnay/rust-toolchain@stable
         with: { toolchain: '1.88.0' }
@@ -174,9 +174,9 @@ jobs:
         shell: bash
         working-directory: Arcade-tools
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { path: Arcade-tools }
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { repository: qa-p1/Arcade-Link, ref: v1.0.7, path: Arcade-link }
       - uses: actions/setup-python@v5
         with: { python-version: '3.12' }
@@ -217,9 +217,9 @@ jobs:
         shell: bash
         working-directory: Arcade-tools
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { path: Arcade-tools }
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { repository: qa-p1/Arcade-Link, ref: v1.0.7, path: Arcade-link }
       - uses: dtolnay/rust-toolchain@stable
         with: { toolchain: '1.88.0' }
@@ -256,7 +256,7 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with: { python-version: '3.12' }
       - uses: actions/download-artifact@v4
@@ -269,7 +269,7 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with: { python-version: '3.12' }
       - uses: actions/download-artifact@v4
