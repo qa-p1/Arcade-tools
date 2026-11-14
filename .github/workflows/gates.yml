@@ -36,7 +36,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: qa-p1/Arcade-Link
-          ref: v1.0.6
+          ref: v1.0.7
           path: .arcade-link
       - uses: ./.arcade-link/.github/actions/setup-arcade-link
       - name: Download and check the rc's files
@@ -93,7 +93,7 @@ jobs:
       - uses: actions/checkout@v4
         with: { path: Arcade-tools }
       - uses: actions/checkout@v4
-        with: { repository: qa-p1/Arcade-Link, ref: v1.0.6, path: Arcade-link }
+        with: { repository: qa-p1/Arcade-Link, ref: v1.0.7, path: Arcade-link }
       - uses: dtolnay/rust-toolchain@stable
         with: { toolchain: '1.88.0' }
       - uses: actions/setup-python@v5
@@ -177,7 +177,7 @@ jobs:
       - uses: actions/checkout@v4
         with: { path: Arcade-tools }
       - uses: actions/checkout@v4
-        with: { repository: qa-p1/Arcade-Link, ref: v1.0.6, path: Arcade-link }
+        with: { repository: qa-p1/Arcade-Link, ref: v1.0.7, path: Arcade-link }
       - uses: actions/setup-python@v5
         with: { python-version: '3.12' }
       - name: Linux dependencies
@@ -220,7 +220,7 @@ jobs:
       - uses: actions/checkout@v4
         with: { path: Arcade-tools }
       - uses: actions/checkout@v4
-        with: { repository: qa-p1/Arcade-Link, ref: v1.0.6, path: Arcade-link }
+        with: { repository: qa-p1/Arcade-Link, ref: v1.0.7, path: Arcade-link }
       - uses: dtolnay/rust-toolchain@stable
         with: { toolchain: '1.88.0' }
       - uses: Swatinem/rust-cache@v2
@@ -279,17 +279,17 @@ jobs:
   # Tier 1 (headless Hyprland) blocks on any failure; Tier 2 (sway, KWin, Mutter, X11) on a crash or data loss.
   desktop:
     needs: published
-    uses: qa-p1/Arcade-Link/.github/workflows/desktop-e2e.yml@v1.0.6
+    uses: qa-p1/Arcade-Link/.github/workflows/desktop-e2e.yml@v1.0.7
     with:
       name: tools
       test: tests/desktop/tools_desktop.py
       args: '"$APP"'
       artifact: gate-appimage
-      link-ref: v1.0.6
+      link-ref: v1.0.7
   desktop-tier2:
     needs: published
-    uses: qa-p1/Arcade-Link/.github/workflows/desktop-tier2.yml@v1.0.6
+    uses: qa-p1/Arcade-Link/.github/workflows/desktop-tier2.yml@v1.0.7
     with:
       artifact: gate-appimage
       show: --settings
-      link-ref: v1.0.6
+      link-ref: v1.0.7
