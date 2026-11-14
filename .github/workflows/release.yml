@@ -137,7 +137,7 @@ jobs:
           ls target/release-files
           # -eq: macOS wc pads the count with spaces.
           [ "$(ls target/release-files | wc -l)" -eq 1 ]
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: release-${{ runner.os }}
           path: Arcade-tools/target/release-files/*
