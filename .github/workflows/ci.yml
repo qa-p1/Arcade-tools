@@ -113,7 +113,7 @@ jobs:
       - name: Restore the published apps' Link CLIs
         id: n1-cache
         if: runner.os == 'Linux'
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: ~/.arcade-link-n1
           key: arcade-link-n1-${{ runner.os }}-v0.4.4-v0.4.15
@@ -130,7 +130,7 @@ jobs:
           done
       - name: Save the published apps' Link CLIs
         if: runner.os == 'Linux' && steps.n1-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: ~/.arcade-link-n1
           key: ${{ steps.n1-cache.outputs.cache-primary-key }}
@@ -151,7 +151,7 @@ jobs:
       - name: Restore Tauri's bundler tools
         id: bundler-cache
         if: ${{ !inputs.skip_packages }}
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: |
             ~/.cache/tauri
@@ -172,7 +172,7 @@ jobs:
           exit 1
       - name: Save Tauri's bundler tools
         if: ${{ !inputs.skip_packages && steps.bundler-cache.outputs.cache-hit != 'true' }}
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: |
             ~/.cache/tauri
