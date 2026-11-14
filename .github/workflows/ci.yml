@@ -180,7 +180,7 @@ jobs:
           key: ${{ steps.bundler-cache.outputs.cache-primary-key }}
       # The AppImage this run builds, for the desktop jobs below (Link's Tier 1 and Tier 2 harness); uploaded
       # before the checks so a failing check still leaves the desktop gates their file.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: runner.os == 'Linux' && !inputs.skip_packages
         with:
           name: tools-appimage
@@ -197,7 +197,7 @@ jobs:
         if: runner.os == 'Linux' && !inputs.skip_packages
         timeout-minutes: 5
         run: python3 scripts/native-notices.py --check target/${{ matrix.target }}/release/bundle/appimage/*.AppImage
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure() && steps.native.outcome == 'failure'
         with:
           name: native-notices
@@ -226,7 +226,7 @@ jobs:
         run: |
           xvfb-run -a python3 scripts/open-memory.py ../Arcade-link/tools/fleet target/budget/Arcade-Tools.AppImage \
             --label "ci ${{ github.sha }}" | tee target/budget/open-memory.jsonl
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always() && (steps.memory.outcome == 'success' || steps.memory.outcome == 'failure')
         with:
           name: memory-budget
@@ -258,7 +258,7 @@ jobs:
           done
           python3 scripts/arcade-release.py --id arcade.tools --version "$(python3 scripts/check-versions.py --print)" \
             --channel nightly --notes "https://github.com/${{ github.repository }}/commit/${{ github.sha }}" target/ci-installer
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: runner.os == 'Linux' && github.event_name == 'push' && github.ref == 'refs/heads/main' && !inputs.skip_packages
         with:
           name: tools-installer-ubuntu-${{ github.sha }}
@@ -275,7 +275,7 @@ jobs:
           done
           # -eq: macOS wc pads the count with spaces.
           [ "$(ls target/release-files | wc -l)" -eq 1 ]
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && !inputs.skip_packages
         with:
           name: release-${{ runner.os }}
@@ -362,7 +362,7 @@ jobs:
       - name: Render and lifecycle in a private Xvfb session
         if: runner.os == 'Linux'
         run: python3 crates/arcade-tools-overlay/tests/render_headless.py
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: runner.os == 'Linux' && always()
         with:
           name: overlay-render

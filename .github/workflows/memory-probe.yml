@@ -112,7 +112,7 @@ jobs:
           print("at the end: web process", end["pss"], end["by_kind"])
           print("seconds:PSS/web file-backed", " ".join("%s:%.0f/%.0f" % (t, total, file) for t, total, _, file in d["timeline"]))' \
             | tee -a "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: open-memory-${{ matrix.runner }}
           path: Arcade-tools/target/open-memory.jsonl
