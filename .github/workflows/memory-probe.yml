@@ -45,9 +45,9 @@ jobs:
       run:
         working-directory: Arcade-tools
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { path: Arcade-tools }
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { repository: qa-p1/Arcade-Link, ref: "${{ inputs.link-ref || 'v1.0.7' }}", path: Arcade-link }
       - uses: actions/setup-python@v5
         with: { python-version: '3.12' }

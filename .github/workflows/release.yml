@@ -29,7 +29,7 @@ jobs:
       tag: ${{ steps.release.outputs.tag }}
       version: ${{ steps.release.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # check-versions.py reads Cargo.toml with tomllib (Python 3.11+); ubuntu-22.04's system Python is 3.10.
       - uses: actions/setup-python@v5
         with:
@@ -68,7 +68,7 @@ jobs:
     env:
       CARGO_BUILD_JOBS: 3
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: Arcade-tools
       - uses: dtolnay/rust-toolchain@stable
