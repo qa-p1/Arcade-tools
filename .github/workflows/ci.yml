@@ -69,7 +69,7 @@ jobs:
           # PRs and tags restore main's cache; uploading their private caches
           # delays completion and cannot warm the next main/release build.
           save-if: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version-file: Arcade-tools/.nvmrc
           cache: npm
