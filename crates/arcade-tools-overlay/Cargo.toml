@@ -23,7 +23,7 @@ getrandom = "0.3"
 interprocess = "2.4"
 global-hotkey = "0.8"
 cosmic-text = { version = "0.15", default-features = false, features = ["std", "swash", "fontconfig"] }
-tiny-skia = { version = "0.11", default-features = false, features = ["std", "simd"] }
+tiny-skia = { version = "0.12", default-features = false, features = ["std", "simd"] }
 winit = { version = "0.30.13", default-features = false, features = ["rwh_06", "x11", "wayland", "wayland-dlopen"] }
 softbuffer = { version = "0.4", default-features = false, features = ["x11", "wayland", "wayland-dlopen", "x11-dlopen"] }
 
