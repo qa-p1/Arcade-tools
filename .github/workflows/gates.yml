@@ -137,7 +137,7 @@ jobs:
       # N-1 (DECISIONS.md D11): the same published apps' Link CLIs CI uses, from main's cache when it has them.
       - name: Restore the published apps' Link CLIs
         id: n1-cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: ~/.arcade-link-n1
           key: arcade-link-n1-${{ runner.os }}-v0.4.4-v0.4.15
