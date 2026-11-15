@@ -196,16 +196,53 @@ fn nightly_and_clipboard_tarball_from_canonical_generator() {
 /// names the previous rc's AppImage and this rc's, both downloaded from their releases and checked against their
 /// manifests. NEW is served by a local release host and signed with the test key (rc manifests are unsigned, and the
 /// stable key is the owner's, B1); Tools' own source then checks the signature, builds the delta from OLD and
-/// assembles NEW byte for byte. Without the variable this test does nothing.
+/// assembles NEW byte for byte. `ARCADE_TOOLS_GATE_APP` names the app the files are (default `arcade.tools`), so
+/// every app's Gates run Tools' updater on its own published files. Without `ARCADE_TOOLS_GATE_DELTA` this test
+/// does nothing.
 #[test]
 fn gate_published_files_delta_signature_and_tampered_chunk() {
-    use sha2::Digest;
     let Ok(spec) = std::env::var("ARCADE_TOOLS_GATE_DELTA") else {
         return;
     };
     let (old, new) = spec
         .split_once(':')
         .expect("ARCADE_TOOLS_GATE_DELTA=OLD:NEW");
+    let app = std::env::var("ARCADE_TOOLS_GATE_APP").unwrap_or_else(|_| "arcade.tools".to_owned());
+    delta_gate(&app, old, new);
+}
+
+/// The same gate for another app than Tools, on generated files: 8 MiB of pseudo-random bytes and the same with
+/// 100 KiB changed in the middle, as an app's AppImage between two releases.
+#[test]
+fn delta_gate_runs_for_an_app_on_generated_files() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut state = 0x9e37_79b9_7f4a_7c15_u64;
+    let old: Vec<u8> = (0..8 << 20)
+        .map(|_| {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            state as u8
+        })
+        .collect();
+    let mut new = old.clone();
+    for byte in &mut new[3 << 20..(3 << 20) + 100 * 1024] {
+        *byte ^= 0xa5;
+    }
+    let old_path = dir.path().join("old.AppImage");
+    let new_path = dir.path().join("Arcade-Box-1.0.0-x86_64.AppImage");
+    std::fs::write(&old_path, &old).unwrap();
+    std::fs::write(&new_path, &new).unwrap();
+    delta_gate(
+        "arcade.box",
+        old_path.to_str().unwrap(),
+        new_path.to_str().unwrap(),
+    );
+}
+
+fn delta_gate(app: &str, old: &str, new: &str) {
+    use sha2::Digest;
+    let assets = format!("/assets/{}-1.0.0-stable", app.replace('.', "-"));
     let new_bytes = std::fs::read(new).unwrap();
     let name = std::path::Path::new(new)
         .file_name()
@@ -214,16 +251,10 @@ fn gate_published_files_delta_signature_and_tampered_chunk() {
         .unwrap();
     let digest = format!("{:x}", sha2::Sha256::digest(&new_bytes));
     let server = FakeRelease::new();
-    // Tools checks its own repository the way the self-updater does: by the catalog's `tools.repo`.
-    let repo = support::catalog_repo("arcade.tools");
-    server.publish(
-        "arcade.tools",
-        "1.0.0",
-        "stable",
-        &[(name, &new_bytes)],
-        "nsis",
-    );
-    let route = format!("/assets/arcade-tools-1.0.0-stable/{name}");
+    // Tools checks the app's repository the way its updater does: by the catalog's `repo`.
+    let repo = support::catalog_repo(app);
+    server.publish(app, "1.0.0", "stable", &[(name, &new_bytes)], "nsis");
+    let route = format!("{assets}/{name}");
     let have = || {
         let mut index = arcade_link::release::ChunkIndex::default();
         index.add_file(std::path::Path::new(old)).unwrap();
@@ -251,7 +282,7 @@ fn gate_published_files_delta_signature_and_tampered_chunk() {
     // The signed manifest verifies, and the delta from OLD fetches only the changed chunks.
     let source = Source::test_server(&server.url).unwrap();
     let checked = source
-        .check_repo("arcade.tools", &repo, Channel::Stable, Os::Linux, Arch::X64)
+        .check_repo(app, &repo, Channel::Stable, Os::Linux, Arch::X64)
         .unwrap();
     assert!(
         checked.entry.is_some(),
@@ -324,7 +355,7 @@ fn gate_published_files_delta_signature_and_tampered_chunk() {
     );
 
     // A manifest whose signature does not match is refused before anything is downloaded.
-    let signature = "/assets/arcade-tools-1.0.0-stable/manifest.json.sig".to_string();
+    let signature = format!("{assets}/manifest.json.sig");
     let mut routes = server.routes.lock().unwrap();
     let text = String::from_utf8(routes[&signature].clone()).unwrap();
     let mut lines: Vec<String> = text.lines().map(str::to_owned).collect();
@@ -335,6 +366,6 @@ fn gate_published_files_delta_signature_and_tampered_chunk() {
     drop(routes);
     assert!(Source::test_server(&server.url)
         .unwrap()
-        .check_repo("arcade.tools", &repo, Channel::Stable, Os::Linux, Arch::X64)
+        .check_repo(app, &repo, Channel::Stable, Os::Linux, Arch::X64)
         .is_err());
 }
