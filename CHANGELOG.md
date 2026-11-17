@@ -5,6 +5,10 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- The shortcut index's Lua sandbox tells the time with jiff instead of chrono, which is no longer maintained
+  (RUSTSEC-2026-0543). `os.date` and `os.time` give the same results as before.
+
 ## [1.0.0] — not yet promoted (release candidates on the test channel from 2026-11-08)
 
 ### Added
