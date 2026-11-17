@@ -9,7 +9,7 @@ description = "Prebuilt shortcut index and sandboxed Hyprland sources for Arcade
 
 [features]
 default = ["builder"]
-builder = ["dep:mlua", "dep:glob", "dep:tempfile", "dep:chrono"]
+builder = ["dep:mlua", "dep:glob", "dep:tempfile", "dep:jiff"]
 
 [dependencies]
 mlua = { version = "0.12", features = ["lua55", "vendored"], optional = true }
@@ -18,7 +18,8 @@ serde_json = "1"
 glob = { version = "0.3", optional = true }
 directories = "6"
 tempfile = { version = "3", optional = true }
-chrono = { version = "0.4", default-features = false, features = ["clock", "std"], optional = true }
+# Lua's os.time and os.date in the sandbox (chrono is unmaintained, RUSTSEC-2026-0543).
+jiff = { version = "0.2", optional = true }
 
 [[example]]
 name = "dump"

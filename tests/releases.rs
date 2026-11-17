@@ -240,6 +240,32 @@ fn delta_gate_runs_for_an_app_on_generated_files() {
     );
 }
 
+/// The gate's other path: a new package that shares nothing with the old one (as Lens's single-binary AppImage
+/// between builds), so Tools rightly downloads the whole file.
+#[test]
+fn delta_gate_takes_the_whole_file_when_a_delta_saves_too_little() {
+    let dir = tempfile::tempdir().unwrap();
+    let bytes = |mut state: u64| -> Vec<u8> {
+        (0..4 << 20)
+            .map(|_| {
+                state ^= state << 13;
+                state ^= state >> 7;
+                state ^= state << 17;
+                state as u8
+            })
+            .collect()
+    };
+    let old_path = dir.path().join("old.AppImage");
+    let new_path = dir.path().join("ArcadeLens-1.0.0-linux-x86_64.AppImage");
+    std::fs::write(&old_path, bytes(0x9e37_79b9_7f4a_7c15)).unwrap();
+    std::fs::write(&new_path, bytes(0x2545_f491_4f6c_dd1d)).unwrap();
+    delta_gate(
+        "arcade.lens",
+        old_path.to_str().unwrap(),
+        new_path.to_str().unwrap(),
+    );
+}
+
 fn delta_gate(app: &str, old: &str, new: &str) {
     use sha2::Digest;
     let assets = format!("/assets/{}-1.0.0-stable", app.replace('.', "-"));
@@ -288,6 +314,23 @@ fn delta_gate(app: &str, old: &str, new: &str) {
         checked.entry.is_some(),
         "the verified manifest has the file's chunks"
     );
+    // Tools takes a delta only when it saves enough (D5, `delta::plan`). An app whose whole package changes with
+    // every build (Lens: its AppImage is one Rust binary, and a day-old nightly shares 6% of rc.3's bytes) gets the
+    // whole file, which is the right download; the gate then checks that path instead of demanding a delta.
+    if arcade_tools_core::delta::plan(&have(), checked.entry.as_ref().unwrap()).is_none() {
+        whole_file_gate(
+            &server,
+            &source,
+            &checked,
+            &have(),
+            &route,
+            &new_bytes,
+            &digest,
+            &asked,
+        );
+        signature_gate(&server, &assets, app, &repo);
+        return;
+    }
     let cache = tempfile::tempdir().unwrap();
     let file = source
         .download_from(
@@ -354,7 +397,74 @@ fn delta_gate(app: &str, old: &str, new: &str) {
         "then the whole file was fetched: {ranges:?}"
     );
 
-    // A manifest whose signature does not match is refused before anything is downloaded.
+    signature_gate(&server, &assets, app, &repo);
+}
+
+/// When a delta does not pay: Tools fetches the whole file in plain requests (no chunk ranges), it matches the signed
+/// manifest, and a tampered whole file is refused rather than kept.
+#[allow(clippy::too_many_arguments)]
+fn whole_file_gate(
+    server: &FakeRelease,
+    source: &Source,
+    checked: &arcade_tools_core::source::CheckedRelease,
+    have: &arcade_link::release::ChunkIndex,
+    route: &str,
+    new_bytes: &[u8],
+    digest: &str,
+    asked: &dyn Fn(&FakeRelease) -> Vec<Option<String>>,
+) {
+    let cache = tempfile::tempdir().unwrap();
+    let file = source
+        .download_from(
+            checked,
+            cache.path(),
+            have,
+            &AtomicBool::new(false),
+            &mut |_, _| {},
+        )
+        .unwrap();
+    assert_eq!(checksum(file.path()).unwrap(), digest);
+    let ranges = asked(server);
+    assert!(
+        !ranges.is_empty() && ranges.iter().all(Option::is_none),
+        "the whole file in plain requests: {ranges:?}"
+    );
+    println!(
+        "delta: not worth it (Tools' rule); the whole file, {} bytes, in {} request(s)",
+        new_bytes.len(),
+        ranges.len()
+    );
+
+    // A tampered whole file fails its check against the signed manifest and is not returned.
+    let tampered: Vec<u8> = new_bytes.iter().map(|b| b ^ 0x5a).collect();
+    let published = server
+        .routes
+        .lock()
+        .unwrap()
+        .insert(route.to_owned(), tampered)
+        .unwrap();
+    let cache = tempfile::tempdir().unwrap();
+    assert!(
+        source
+            .download_from(
+                checked,
+                cache.path(),
+                have,
+                &AtomicBool::new(false),
+                &mut |_, _| {},
+            )
+            .is_err(),
+        "a tampered whole file is refused"
+    );
+    server
+        .routes
+        .lock()
+        .unwrap()
+        .insert(route.to_owned(), published);
+}
+
+/// A manifest whose signature does not match is refused before anything is downloaded.
+fn signature_gate(server: &FakeRelease, assets: &str, app: &str, repo: &str) {
     let signature = format!("{assets}/manifest.json.sig");
     let mut routes = server.routes.lock().unwrap();
     let text = String::from_utf8(routes[&signature].clone()).unwrap();
@@ -366,6 +476,6 @@ fn delta_gate(app: &str, old: &str, new: &str) {
     drop(routes);
     assert!(Source::test_server(&server.url)
         .unwrap()
-        .check_repo(app, &repo, Channel::Stable, Os::Linux, Arch::X64)
+        .check_repo(app, repo, Channel::Stable, Os::Linux, Arch::X64)
         .is_err());
 }

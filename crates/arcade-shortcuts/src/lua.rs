@@ -6,7 +6,7 @@
 mod io;
 
 use crate::{keys, labels, read, Action, ConfigBind, ConfigReport, Origin, ReadPolicy};
-use chrono::{Datelike, TimeZone, Timelike};
+use jiff::tz::TimeZone;
 use mlua::chunk::ChunkMode;
 use mlua::{HookTriggers, Lua, LuaOptions, MultiValue, StdLib, Table, Value, VmState};
 use serde_json::{Map, Value as Json};
@@ -212,16 +212,24 @@ fn os_table(lua: &Lua, options: SandboxOptions, start: Instant) -> mlua::Result<
                 let hour = t.get::<Option<u32>>("hour")?.unwrap_or(12);
                 let minute = t.get::<Option<u32>>("min")?.unwrap_or(0);
                 let second = t.get::<Option<u32>>("sec")?.unwrap_or(0);
-                let date = chrono::NaiveDate::from_ymd_opt(year, month, day)
-                    .and_then(|d| d.and_hms_opt(hour, minute, second))
-                    .ok_or_else(|| mlua::Error::runtime("invalid date"))?;
-                Ok(chrono::Local
-                    .from_local_datetime(&date)
-                    .earliest()
-                    .ok_or_else(|| mlua::Error::runtime("invalid local date"))?
-                    .timestamp())
+                let date = jiff::civil::DateTime::new(
+                    year.try_into().map_err(invalid_date)?,
+                    month.try_into().map_err(invalid_date)?,
+                    day.try_into().map_err(invalid_date)?,
+                    hour.try_into().map_err(invalid_date)?,
+                    minute.try_into().map_err(invalid_date)?,
+                    second.try_into().map_err(invalid_date)?,
+                    0,
+                )
+                .map_err(invalid_date)?;
+                Ok(TimeZone::system()
+                    .to_ambiguous_zoned(date)
+                    .earlier()
+                    .map_err(|_| mlua::Error::runtime("invalid local date"))?
+                    .timestamp()
+                    .as_second())
             } else {
-                Ok(chrono::Utc::now().timestamp())
+                Ok(jiff::Timestamp::now().as_second())
             }
         })?,
     )?;
@@ -229,28 +237,27 @@ fn os_table(lua: &Lua, options: SandboxOptions, start: Instant) -> mlua::Result<
         "date",
         lua.create_function(|lua, (format, time): (Option<String>, Option<i64>)| {
             let format = format.as_deref().unwrap_or("%c");
-            let dt = chrono::DateTime::from_timestamp(
-                time.unwrap_or_else(|| chrono::Utc::now().timestamp()),
-                0,
+            let instant = jiff::Timestamp::from_second(
+                time.unwrap_or_else(|| jiff::Timestamp::now().as_second()),
             )
-            .ok_or_else(|| mlua::Error::runtime("invalid timestamp"))?;
-            let date = if format.starts_with('!') {
-                dt.fixed_offset()
+            .map_err(|_| mlua::Error::runtime("invalid timestamp"))?;
+            let date = instant.to_zoned(if format.starts_with('!') {
+                TimeZone::UTC
             } else {
-                dt.with_timezone(&chrono::Local).fixed_offset()
-            };
+                TimeZone::system()
+            });
             let format = format.trim_start_matches('!');
             if format == "*t" {
                 let t = lua.create_table()?;
                 for (key, value) in [
-                    ("year", date.year() as i64),
-                    ("month", date.month() as i64),
-                    ("day", date.day() as i64),
-                    ("hour", date.hour() as i64),
-                    ("min", date.minute() as i64),
-                    ("sec", date.second() as i64),
-                    ("wday", date.weekday().number_from_sunday() as i64),
-                    ("yday", date.ordinal() as i64),
+                    ("year", i64::from(date.year())),
+                    ("month", i64::from(date.month())),
+                    ("day", i64::from(date.day())),
+                    ("hour", i64::from(date.hour())),
+                    ("min", i64::from(date.minute())),
+                    ("sec", i64::from(date.second())),
+                    ("wday", i64::from(date.weekday().to_sunday_one_offset())),
+                    ("yday", i64::from(date.day_of_year())),
                 ] {
                     t.set(key, value)?;
                 }
@@ -259,7 +266,7 @@ fn os_table(lua: &Lua, options: SandboxOptions, start: Instant) -> mlua::Result<
             } else {
                 use std::fmt::Write;
                 let mut text = String::new();
-                write!(&mut text, "{}", date.format(format))
+                write!(&mut text, "{}", date.strftime(&c_locale(format)))
                     .map_err(|_| mlua::Error::runtime("invalid date format"))?;
                 Ok(Value::String(lua.create_string(text)?))
             }
@@ -279,6 +286,35 @@ fn os_table(lua: &Lua, options: SandboxOptions, start: Instant) -> mlua::Result<
         )?;
     }
     Ok(os)
+}
+
+fn invalid_date<E>(_: E) -> mlua::Error {
+    mlua::Error::runtime("invalid date")
+}
+
+/// Lua's os.date is C's strftime in the "C" locale. jiff writes the locale specifiers (%c, %x, %X, %r) in its own
+/// form, so they are spelled out in the C locale's form first.
+fn c_locale(format: &str) -> String {
+    let mut out = String::with_capacity(format.len());
+    let mut chars = format.chars();
+    while let Some(c) = chars.next() {
+        if c != '%' {
+            out.push(c);
+            continue;
+        }
+        match chars.next() {
+            Some('c') => out.push_str("%a %b %e %H:%M:%S %Y"),
+            Some('x') => out.push_str("%m/%d/%y"),
+            Some('X') => out.push_str("%H:%M:%S"),
+            Some('r') => out.push_str("%I:%M:%S %p"),
+            Some(other) => {
+                out.push('%');
+                out.push(other);
+            }
+            None => out.push('%'),
+        }
+    }
+    out
 }
 
 fn install_require(
@@ -709,7 +745,7 @@ mod tests {
 
     #[test]
     fn process_writes_and_binary_loaders_are_disabled() {
-        let report = run_script("assert(debug==nil and dofile==nil and loadfile==nil and package.loadlib==nil); local a,b=os.execute('touch forbidden'); assert(a==nil and b:find('disabled')); assert(io.popen('touch forbidden')==nil); assert(os.remove('keep')==nil); assert(os.rename('keep','gone')==nil); assert(os.exit()==nil); assert(os.tmpname()==nil); local f=io.open('forbidden','w'); f:write('bad'); f:close(); local f=io.open('keep','a'); f:write('bad'); f:close(); assert(load(string.char(27)..'Lua')==nil); local f=load('return io.popen, os.execute',nil,'b',{os={execute=print}}); assert(type(f)=='function'); assert(os.date('!%Y',0)=='1970'); assert(type(os.date('!*t',0))=='table'); hl.bind('A',hl.dsp.exit())", |dir, opts| {
+        let report = run_script("assert(debug==nil and dofile==nil and loadfile==nil and package.loadlib==nil); local a,b=os.execute('touch forbidden'); assert(a==nil and b:find('disabled')); assert(io.popen('touch forbidden')==nil); assert(os.remove('keep')==nil); assert(os.rename('keep','gone')==nil); assert(os.exit()==nil); assert(os.tmpname()==nil); local f=io.open('forbidden','w'); f:write('bad'); f:close(); local f=io.open('keep','a'); f:write('bad'); f:close(); assert(load(string.char(27)..'Lua')==nil); local f=load('return io.popen, os.execute',nil,'b',{os={execute=print}}); assert(type(f)=='function'); assert(os.date('!%Y',0)=='1970'); assert(os.date('!%c',0)=='Thu Jan  1 00:00:00 1970'); assert(os.date('!%x %X %r %%c',0)=='01/01/70 00:00:00 12:00:00 AM %c'); local t=os.date('!*t',86400*59); assert(t.month==3 and t.day==1 and t.wday==1 and t.yday==60); assert(type(os.date('!*t',0))=='table'); hl.bind('A',hl.dsp.exit())", |dir, opts| {
             std::fs::write(dir.join("keep"), "keep").unwrap();
             opts.environment.insert("HOME".into(), Some(dir.to_string_lossy().into_owned()));
         });

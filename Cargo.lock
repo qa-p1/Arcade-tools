@@ -122,9 +122,9 @@ dependencies = [
 name = "arcade-shortcuts"
 version = "0.1.0"
 dependencies = [
- "chrono",
  "directories",
  "glob",
+ "jiff",
  "mlua",
  "serde",
  "serde_json",

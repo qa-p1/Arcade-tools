@@ -382,10 +382,11 @@ pub fn build_index(inputs: &BuildInputs) -> Index {
     let conflicts = conflicts(&arcade, &wm, &apps);
     Index {
         schema: 1,
-        built_at: inputs
-            .built_at
-            .clone()
-            .unwrap_or_else(|| chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string()),
+        built_at: inputs.built_at.clone().unwrap_or_else(|| {
+            jiff::Timestamp::now()
+                .strftime("%Y-%m-%dT%H:%M:%SZ")
+                .to_string()
+        }),
         os: inputs.os,
         apps,
         arcade,
