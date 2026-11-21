@@ -457,6 +457,15 @@ fn hub_lifecycle_adopting_or_updating_a_pre_installer_copy_installs_the_release(
     publish(&server, &manager, id, "1.1.0", false);
     let message = operate(&manager, id, Operation::Update).unwrap();
     assert!(message.contains("1.1.0"), "{message}");
+    // Recent activity says "1.0.0 → 1.1.0", not just "from 1.0.0" (D36).
+    let line = history(&manager)
+        .into_iter()
+        .find(|entry| entry.app == id)
+        .unwrap();
+    assert_eq!(
+        (line.from.as_deref(), line.to.as_deref()),
+        (Some("1.0.0"), Some("1.1.0"))
+    );
     let receipt = manager.receipt(id).unwrap().unwrap();
     assert_eq!(receipt.managed_by, ManagedBy::Tools);
     assert_eq!(receipt.version, "1.1.0");
