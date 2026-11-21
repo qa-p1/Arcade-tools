@@ -801,12 +801,17 @@ fn hub_lifecycle_health_and_reviewed_uninstall_all() {
         .unwrap();
     let receipt = manager.receipt("arcade.look").unwrap().unwrap();
     fs::remove_file(&receipt.path).unwrap();
-    assert!(manager
+    // One deleted file is one issue, fixed by Repair; no "Remove entry" that would forget the app (D30).
+    let look: Vec<_> = manager
         .health()
         .unwrap()
-        .iter()
-        .any(|issue| issue.kind == HealthKind::MissingReceiptFile
-            && issue.fix_action == FixAction::Repair));
+        .into_iter()
+        .filter(|issue| issue.app == "arcade.look")
+        .collect();
+    assert_eq!(look.len(), 1, "{look:?}");
+    assert!(
+        look[0].kind == HealthKind::MissingReceiptFile && look[0].fix_action == FixAction::Repair
+    );
     manager
         .fix_health(
             "arcade.look",

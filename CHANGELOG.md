@@ -23,6 +23,8 @@ and versions follow [Semantic Versioning](https://semver.org/).
   apps' updates; the page now says which app couldn't be checked and why, and lists the rest.
 - An app card shows the update the last check found ("Update 1.0.0" and its Update button). Before, a card showed
   it only after that card's own check button, so a just-adopted app looked up to date on the Apps page.
+- A deleted app file is one item on Home, "Its app file is missing. Repair installs it again", instead of three in
+  jargon whose first button, "Remove entry", would have made Tools forget the app.
 
 ### Changed
 - The shortcut index's Lua sandbox tells the time with jiff instead of chrono, which is no longer maintained

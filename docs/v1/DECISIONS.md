@@ -564,3 +564,16 @@ runs peak at 268–312 MB at 2 s), and load time is held by the performance budg
 - **Decision:** cards use `latestFor` as the detail view does. UI check "Apps: a card shows the update the last check
   found, without its own check (1.0.1)".
 
+## D30 — A missing app file is one health issue, fixed by Repair (1.0.1)
+
+- **Found in the real-user run:** deleting Find's AppImage (managed by Tools) showed three issues on Home: "The
+  registry executable is missing." with **Remove entry**, "An Arcade launcher or command link is broken." with
+  Repair, and "An install receipt points at a missing file." with Repair. Repair on the third fixed all three (the
+  file came back byte for byte the published 1.0.0); Remove entry, the first button, would have dropped Find from
+  Link's registry.
+- **Decision:** when the installed file of an app Tools manages is missing and Repair can reinstall it, that is the
+  only issue shown for the app: "Its app file is missing. Repair installs it again; settings and data are kept." The
+  stale registry entry and the broken launchers are what Repair fixes, so they are not listed separately. Other
+  wordings are plain too (an app Tools didn't install; the copy kept for rolling back). Test: the health part of
+  `hub_lifecycle_health_and_reviewed_uninstall_all` asserts one issue for the app, with Repair.
+

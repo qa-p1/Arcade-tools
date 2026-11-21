@@ -10,6 +10,9 @@ Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
   D29: an adopted app's card showed no update. Verified on 1.0.0 in the same run: Lens 0.4.2 adopted, then updated
   from the Updates page to 1.0.0; the installed AppImage's SHA-256 equals the published v1.0.0 asset's, history
   says "0.4.2 → 1.0.0 Done" and v0.4.2 is kept for rollback.
+  D30: a deleted app file showed three issues on Home; now one, with Repair. Also verified on 1.0.0: Shelf adopted
+  and updated 0.4.0 → 1.0.0 with its item kept (SHA-256 = published asset), Find's deleted AppImage repaired (SHA-256
+  = published asset). `e2e.py run -- cargo test --test hub_lifecycle`: 23 passed.
   Tested locally: clippy `-D warnings`, `cargo test --test receipt_policy --test updates`, `npm run typecheck`,
   `npm run ui-checks` (with the new UI check).
 - D24: a self-installed Tools offers its own update (owner's report from 0.4.6: tray 6 updates, Updates page 5, no

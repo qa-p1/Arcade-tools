@@ -53,6 +53,9 @@ pub struct HealthIssue {
 pub fn inspect(paths: &Paths, catalog: &Catalog) -> Result<Vec<HealthIssue>> {
     let mut issues = Vec::new();
     let mut ids_seen = BTreeSet::new();
+    // Apps whose installed file is gone and that Repair reinstalls: that one fix covers the stale registry entry and
+    // the broken launchers too.
+    let mut repairable = BTreeSet::new();
     let store = Store::new(&paths.link);
     let entries = match fs::read_dir(&paths.link.registry) {
         Ok(entries) => Some(entries),
@@ -107,7 +110,7 @@ pub fn inspect(paths: &Paths, catalog: &Catalog) -> Result<Vec<HealthIssue>> {
                     app: peer.id.clone(),
                     kind: HealthKind::StaleRegistry,
                     path: Some(PathBuf::from(&peer.executable)),
-                    reason: "The registry executable is missing.".into(),
+                    reason: "Its app file is missing, so it can't start.".into(),
                     fix_action: FixAction::RemoveStaleRegistry,
                     can_fix: !dev,
                 });
@@ -154,7 +157,9 @@ pub fn inspect(paths: &Paths, catalog: &Catalog) -> Result<Vec<HealthIssue>> {
                 });
             }
             if let Some(receipt) = receipt {
-                receipt_issues(paths, &receipt, dev, &mut issues);
+                if receipt_issues(paths, &receipt, dev, &mut issues) {
+                    repairable.insert(receipt.id.clone());
+                }
             }
         }
     }
@@ -164,12 +169,16 @@ pub fn inspect(paths: &Paths, catalog: &Catalog) -> Result<Vec<HealthIssue>> {
         }
         paths.guard_receipt(id)?;
         match store.read(id) {
-            Ok(Some(receipt)) => receipt_issues(
-                paths,
-                &receipt,
-                arcade_link::install::is_dev_build(&receipt.path),
-                &mut issues,
-            ),
+            Ok(Some(receipt)) => {
+                if receipt_issues(
+                    paths,
+                    &receipt,
+                    arcade_link::install::is_dev_build(&receipt.path),
+                    &mut issues,
+                ) {
+                    repairable.insert(receipt.id.clone());
+                }
+            }
             Ok(None) => {}
             Err(error) => issues.push(HealthIssue {
                 app: id.into(),
@@ -181,14 +190,25 @@ pub fn inspect(paths: &Paths, catalog: &Catalog) -> Result<Vec<HealthIssue>> {
             }),
         }
     }
+    // One deleted app file was three issues in jargon, the first offering "Remove entry", which forgets the app
+    // (DECISIONS.md D30). When Repair reinstalls the file, it is the one issue shown for that app.
+    issues.retain(|issue| {
+        !(repairable.contains(&issue.app)
+            && matches!(
+                issue.kind,
+                HealthKind::StaleRegistry | HealthKind::IntegrationDrift
+            ))
+    });
     Ok(issues)
 }
+/// Adds the receipt's issues; returns whether its installed file is missing and Repair reinstalls it.
 fn receipt_issues(
     paths: &Paths,
     receipt: &arcade_link::receipt::Receipt,
     dev: bool,
     issues: &mut Vec<HealthIssue>,
-) {
+) -> bool {
+    let mut repairable = false;
     let exe = installation::executable(paths, receipt);
     for path in crate::maintenance::drift(paths, receipt) {
         issues.push(HealthIssue {
@@ -201,20 +221,29 @@ fn receipt_issues(
     {
         if !path.exists() {
             let managed = receipt.managed_by == ManagedBy::Tools;
+            let can_fix = !dev && receipt.id != ids::TOOLS && (managed || !exe.exists());
+            let installed = path == &exe;
+            repairable |= installed && managed && can_fix;
             issues.push(HealthIssue {
                 app: receipt.id.clone(),
                 kind: HealthKind::MissingReceiptFile,
                 path: Some(path.clone()),
-                reason: "An install receipt points at a missing file.".into(),
+                reason: match (installed, managed) {
+                    (true, true) => "Its app file is missing. Repair installs it again; settings and data are kept.",
+                    (true, false) => "Its app file is missing, and Tools didn't install it. Remove the record, then install it again.",
+                    (false, _) => "The copy kept for rolling back is missing.",
+                }
+                .into(),
                 fix_action: if managed {
                     FixAction::Repair
                 } else {
                     FixAction::RemoveStaleReceipt
                 },
-                can_fix: !dev && receipt.id != ids::TOOLS && (managed || !exe.exists()),
+                can_fix,
             });
         }
     }
+    repairable
 }
 /// Pure location classification, safe on any thread. In isolated tests the
 /// synthetic home itself is allowed to live under /tmp; its Downloads/tmp/cache
