@@ -212,7 +212,7 @@
       <ul class="list update-history">
         {#each history as entry, i (`${entry.time}:${entry.app}:${i}`)}
           <li class="row compact">
-            <div class="row-main"><div class="row-title">{appName(entry.app)} <span class="faint history-versions">{versions(entry) ?? ''}</span></div>{#if entry.reason}<div class="row-sub">{entry.reason}</div>{/if}</div>
+            <div class="row-main"><div class="row-title">{appName(entry.app)} <span class="faint history-versions">{versions(entry) ?? ''}</span></div>{#if entry.reason}<div class="row-sub">{plain(entry.reason)}</div>{/if}</div>
             <span class="faint history-time">{formatRelative(entry.time * 1000)}</span>
             <span class="badge {resultTone[entry.result] ?? ''}">{resultLabel(entry.result)}</span>
           </li>

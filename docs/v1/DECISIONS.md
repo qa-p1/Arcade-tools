@@ -618,3 +618,15 @@ runs peak at 268–312 MB at 2 s), and load time is held by the performance budg
   removes `ARCADE_UNPACKED` after Link's sanitize. The update helper keeps Tools' environment, as before; it starts
   the new Tools through `spawn_detached`, which removes it. Moving Tools to Link 1.0.13+ is left for 1.0.2. Test:
   `child_environment` fails without the change.
+
+## D35 — Update adopts an app that installed itself, decided by its class (1.0.1)
+
+- **Found in the real-user run (rc.2):** Clipboard 0.3.1, installed from its own download, was listed on the Updates
+  page as "installed outside Tools" with Review update (D27). Update then failed: "unmanaged: Choose “Let Tools
+  manage it” for this app first." The one-step path required `old.is_none()`, but `Manager::record` builds a record
+  from an app's own receipt, so only a registry-only (Manual) app ever took it. D27's test checked the listing, and
+  the existing update test covered only a registry-only copy. Recent activity also showed the code prefix.
+- **Decision:** the one-step adopt-and-update runs when `adopts_on_update(id, class)`; the record no longer matters.
+  Recent activity rows go through `plain()` like the page's other errors. Tests: the self-installed case added to
+  `hub_lifecycle_adopting_or_updating_a_pre_installer_copy_installs_the_release` fails without the change with the
+  exact rc.2 error; the UI check for Recent activity fails without `plain()`.

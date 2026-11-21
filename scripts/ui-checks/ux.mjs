@@ -140,6 +140,7 @@ export default {
       const m = window.__mock;
       // As the backend returns it: newest first.
       m.on('update_history', () => [
+        { time: 31, app: 'arcade.wheel', from: '0.5.0', to: null, result: 'failed', reason: 'busy: Wheel is busy.' },
         { time: 30, app: 'arcade.shelf', from: '1.0.0', to: '0.4.0', result: 'rolled_back', reason: 'User requested rollback.' },
         ...Array.from({ length: 24 }, (_, i) => ({ time: 29 - i, app: 'arcade.find', from: '1.0.0', to: '1.0.0', result: 'success', reason: null })),
         { time: 1, app: 'arcade.lens', from: '0.4.2', to: '1.0.0', result: 'success', reason: null },
@@ -151,9 +152,11 @@ export default {
     await tab(page, 'updates');
     await sleep(300);
     const rows = await page.locator('.update-history li').allTextContents();
-    assert(rows.length === 20 && rows[0].includes('Arcade Shelf') && rows[0].includes('1.0.0 → 0.4.0'), rows[0]);
+    assert(rows.length === 20 && rows[1].includes('Arcade Shelf') && rows[1].includes('1.0.0 → 0.4.0'), rows[1]);
     assert(!rows.some((r) => r.includes('Arcade Lens')), 'the oldest entry is shown instead of a newer one');
-    assert(rows[1].includes('v1.0.0 reinstalled') && !rows[1].includes('1.0.0 → 1.0.0'), rows[1]);
+    assert(rows[2].includes('v1.0.0 reinstalled') && !rows[2].includes('1.0.0 → 1.0.0'), rows[2]);
+    // A failure's reason reads without its internal code (D35: "unmanaged: Choose …" showed on rc.2).
+    assert(rows[0].includes('Wheel is busy.') && !rows[0].includes('busy:'), rows[0]);
     const notice = await text(page, '#panel-updates .notice');
     assert(notice.includes("Couldn't connect") && !notice.includes('network:'), notice);
   },

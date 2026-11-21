@@ -29,6 +29,8 @@ Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
   Tools rc.1 → rc.2 from inside Tools (Updates page, test channel): the installed file = the rc.2 asset, the history
   line recorded. D34: the new Tools, and Lens, Look and Shelf started by Tools, ran from their mounts with an
   inherited `ARCADE_UNPACKED=1` (fixed; rc.2 superseded). `cargo test --test child_environment` fails without it.
+  D35: on rc.2, Update on Clipboard 0.3.1 (self-installed, listed with Review update) failed with "Choose Let Tools
+  manage it"; fixed, the hub_lifecycle test reproduces the exact error without the fix (23 passed with it).
 - D24: a self-installed Tools offers its own update (owner's report from 0.4.6: tray 6 updates, Updates page 5, no
   Tools). D25: the delta gate follows Tools' delta rule (Clipboard rc.2). D26: a quit during start-up withdraws the
   endpoint. Version 1.0.1, CHANGELOG.

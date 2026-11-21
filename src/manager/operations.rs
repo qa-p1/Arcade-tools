@@ -121,10 +121,9 @@ impl Manager {
         }
         // Updating an app Tools doesn't manage yet adopts it with the latest
         // release in one step, instead of asking for a separate adoption.
-        if request.operation == Operation::Update
-            && old.is_none()
-            && super::adopts_on_update(id, class)
-        {
+        // The class decides, not the record: an app that installed itself has a record built from its own receipt
+        // (D35).
+        if request.operation == Operation::Update && super::adopts_on_update(id, class) {
             return self.adopt_inner(request, peer, receipt, true, cancel, progress);
         }
         if request.operation == Operation::Rollback {
