@@ -228,6 +228,24 @@ fn hub_lifecycle_install_update_rollback_repeated_updates_and_uninstall() {
         manager.record("arcade.look").unwrap().unwrap().version,
         "1.0.0"
     );
+    // A Tools killed between installing an update and keeping the replaced build leaves the copy from an earlier
+    // operation; when that copy is the installed build, there is nothing to go back to (D33).
+    let kept = manager.paths.state().join("arcade.look.previous.json");
+    let original = fs::read(&kept).unwrap();
+    let mut stale: serde_json::Value = serde_json::from_slice(&original).unwrap();
+    stale["record"]["executableSha256"] = manager
+        .record("arcade.look")
+        .unwrap()
+        .unwrap()
+        .executable_sha256
+        .into();
+    fs::write(&kept, serde_json::to_vec(&stale).unwrap()).unwrap();
+    assert_eq!(manager.rollback_version("arcade.look").unwrap(), None);
+    fs::write(&kept, original).unwrap();
+    assert_eq!(
+        manager.rollback_version("arcade.look").unwrap().as_deref(),
+        Some("2.0.0")
+    );
     assert!(matches!(
         history(&manager).last().unwrap().result,
         HistoryResult::RolledBack

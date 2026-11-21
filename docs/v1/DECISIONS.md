@@ -596,3 +596,14 @@ runs peak at 268–312 MB at 2 s), and load time is held by the performance budg
   then cleans up. A history write error after a successful operation is still returned, as before. Covered by the
   existing operation tests (`hub_lifecycle`, 23 passed); the kill window itself is not reproducible in a test.
 
+## D33 — A kept copy of the installed build is not a rollback (1.0.1)
+
+- **Found in the real-user run (rc.1), with D32:** after the SIGKILL, Previous versions said "Arcade Shelf v1.0.0 now
+  · v1.0.0 kept — Roll back to v1.0.0". The update had installed 1.0.0 but never committed its own kept copy (on the
+  next start Tools removed that orphan snapshot, as designed), so `<id>.previous.json` still described the copy from
+  the earlier rollback: 1.0.0, the build now installed. Rolling back would have reinstalled the same build (the
+  checksum check passes), and 0.4.0 was no longer kept by Tools.
+- **Decision:** `rollback_version` offers no rollback when the kept copy's executable hash is the installed record's.
+  The installation itself was correct throughout (file = published 1.0.0, receipt 1.0.0, item kept). Test: the
+  rollback part of `hub_lifecycle_install_update_rollback_repeated_updates_and_uninstall` fails without the change.
+

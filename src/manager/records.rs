@@ -213,8 +213,15 @@ impl Manager {
     /// Read one-step rollback metadata on a worker, without network or mutation.
     pub fn rollback_version(&self, id: &str) -> Result<Option<String>> {
         manager_id(id)?;
+        // A kept copy of the build that is installed now is nothing to go back to. It happens when Tools is killed
+        // between installing an update and keeping the replaced build: the copy from an earlier operation stays, and
+        // the page offered "Roll back to v1.0.0" on 1.0.0 (DECISIONS.md D33).
+        let current = self.record(id)?.map(|record| record.executable_sha256);
         Ok(PreviousInstallation::read(&self.paths, id)?
             .filter(|previous| previous.pointer(&self.paths).is_some())
+            .filter(|previous| {
+                current.as_deref() != Some(previous.record.executable_sha256.as_str())
+            })
             .map(|previous| previous.record.version))
     }
     /// Disk/optional IPC work on a worker thread; no network refresh.

@@ -31,6 +31,8 @@ and versions follow [Semantic Versioning](https://semver.org/).
   check errors no longer start with an internal code ("network:").
 - An update is recorded in Recent activity as soon as it is installed. Tools wrote the record after clearing its
   caches, so a Tools killed in between left the app updated but the update missing from the history.
+- After a Tools that was killed during an update, the page no longer offers "Roll back to v1.0.0" while v1.0.0 is
+  installed: a kept copy that is the installed build is not offered.
 
 ### Changed
 - The shortcut index's Lua sandbox tells the time with jiff instead of chrono, which is no longer maintained
