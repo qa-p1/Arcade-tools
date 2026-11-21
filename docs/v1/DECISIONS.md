@@ -607,3 +607,26 @@ runs peak at 268–312 MB at 2 s), and load time is held by the performance budg
   The installation itself was correct throughout (file = published 1.0.0, receipt 1.0.0, item kept). Test: the
   rollback part of `hub_lifecycle_install_update_rollback_repeated_updates_and_uninstall` fails without the change.
 
+## D34 — Programs Tools starts don't inherit the unpacked-copy marker (1.0.1)
+
+- **Found in the real-user run (rc.2):** after Tools updated itself from inside Tools (rc.1 → rc.2), the new Tools ran
+  from `/tmp/.mount_Arcade…/usr/bin/arcade-tools` with `ARCADE_UNPACKED=1`. So did Lens, Look and Shelf, started by
+  Tools: each kept a FUSE helper resident, which U1 (AUDIT/memory.md) removed. Tools' unpacked copy sets
+  `ARCADE_UNPACKED=1`; Link 1.0.7's child environment passed it on, and to the started app `1` means "already the
+  copy, never relaunch". Link 1.0.13 removes it from children, but Tools pins Link 1.0.7.
+- **Decision:** `platform::sanitize` (used for apps, installers, the new Tools after a self-update and engine probes)
+  removes `ARCADE_UNPACKED` after Link's sanitize. The update helper keeps Tools' environment, as before; it starts
+  the new Tools through `spawn_detached`, which removes it. Moving Tools to Link 1.0.13+ is left for 1.0.2. Test:
+  `child_environment` fails without the change.
+
+## D35 — Update adopts an app that installed itself, decided by its class (1.0.1)
+
+- **Found in the real-user run (rc.2):** Clipboard 0.3.1, installed from its own download, was listed on the Updates
+  page as "installed outside Tools" with Review update (D27). Update then failed: "unmanaged: Choose “Let Tools
+  manage it” for this app first." The one-step path required `old.is_none()`, but `Manager::record` builds a record
+  from an app's own receipt, so only a registry-only (Manual) app ever took it. D27's test checked the listing, and
+  the existing update test covered only a registry-only copy. Recent activity also showed the code prefix.
+- **Decision:** the one-step adopt-and-update runs when `adopts_on_update(id, class)`; the record no longer matters.
+  Recent activity rows go through `plain()` like the page's other errors. Tests: the self-installed case added to
+  `hub_lifecycle_adopting_or_updating_a_pre_installer_copy_installs_the_release` fails without the change with the
+  exact rc.2 error; the UI check for Recent activity fails without `plain()`.

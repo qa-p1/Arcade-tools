@@ -432,6 +432,35 @@ fn hub_lifecycle_adopting_or_updating_a_pre_installer_copy_installs_the_release(
         // The user's own file is left alone.
         assert_eq!(fs::read_to_string(&manual).unwrap(), "#!/bin/sh\nexit 0\n");
     }
+    // An app that installed itself from its own download has a receipt (managed by itself), so Tools builds a record
+    // from it. The Updates page offers its update; Update installs the release and Tools manages it from then on.
+    // rc.2 refused it with "Choose Let Tools manage it" (D35).
+    let id = "arcade.find";
+    let download = manager.paths.home.join("Downloads/Arcade-Find.AppImage");
+    fs::create_dir_all(download.parent().unwrap()).unwrap();
+    fs::write(&download, fake_app(&manager.paths, id, "1.0.0", false)).unwrap();
+    fs::set_permissions(&download, fs::Permissions::from_mode(0o755)).unwrap();
+    arcade_tools_core::installation::run_app_installer(
+        &manager.paths,
+        &download,
+        vec!["--install".into(), "--silent".into(), "--no-launch".into()],
+    )
+    .unwrap();
+    assert_eq!(
+        manager.receipt(id).unwrap().unwrap().managed_by,
+        ManagedBy::SelfManaged
+    );
+    assert!(
+        manager.record(id).unwrap().is_some(),
+        "a self-installed app has a record from its receipt"
+    );
+    publish(&server, &manager, id, "1.1.0", false);
+    let message = operate(&manager, id, Operation::Update).unwrap();
+    assert!(message.contains("1.1.0"), "{message}");
+    let receipt = manager.receipt(id).unwrap().unwrap();
+    assert_eq!(receipt.managed_by, ManagedBy::Tools);
+    assert_eq!(receipt.version, "1.1.0");
+    assert!(!manager.check(id).unwrap().update_available);
 }
 
 #[test]
