@@ -43,6 +43,9 @@ struct Desktop {
     selected: Mutex<Option<String>>,
     resident: Mutex<resident::Resident>,
     restarting: AtomicBool,
+    /// Set, under the `presence` lock, when a quit has taken the presence. A presence started after that is
+    /// dropped at once instead of stored, so its endpoint is withdrawn (a quit during start-up left it behind).
+    quitting: AtomicBool,
     docs_index: Mutex<Option<Arc<SearchIndex>>>,
     metrics: Mutex<arcade_tools_core::dashboard::Metrics>,
     update_wake: Mutex<Option<std::sync::mpsc::Sender<()>>>,
@@ -80,6 +83,7 @@ impl Desktop {
             selected: Mutex::new(None),
             resident: Mutex::new(resident::Resident::new(background)),
             restarting: AtomicBool::new(false),
+            quitting: AtomicBool::new(false),
             docs_index: Mutex::new(None),
             metrics: Mutex::new(Default::default()),
             update_wake: Mutex::new(None),
@@ -738,7 +742,17 @@ fn initialize_desktop(app: &AppHandle) -> Result<Arc<Manager>> {
             tray.navigate("settings");
         }
         app.manage(tray);
-        *state.presence.lock().unwrap_or_else(|e| e.into_inner()) = Some(presence);
+        {
+            // A quit may arrive over Link as soon as the presence serves it, before this line. The quit then found no
+            // presence to withdraw; dropping this one here withdraws its endpoint instead of leaving it stale.
+            let mut slot = state.presence.lock().unwrap_or_else(|e| e.into_inner());
+            if state.quitting.load(Ordering::SeqCst) {
+                drop(slot);
+                drop(presence);
+            } else {
+                *slot = Some(presence);
+            }
+        }
         hotkey::configure(app, &tray_prefs);
         let registry = SharedRegistry::load(&manager.paths.link);
         let handle = app.clone();
@@ -1262,11 +1276,12 @@ fn request_quit(app: &AppHandle) {
     }
     std::thread::spawn(move || {
         STEP.store(1, Ordering::SeqCst);
-        state
-            .presence
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .take();
+        let presence = {
+            let mut slot = state.presence.lock().unwrap_or_else(|e| e.into_inner());
+            state.quitting.store(true, Ordering::SeqCst);
+            slot.take()
+        };
+        drop(presence);
         STEP.store(2, Ordering::SeqCst);
         if let Ok(service) = tray::service(&app) {
             service.stop(state.restarting.load(Ordering::SeqCst));

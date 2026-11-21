@@ -500,3 +500,34 @@ runs peak at 268–312 MB at 2 s), and load time is held by the performance budg
   by then, Tools writes `Quit did not finish within 5 s (stuck in: <step>)` to stderr (its log) and exits. A quit
   can no longer leave Tools running with its endpoint alive, and the next occurrence names its own cause. Link's
   e2e now also prints each thread's state and kernel wait channel when an app does not quit.
+
+## D24 — A self-installed Tools is managed for its own updates (1.0.1)
+
+- **Owner's report (2026-11-21, Tools 0.4.6):** the tray said 6 updates; the Updates page offered 5, and never Tools.
+- **Cause:** Tools' first-run install writes its own receipt as `SelfManaged`, so its class is `SelfInstalled`. The
+  self-update, rollback and auto-update checks already accept a self-installed Tools, but the app view's `managed`
+  flag counted only `Managed` and `LegacyManaged`, and the Updates page, Home, the sidebar count and "Review all"
+  list only managed apps. The tray counts every available update. So a self-installed Tools, which is how Tools is
+  normally installed, could never update itself from its window. The same code is in 0.4.6 and 1.0.0; it is not
+  specific to the owner's machine.
+- **Decision:** the app view treats Tools' own `SelfInstalled` install as managed, the rule `checks.rs` already uses.
+  Other apps installed outside Tools are unchanged (they still need "Let Tools manage it"). Test:
+  `receipt_policy::a_self_installed_tools_offers_its_own_update` (fails before the change).
+- **Existing installs:** 0.4.6 and 1.0.0 cannot offer this update from inside, so those installs move to 1.0.1 once by
+  hand (download it and run it; it replaces the installed copy). From 1.0.1 on, Tools updates itself.
+
+## D25 — The delta gate follows Tools' own delta rule (1.0.1)
+
+- Clipboard rc.2's gate failed: the delta from 0.3.2 fetched 7,908,165 of 15,751,672 bytes (50.2%), and the gate
+  demanded under half. Tools' rule (`delta::plan`) takes a delta when it skips at least a fifth of the file, and the
+  owner's earlier decision (#54) is that the gate checks whatever Tools chooses.
+- **Decision:** when Tools plans a delta, the gate checks that the download fetched no more than the plan's requests
+  and less than the whole file, then the tampered-chunk and signature checks as before. Run on Clipboard's real
+  0.3.2 and rc.2 AppImages: passes, and the tampered chunk is still rejected.
+
+## D26 — A quit during start-up withdraws the endpoint (1.0.1)
+
+- `Presence::start` serves Link before the presence is stored in Tools' state, so an `app.quit` in between found no
+  presence to drop and exited with the endpoint left behind (Link replaces stale endpoints, so the effect was small).
+- **Decision:** the quit marks Tools as quitting under the presence lock while it takes the presence; start-up, under
+  the same lock, drops a presence it would have stored after a quit. Either order withdraws the endpoint.

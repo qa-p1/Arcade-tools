@@ -317,7 +317,8 @@ fn delta_gate(app: &str, old: &str, new: &str) {
     // Tools takes a delta only when it saves enough (D5, `delta::plan`). An app whose whole package changes with
     // every build (Lens: its AppImage is one Rust binary, and a day-old nightly shares 6% of rc.3's bytes) gets the
     // whole file, which is the right download; the gate then checks that path instead of demanding a delta.
-    if arcade_tools_core::delta::plan(&have(), checked.entry.as_ref().unwrap()).is_none() {
+    let Some(plan) = arcade_tools_core::delta::plan(&have(), checked.entry.as_ref().unwrap())
+    else {
         whole_file_gate(
             &server,
             &source,
@@ -330,7 +331,7 @@ fn delta_gate(app: &str, old: &str, new: &str) {
         );
         signature_gate(&server, &assets, app, &repo);
         return;
-    }
+    };
     let cache = tempfile::tempdir().unwrap();
     let file = source
         .download_from(
@@ -353,9 +354,16 @@ fn delta_gate(app: &str, old: &str, new: &str) {
         .filter_map(|r| r.split_once('-'))
         .map(|(a, b)| b.parse::<u64>().unwrap() - a.parse::<u64>().unwrap() + 1)
         .sum();
+    // Tools' own rule decides whether a delta pays (it skips at least a fifth of the file, `delta::plan`). The gate
+    // checks that the download fetched no more than that plan's requests and less than the whole file. It used to
+    // demand under half, which failed Clipboard rc.2: its delta from 0.3.2 fetched 50.2%, a valid delta by the rule.
+    let planned: u64 = arcade_tools_core::delta::requests(&plan)
+        .iter()
+        .map(|r| r.end - r.start)
+        .sum();
     assert!(
-        total * 2 < new_bytes.len() as u64,
-        "the delta fetched {total} of {} bytes",
+        total <= planned && total < new_bytes.len() as u64,
+        "the delta fetched {total} of {} bytes; the plan asked for {planned}",
         new_bytes.len()
     );
     println!(

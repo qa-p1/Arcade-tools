@@ -2,6 +2,16 @@
 
 Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
 
+## 2026-11-21 (cloud session) - 1.0.1
+
+- D24: a self-installed Tools offers its own update (owner's report from 0.4.6: tray 6 updates, Updates page 5, no
+  Tools). D25: the delta gate follows Tools' delta rule (Clipboard rc.2). D26: a quit during start-up withdraws the
+  endpoint. Version 1.0.1, CHANGELOG.
+- Tested locally (toolchain 1.88.0): `cargo fmt --check`, `cargo clippy --workspace --all-targets -D warnings`,
+  `cargo test --test receipt_policy` (8 passed; the new test fails without the fix), `cargo test --test releases`
+  (6 passed), and the delta gate on Clipboard's published 0.3.2 and rc.2 AppImages (passes). The quit race has no
+  automated test (it needs a quit inside a start-up window of a few milliseconds); the change is reviewed by reading.
+
 ## 2026-11-09 (session 2)
 
 - **Not ready to promote rc.10:** TOOLS.md requires local crash reports ("<App> crashed", Copy report, Open
