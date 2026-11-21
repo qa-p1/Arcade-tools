@@ -586,3 +586,13 @@ runs peak at 268–312 MB at 2 s), and load time is held by the performance budg
   reinstalled", and errors shown on the page drop the internal code prefix (`network: `, `unavailable: `). UI check
   "Updates: recent activity lists the newest first and says what a repair did (1.0.1)" fails without the change.
 
+## D32 — The history line is written before the cleanup (1.0.1)
+
+- **Found in the real-user run (rc.1):** Tools was killed (SIGKILL) right after "Update" on Shelf 0.4.0. The update
+  itself was complete and correct (file = published 1.0.0, receipt 1.0.0, Shelf restarted, its item kept), but
+  Recent activity had no "0.4.0 → 1.0.0": the line was appended only after pruning the installer cache and the
+  unpacked copies, which is where the kill landed.
+- **Decision:** `operate_locked` writes the history line (and remembers the rollback) right after the operation,
+  then cleans up. A history write error after a successful operation is still returned, as before. Covered by the
+  existing operation tests (`hub_lifecycle`, 23 passed); the kill window itself is not reproducible in a test.
+

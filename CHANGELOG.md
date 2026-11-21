@@ -29,6 +29,8 @@ and versions follow [Semantic Versioning](https://semver.org/).
 - Recent activity on the Updates page lists the newest first. It showed the oldest 20 entries, oldest first, so after
   twenty updates the latest ones were missing. A repair reads "v1.0.0 reinstalled" instead of "1.0.0 → 1.0.0", and
   check errors no longer start with an internal code ("network:").
+- An update is recorded in Recent activity as soon as it is installed. Tools wrote the record after clearing its
+  caches, so a Tools killed in between left the app updated but the update missing from the history.
 
 ### Changed
 - The shortcut index's Lua sandbox tells the time with jiff instead of chrono, which is no longer maintained

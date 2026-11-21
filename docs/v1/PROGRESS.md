@@ -21,6 +21,8 @@ Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
   Start at login off/on for Lens: the autostart entry removed and restored. Offline (the user's traffic rejected):
   the check says it couldn't connect; Shelf 1.0.0 → 0.4.0 rollback works offline, item kept, file = published
   0.4.0. D31: Recent activity showed the oldest entries first.
+  Tools killed (SIGKILL) right after Update on Shelf: Shelf was correctly on 1.0.0 and Tools restarted cleanly from
+  its launcher, but the update was missing from Recent activity (D32, fixed). Whole workspace under `e2e.py`: green.
   Tested locally: clippy `-D warnings`, `cargo test --test receipt_policy --test updates`, `npm run typecheck`,
   `npm run ui-checks` (with the new UI check).
 - D24: a self-installed Tools offers its own update (owner's report from 0.4.6: tray 6 updates, Updates page 5, no
