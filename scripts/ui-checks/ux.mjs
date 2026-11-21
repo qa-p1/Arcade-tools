@@ -135,6 +135,28 @@ export default {
     const t = (await page.locator('article#arcade\\.look').textContent()).replace(/\s+/g, ' ');
     assert(!t.includes('Update 2.0.0'), t);
   },
+  async 'Updates: recent activity lists the newest first and says what a repair did (1.0.1)'(page) {
+    await page.evaluate(() => {
+      const m = window.__mock;
+      // As the backend returns it: newest first.
+      m.on('update_history', () => [
+        { time: 30, app: 'arcade.shelf', from: '1.0.0', to: '0.4.0', result: 'rolled_back', reason: 'User requested rollback.' },
+        ...Array.from({ length: 24 }, (_, i) => ({ time: 29 - i, app: 'arcade.find', from: '1.0.0', to: '1.0.0', result: 'success', reason: null })),
+        { time: 1, app: 'arcade.lens', from: '0.4.2', to: '1.0.0', result: 'success', reason: null },
+      ]);
+      m.state.updates = { schema: 1, lastCheck: 1, lastSuccess: null, lastFailure: { time: 1, reason: 'network: Couldn\'t connect.' }, apps: {} };
+      m.emit('updates-changed', m.state.updates);
+    });
+    await tab(page, 'apps');
+    await tab(page, 'updates');
+    await sleep(300);
+    const rows = await page.locator('.update-history li').allTextContents();
+    assert(rows.length === 20 && rows[0].includes('Arcade Shelf') && rows[0].includes('1.0.0 → 0.4.0'), rows[0]);
+    assert(!rows.some((r) => r.includes('Arcade Lens')), 'the oldest entry is shown instead of a newer one');
+    assert(rows[1].includes('v1.0.0 reinstalled') && !rows[1].includes('1.0.0 → 1.0.0'), rows[1]);
+    const notice = await text(page, '#panel-updates .notice');
+    assert(notice.includes("Couldn't connect") && !notice.includes('network:'), notice);
+  },
   async 'Updates: never checked is not "up to date"'(page) {
     await tab(page, 'updates');
     const t = await text(page, '#panel-updates .empty-state');

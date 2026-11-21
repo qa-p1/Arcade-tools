@@ -26,6 +26,9 @@ and versions follow [Semantic Versioning](https://semver.org/).
 - A deleted app file is one item on Home, "Its app file is missing. Repair installs it again", instead of three in
   jargon whose first button, "Remove entry", would have made Tools forget the app.
 - The card of an app that isn't installed no longer says "Update 1.0.0"; it offers Check & install.
+- Recent activity on the Updates page lists the newest first. It showed the oldest 20 entries, oldest first, so after
+  twenty updates the latest ones were missing. A repair reads "v1.0.0 reinstalled" instead of "1.0.0 → 1.0.0", and
+  check errors no longer start with an internal code ("network:").
 
 ### Changed
 - The shortcut index's Lua sandbox tells the time with jiff instead of chrono, which is no longer maintained

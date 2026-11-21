@@ -44,6 +44,8 @@
     return app.installed && app.installationClass !== 'dev' && error && !state?.updateAvailable ? [{ app, error }] : [];
   }));
   const updatable = $derived(rows.filter((row) => row.app.managed || row.app.adoptsOnUpdate));
+  /** Errors arrive as "code: message"; the code means nothing to a reader. */
+  const plain = (reason: string) => reason.replace(/^[a-z_]+: /, '');
   const lastChecked = $derived(updates?.lastCheck ? relativeInSentence(updates.lastCheck * 1000) : null);
   let openNotes = $state<Record<string, boolean>>({});
   async function toggleNotes(key: string, markdown: string): Promise<void> {
@@ -71,6 +73,7 @@
   function versions(entry: HistoryEntry): string | null {
     if (!entry.from && !entry.to) return null;
     if (!entry.to) return `from ${entry.from}`;
+    if (entry.from === entry.to) return `v${entry.to} reinstalled`;
     return entry.from ? `${entry.from} → ${entry.to}` : entry.to;
   }
   /** -1, 0 or 1 by dotted numeric parts; good enough to word a button. */
@@ -86,7 +89,8 @@
     app.version && app.rollbackVersion && compare(app.rollbackVersion, app.version) > 0 ? `Switch to v${app.rollbackVersion}` : `Roll back to v${app.rollbackVersion}`;
 
   async function loadHistory(): Promise<void> {
-    history = (await api.updateHistory()).slice(-20).reverse();
+    // The backend returns the newest first; keep the newest 20.
+    history = (await api.updateHistory()).slice(0, 20);
   }
 
   // History reloads whenever the tab opens or an operation finishes.
@@ -105,8 +109,8 @@
     </div>
   </header>
 
-  {#if updates?.lastFailure}<div class="notice warn"><Icon name="alert" /><span class="row-main">The last check didn't finish: {updates.lastFailure.reason}</span></div>{/if}
-  {#each unchecked as item (item.app.id)}<div class="notice warn"><Icon name="alert" /><span class="row-main">Couldn't check {item.app.name} {item.app.version ? `v${item.app.version}` : ''} for updates: {item.error}</span></div>{/each}
+  {#if updates?.lastFailure}<div class="notice warn"><Icon name="alert" /><span class="row-main">The last check didn't finish: {plain(updates.lastFailure.reason)}</span></div>{/if}
+  {#each unchecked as item (item.app.id)}<div class="notice warn"><Icon name="alert" /><span class="row-main">Couldn't check {item.app.name} {item.app.version ? `v${item.app.version}` : ''} for updates: {plain(item.error)}</span></div>{/each}
 
   {#if rows.length}
     <div class="list update-list">
@@ -133,7 +137,7 @@
             <div class="row-extra">
               {#if outside(row.app)}<p class="row-sub">{row.app.adoptsOnUpdate ? 'Updating it also lets Tools manage it: later updates, repairs and rollbacks happen here.' : 'Let Tools manage it first; its updates then install from here.'}</p>{/if}
               {#if row.state.heldBack}<p class="status-warning">Held back: {row.state.reason ?? row.latest?.reason ?? 'It is not compatible with a connected app.'}</p>{/if}
-              {#if row.latest?.error}<p class="status-warning">Release check issue: {row.latest.error}</p>{/if}
+              {#if row.latest?.error}<p class="status-warning">Release check issue: {plain(row.latest.error)}</p>{/if}
             </div>
           {/if}
           {#if notes && openNotes[key] && (renderedNotes[key] !== undefined || notesError[key])}

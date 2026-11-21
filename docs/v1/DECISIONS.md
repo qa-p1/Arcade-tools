@@ -577,3 +577,12 @@ runs peak at 268–312 MB at 2 s), and load time is held by the performance budg
   wordings are plain too (an app Tools didn't install; the copy kept for rolling back). Test: the health part of
   `hub_lifecycle_health_and_reviewed_uninstall_all` asserts one issue for the app, with Repair.
 
+## D31 — Recent activity: the newest 20, newest first (1.0.1)
+
+- **Found in the real-user run (rc.1):** after a rollback, "Just now" was the last row of Recent activity. The
+  backend returns the history newest first (`Manager::history`, up to 200); the page took `slice(-20).reverse()`,
+  which is the oldest 20, oldest first. After twenty entries the newest updates and rollbacks were not shown at all.
+- **Decision:** the page keeps the first 20 as returned. A repair (same version before and after) reads "v1.0.0
+  reinstalled", and errors shown on the page drop the internal code prefix (`network: `, `unavailable: `). UI check
+  "Updates: recent activity lists the newest first and says what a repair did (1.0.1)" fails without the change.
+

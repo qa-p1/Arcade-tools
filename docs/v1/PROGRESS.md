@@ -16,6 +16,11 @@ Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
   Remove Look (keep data) and Check & install again: launcher, autostart and registry entry removed, settings kept
   byte for byte, reinstalled file = published asset. The not-installed card said "Update 1.0.0": fixed, with a UI
   check that fails without the fix.
+  Tools 1.0.0 → 1.0.1 (rc.1) by hand, as an owner on 1.0.0 will: download, run, "Update or open installed Arcade
+  Tools?" → Install; the installed file = the rc.1 asset, the download removed, one Tools running from its copy.
+  Start at login off/on for Lens: the autostart entry removed and restored. Offline (the user's traffic rejected):
+  the check says it couldn't connect; Shelf 1.0.0 → 0.4.0 rollback works offline, item kept, file = published
+  0.4.0. D31: Recent activity showed the oldest entries first.
   Tested locally: clippy `-D warnings`, `cargo test --test receipt_policy --test updates`, `npm run typecheck`,
   `npm run ui-checks` (with the new UI check).
 - D24: a self-installed Tools offers its own update (owner's report from 0.4.6: tray 6 updates, Updates page 5, no
