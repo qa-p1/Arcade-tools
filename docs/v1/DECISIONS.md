@@ -556,3 +556,11 @@ runs peak at 268–312 MB at 2 s), and load time is held by the performance budg
   check Arcade Clipboard v0.3.1 for updates: …". The bad-release test in `tests/updates.rs` now asserts that: no check
   failure, the app's error set, its cache and last good version kept.
 
+## D29 — App cards show the last check's result (1.0.1)
+
+- **Found in the real-user run:** after "Let Tools manage it", Shelf 0.4.0 was managed and listed on the Updates
+  page, but its card on Apps showed no update until the card's own check button was pressed. The card read only
+  this session's per-app checks; the detail view already fell back to the scheduler's last result (`latestFor`).
+- **Decision:** cards use `latestFor` as the detail view does. UI check "Apps: a card shows the update the last check
+  found, without its own check (1.0.1)".
+

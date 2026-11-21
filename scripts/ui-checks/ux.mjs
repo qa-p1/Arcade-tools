@@ -101,6 +101,24 @@ export default {
     assert(panel.includes('installed outside Tools') && !panel.includes("You're up to date"), panel);
     assert(panel.includes("Couldn't check Arcade Clipboard") && !panel.includes("didn't finish"), panel);
   },
+  async 'Apps: a card shows the update the last check found, without its own check (1.0.1)'(page) {
+    await page.evaluate(() => {
+      const m = window.__mock;
+      m.state.apps = m.state.apps.map((a) => a.id === 'arcade.shelf' ? { ...a, version: '0.4.0' } : a);
+      m.state.updates = { schema: 1, lastCheck: 1, lastSuccess: 1, lastFailure: null, apps: {
+        'arcade.shelf': { installedVersion: '0.4.0', channel: 'stable', updateAvailable: true, heldBack: false, reason: null,
+          latest: { stable: { latestVersion: '1.0.0', updateAvailable: true, heldBack: false, reason: null, error: null, cache: null } } },
+      } };
+      m.emit('registry-changed', null);
+      m.emit('updates-changed', m.state.updates);
+    });
+    await sleep(300);
+    await tab(page, 'apps');
+    await sleep(200);
+    const card = page.locator('article#arcade\\.shelf');
+    const t = (await card.textContent()).replace(/\s+/g, ' ');
+    assert(t.includes('Update 1.0.0') && await card.getByRole('button', { name: 'Update', exact: true }).count() === 1, t);
+  },
   async 'Updates: never checked is not "up to date"'(page) {
     await tab(page, 'updates');
     const t = await text(page, '#panel-updates .empty-state');

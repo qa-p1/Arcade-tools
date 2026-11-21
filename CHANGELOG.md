@@ -21,6 +21,8 @@ and versions follow [Semantic Versioning](https://semver.org/).
 - One app whose release can't be read no longer fails the whole update check. A Clipboard 0.3 install (its releases
   have no manifest) turned the page into "Couldn't finish the last check. Check your connection" and hid the other
   apps' updates; the page now says which app couldn't be checked and why, and lists the rest.
+- An app card shows the update the last check found ("Update 1.0.0" and its Update button). Before, a card showed
+  it only after that card's own check button, so a just-adopted app looked up to date on the Apps page.
 
 ### Changed
 - The shortcut index's Lua sandbox tells the time with jiff instead of chrono, which is no longer maintained

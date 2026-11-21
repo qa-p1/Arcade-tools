@@ -7,6 +7,9 @@ Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
 - Real-user run on Linux (a desktop session as a normal user, old releases installed from their own downloads, then
   Tools 1.0.0): D27, the tray counted 3 updates the Updates page didn't list; D28, one app's release without a
   manifest (Clipboard 0.3.2) made the page say the check failed. Both fixed for 1.0.1 (rc.1 is superseded).
+  D29: an adopted app's card showed no update. Verified on 1.0.0 in the same run: Lens 0.4.2 adopted, then updated
+  from the Updates page to 1.0.0; the installed AppImage's SHA-256 equals the published v1.0.0 asset's, history
+  says "0.4.2 → 1.0.0 Done" and v0.4.2 is kept for rollback.
   Tested locally: clippy `-D warnings`, `cargo test --test receipt_policy --test updates`, `npm run typecheck`,
   `npm run ui-checks` (with the new UI check).
 - D24: a self-installed Tools offers its own update (owner's report from 0.4.6: tray 6 updates, Updates page 5, no
