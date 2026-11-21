@@ -4,7 +4,7 @@
   import { glyph } from '../lib/glyphs';
   import { ui } from '../lib/state.svelte';
   import { refresh } from '../lib/controller';
-  import { api, type AppView, type CrashSummary, type Dashboard, type HealthIssue, type Operation, type UpdateState } from '../lib/api';
+  import { api, listsUpdates, type AppView, type CrashSummary, type Dashboard, type HealthIssue, type Operation, type UpdateState } from '../lib/api';
   import CrashReport from '../components/CrashReport.svelte';
   import type { ShellTab } from '../lib/tabs.svelte';
   import Icon from '../components/Icon.svelte';
@@ -26,7 +26,7 @@
   let issues = $state<HealthIssue[]>([]);
   const installed = $derived(apps.filter((app) => app.installed));
   const running = $derived(installed.filter((app) => app.running));
-  const updatesAvailable = $derived(apps.filter((app) => app.managed && updates?.apps[app.id]?.updateAvailable && !updates.apps[app.id]?.heldBack));
+  const updatesAvailable = $derived(apps.filter((app) => listsUpdates(app) && updates?.apps[app.id]?.updateAvailable && !updates.apps[app.id]?.heldBack));
   const lastChecked = $derived(updates?.lastCheck ? relativeInSentence(updates.lastCheck * 1000) : null);
   const stopped = $derived(installed.filter((app) => !app.running));
   let showIssues = $state(false);

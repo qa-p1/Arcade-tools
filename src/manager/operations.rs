@@ -107,12 +107,7 @@ impl Manager {
         // release in one step, instead of asking for a separate adoption.
         if request.operation == Operation::Update
             && old.is_none()
-            && Os::current() == Os::Linux
-            && id != ids::TOOLS
-            && matches!(
-                class,
-                InstallationClass::SelfInstalled | InstallationClass::Manual
-            )
+            && super::adopts_on_update(id, class)
         {
             return self.adopt_inner(request, peer, receipt, true, cancel, progress);
         }

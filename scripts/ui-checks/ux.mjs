@@ -71,6 +71,36 @@ export default {
     const n = await page.locator('article#arcade\\.find').getByRole('button', { name: 'Let Tools manage it' }).count();
     assert(n === 1, `adopt buttons on card: ${n}`);
   },
+  async 'Updates: an app installed outside Tools lists its update, as the tray counts it (1.0.1)'(page) {
+    await page.evaluate(() => {
+      const m = window.__mock;
+      const update = (from, to) => ({ installedVersion: from, channel: 'stable', updateAvailable: true, heldBack: false, reason: null,
+        latest: { stable: { latestVersion: to, updateAvailable: true, heldBack: false, reason: null, error: null, cache: null } } });
+      m.state.apps = m.state.apps.map((a) => a.id === 'arcade.lens' ? { ...a, version: '0.4.2', managed: false, installationClass: 'selfInstalled', adoptsOnUpdate: true }
+        : a.id === 'arcade.shelf' ? { ...a, version: '0.4.0', managed: false, installationClass: 'selfInstalled', adoptsOnUpdate: false }
+        : a.id === 'arcade.wheel' ? { ...a, version: '0.5.0', managed: false, installationClass: 'dev' }
+        : a.id === 'arcade.clipboard' ? { ...a, version: '0.3.1', managed: false, installationClass: 'selfInstalled', adoptsOnUpdate: true } : a);
+      m.state.updates = { schema: 1, lastCheck: 1, lastSuccess: 1, lastFailure: null, apps: {
+        'arcade.lens': update('0.4.2', '1.0.0'), 'arcade.shelf': update('0.4.0', '1.0.0'), 'arcade.wheel': update('0.5.0', '1.0.0'),
+        'arcade.clipboard': { installedVersion: '0.3.1', channel: 'stable', updateAvailable: false, heldBack: false, reason: null,
+          latest: { stable: { latestVersion: null, updateAvailable: false, heldBack: false, reason: null, error: 'unavailable: The release must include exactly one manifest.json.', cache: null } } },
+      } };
+      m.emit('registry-changed', null);
+      m.emit('updates-changed', m.state.updates);
+    });
+    await sleep(300);
+    await tab(page, 'updates');
+    await sleep(300);
+    const panel = (await text(page, '#panel-updates')).replace(/\s+/g, ' ');
+    const lens = page.locator('#panel-updates section.update-card', { hasText: 'Arcade Lens' });
+    const shelf = page.locator('#panel-updates section.update-card', { hasText: 'Arcade Shelf' });
+    assert(await lens.getByRole('button', { name: 'Review update' }).count() === 1, `Lens row: ${panel}`);
+    assert(await shelf.getByRole('button', { name: 'Let Tools manage it' }).count() === 1, `Shelf row: ${panel}`);
+    assert(!panel.includes('Arcade Wheel 0.5.0'), `a development build is listed: ${panel}`);
+    assert(await page.locator('#panel-updates section.update-card').count() === 2, panel);
+    assert(panel.includes('installed outside Tools') && !panel.includes("You're up to date"), panel);
+    assert(panel.includes("Couldn't check Arcade Clipboard") && !panel.includes("didn't finish"), panel);
+  },
   async 'Updates: never checked is not "up to date"'(page) {
     await tab(page, 'updates');
     const t = await text(page, '#panel-updates .empty-state');

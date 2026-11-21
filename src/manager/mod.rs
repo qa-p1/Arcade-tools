@@ -173,9 +173,23 @@ pub struct AppView {
     pub install_reason: Option<String>,
     pub install_supported: bool,
     pub installation_class: InstallationClass,
+    /// An update installs the new release and lets Tools manage the app in one step (`adopts_on_update`).
+    pub adopts_on_update: bool,
     pub rollback_version: Option<String>,
     /// Why the installed release was withdrawn (catalog `bad`), if it was: the app view offers a rollback.
     pub withdrawn: Option<String>,
+}
+
+/// Whether updating an installation Tools doesn't manage yet installs the latest release and adopts it in the same
+/// step. Linux only: there every Arcade AppImage installs itself with `--install`; on Windows and macOS the user first
+/// chooses "Let Tools manage it". Tools updates itself through its own path.
+pub fn adopts_on_update(id: &str, class: InstallationClass) -> bool {
+    Os::current() == Os::Linux
+        && id != ids::TOOLS
+        && matches!(
+            class,
+            InstallationClass::SelfInstalled | InstallationClass::Manual
+        )
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]

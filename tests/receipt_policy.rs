@@ -121,6 +121,47 @@ fn a_self_installed_tools_offers_its_own_update() {
     );
 }
 
+#[test]
+fn an_app_installed_outside_tools_lists_its_update_and_updates_in_one_step() {
+    // The tray counts every installed app with a newer release; before 1.0.1 the Updates page listed only the apps
+    // Tools managed, so an app installed from its own download showed in the tray's count and nowhere else.
+    use arcade_tools_core::{manager::Manager, release::Os, source::Source};
+    let root = tempfile::tempdir().unwrap();
+    let paths = Paths::under(root.path());
+    let mut receipt = receipt(&paths, InstallMethod::Appimage);
+    receipt.path = paths.home.join("Applications/Arcade-Look.AppImage");
+    fs::create_dir_all(receipt.path.parent().unwrap()).unwrap();
+    fs::write(&receipt.path, "fixture").unwrap();
+    Store::new(&paths.link).write(&receipt).unwrap();
+    let manager = Manager::new(paths, Source::github().unwrap());
+    let view = manager
+        .list(false)
+        .unwrap()
+        .into_iter()
+        .find(|app| app.id == "arcade.look")
+        .unwrap();
+    assert_eq!(
+        view.installation_class,
+        arcade_tools_core::manager::InstallationClass::SelfInstalled
+    );
+    assert!(!view.managed && view.installed);
+    let linux = Os::current() == Os::Linux;
+    assert_eq!(view.adopts_on_update, linux);
+    if linux {
+        assert!(view
+            .reason
+            .unwrap()
+            .contains("Updating it lets Tools manage it"));
+    }
+    let (installed, _) = manager.update_inputs().unwrap();
+    assert!(
+        installed
+            .iter()
+            .any(|app| app.id == "arcade.look" && app.version == "0.2.0"),
+        "an app installed outside Tools is checked for updates"
+    );
+}
+
 #[cfg(unix)]
 #[test]
 fn app_login_writers_accept_link_entries_and_update_receipts() {

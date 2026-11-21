@@ -1,6 +1,6 @@
 <script lang="ts">
   import { glyph } from '../lib/glyphs';
-  import type { AppView, Channel, Operation, Release } from '../lib/api';
+  import { updatesHere, type AppView, type Channel, type Operation, type Release } from '../lib/api';
   import Icon from './Icon.svelte';
   import { tooltip } from '../lib/tooltip';
 
@@ -55,7 +55,7 @@
     {#if app.installed}
       <button class="btn sm primary" type="button" disabled={busy} onclick={() => run(() => onLaunch(app, 'foreground'), app.name)}>Open</button>
     {/if}
-    {#if release?.updateAvailable && app.managed}<button class="btn sm primary" type="button" disabled={busy} onclick={() => run(() => onOperation(app, 'update'), app.name)}>Update</button>{/if}
+    {#if release?.updateAvailable && updatesHere(app)}<button class="btn sm primary" type="button" disabled={busy} onclick={() => run(() => onOperation(app, 'update'), app.name)}>Update</button>{/if}
     {#if app.installed && !app.managed && app.installationClass !== 'dev'}
       <button class="btn sm" type="button" disabled={busy} onclick={() => run(() => onOperation(app, 'adopt'), app.name)}>Let Tools manage it</button>
     {/if}

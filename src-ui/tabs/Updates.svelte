@@ -17,22 +17,33 @@
     updateChecksEnabled: boolean;
     onCheckNow: () => Promise<void>;
     onUpdate: (app: AppView) => Promise<void>;
+    onAdopt: (app: AppView) => Promise<void>;
     onUpdateAll: (apps: AppView[]) => Promise<void>;
     onRollback: (app: AppView) => Promise<void>;
     onAutoUpdate: (app: AppView, enabled: boolean) => Promise<void>;
     onSelectApps: () => void;
     run: (action: () => Promise<void>, label?: string) => void;
   };
-  let { active, apps, updates, autoUpdate, busy, checking, updateChecksEnabled, onCheckNow, onUpdate, onUpdateAll, onRollback, onAutoUpdate, onSelectApps, run }: Props = $props();
+  let { active, apps, updates, autoUpdate, busy, checking, updateChecksEnabled, onCheckNow, onUpdate, onAdopt, onUpdateAll, onRollback, onAutoUpdate, onSelectApps, run }: Props = $props();
   let history = $state<HistoryEntry[]>([]);
   let renderedNotes = $state<Record<string, string>>({});
   let notesError = $state<Record<string, string>>({});
   let loadingNotes = $state<Record<string, boolean>>({});
+  // Every app with a newer release, as the tray counts them: one installed outside Tools is listed too, with the way
+  // to take it over (updating it does that in one step on Linux). Development builds are never changed.
+  const outside = (app: AppView) => !app.managed && app.installationClass !== 'dev';
   const rows = $derived(apps.flatMap((app): Row[] => {
     const state = updates?.apps[app.id];
-    if (!app.managed || !state?.updateAvailable) return [];
+    if (!(app.managed || (app.installed && outside(app))) || !state?.updateAvailable) return [];
     return [{ app, state, latest: state.latest[state.channel] }];
   }));
+  // Apps whose own release couldn't be read on the last check; the others were checked.
+  const unchecked = $derived(apps.flatMap((app) => {
+    const state = updates?.apps[app.id];
+    const error = state?.latest[state.channel]?.error;
+    return app.installed && app.installationClass !== 'dev' && error && !state?.updateAvailable ? [{ app, error }] : [];
+  }));
+  const updatable = $derived(rows.filter((row) => row.app.managed || row.app.adoptsOnUpdate));
   const lastChecked = $derived(updates?.lastCheck ? relativeInSentence(updates.lastCheck * 1000) : null);
   let openNotes = $state<Record<string, boolean>>({});
   async function toggleNotes(key: string, markdown: string): Promise<void> {
@@ -89,12 +100,13 @@
       <p class="sub">{lastChecked ? `Last checked ${lastChecked}` : 'Not checked yet'}{updateChecksEnabled ? '' : ' · automatic checks paused'}</p>
     </div>
     <div class="page-actions">
-      {#if rows.length > 1}<button type="button" class="btn primary" disabled={busy || checking} onclick={() => run(() => onUpdateAll(rows.map((row) => row.app)), 'Arcade apps')}>Review all updates</button>{/if}
+      {#if updatable.length > 1}<button type="button" class="btn primary" disabled={busy || checking} onclick={() => run(() => onUpdateAll(updatable.map((row) => row.app)), 'Arcade apps')}>Review all updates</button>{/if}
       <button type="button" class="btn" class:busy={checking} disabled={busy || checking} onclick={() => run(onCheckNow)}><Icon name="refresh" size={14} />Check for updates</button>
     </div>
   </header>
 
   {#if updates?.lastFailure}<div class="notice warn"><Icon name="alert" /><span class="row-main">The last check didn't finish: {updates.lastFailure.reason}</span></div>{/if}
+  {#each unchecked as item (item.app.id)}<div class="notice warn"><Icon name="alert" /><span class="row-main">Couldn't check {item.app.name} {item.app.version ? `v${item.app.version}` : ''} for updates: {item.error}</span></div>{/each}
 
   {#if rows.length}
     <div class="list update-list">
@@ -106,15 +118,20 @@
             <span class="glyph-tile"><img src={glyph(row.app.id)} alt="" width="18" height="18" /></span>
             <div class="row-main">
               <h2 class="row-title" id="update-{row.app.id}">{row.app.name}</h2>
-              <div class="row-sub">{row.state.installedVersion ?? row.app.version ?? '?'} → <strong class="to-version">{row.latest?.latestVersion ?? 'new version'}</strong>{row.state.channel !== 'stable' ? ` · ${row.state.channel}` : ''}</div>
+              <div class="row-sub">{row.state.installedVersion ?? row.app.version ?? '?'} → <strong class="to-version">{row.latest?.latestVersion ?? 'new version'}</strong>{row.state.channel !== 'stable' ? ` · ${row.state.channel}` : ''}{outside(row.app) ? ' · installed outside Tools' : ''}</div>
             </div>
             <div class="row-end">
               {#if notes}<button type="button" class="btn ghost sm" aria-expanded={Boolean(openNotes[key])} disabled={loadingNotes[key]} onclick={() => run(() => toggleNotes(key, notes), row.app.name)}>{loadingNotes[key] ? 'Loading…' : openNotes[key] ? 'Hide notes' : 'Show release notes'}</button>{/if}
-              <button class="btn sm primary primary-action" type="button" disabled={busy || checking || row.state.heldBack} onclick={() => run(() => onUpdate(row.app), row.app.name)}>{row.state.heldBack ? 'Blocked' : 'Review update'}</button>
+              {#if outside(row.app) && !row.app.adoptsOnUpdate}
+                <button class="btn sm primary primary-action" type="button" disabled={busy || checking} onclick={() => run(() => onAdopt(row.app), row.app.name)}>Let Tools manage it</button>
+              {:else}
+                <button class="btn sm primary primary-action" type="button" disabled={busy || checking || row.state.heldBack} onclick={() => run(() => onUpdate(row.app), row.app.name)}>{row.state.heldBack ? 'Blocked' : 'Review update'}</button>
+              {/if}
             </div>
           </div>
-          {#if row.state.heldBack || row.latest?.error}
+          {#if outside(row.app) || row.state.heldBack || row.latest?.error}
             <div class="row-extra">
+              {#if outside(row.app)}<p class="row-sub">{row.app.adoptsOnUpdate ? 'Updating it also lets Tools manage it: later updates, repairs and rollbacks happen here.' : 'Let Tools manage it first; its updates then install from here.'}</p>{/if}
               {#if row.state.heldBack}<p class="status-warning">Held back: {row.state.reason ?? row.latest?.reason ?? 'It is not compatible with a connected app.'}</p>{/if}
               {#if row.latest?.error}<p class="status-warning">Release check issue: {row.latest.error}</p>{/if}
             </div>

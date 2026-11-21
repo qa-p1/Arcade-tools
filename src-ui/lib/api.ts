@@ -33,6 +33,8 @@ export interface AppView {
   installReason: string | null;
   installSupported: boolean;
   installationClass: 'managed' | 'legacyManaged' | 'selfInstalled' | 'manual' | 'dev';
+  /** Updating it installs the new release and lets Tools manage it in one step (Linux). */
+  adoptsOnUpdate: boolean;
   rollbackVersion: string | null;
   /** The channel of the installed build; differs from `channel` until a switch is installed (TL-9). */
   installedChannel: Channel | null;
@@ -315,3 +317,14 @@ export const appEvents = {
   updatesChanged: (handler: (state: UpdateState) => void): Promise<UnlistenFn> =>
     listen<UpdateState>('updates-changed', ({ payload }) => handler(payload)),
 };
+
+/** Whether the app's update is listed and counted (Updates page, Home, the tab badge), as the tray counts it: every
+ * installed app but a development build, managed by Tools or not. */
+export function listsUpdates(app: AppView): boolean {
+  return app.managed || (app.installed && app.installationClass !== 'dev');
+}
+
+/** Whether Tools can install the app's update from here: it manages the app, or the update adopts it (Linux). */
+export function updatesHere(app: AppView): boolean {
+  return app.managed || app.adoptsOnUpdate;
+}

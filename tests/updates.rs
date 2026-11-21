@@ -341,13 +341,17 @@ fn compatibility_holds_are_recomputed_on_304_and_bad_manifests_preserve_cache() 
         "/assets/arcade-look-3.0.0-stable/arcade-release.json".into(),
         br#"{"schema":2}"#.to_vec(),
     );
-    assert!(scheduler
+    // One app's unreadable release is that app's error, not a failed check (D27).
+    let outcome = scheduler
         .run(
             Trigger::Manual,
-            context(&settings, &catalog, &installed, &[])
+            context(&settings, &catalog, &installed, &[]),
         )
-        .unwrap()
-        .failure
+        .unwrap();
+    assert!(outcome.failure.is_none());
+    assert!(scheduler.state().last_failure.is_none());
+    assert!(scheduler.state().apps["arcade.look"].latest["stable"]
+        .error
         .is_some());
     assert_eq!(
         scheduler.state().apps["arcade.look"].latest["stable"]

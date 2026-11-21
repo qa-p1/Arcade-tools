@@ -1,6 +1,6 @@
 import { setTabEnabled } from './tabs.svelte';
 import { tick } from 'svelte';
-import { api, type AppView, type Channel, type ManagerFailure, type Operation, type OperationProgress, type OperationRequest } from './api';
+import { api, updatesHere, type AppView, type Channel, type ManagerFailure, type Operation, type OperationProgress, type OperationRequest } from './api';
 import { askForConfirmation, forgetRelease, operationRequest, rememberRelease, ui } from './state.svelte';
 
 let pendingInstall: string | null = null;
@@ -376,7 +376,7 @@ export function openLearn(id: string): Promise<void> {
   return Promise.resolve();
 }
 export async function updateAll(apps: AppView[]): Promise<void> {
-  const available = apps.filter((app) => ui.updates?.apps[app.id]?.updateAvailable && !ui.updates.apps[app.id]?.heldBack && app.managed);
+  const available = apps.filter((app) => ui.updates?.apps[app.id]?.updateAvailable && !ui.updates.apps[app.id]?.heldBack && updatesHere(app));
   if (!available.length) return;
   const choice = await askForConfirmation({ title: `Update ${available.length} apps?`, copy: available.map((app) => `• ${app.name} → ${ui.updates?.apps[app.id]?.latest[app.channel]?.latestVersion ?? 'latest'}${app.reason ? `\n  ${app.reason}` : ''}`).join('\n') + '\nBusy apps will be left running. Settings and data are kept.', action: 'Update all', destructive: false, kind: null, folders: [] });
   if (!choice.confirmed) return;

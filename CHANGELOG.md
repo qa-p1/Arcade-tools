@@ -13,6 +13,14 @@ and versions follow [Semantic Versioning](https://semver.org/).
   Tools now lists its own update with the apps', can turn on auto-update for itself, and its diagnostics name its
   channel instead of "development".
 - A quit that arrives while Tools is still starting no longer leaves its Arcade Link endpoint behind.
+- The Updates page lists every update the tray counts. An app installed from its own download (outside Tools) was
+  counted in the tray, "Updates (3)", while the page said "You're up to date". The page, Home and the sidebar badge
+  now list it, marked "installed outside Tools"; on Linux, Review update installs the new release and lets Tools
+  manage the app in the same step, and on Windows and macOS the row offers "Let Tools manage it". Development builds
+  are never checked or counted.
+- One app whose release can't be read no longer fails the whole update check. A Clipboard 0.3 install (its releases
+  have no manifest) turned the page into "Couldn't finish the last check. Check your connection" and hid the other
+  apps' updates; the page now says which app couldn't be checked and why, and lists the rest.
 
 ### Changed
 - The shortcut index's Lua sandbox tells the time with jiff instead of chrono, which is no longer maintained
