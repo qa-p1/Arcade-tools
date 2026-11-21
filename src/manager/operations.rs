@@ -31,6 +31,9 @@ impl Manager {
         };
         let mut replaced = false;
         let result = self.operate_inner(request, cancel, progress, &mut history, &mut replaced);
+        // The history line is written before the cleanup below: a Tools that is killed while it prunes caches after
+        // an update had installed it, restarted the app and lost the record of it (DECISIONS.md D32).
+        let logged = self.log_operation(request, &result, old.as_ref(), replaced, &mut history);
         if result.is_ok() {
             if let Err(error) = installation::prune_installers(&self.paths, &request.id) {
                 eprintln!("Installer cache: {error}");
@@ -39,6 +42,21 @@ impl Manager {
                 eprintln!("Unpacked app copies: {error}");
             }
         }
+        // Don't replace an installation error with a log I/O error. Return log failures after success so callers
+        // know history was not saved.
+        match (result, logged) {
+            (Ok(_), Err(error)) => Err(error),
+            (result, _) => result,
+        }
+    }
+    fn log_operation(
+        &self,
+        request: &Request,
+        result: &Result<String>,
+        old: Option<&Record>,
+        replaced: bool,
+        history: &mut HistoryEntry,
+    ) -> Result<()> {
         if matches!(
             request.operation,
             Operation::Update | Operation::Repair | Operation::Rollback
@@ -52,7 +70,7 @@ impl Manager {
             }
             if let Err(error) = &result {
                 history.result = if replaced {
-                    if old.as_ref().is_some_and(|r| {
+                    if old.is_some_and(|r| {
                         checksum(&self.executable(r)).is_ok_and(|hash| hash == r.executable_sha256)
                     }) && self
                         .record(&request.id)
@@ -69,16 +87,14 @@ impl Manager {
                 };
                 history.reason = Some(error.to_string());
             }
-            // Don't replace an installation error with a log I/O error. Return
-            // log failures after success so callers know history was not saved.
-            if let Err(error) = updates::append_history(&self.paths, &history) {
+            if let Err(error) = updates::append_history(&self.paths, history) {
                 if result.is_ok() {
                     return Err(error);
                 }
                 eprintln!("Update history: {error}");
             }
         }
-        result
+        Ok(())
     }
     pub(super) fn operate_inner(
         &self,
@@ -107,12 +123,7 @@ impl Manager {
         // release in one step, instead of asking for a separate adoption.
         if request.operation == Operation::Update
             && old.is_none()
-            && Os::current() == Os::Linux
-            && id != ids::TOOLS
-            && matches!(
-                class,
-                InstallationClass::SelfInstalled | InstallationClass::Manual
-            )
+            && super::adopts_on_update(id, class)
         {
             return self.adopt_inner(request, peer, receipt, true, cancel, progress);
         }

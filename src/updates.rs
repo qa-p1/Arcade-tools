@@ -354,10 +354,12 @@ impl<C: Clock, S: ReleaseSource> Scheduler<C, S> {
                     }
                     Err(error) => {
                         latest.error = Some(error.to_string());
-                        outcome.failure = Some(error.to_string());
-                        // HTTP errors (e.g. no nightly release) don't imply offline.
-                        // A transport failure stops further outbound requests.
+                        // A transport failure stops further outbound requests and fails the whole check. Any other
+                        // error (one app's release can't be read, e.g. a pre-1.0 release without a manifest) stays on
+                        // that app: the other apps were checked, and "the last check didn't finish, check your
+                        // connection" hid their updates behind a wrong reason (DECISIONS.md D27).
                         if error.code == "network" || error.code == "rate_limited" {
+                            outcome.failure = Some(error.to_string());
                             transport_failed = true;
                             break;
                         }

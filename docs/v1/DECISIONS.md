@@ -531,3 +531,79 @@ runs peak at 268–312 MB at 2 s), and load time is held by the performance budg
   presence to drop and exited with the endpoint left behind (Link replaces stale endpoints, so the effect was small).
 - **Decision:** the quit marks Tools as quitting under the presence lock while it takes the presence; start-up, under
   the same lock, drops a presence it would have stored after a quit. Either order withdraws the endpoint.
+
+## D27 — The Updates page lists every update the tray counts (1.0.1)
+
+- **Found in the real-user run (2026-11-21, Tools 1.0.0):** Lens 0.4.2, Shelf 0.4.0 and Wheel 0.5.0 installed from
+  their own downloads, then Check for updates. The tray said "Updates (3)"; the Updates page said "You're up to
+  date", and the app cards only said "Let Tools manage it to enable updates". The same mismatch as D24, for every app
+  installed outside Tools: the tray counts each installed app with a newer release, the page listed only managed apps.
+- **Decision:** the page, Home and the sidebar badge count what the tray counts: every installed app but a
+  development build. A row for an app installed outside Tools says so. On Linux its Review update runs the update
+  operation, which already adopted such an install with the latest release in one step (`adopts_on_update`, now one
+  function shared by the operation and the app view); on Windows and macOS the row offers "Let Tools manage it",
+  after which the update is listed as usual. Development builds are no longer checked, so the tray doesn't count
+  them either. Tests: `receipt_policy::an_app_installed_outside_tools_lists_its_update_and_updates_in_one_step`, UI
+  check "Updates: an app installed outside Tools lists its update, as the tray counts it (1.0.1)".
+
+## D28 — One app's unreadable release is that app's error, not a failed check (1.0.1)
+
+- **Found in the same run:** Clipboard 0.3.1 installed; its newest stable release (0.3.2) has no `manifest.json`.
+  The check recorded that as the whole check's failure: the page showed "Couldn't finish the last check. Check your
+  connection and try again." over the empty state, although Lens, Shelf and Wheel had been checked and had updates.
+- **Decision:** only a transport failure (`network`, `rate_limited`) fails the check, and it still stops further
+  requests. Any other error stays on that app's channel (`latest.error`), and the page names the app: "Couldn't
+  check Arcade Clipboard v0.3.1 for updates: …". The bad-release test in `tests/updates.rs` now asserts that: no check
+  failure, the app's error set, its cache and last good version kept.
+
+## D29 — App cards show the last check's result (1.0.1)
+
+- **Found in the real-user run:** after "Let Tools manage it", Shelf 0.4.0 was managed and listed on the Updates
+  page, but its card on Apps showed no update until the card's own check button was pressed. The card read only
+  this session's per-app checks; the detail view already fell back to the scheduler's last result (`latestFor`).
+- **Decision:** cards use `latestFor` as the detail view does. UI check "Apps: a card shows the update the last check
+  found, without its own check (1.0.1)".
+
+## D30 — A missing app file is one health issue, fixed by Repair (1.0.1)
+
+- **Found in the real-user run:** deleting Find's AppImage (managed by Tools) showed three issues on Home: "The
+  registry executable is missing." with **Remove entry**, "An Arcade launcher or command link is broken." with
+  Repair, and "An install receipt points at a missing file." with Repair. Repair on the third fixed all three (the
+  file came back byte for byte the published 1.0.0); Remove entry, the first button, would have dropped Find from
+  Link's registry.
+- **Decision:** when the installed file of an app Tools manages is missing and Repair can reinstall it, that is the
+  only issue shown for the app: "Its app file is missing. Repair installs it again; settings and data are kept." The
+  stale registry entry and the broken launchers are what Repair fixes, so they are not listed separately. Other
+  wordings are plain too (an app Tools didn't install; the copy kept for rolling back). Test: the health part of
+  `hub_lifecycle_health_and_reviewed_uninstall_all` asserts one issue for the app, with Repair.
+
+## D31 — Recent activity: the newest 20, newest first (1.0.1)
+
+- **Found in the real-user run (rc.1):** after a rollback, "Just now" was the last row of Recent activity. The
+  backend returns the history newest first (`Manager::history`, up to 200); the page took `slice(-20).reverse()`,
+  which is the oldest 20, oldest first. After twenty entries the newest updates and rollbacks were not shown at all.
+- **Decision:** the page keeps the first 20 as returned. A repair (same version before and after) reads "v1.0.0
+  reinstalled", and errors shown on the page drop the internal code prefix (`network: `, `unavailable: `). UI check
+  "Updates: recent activity lists the newest first and says what a repair did (1.0.1)" fails without the change.
+
+## D32 — The history line is written before the cleanup (1.0.1)
+
+- **Found in the real-user run (rc.1):** Tools was killed (SIGKILL) right after "Update" on Shelf 0.4.0. The update
+  itself was complete and correct (file = published 1.0.0, receipt 1.0.0, Shelf restarted, its item kept), but
+  Recent activity had no "0.4.0 → 1.0.0": the line was appended only after pruning the installer cache and the
+  unpacked copies, which is where the kill landed.
+- **Decision:** `operate_locked` writes the history line (and remembers the rollback) right after the operation,
+  then cleans up. A history write error after a successful operation is still returned, as before. Covered by the
+  existing operation tests (`hub_lifecycle`, 23 passed); the kill window itself is not reproducible in a test.
+
+## D33 — A kept copy of the installed build is not a rollback (1.0.1)
+
+- **Found in the real-user run (rc.1), with D32:** after the SIGKILL, Previous versions said "Arcade Shelf v1.0.0 now
+  · v1.0.0 kept — Roll back to v1.0.0". The update had installed 1.0.0 but never committed its own kept copy (on the
+  next start Tools removed that orphan snapshot, as designed), so `<id>.previous.json` still described the copy from
+  the earlier rollback: 1.0.0, the build now installed. Rolling back would have reinstalled the same build (the
+  checksum check passes), and 0.4.0 was no longer kept by Tools.
+- **Decision:** `rollback_version` offers no rollback when the kept copy's executable hash is the installed record's.
+  The installation itself was correct throughout (file = published 1.0.0, receipt 1.0.0, item kept). Test: the
+  rollback part of `hub_lifecycle_install_update_rollback_repeated_updates_and_uninstall` fails without the change.
+

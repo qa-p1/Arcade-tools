@@ -213,8 +213,15 @@ impl Manager {
     /// Read one-step rollback metadata on a worker, without network or mutation.
     pub fn rollback_version(&self, id: &str) -> Result<Option<String>> {
         manager_id(id)?;
+        // A kept copy of the build that is installed now is nothing to go back to. It happens when Tools is killed
+        // between installing an update and keeping the replaced build: the copy from an earlier operation stays, and
+        // the page offered "Roll back to v1.0.0" on 1.0.0 (DECISIONS.md D33).
+        let current = self.record(id)?.map(|record| record.executable_sha256);
         Ok(PreviousInstallation::read(&self.paths, id)?
             .filter(|previous| previous.pointer(&self.paths).is_some())
+            .filter(|previous| {
+                current.as_deref() != Some(previous.record.executable_sha256.as_str())
+            })
             .map(|previous| previous.record.version))
     }
     /// Disk/optional IPC work on a worker thread; no network refresh.
@@ -249,6 +256,7 @@ impl Manager {
             let running = probe && Client::connect(&self.paths.link, id, &me()).is_ok();
             let healthy = executable.as_ref().is_some_and(|p| p.is_file());
             let reason = if class == InstallationClass::Dev { Some("Development build; launch is available, installation changes are disabled.".into()) }
+                else if super::adopts_on_update(id, class) && (peer.is_some() || receipt.is_some()) { Some("Installed outside Arcade Tools. Updating it lets Tools manage it from then on.".into()) }
                 else if id != ids::TOOLS && matches!(class, InstallationClass::Manual | InstallationClass::SelfInstalled) && (peer.is_some() || receipt.is_some()) { Some("Installed outside Arcade Tools. Choose “Let Tools manage it” to enable updates.".into()) }
                 else if peer.is_some_and(|m| !m.settings.link_enabled) { Some("Arcade Link is disabled in this app. Close it before changing its installation.".into()) }
                 else if record.is_some() && !healthy { Some("Installed executable is missing. Choose Repair.".into()) }
@@ -261,7 +269,7 @@ impl Manager {
                 data_folders: self.paths.data_folders(id, Os::current()).iter().map(|p| p.display().to_string()).collect(), reason,
                 description: app.description.clone(), category: app.category.clone(), icon: app.icon.clone(),
                 platforms: app.platforms.clone(), min_tools: app.min_tools.clone(), install_reason: app.install_reason.clone(),
-                install_supported: app.supported_install(), installation_class: class, rollback_version: if app.supported_install() { self.rollback_version(id)? } else { None },
+                install_supported: app.supported_install(), installation_class: class, adopts_on_update: super::adopts_on_update(id, class), rollback_version: if app.supported_install() { self.rollback_version(id)? } else { None },
                 withdrawn: record.as_ref().and_then(|r| r.package.as_ref()?.tag.as_deref()).and_then(|tag| app.withdrawn_reason(tag)).map(str::to_owned) })
         }).collect()
     }

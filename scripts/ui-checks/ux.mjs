@@ -71,6 +71,92 @@ export default {
     const n = await page.locator('article#arcade\\.find').getByRole('button', { name: 'Let Tools manage it' }).count();
     assert(n === 1, `adopt buttons on card: ${n}`);
   },
+  async 'Updates: an app installed outside Tools lists its update, as the tray counts it (1.0.1)'(page) {
+    await page.evaluate(() => {
+      const m = window.__mock;
+      const update = (from, to) => ({ installedVersion: from, channel: 'stable', updateAvailable: true, heldBack: false, reason: null,
+        latest: { stable: { latestVersion: to, updateAvailable: true, heldBack: false, reason: null, error: null, cache: null } } });
+      m.state.apps = m.state.apps.map((a) => a.id === 'arcade.lens' ? { ...a, version: '0.4.2', managed: false, installationClass: 'selfInstalled', adoptsOnUpdate: true }
+        : a.id === 'arcade.shelf' ? { ...a, version: '0.4.0', managed: false, installationClass: 'selfInstalled', adoptsOnUpdate: false }
+        : a.id === 'arcade.wheel' ? { ...a, version: '0.5.0', managed: false, installationClass: 'dev' }
+        : a.id === 'arcade.clipboard' ? { ...a, version: '0.3.1', managed: false, installationClass: 'selfInstalled', adoptsOnUpdate: true } : a);
+      m.state.updates = { schema: 1, lastCheck: 1, lastSuccess: 1, lastFailure: null, apps: {
+        'arcade.lens': update('0.4.2', '1.0.0'), 'arcade.shelf': update('0.4.0', '1.0.0'), 'arcade.wheel': update('0.5.0', '1.0.0'),
+        'arcade.clipboard': { installedVersion: '0.3.1', channel: 'stable', updateAvailable: false, heldBack: false, reason: null,
+          latest: { stable: { latestVersion: null, updateAvailable: false, heldBack: false, reason: null, error: 'unavailable: The release must include exactly one manifest.json.', cache: null } } },
+      } };
+      m.emit('registry-changed', null);
+      m.emit('updates-changed', m.state.updates);
+    });
+    await sleep(300);
+    await tab(page, 'updates');
+    await sleep(300);
+    const panel = (await text(page, '#panel-updates')).replace(/\s+/g, ' ');
+    const lens = page.locator('#panel-updates section.update-card', { hasText: 'Arcade Lens' });
+    const shelf = page.locator('#panel-updates section.update-card', { hasText: 'Arcade Shelf' });
+    assert(await lens.getByRole('button', { name: 'Review update' }).count() === 1, `Lens row: ${panel}`);
+    assert(await shelf.getByRole('button', { name: 'Let Tools manage it' }).count() === 1, `Shelf row: ${panel}`);
+    assert(!panel.includes('Arcade Wheel 0.5.0'), `a development build is listed: ${panel}`);
+    assert(await page.locator('#panel-updates section.update-card').count() === 2, panel);
+    assert(panel.includes('installed outside Tools') && !panel.includes("You're up to date"), panel);
+    assert(panel.includes("Couldn't check Arcade Clipboard") && !panel.includes("didn't finish"), panel);
+  },
+  async 'Apps: a card shows the update the last check found, without its own check (1.0.1)'(page) {
+    await page.evaluate(() => {
+      const m = window.__mock;
+      m.state.apps = m.state.apps.map((a) => a.id === 'arcade.shelf' ? { ...a, version: '0.4.0' } : a);
+      m.state.updates = { schema: 1, lastCheck: 1, lastSuccess: 1, lastFailure: null, apps: {
+        'arcade.shelf': { installedVersion: '0.4.0', channel: 'stable', updateAvailable: true, heldBack: false, reason: null,
+          latest: { stable: { latestVersion: '1.0.0', updateAvailable: true, heldBack: false, reason: null, error: null, cache: null } } },
+      } };
+      m.emit('registry-changed', null);
+      m.emit('updates-changed', m.state.updates);
+    });
+    await sleep(300);
+    await tab(page, 'apps');
+    await sleep(200);
+    const card = page.locator('article#arcade\\.shelf');
+    const t = (await card.textContent()).replace(/\s+/g, ' ');
+    assert(t.includes('Update 1.0.0') && await card.getByRole('button', { name: 'Update', exact: true }).count() === 1, t);
+  },
+  async 'Apps: an app that is not installed is not offered an "Update" (1.0.1)'(page) {
+    await page.evaluate(() => {
+      const m = window.__mock;
+      m.state.apps = m.state.apps.map((a) => a.id === 'arcade.look' ? { ...a, installed: false, managed: false, version: null, installationClass: 'manual' } : a);
+      m.emit('registry-changed', null);
+    });
+    await sleep(300);
+    await tab(page, 'apps');
+    await sleep(200);
+    await page.locator('article#arcade\\.look').getByRole('button', { name: /Check/ }).first().click();
+    await sleep(400);
+    await page.keyboard.press('Escape');
+    await sleep(200);
+    const t = (await page.locator('article#arcade\\.look').textContent()).replace(/\s+/g, ' ');
+    assert(!t.includes('Update 2.0.0'), t);
+  },
+  async 'Updates: recent activity lists the newest first and says what a repair did (1.0.1)'(page) {
+    await page.evaluate(() => {
+      const m = window.__mock;
+      // As the backend returns it: newest first.
+      m.on('update_history', () => [
+        { time: 30, app: 'arcade.shelf', from: '1.0.0', to: '0.4.0', result: 'rolled_back', reason: 'User requested rollback.' },
+        ...Array.from({ length: 24 }, (_, i) => ({ time: 29 - i, app: 'arcade.find', from: '1.0.0', to: '1.0.0', result: 'success', reason: null })),
+        { time: 1, app: 'arcade.lens', from: '0.4.2', to: '1.0.0', result: 'success', reason: null },
+      ]);
+      m.state.updates = { schema: 1, lastCheck: 1, lastSuccess: null, lastFailure: { time: 1, reason: 'network: Couldn\'t connect.' }, apps: {} };
+      m.emit('updates-changed', m.state.updates);
+    });
+    await tab(page, 'apps');
+    await tab(page, 'updates');
+    await sleep(300);
+    const rows = await page.locator('.update-history li').allTextContents();
+    assert(rows.length === 20 && rows[0].includes('Arcade Shelf') && rows[0].includes('1.0.0 → 0.4.0'), rows[0]);
+    assert(!rows.some((r) => r.includes('Arcade Lens')), 'the oldest entry is shown instead of a newer one');
+    assert(rows[1].includes('v1.0.0 reinstalled') && !rows[1].includes('1.0.0 → 1.0.0'), rows[1]);
+    const notice = await text(page, '#panel-updates .notice');
+    assert(notice.includes("Couldn't connect") && !notice.includes('network:'), notice);
+  },
   async 'Updates: never checked is not "up to date"'(page) {
     await tab(page, 'updates');
     const t = await text(page, '#panel-updates .empty-state');

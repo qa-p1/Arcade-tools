@@ -214,7 +214,7 @@
             {#if app}<AppCard
               {app}
               selected={selected === app.id}
-              release={releases.get(app.id)}
+              release={latestFor(app.id)}
               {busy}
               {onChannel}
               {onLogin}
@@ -244,7 +244,7 @@
             {#if app}<AppCard
               {app}
               selected={selected === app.id}
-              release={releases.get(app.id)}
+              release={latestFor(app.id)}
               {busy}
               {onChannel}
               {onLogin}

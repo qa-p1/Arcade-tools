@@ -228,6 +228,24 @@ fn hub_lifecycle_install_update_rollback_repeated_updates_and_uninstall() {
         manager.record("arcade.look").unwrap().unwrap().version,
         "1.0.0"
     );
+    // A Tools killed between installing an update and keeping the replaced build leaves the copy from an earlier
+    // operation; when that copy is the installed build, there is nothing to go back to (D33).
+    let kept = manager.paths.state().join("arcade.look.previous.json");
+    let original = fs::read(&kept).unwrap();
+    let mut stale: serde_json::Value = serde_json::from_slice(&original).unwrap();
+    stale["record"]["executableSha256"] = manager
+        .record("arcade.look")
+        .unwrap()
+        .unwrap()
+        .executable_sha256
+        .into();
+    fs::write(&kept, serde_json::to_vec(&stale).unwrap()).unwrap();
+    assert_eq!(manager.rollback_version("arcade.look").unwrap(), None);
+    fs::write(&kept, original).unwrap();
+    assert_eq!(
+        manager.rollback_version("arcade.look").unwrap().as_deref(),
+        Some("2.0.0")
+    );
     assert!(matches!(
         history(&manager).last().unwrap().result,
         HistoryResult::RolledBack
@@ -801,12 +819,17 @@ fn hub_lifecycle_health_and_reviewed_uninstall_all() {
         .unwrap();
     let receipt = manager.receipt("arcade.look").unwrap().unwrap();
     fs::remove_file(&receipt.path).unwrap();
-    assert!(manager
+    // One deleted file is one issue, fixed by Repair; no "Remove entry" that would forget the app (D30).
+    let look: Vec<_> = manager
         .health()
         .unwrap()
-        .iter()
-        .any(|issue| issue.kind == HealthKind::MissingReceiptFile
-            && issue.fix_action == FixAction::Repair));
+        .into_iter()
+        .filter(|issue| issue.app == "arcade.look")
+        .collect();
+    assert_eq!(look.len(), 1, "{look:?}");
+    assert!(
+        look[0].kind == HealthKind::MissingReceiptFile && look[0].fix_action == FixAction::Repair
+    );
     manager
         .fix_health(
             "arcade.look",

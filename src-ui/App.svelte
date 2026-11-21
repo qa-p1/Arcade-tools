@@ -6,7 +6,7 @@
   import Message from './components/Message.svelte';
   import ProgressBar from './components/ProgressBar.svelte';
   import Sidebar from './components/Sidebar.svelte';
-  import { api, appEvents, type AppView, type Channel, type Operation, type UiControlReport, type UiRenderReport } from './lib/api';
+  import { api, appEvents, listsUpdates, type AppView, type Channel, type Operation, type UiControlReport, type UiRenderReport } from './lib/api';
   import {
     attempt, cancelOperation, changeChannel, confirmSelfUpdate, changeLogin, checkAllUpdates, checkUpdates, checkUpdatesOnWindowOpen, confirmOperation,
     initialize, installBundle, openLearn, updateAll, launchAll, launchApp, openReleases, receiveInstallRequest, receiveProgress, refresh, reviewInstall, reviewUpdate, setAutoUpdate, setMessage, toggleLink,
@@ -41,7 +41,7 @@
   let initialized = false;
   let hasSeenFocus = false;
   const updateCount = $derived((ui.toolsApp ? [ui.toolsApp, ...ui.apps] : ui.apps)
-    .filter((app) => app.managed && ui.updates?.apps[app.id]?.updateAvailable && !ui.updates.apps[app.id]?.heldBack).length);
+    .filter((app) => listsUpdates(app) && ui.updates?.apps[app.id]?.updateAvailable && !ui.updates.apps[app.id]?.heldBack).length);
   /** The window stays hidden until the page shows real content. */
   function windowReady(): void { void invoke('window_ready').catch(() => undefined); }
 
@@ -340,6 +340,7 @@
         updateChecksEnabled={ui.updateChecksEnabled}
         onCheckNow={checkAllUpdates}
         onUpdate={(app) => app.id === 'arcade.tools' ? confirmSelfUpdate() : reviewUpdate(app)}
+        onAdopt={(app) => confirmOperation(app, 'adopt')}
         onUpdateAll={updateAll}
         onRollback={(app) => confirmOperation(app, 'rollback')}
         onAutoUpdate={setAutoUpdate}

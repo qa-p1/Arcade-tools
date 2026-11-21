@@ -4,6 +4,28 @@ Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
 
 ## 2026-11-21 (cloud session) - 1.0.1
 
+- Real-user run on Linux (a desktop session as a normal user, old releases installed from their own downloads, then
+  Tools 1.0.0): D27, the tray counted 3 updates the Updates page didn't list; D28, one app's release without a
+  manifest (Clipboard 0.3.2) made the page say the check failed. Both fixed for 1.0.1 (rc.1 is superseded).
+  D29: an adopted app's card showed no update. Verified on 1.0.0 in the same run: Lens 0.4.2 adopted, then updated
+  from the Updates page to 1.0.0; the installed AppImage's SHA-256 equals the published v1.0.0 asset's, history
+  says "0.4.2 → 1.0.0 Done" and v0.4.2 is kept for rollback.
+  D30: a deleted app file showed three issues on Home; now one, with Repair. Also verified on 1.0.0: Shelf adopted
+  and updated 0.4.0 → 1.0.0 with its item kept (SHA-256 = published asset), Find's deleted AppImage repaired (SHA-256
+  = published asset). `e2e.py run -- cargo test --test hub_lifecycle`: 23 passed.
+  Remove Look (keep data) and Check & install again: launcher, autostart and registry entry removed, settings kept
+  byte for byte, reinstalled file = published asset. The not-installed card said "Update 1.0.0": fixed, with a UI
+  check that fails without the fix.
+  Tools 1.0.0 → 1.0.1 (rc.1) by hand, as an owner on 1.0.0 will: download, run, "Update or open installed Arcade
+  Tools?" → Install; the installed file = the rc.1 asset, the download removed, one Tools running from its copy.
+  Start at login off/on for Lens: the autostart entry removed and restored. Offline (the user's traffic rejected):
+  the check says it couldn't connect; Shelf 1.0.0 → 0.4.0 rollback works offline, item kept, file = published
+  0.4.0. D31: Recent activity showed the oldest entries first.
+  Tools killed (SIGKILL) right after Update on Shelf: Shelf was correctly on 1.0.0 and Tools restarted cleanly from
+  its launcher, but the update was missing from Recent activity (D32, fixed). Whole workspace under `e2e.py`: green.
+  The same kill left "Roll back to v1.0.0" offered on 1.0.0 (D33, fixed).
+  Tested locally: clippy `-D warnings`, `cargo test --test receipt_policy --test updates`, `npm run typecheck`,
+  `npm run ui-checks` (with the new UI check).
 - D24: a self-installed Tools offers its own update (owner's report from 0.4.6: tray 6 updates, Updates page 5, no
   Tools). D25: the delta gate follows Tools' delta rule (Clipboard rc.2). D26: a quit during start-up withdraws the
   endpoint. Version 1.0.1, CHANGELOG.

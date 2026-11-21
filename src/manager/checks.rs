@@ -203,6 +203,15 @@ impl Manager {
                 None
             };
             let peer = registry.get(&app.id);
+            // A development build is never updated, so it is not checked: the tray counts every update the Updates
+            // page lists, and the page leaves development builds out.
+            if record.is_none()
+                && peer.is_some_and(|p| {
+                    arcade_link::install::is_dev_build(std::path::Path::new(&p.executable))
+                })
+            {
+                continue;
+            }
             if let Some(version) = record
                 .as_ref()
                 .map(|r| r.version.clone())
