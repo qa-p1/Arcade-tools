@@ -648,3 +648,17 @@ runs peak at 268–312 MB at 2 s), and load time is held by the performance budg
 - **Not changed:** the one-step update keeps no rollback copy of the app's own 0.x install (the two-step "Let Tools
   manage it", then Update, keeps the adopted copy). Rolling back would restore a receipt managed by the app itself, so
   the app would leave Tools again; left for the owner to decide.
+
+## D37 — The Tesseract download runs with the user's environment (1.0.1)
+
+- **Found in the real-user run (rc.3):** Home said Lens needs Tesseract; Open Engines → Download with Arcade →
+  Download failed: "curl: symbol lookup error: /lib/x86_64-linux-gnu/libcurl.so.4: undefined symbol:
+  nghttp2_option_set_no_rfc9113_leading_and_trailing_ws_validation". Link's `engines::download_tesseract` (1.0.7 and
+  still 1.0.13) runs curl, the AppImage's `--appimage-extract` and its `--version` with the caller's environment;
+  Tools' `LD_LIBRARY_PATH` starts with its own `usr/lib`, whose `libnghttp2.so.14` is older than the system curl
+  needs. So on a current distribution the one-click download never worked, in 1.0.0 either.
+- **Decision:** `engines::download_tesseract` in Tools does Link's Linux steps (same pinned URL and SHA-256, same
+  engines folder and launcher) with `platform::sanitize` on each program; Windows and macOS still call Link. Checked
+  on the test desktop: the sanitized steps download the file (SHA-256 = the pinned one), unpack it, and Tesseract
+  5.5.3 runs with eight languages. Test: `engine_download` (a fake curl records its environment) fails against Link's
+  function. Link itself should sanitize there too (a Link PR); Tools can call it again once it moves to that Link.

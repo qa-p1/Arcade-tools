@@ -383,6 +383,104 @@ impl EngineCatalog {
     }
 }
 
+/// Gets Tesseract for this user, as Link's `engines::download_tesseract` does (the same verified AppImage, unpacked
+/// into Link's engines folder, with the same launcher), but on Linux every program it runs gets the user's
+/// environment. Link 1.0.7 ran curl and the AppImage with Tools' own: from Tools' AppImage that put Tools' bundled
+/// libnghttp2 ahead of the system's, and the system curl failed with "symbol lookup error" (DECISIONS.md D37).
+/// Elsewhere it is Link's.
+pub fn download_tesseract() -> std::result::Result<arcade_link::engines::Download, String> {
+    #[cfg(target_os = "linux")]
+    if let Some(source) = arcade_link::engines::tesseract_source() {
+        let engines = arcade_link::engines::engines_dir();
+        let work = engines.join(".tesseract-download");
+        let _ = std::fs::remove_dir_all(&work);
+        std::fs::create_dir_all(&work)
+            .map_err(|e| format!("Cannot create {}: {e}", work.display()))?;
+        let result = install_tesseract(source.url, source.sha256, &engines, &work);
+        let _ = std::fs::remove_dir_all(&work);
+        return result.map(arcade_link::engines::Download::Ready);
+    }
+    arcade_link::engines::download_tesseract()
+}
+
+#[cfg(target_os = "linux")]
+fn install_tesseract(
+    url: &str,
+    sha256: &str,
+    engines: &Path,
+    work: &Path,
+) -> std::result::Result<PathBuf, String> {
+    use sha2::{Digest, Sha256};
+    use std::os::unix::fs::PermissionsExt;
+    let user = |program: &Path| {
+        let mut command = Command::new(program);
+        crate::platform::sanitize(&mut command);
+        command
+    };
+    let file = work.join("tesseract.AppImage");
+    let out = user(Path::new("curl"))
+        .args([
+            "-fsSL",
+            "--proto",
+            "=https",
+            "--tlsv1.2",
+            "--retry",
+            "2",
+            "--max-time",
+            "900",
+            "-o",
+        ])
+        .arg(&file)
+        .arg(url)
+        .output()
+        .map_err(|e| format!("Cannot run curl to download: {e}"))?;
+    if !out.status.success() {
+        return Err(format!(
+            "Download failed: {}",
+            String::from_utf8_lossy(&out.stderr).trim()
+        ));
+    }
+    let mut hasher = Sha256::new();
+    let mut reader = std::fs::File::open(&file).map_err(|e| e.to_string())?;
+    std::io::copy(&mut reader, &mut hasher).map_err(|e| e.to_string())?;
+    let actual: String = hasher
+        .finalize()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
+    if actual != sha256 {
+        return Err("The download did not match its expected checksum, so it was discarded".into());
+    }
+    std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o755))
+        .map_err(|e| e.to_string())?;
+    // Extracted once, so no FUSE is needed and nothing unpacks per run.
+    let out = user(&file)
+        .arg("--appimage-extract")
+        .current_dir(work)
+        .output()
+        .map_err(|e| format!("Cannot unpack Tesseract: {e}"))?;
+    let unpacked = work.join("squashfs-root");
+    if !out.status.success() || !unpacked.join("AppRun").is_file() {
+        return Err("Cannot unpack Tesseract".into());
+    }
+    let target = engines.join("tesseract");
+    let _ = std::fs::remove_dir_all(&target);
+    std::fs::rename(&unpacked, &target).map_err(|e| e.to_string())?;
+    let bin = engines.join("bin");
+    std::fs::create_dir_all(&bin).map_err(|e| e.to_string())?;
+    let launcher = bin.join("tesseract");
+    let _ = std::fs::remove_file(&launcher);
+    std::os::unix::fs::symlink("../tesseract/AppRun", &launcher).map_err(|e| e.to_string())?;
+    let ok = user(&launcher)
+        .arg("--version")
+        .output()
+        .is_ok_and(|o| o.status.success());
+    if !ok {
+        return Err("The downloaded Tesseract does not run on this system".into());
+    }
+    Ok(launcher)
+}
+
 // GTK/GLib own SIGCHLD only on Linux, and libc is a Linux-only dependency here.
 #[cfg(all(test, target_os = "linux"))]
 mod tests {

@@ -793,7 +793,9 @@ pub async fn download_engine(app: AppHandle, id: String) -> Result<String> {
         }
         manager.paths.guard(&arcade_link::engines::engines_dir())?;
         state.cancellable.store(false, Ordering::SeqCst);
-        match arcade_link::engines::download_tesseract().map_err(|e| Error::new("engine", e))? {
+        match arcade_tools_core::engines::download_tesseract()
+            .map_err(|e| Error::new("engine", e))?
+        {
             arcade_link::engines::Download::Ready(path) => {
                 Ok(format!("Tesseract is ready at {}.", path.display()))
             }

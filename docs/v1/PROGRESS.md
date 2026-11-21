@@ -35,6 +35,9 @@ Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
   download removed, one Tools from its copy. D34 verified: Find started and Lens restarted from Tools run from their
   unpacked copies. D35 verified: Update on Clipboard 0.3.1 installed the published 1.0.0 in one step, Tools manages it,
   both clips kept. D36: that history line had no "to"; fixed with the rc-after-rc offer (rc.3 superseded).
+  Wheel 0.5.0 → 1.0.0 the same way: file = published, settings unchanged, delta download (3.8 of 48 MB). After Look
+  and Shelf were restarted from Tools (Shelf quit and started: its own restart kept rc.2's inherited marker), no Arcade
+  AppImage mount is left. D37: Download with Arcade for Tesseract failed (curl loaded Tools' libnghttp2); fixed.
 - D24: a self-installed Tools offers its own update (owner's report from 0.4.6: tray 6 updates, Updates page 5, no
   Tools). D25: the delta gate follows Tools' delta rule (Clipboard rc.2). D26: a quit during start-up withdraws the
   endpoint. Version 1.0.1, CHANGELOG.

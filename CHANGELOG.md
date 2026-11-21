@@ -38,6 +38,8 @@ and versions follow [Semantic Versioning](https://semver.org/).
   and the new Tools each kept a FUSE helper resident and read their files through the mount.
 - Recent activity says what an app installed outside Tools was updated to ("0.3.1 → 1.0.0"); it showed only "from
   0.3.1".
+- "Download with Arcade" for Tesseract works on Linux. It failed with "curl: symbol lookup error": the download ran
+  the system's curl with libraries from Tools' own AppImage. It now runs with the user's environment.
 
 ### Changed
 - The shortcut index's Lua sandbox tells the time with jiff instead of chrono, which is no longer maintained
