@@ -13,6 +13,9 @@ Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
   D30: a deleted app file showed three issues on Home; now one, with Repair. Also verified on 1.0.0: Shelf adopted
   and updated 0.4.0 → 1.0.0 with its item kept (SHA-256 = published asset), Find's deleted AppImage repaired (SHA-256
   = published asset). `e2e.py run -- cargo test --test hub_lifecycle`: 23 passed.
+  Remove Look (keep data) and Check & install again: launcher, autostart and registry entry removed, settings kept
+  byte for byte, reinstalled file = published asset. The not-installed card said "Update 1.0.0": fixed, with a UI
+  check that fails without the fix.
   Tested locally: clippy `-D warnings`, `cargo test --test receipt_policy --test updates`, `npm run typecheck`,
   `npm run ui-checks` (with the new UI check).
 - D24: a self-installed Tools offers its own update (owner's report from 0.4.6: tray 6 updates, Updates page 5, no

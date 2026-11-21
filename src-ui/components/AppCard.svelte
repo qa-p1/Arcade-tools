@@ -36,7 +36,7 @@
       <h2><button type="button" class="title-button" disabled={busy} onclick={() => onDetails(app)}>{app.name}</button>{#if app.installedChannel === 'nightly'}<span class="badge accent channel-badge">Nightly</span>{/if}</h2>
       <p class="pitch">{app.tagline}</p>
     </div>
-    {#if release?.updateAvailable}<span class="badge ok">Update {release.version}</span>{:else if status}<span class="badge {tone}">{#if tone}<span class="dot {tone}"></span>{/if}{status}</span>{/if}
+    {#if release?.updateAvailable && app.installed}<span class="badge ok">Update {release.version}</span>{:else if status}<span class="badge {tone}">{#if tone}<span class="dot {tone}"></span>{/if}{status}</span>{/if}
   </div>
   {#if app.reason}<p class="reason">{app.reason}</p>{/if}
   {#if app.installed && app.managed && app.installedChannel && app.installedChannel !== app.channel}<p class="reason pending-channel">Switching to {app.channel}: not installed yet.</p>{/if}

@@ -119,6 +119,22 @@ export default {
     const t = (await card.textContent()).replace(/\s+/g, ' ');
     assert(t.includes('Update 1.0.0') && await card.getByRole('button', { name: 'Update', exact: true }).count() === 1, t);
   },
+  async 'Apps: an app that is not installed is not offered an "Update" (1.0.1)'(page) {
+    await page.evaluate(() => {
+      const m = window.__mock;
+      m.state.apps = m.state.apps.map((a) => a.id === 'arcade.look' ? { ...a, installed: false, managed: false, version: null, installationClass: 'manual' } : a);
+      m.emit('registry-changed', null);
+    });
+    await sleep(300);
+    await tab(page, 'apps');
+    await sleep(200);
+    await page.locator('article#arcade\\.look').getByRole('button', { name: /Check/ }).first().click();
+    await sleep(400);
+    await page.keyboard.press('Escape');
+    await sleep(200);
+    const t = (await page.locator('article#arcade\\.look').textContent()).replace(/\s+/g, ' ');
+    assert(!t.includes('Update 2.0.0'), t);
+  },
   async 'Updates: never checked is not "up to date"'(page) {
     await tab(page, 'updates');
     const t = await text(page, '#panel-updates .empty-state');

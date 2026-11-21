@@ -25,6 +25,7 @@ and versions follow [Semantic Versioning](https://semver.org/).
   it only after that card's own check button, so a just-adopted app looked up to date on the Apps page.
 - A deleted app file is one item on Home, "Its app file is missing. Repair installs it again", instead of three in
   jargon whose first button, "Remove entry", would have made Tools forget the app.
+- The card of an app that isn't installed no longer says "Update 1.0.0"; it offers Check & install.
 
 ### Changed
 - The shortcut index's Lua sandbox tells the time with jiff instead of chrono, which is no longer maintained
