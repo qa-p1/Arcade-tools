@@ -44,10 +44,13 @@ fn children_leave_the_tools_image_behind_but_the_helper_keeps_it() {
             "LD_LIBRARY_PATH",
             "/tmp/.mount_ArcadeT00ls/usr/lib:/opt/keep/lib",
         );
+        // Tools' own unpacked copy sets this; an app that inherits it never leaves its mount (D34).
+        std::env::set_var("ARCADE_UNPACKED", "1");
     }
     let app = environment_of(spawn_detached);
     assert!(!app.contains(".mount_ArcadeT00ls"), "{app}");
     assert!(app.contains("LD_LIBRARY_PATH=/opt/keep/lib"), "{app}");
+    assert!(!app.contains("ARCADE_UNPACKED"), "{app}");
     let helper = environment_of(spawn_helper);
     assert!(
         helper.contains("LD_LIBRARY_PATH=/tmp/.mount_ArcadeT00ls/usr/lib:/opt/keep/lib"),

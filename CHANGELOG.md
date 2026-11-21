@@ -33,6 +33,9 @@ and versions follow [Semantic Versioning](https://semver.org/).
   caches, so a Tools killed in between left the app updated but the update missing from the history.
 - After a Tools that was killed during an update, the page no longer offers "Roll back to v1.0.0" while v1.0.0 is
   installed: a kept copy that is the installed build is not offered.
+- Apps that Tools starts run from their unpacked copy again, so no AppImage mount stays behind them. Tools passed its
+  own "already unpacked" marker on to every app it started (and to itself after a self-update), so Lens, Look, Shelf
+  and the new Tools each kept a FUSE helper resident and read their files through the mount.
 
 ### Changed
 - The shortcut index's Lua sandbox tells the time with jiff instead of chrono, which is no longer maintained

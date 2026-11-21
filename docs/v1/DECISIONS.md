@@ -607,3 +607,14 @@ runs peak at 268–312 MB at 2 s), and load time is held by the performance budg
   The installation itself was correct throughout (file = published 1.0.0, receipt 1.0.0, item kept). Test: the
   rollback part of `hub_lifecycle_install_update_rollback_repeated_updates_and_uninstall` fails without the change.
 
+## D34 — Programs Tools starts don't inherit the unpacked-copy marker (1.0.1)
+
+- **Found in the real-user run (rc.2):** after Tools updated itself from inside Tools (rc.1 → rc.2), the new Tools ran
+  from `/tmp/.mount_Arcade…/usr/bin/arcade-tools` with `ARCADE_UNPACKED=1`. So did Lens, Look and Shelf, started by
+  Tools: each kept a FUSE helper resident, which U1 (AUDIT/memory.md) removed. Tools' unpacked copy sets
+  `ARCADE_UNPACKED=1`; Link 1.0.7's child environment passed it on, and to the started app `1` means "already the
+  copy, never relaunch". Link 1.0.13 removes it from children, but Tools pins Link 1.0.7.
+- **Decision:** `platform::sanitize` (used for apps, installers, the new Tools after a self-update and engine probes)
+  removes `ARCADE_UNPACKED` after Link's sanitize. The update helper keeps Tools' environment, as before; it starts
+  the new Tools through `spawn_detached`, which removes it. Moving Tools to Link 1.0.13+ is left for 1.0.2. Test:
+  `child_environment` fails without the change.
