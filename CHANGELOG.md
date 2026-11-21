@@ -5,11 +5,20 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-11-21
+
+### Fixed
+- Tools offers its own update again. When Tools had installed itself, the tray counted its update but the Updates
+  page, Home and the sidebar left it out, so there was no way to update Tools from inside Tools. A self-installed
+  Tools now lists its own update with the apps', can turn on auto-update for itself, and its diagnostics name its
+  channel instead of "development".
+- A quit that arrives while Tools is still starting no longer leaves its Arcade Link endpoint behind.
+
 ### Changed
 - The shortcut index's Lua sandbox tells the time with jiff instead of chrono, which is no longer maintained
   (RUSTSEC-2026-0543). `os.date` and `os.time` give the same results as before.
 
-## [1.0.0] — not yet promoted (release candidates on the test channel from 2026-11-08)
+## [1.0.0] - 2026-11-15
 
 ### Added
 - Signed updates: a release is trusted only through its `manifest.json`, signed with ed25519 and bound to the app,

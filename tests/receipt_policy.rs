@@ -96,6 +96,31 @@ fn native_tools_views_explain_the_first_windows_update_rollback_limit() {
     assert!(view.reason.unwrap().contains("first Windows update"));
 }
 
+#[test]
+fn a_self_installed_tools_offers_its_own_update() {
+    // Tools' first-run install writes its own receipt as SelfManaged. The Updates page, Home and the sidebar list only
+    // managed apps, so before 1.0.1 a self-installed Tools never offered its own update while the tray counted it.
+    use arcade_tools_core::{manager::Manager, source::Source};
+    let root = tempfile::tempdir().unwrap();
+    let paths = Paths::under(root.path());
+    let mut receipt = receipt(&paths, InstallMethod::Appimage);
+    receipt.id = "arcade.tools".into();
+    receipt.path = paths.home.join("Applications/Arcade-Tools.AppImage");
+    fs::create_dir_all(receipt.path.parent().unwrap()).unwrap();
+    fs::write(&receipt.path, "fixture").unwrap();
+    Store::new(&paths.link).write(&receipt).unwrap();
+    let manager = Manager::new(paths, Source::github().unwrap());
+    let view = manager.tools_view().unwrap().unwrap();
+    assert_eq!(
+        view.installation_class,
+        arcade_tools_core::manager::InstallationClass::SelfInstalled
+    );
+    assert!(
+        view.managed,
+        "a self-installed Tools must be offered its own update"
+    );
+}
+
 #[cfg(unix)]
 #[test]
 fn app_login_writers_accept_link_entries_and_update_receipts() {
