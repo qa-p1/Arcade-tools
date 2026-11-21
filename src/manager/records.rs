@@ -65,7 +65,9 @@ impl Manager {
                     &receipt.version,
                     record.channel,
                 ) || !same_bytes
-                    || record.channel.as_str() != receipt.channel
+                    // An rc installed under the test override is recorded as Test; its receipt says stable, as Test is
+                    // never stored (D5). Compared as stored, so its package hash stays and the next rc is offered (D36).
+                    || record.channel.stored().as_str() != receipt.channel
                     || record
                         .executable
                         .as_ref()

@@ -36,6 +36,8 @@ and versions follow [Semantic Versioning](https://semver.org/).
 - Apps that Tools starts run from their unpacked copy again, so no AppImage mount stays behind them. Tools passed its
   own "already unpacked" marker on to every app it started (and to itself after a self-update), so Lens, Look, Shelf
   and the new Tools each kept a FUSE helper resident and read their files through the mount.
+- Recent activity says what an app installed outside Tools was updated to ("0.3.1 → 1.0.0"); it showed only "from
+  0.3.1".
 
 ### Changed
 - The shortcut index's Lua sandbox tells the time with jiff instead of chrono, which is no longer maintained

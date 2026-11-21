@@ -119,5 +119,19 @@ fn a_self_installed_appimage_sees_the_next_rc_of_the_same_version() {
 
     operate(&manager, id, Operation::Update).unwrap();
     assert!(!manager.check(id).unwrap().update_available);
+
+    // Installed through Tools now (a Test record, a stable receipt): the rc after it is offered too. Before 1.0.1 the
+    // record's Test channel didn't match the receipt, the package hash was dropped, and rc.3 was never offered to an
+    // rc.2 that Tools had installed (D36).
+    let mut third = next.clone();
+    third.extend_from_slice(b"# the rc after that\n");
+    server.publish(id, "1.0.0", "test", &[("App_x64.AppImage", &third)], "nsis");
+    server.amend_manifest(id, "1.0.0", "test", |manifest| {
+        manifest["assets"][0]["installArgs"] = json!(["--install", "--silent"]);
+    });
+    assert!(
+        manager.check(id).unwrap().update_available,
+        "the next rc of the same version is offered"
+    );
     std::env::remove_var(OVERRIDE);
 }

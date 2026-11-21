@@ -124,7 +124,10 @@ impl Manager {
         // The class decides, not the record: an app that installed itself has a record built from its own receipt
         // (D35).
         if request.operation == Operation::Update && super::adopts_on_update(id, class) {
-            return self.adopt_inner(request, peer, receipt, true, cancel, progress);
+            let message = self.adopt_inner(request, peer, receipt, true, cancel, progress)?;
+            // Recent activity says what it was updated to (D36).
+            history.to = self.record(id)?.map(|record| record.version);
+            return Ok(message);
         }
         if request.operation == Operation::Rollback {
             return self.rollback_inner(
