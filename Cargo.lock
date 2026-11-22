@@ -99,22 +99,8 @@ checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
 name = "arcade-link"
-version = "1.0.7"
-source = "git+https://github.com/qa-p1/Arcade-Link?tag=v1.0.7#40ec0279095f7a5082b0fbe2912d1a869b98f55d"
-dependencies = [
- "getrandom 0.4.3",
- "interprocess",
- "libc",
- "serde",
- "serde_json",
- "widestring",
- "windows-sys 0.61.2",
-]
-
-[[package]]
-name = "arcade-link"
 version = "1.0.15"
-source = "git+https://github.com/qa-p1/Arcade-Link?rev=0521aa736644b31648ebaaf391a5d928eb42ca6d#0521aa736644b31648ebaaf391a5d928eb42ca6d"
+source = "git+https://github.com/qa-p1/Arcade-Link?tag=v1.0.15#09d52ee761befe951d2c6848d86a435c2ffa3d8f"
 dependencies = [
  "base64 0.22.1",
  "blake2",
@@ -149,7 +135,7 @@ dependencies = [
 name = "arcade-tools"
 version = "1.0.2"
 dependencies = [
- "arcade-link 1.0.15",
+ "arcade-link",
  "arcade-shortcuts",
  "arcade-tools-core",
  "arcade-tools-overlay",
@@ -177,7 +163,7 @@ name = "arcade-tools-core"
 version = "1.0.2"
 dependencies = [
  "ammonia",
- "arcade-link 1.0.15",
+ "arcade-link",
  "base64 0.22.1",
  "directories",
  "flate2",
@@ -200,7 +186,7 @@ dependencies = [
 name = "arcade-tools-overlay"
 version = "0.1.0"
 dependencies = [
- "arcade-link 1.0.7",
+ "arcade-link",
  "arcade-shortcuts",
  "cosmic-text",
  "directories",
