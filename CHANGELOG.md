@@ -5,7 +5,7 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-## [1.0.1] - 2026-11-21
+## [1.0.1] - 2026-11-22
 
 ### Fixed
 - Tools offers its own update again. When Tools had installed itself, the tray counted its update but the Updates
