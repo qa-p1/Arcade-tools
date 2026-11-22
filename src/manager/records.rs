@@ -56,10 +56,16 @@ impl Manager {
                 // Build metadata (Wheel's "0.3.1+build.56" release vs its "0.3.1"
                 // receipt) reaches the hash on every list/Home refresh, so the
                 // hash is cached until the file's size, times or inode change.
-                let same_bytes = record.version == receipt.version
-                    || self
-                        .cached_checksum(&executable)
-                        .is_ok_and(|hash| hash == record.executable_sha256);
+                // The hash decides even at an equal version: every rc of a release carries the same version, and a
+                // hand-installed rc over one Tools installed kept the older package hash, so the published build was
+                // offered as "1.0.1 → 1.0.1" (D38). A file that can't be hashed (missing: needs repair) and a record
+                // without a hash fall back to the version.
+                let same_bytes = match self.cached_checksum(&executable) {
+                    Ok(hash) if !record.executable_sha256.is_empty() => {
+                        hash == record.executable_sha256
+                    }
+                    _ => record.version == receipt.version,
+                };
                 if !crate::release::versions_match(
                     &record.version,
                     &receipt.version,
@@ -214,6 +220,13 @@ impl Manager {
     }
     /// Read one-step rollback metadata on a worker, without network or mutation.
     pub fn rollback_version(&self, id: &str) -> Result<Option<String>> {
+        Ok(self.rollback_record(id)?.map(|record| record.version))
+    }
+    /// The kept build's rc label ("1.0.1-rc.3"), when its version alone doesn't tell it from the installed one (D43).
+    pub fn rollback_build(&self, id: &str) -> Result<Option<String>> {
+        Ok(self.rollback_record(id)?.as_ref().and_then(build_label))
+    }
+    fn rollback_record(&self, id: &str) -> Result<Option<Record>> {
         manager_id(id)?;
         // A kept copy of the build that is installed now is nothing to go back to. It happens when Tools is killed
         // between installing an update and keeping the replaced build: the copy from an earlier operation stays, and
@@ -224,7 +237,7 @@ impl Manager {
             .filter(|previous| {
                 current.as_deref() != Some(previous.record.executable_sha256.as_str())
             })
-            .map(|previous| previous.record.version))
+            .map(|previous| previous.record))
     }
     /// Disk/optional IPC work on a worker thread; no network refresh.
     pub fn list(&self, probe: bool) -> Result<Vec<AppView>> {
@@ -272,9 +285,19 @@ impl Manager {
                 description: app.description.clone(), category: app.category.clone(), icon: app.icon.clone(),
                 platforms: app.platforms.clone(), min_tools: app.min_tools.clone(), install_reason: app.install_reason.clone(),
                 install_supported: app.supported_install(), installation_class: class, adopts_on_update: super::adopts_on_update(id, class), rollback_version: if app.supported_install() { self.rollback_version(id)? } else { None },
+                rollback_build: if app.supported_install() { self.rollback_build(id)? } else { None },
                 withdrawn: record.as_ref().and_then(|r| r.package.as_ref()?.tag.as_deref()).and_then(|tag| app.withdrawn_reason(tag)).map(str::to_owned) })
         }).collect()
     }
+}
+/// The release tag of a record's package without its "v", when it says more than the version: "1.0.1-rc.4" for an
+/// rc of 1.0.1, none for the 1.0.1 release itself (D43).
+pub(crate) fn build_label(record: &Record) -> Option<String> {
+    tag_label(&record.version, record.package.as_ref()?.tag.as_deref()?)
+}
+pub(crate) fn tag_label(version: &str, tag: &str) -> Option<String> {
+    let build = tag.strip_prefix('v').unwrap_or(tag);
+    (build != version && build.starts_with(version)).then(|| build.to_owned())
 }
 /// The hash of the package an app installed itself from, when Tools has no record of it. An AppImage installs by
 /// copying itself, so its executable is the package, byte for byte, and every rc of a release has the same version:

@@ -71,10 +71,13 @@
   const resultLabels: Record<string, string> = { success: 'Done', failed: 'Failed', rolled_back: 'Rolled back', rollback_failed: 'Rollback failed' };
   const resultLabel = (result: string) => resultLabels[result] ?? result;
   function versions(entry: HistoryEntry): string | null {
-    if (!entry.from && !entry.to) return null;
-    if (!entry.to) return `from ${entry.from}`;
-    if (entry.from === entry.to) return `v${entry.to} reinstalled`;
-    return entry.from ? `${entry.from} → ${entry.to}` : entry.to;
+    // rc builds of one release share its version: show the build ("1.0.1-rc.3 → 1.0.1-rc.4", D43).
+    const from = entry.fromBuild ?? entry.from;
+    const to = entry.toBuild ?? entry.to;
+    if (!from && !to) return null;
+    if (!to) return `from ${from}`;
+    if (from === to) return `v${to} reinstalled`;
+    return from ? `${from} → ${to}` : to;
   }
   /** -1, 0 or 1 by dotted numeric parts; good enough to word a button. */
   function compare(a: string, b: string): number {
@@ -86,7 +89,7 @@
     return 0;
   }
   const rollbackLabel = (app: AppView) =>
-    app.version && app.rollbackVersion && compare(app.rollbackVersion, app.version) > 0 ? `Switch to v${app.rollbackVersion}` : `Roll back to v${app.rollbackVersion}`;
+    app.version && app.rollbackVersion && compare(app.rollbackVersion, app.version) > 0 ? `Switch to v${app.rollbackBuild ?? app.rollbackVersion}` : `Roll back to v${app.rollbackBuild ?? app.rollbackVersion}`;
 
   async function loadHistory(): Promise<void> {
     // The backend returns the newest first; keep the newest 20.

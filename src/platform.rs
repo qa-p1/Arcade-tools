@@ -72,17 +72,9 @@ pub(crate) fn child_environment(command: &mut Command, paths: &Paths) {
     // Inheriting them also kept each old Tools image mounted after a
     // self-update: the new Tools loaded its libraries from there.
     // It also drops the arena cap Tools set for itself (D18, Link's `runtime::cap_malloc_arenas`).
-    sanitize(command);
-    paths_environment(command, paths);
-}
-
-/// Link's child environment, plus the unpacked-copy marker (D34). Tools runs from its unpacked copy, which sets
-/// `ARCADE_UNPACKED=1`; Link 1.0.7 passes it on, and to an app that value means "you are already the copy, never
-/// relaunch". Every app Tools started, and the new Tools after a self-update, then stayed on its AppImage mount with a
-/// FUSE helper resident (U1). Link 1.0.13 removes it too.
-pub(crate) fn sanitize(command: &mut Command) {
+    // Link 1.0.11+ also drops the unpacked-copy marker (D34: Tools 1.0.1 removed it itself).
     arcade_link::childenv::sanitize(command);
-    command.env_remove(arcade_link::runtime::UNPACKED_ENV);
+    paths_environment(command, paths);
 }
 
 fn paths_environment(command: &mut Command, paths: &Paths) {

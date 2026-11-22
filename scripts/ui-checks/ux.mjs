@@ -183,6 +183,53 @@ export default {
     assert(!history.includes('rolled_back') && history.includes('Rolled back') && !history.includes('— → —'), history);
     assert(rollback.includes('Switch to v2.0.0'), rollback);
   },
+  async 'Updates: rc builds of one version are told apart (1.0.2, D43)'(page) {
+    await page.evaluate(() => {
+      const m = window.__mock;
+      m.on('update_history', () => [
+        { time: 2, app: 'arcade.look', from: '1.0.1', to: '1.0.1', fromBuild: '1.0.1-rc.3', toBuild: '1.0.1-rc.4', result: 'success', reason: null },
+        { time: 1, app: 'arcade.find', from: '1.0.0', to: '1.0.0', result: 'success', reason: null },
+      ]);
+      m.state.apps = m.state.apps.map((a) => a.id === 'arcade.look' ? { ...a, version: '1.0.1', rollbackVersion: '1.0.1', rollbackBuild: '1.0.1-rc.3' } : a);
+      m.emit('registry-changed', null);
+    });
+    await sleep(200);
+    await tab(page, 'updates');
+    await sleep(300);
+    const rows = await page.locator('.update-history li').allTextContents();
+    assert(rows[0].includes('1.0.1-rc.3 → 1.0.1-rc.4') && !rows[0].includes('reinstalled'), rows[0]);
+    assert(rows[1].includes('v1.0.0 reinstalled'), rows[1]);
+    const rollback = await text(page, '#panel-updates [aria-labelledby="rollback-heading"]');
+    assert(rollback.includes('Roll back to v1.0.1-rc.3'), rollback);
+  },
+  async 'An error message fades on its own, but not while the pointer is on it (1.0.2, D41)'(page) {
+    await page.evaluate(() => window.__mock.on('check_release', () => Promise.reject({ code: 'network', message: 'FADING ERROR' })));
+    await tab(page, 'apps');
+    await page.locator('article#arcade\\.look').getByRole('button', { name: 'Check for updates' }).click();
+    await sleep(300);
+    const message = page.locator('#message');
+    assert(await message.isVisible() && (await message.textContent()).includes('FADING ERROR'), 'the error shows');
+    assert(String(await message.getAttribute('class')).includes('error'), 'it is an error');
+    await message.hover();
+    await sleep(13000);
+    assert(await message.isVisible(), 'an error the pointer is on stays');
+    await page.mouse.move(5, 5);
+    await sleep(12500);
+    assert(!(await message.isVisible()), 'the error faded');
+  },
+  async 'Engines: the download dialog says what happens on Linux (1.0.2, D42)'(page) {
+    await page.evaluate(() => {
+      const m = window.__mock;
+      m.on('list_engines', () => [{ id: 'tesseract', name: 'Tesseract OCR', homepage: 'https://example.com', binaries: ['tesseract'], versionArgs: ['--version'], downloaded: false, status: { status: 'missing' }, usedBy: [{ app: 'arcade.lens', for: 'Recognize text.' }], installHint: null, linkDownload: true, minimumVersion: '5.0.0' }]);
+    });
+    await tab(page, 'engines');
+    await sleep(300);
+    await page.getByRole('button', { name: /Download/ }).first().click();
+    await sleep(300);
+    const dialog = await text(page, '#confirm');
+    assert(!dialog.includes('Windows') && dialog.includes('sets it up for you'), dialog);
+    await page.keyboard.press('Escape');
+  },
   async 'Updates: a withdrawn version says why and offers the rollback'(page) {
     await page.evaluate(() => {
       const m = window.__mock;

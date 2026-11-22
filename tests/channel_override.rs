@@ -135,3 +135,42 @@ fn a_self_installed_appimage_sees_the_next_rc_of_the_same_version() {
     );
     std::env::remove_var(OVERRIDE);
 }
+
+/// The owner's rc testing: Tools installed rc.3, rc.4 (the same version, other bytes) was then installed by hand over
+/// it, and rc.4 was promoted. Before 1.0.2 Tools' record kept rc.3's package hash because the versions were equal, and
+/// the published build was offered as "1.0.1 → 1.0.1" (D38). The installed file's hash decides.
+#[test]
+fn a_hand_installed_build_of_the_same_version_is_not_offered_again() {
+    let _env = ENV.lock().unwrap_or_else(|e| e.into_inner());
+    let (server, manager) = fixture();
+    let id = "arcade.look";
+    installed(&server, &manager, id);
+    assert!(!manager.check(id).unwrap().update_available);
+
+    // A later build of the same version replaces the file outside Tools; its receipt says the same version.
+    let mut later = fake_app(&manager.paths, id, "1.0.0", false);
+    later.extend_from_slice(b"# a later build of 1.0.0\n");
+    let executable = manager.record(id).unwrap().unwrap().executable.unwrap();
+    std::fs::write(&executable, &later).unwrap();
+
+    // That build is the published one now.
+    server.publish(
+        id,
+        "1.0.0",
+        "stable",
+        &[("App_x64.AppImage", &later)],
+        "nsis",
+    );
+    server.amend_manifest(id, "1.0.0", "stable", |manifest| {
+        manifest["assets"][0]["installArgs"] = json!(["--install", "--silent"]);
+    });
+    let record = manager.record(id).unwrap().unwrap();
+    assert!(
+        record.sha256.is_empty(),
+        "the old package hash no longer describes the installed file"
+    );
+    assert!(
+        !manager.check(id).unwrap().update_available,
+        "the installed build is not offered over itself"
+    );
+}

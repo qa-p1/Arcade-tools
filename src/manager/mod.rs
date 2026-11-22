@@ -176,6 +176,7 @@ pub struct AppView {
     /// An update installs the new release and lets Tools manage the app in one step (`adopts_on_update`).
     pub adopts_on_update: bool,
     pub rollback_version: Option<String>,
+    pub rollback_build: Option<String>,
     /// Why the installed release was withdrawn (catalog `bad`), if it was: the app view offers a rollback.
     pub withdrawn: Option<String>,
 }

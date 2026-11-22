@@ -327,6 +327,12 @@ impl Manager {
         let history = HistoryEntry {
             time: SystemClock.now(),
             app: ids::TOOLS.into(),
+            from_build: super::records::build_label(&old),
+            to_build: plan
+                .package
+                .tag
+                .as_deref()
+                .and_then(|tag| super::records::tag_label(&plan.package.release.version, tag)),
             from: Some(old.version),
             to: Some(plan.package.release.version.clone()),
             result: if result.is_ok() {

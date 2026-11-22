@@ -26,6 +26,8 @@ impl Manager {
             app: request.id.clone(),
             from: old.as_ref().map(|r| r.version.clone()),
             to: None,
+            from_build: old.as_ref().and_then(super::records::build_label),
+            to_build: None,
             result: HistoryResult::Success,
             reason: None,
         };
@@ -126,7 +128,9 @@ impl Manager {
         if request.operation == Operation::Update && super::adopts_on_update(id, class) {
             let message = self.adopt_inner(request, peer, receipt, true, cancel, progress)?;
             // Recent activity says what it was updated to (D36).
-            history.to = self.record(id)?.map(|record| record.version);
+            let record = self.record(id)?;
+            history.to_build = record.as_ref().and_then(super::records::build_label);
+            history.to = record.map(|record| record.version);
             return Ok(message);
         }
         if request.operation == Operation::Rollback {
@@ -177,6 +181,7 @@ impl Manager {
         check_cancel(cancel)?;
         let checked = self.checked(id)?;
         history.to = Some(checked.release.version.clone());
+        history.to_build = super::records::tag_label(&checked.release.version, &checked.tag);
         if request
             .channel
             .is_some_and(|channel| channel != checked.release.channel)
@@ -600,18 +605,40 @@ impl Manager {
         } else {
             destination.clone()
         };
-        let transaction =
-            match Transaction::begin(&self.paths, &request.id, &target, old_receipt.as_ref())
-                .and_then(|transaction| check_cancel(cancel).map(|()| transaction))
-            {
-                Ok(transaction) => transaction,
-                Err(error) => {
-                    if let Some(mode) = resume {
-                        let _ = self.launch_inner(&request.id, mode);
+        // The app as it was, built from its own receipt: an update that replaces it keeps it as the previous version,
+        // so Roll back returns to it (and Tools keeps managing it, D39). An app without a receipt (a manual file) has
+        // nothing Tools could reinstall.
+        let before = match (&migration, &old_receipt) {
+            (Some(_), Some(receipt)) => Some(self.record_from_receipt(receipt)?),
+            _ => None,
+        };
+        let begun = Transaction::begin(&self.paths, &request.id, &target, old_receipt.as_ref())
+            .map(|mut transaction| {
+                // The app's own file, where its receipt puts it (normally the target already). Only the rollback copy
+                // depends on it: a path Tools may not snapshot leaves the update without one, never failed.
+                if let (Some(_), Some(receipt)) = (&before, &old_receipt) {
+                    if let Err(error) = transaction.include(&receipt.path) {
+                        eprintln!("No rollback copy of {}: {error}", request.id);
                     }
-                    return Err(error);
                 }
-            };
+                transaction
+            })
+            .and_then(|transaction| check_cancel(cancel).map(|()| transaction));
+        let transaction = match begun {
+            Ok(transaction) => transaction,
+            Err(error) => {
+                if let Some(mode) = resume {
+                    let _ = self.launch_inner(&request.id, mode);
+                }
+                return Err(error);
+            }
+        };
+        let previous = before
+            .map(|record| transaction.previous(record, old_receipt.clone()))
+            .filter(|previous| previous.pointer(&self.paths).is_some());
+        let previous_pointer = previous
+            .as_ref()
+            .and_then(|previous| previous.pointer(&self.paths));
         progress(Progress::new(
             &request.id,
             "Adopting installation",
@@ -735,7 +762,12 @@ impl Manager {
             if let Some(mode) = resume {
                 platform::spawn_detached(&self.paths, &exe, &mode.args())?;
             }
-            installation::claim(&self.paths, receipt.clone(), receipt.previous.clone())?;
+            // As for an update of a managed app: the app's own receipt-addressed previous when it made one.
+            installation::claim(
+                &self.paths,
+                receipt.clone(),
+                receipt.previous.clone().or(previous_pointer.clone()),
+            )?;
             Ok(())
         })();
         if let Err(error) = result {
@@ -745,7 +777,7 @@ impl Manager {
             }
             return Err(error);
         }
-        transaction.commit(None)?;
+        transaction.commit(previous)?;
         progress(Progress::new(&request.id, "Done", Some(1.0), false));
         Ok(match &migration {
             Some(package) => format!(
@@ -782,6 +814,7 @@ impl Manager {
         let previous = PreviousInstallation::read(&self.paths, &request.id)?
             .ok_or_else(|| Error::new("no_previous", "There is no retained previous version."))?;
         history.to = Some(previous.record.version.clone());
+        history.to_build = super::records::build_label(&previous.record);
         check_cancel(cancel)?;
         if let Some(package) = &previous.record.package {
             self.apply_package(request, package, prior, cancel, progress, replaced)?;
