@@ -2,6 +2,18 @@
 
 Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
 
+## 2026-11-22 (cloud session) - 1.0.1 released
+
+- **1.0.1 promoted from `v1.0.1-rc.4`** (b23b113) after both Gates runs passed every job: previous v1.0.0 with
+  update-from rc.3 ([44965715622](https://github.com/qa-p1/Arcade-tools/actions/runs/44965715622)) and previous
+  v0.4.6 ([44965712696](https://github.com/qa-p1/Arcade-tools/actions/runs/44965712696)), 11 of 11 each. AppImage, dmg,
+  setup.exe and SHA256SUMS byte for byte as rc.4; the manifest differs only in `channel` and `tag`, and is signed.
+- rc.2 and rc.3 passed their Gates too but were superseded by the real-user run's fixes (#57: D34, D35; #58: D36,
+  D37). Real-user checks on rc.4: installed by hand over rc.3 (file = the asset), Download with Arcade installed
+  Tesseract 5.5.3 and Home's "Lens needs Tesseract" cleared; Home shows nothing needing attention and no updates.
+- Link #79 (merged, not tagged) has the root fix for D37; Tools can drop its own Tesseract download once it moves to
+  that Link (Tools still pins Link 1.0.7; moving is 1.0.2 work).
+
 ## 2026-11-21 (cloud session) - 1.0.1
 
 - Real-user run on Linux (a desktop session as a normal user, old releases installed from their own downloads, then
