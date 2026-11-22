@@ -7,7 +7,7 @@ use arcade_link::design::{palette, rgb, Theme};
 pub fn mark(badge: bool) -> Vec<u8> {
     let dark_panel = dark_panel();
     let mut rgba = if dark_panel {
-        include_bytes!(concat!(env!("OUT_DIR"), "/mark-white.rgba")).to_vec()
+        outlined(include_bytes!(concat!(env!("OUT_DIR"), "/mark-white.rgba")))
     } else {
         include_bytes!(concat!(env!("OUT_DIR"), "/mark-black.rgba")).to_vec()
     };
@@ -24,6 +24,40 @@ pub fn mark(badge: bool) -> Vec<u8> {
                     let at = (y as usize * 32 + x as usize) * 4;
                     rgba[at..at + 4].copy_from_slice(&[r, g, b, 255]);
                 }
+            }
+        }
+    }
+    rgba
+}
+
+/// A white mark with a one-pixel dark edge, so it stays visible on a light panel too: Linux has no reliable way to
+/// ask the panel's colour, and the white mark vanished on openbox's and XFCE's light panels (D44). Each transparent
+/// pixel next to the mark takes a translucent dark edge, as strong as its most opaque neighbour.
+fn outlined(white: &[u8]) -> Vec<u8> {
+    const SIZE: i32 = 32;
+    const EDGE: [u8; 3] = [0x20, 0x22, 0x26];
+    let alpha = |x: i32, y: i32| -> u8 {
+        if (0..SIZE).contains(&x) && (0..SIZE).contains(&y) {
+            white[((y * SIZE + x) * 4 + 3) as usize]
+        } else {
+            0
+        }
+    };
+    let mut rgba = white.to_vec();
+    for y in 0..SIZE {
+        for x in 0..SIZE {
+            let at = ((y * SIZE + x) * 4) as usize;
+            if white[at + 3] != 0 {
+                continue;
+            }
+            let near = (-1..=1)
+                .flat_map(|dy| (-1..=1).map(move |dx| (dx, dy)))
+                .map(|(dx, dy)| alpha(x + dx, y + dy))
+                .max()
+                .unwrap_or(0);
+            if near > 0 {
+                let [r, g, b] = EDGE;
+                rgba[at..at + 4].copy_from_slice(&[r, g, b, (u16::from(near) * 3 / 5) as u8]);
             }
         }
     }
@@ -104,5 +138,26 @@ mod tests {
     fn mark_and_badge_are_rgba_and_distinct() {
         assert_eq!(mark(false).len(), 32 * 32 * 4);
         assert_ne!(mark(false), mark(true));
+    }
+    #[test]
+    fn the_white_mark_has_a_dark_edge_and_keeps_its_white() {
+        let white = include_bytes!(concat!(env!("OUT_DIR"), "/mark-white.rgba"));
+        let edged = outlined(white);
+        assert_eq!(edged.len(), white.len());
+        let pixels = |bytes: &[u8]| bytes.chunks(4).map(|p| p.to_vec()).collect::<Vec<_>>();
+        let (before, after) = (pixels(white), pixels(&edged));
+        // Every visible pixel of the mark is unchanged; some transparent ones around it are now a dark edge.
+        assert!(before.iter().zip(&after).all(|(b, a)| b[3] == 0 || b == a));
+        let edge = after
+            .iter()
+            .zip(&before)
+            .filter(|(a, b)| b[3] == 0 && a[3] > 0)
+            .count();
+        assert!(edge > 20, "{edge} edge pixels");
+        assert!(after
+            .iter()
+            .zip(&before)
+            .filter(|(a, b)| b[3] == 0 && a[3] > 0)
+            .all(|(a, _)| a[0] < 0x40));
     }
 }

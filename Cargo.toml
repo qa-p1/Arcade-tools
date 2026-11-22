@@ -14,14 +14,14 @@ resolver = "2"
 
 # The one version source; scripts/check-versions.py keeps npm and Tauri in step.
 [workspace.package]
-version = "1.0.1"
+version = "1.0.2"
 
 [dependencies]
 # Released Link installer, engines and tray contracts. To build
 # against a local checkout instead, add to .cargo/config.toml (not committed):
 #   [patch."https://github.com/qa-p1/Arcade-Link"]
 #   arcade-link = { path = "<path to>/Arcade-link/crates/arcade-link" }
-arcade-link = { git = "https://github.com/qa-p1/Arcade-Link", tag = "v1.0.7", features = ["watch", "install", "engines", "trayhost", "release"] }
+arcade-link = { git = "https://github.com/qa-p1/Arcade-Link", rev = "0521aa736644b31648ebaaf391a5d928eb42ca6d", features = ["watch", "install", "engines", "trayhost", "release"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 reqwest = { version = "0.13", default-features = false, features = ["blocking", "rustls"] }

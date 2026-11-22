@@ -18,8 +18,16 @@
   const ordered = $derived([...engines.filter((engine) => engine.status.status !== 'found'), ...found]);
   const appName = (id: string) => ui.apps.find((app) => app.id === id)?.name.replace(/^Arcade /, '') ?? id.replace(/^arcade\./, '');
 
+  // What happens after Download on this system. Linux said "On Windows, finish the installer" too (1.0.1, D42).
+  function downloadCopy(): string {
+    const platform = typeof navigator === 'undefined' ? '' : navigator.platform || navigator.userAgent;
+    if (/Win/.test(platform)) return 'Arcade verifies the download before using it. Finish the installer that opens.';
+    if (/Mac/.test(platform)) return 'Arcade installs it with Homebrew.';
+    return 'Arcade verifies the download and sets it up for you. Nothing else to install.';
+  }
+
   async function download(engine: EngineView): Promise<void> {
-    const choice = await askForConfirmation({ title: `Download ${engine.name}?`, copy: 'Arcade verifies the download before using it. On Windows, finish the installer that opens.', action: 'Download', destructive: false, kind: null, folders: [] });
+    const choice = await askForConfirmation({ title: `Download ${engine.name}?`, copy: downloadCopy(), action: 'Download', destructive: false, kind: null, folders: [] });
     if (!choice.confirmed) return;
     downloading = engine.id;
     try {

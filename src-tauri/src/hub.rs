@@ -344,10 +344,13 @@ pub async fn health(app: AppHandle) -> Result<Vec<health::HealthIssue>> {
                 continue;
             }
             let status = engine.detect_current();
+            // Found, or a check that still timed out: that is a busy machine, not a missing engine, and Home would
+            // say "missing" for an engine that works (D40). The Engines page shows the timeout.
             if matches!(
-                status,
+                &status,
                 Ok(arcade_tools_core::engines::EngineStatus::Found { .. })
-            ) {
+            ) || status.as_ref().is_err_and(|error| error.code == "timeout")
+            {
                 continue;
             }
             for usage in affected {
@@ -793,9 +796,7 @@ pub async fn download_engine(app: AppHandle, id: String) -> Result<String> {
         }
         manager.paths.guard(&arcade_link::engines::engines_dir())?;
         state.cancellable.store(false, Ordering::SeqCst);
-        match arcade_tools_core::engines::download_tesseract()
-            .map_err(|e| Error::new("engine", e))?
-        {
+        match arcade_link::engines::download_tesseract().map_err(|e| Error::new("engine", e))? {
             arcade_link::engines::Download::Ready(path) => {
                 Ok(format!("Tesseract is ready at {}.", path.display()))
             }

@@ -2,6 +2,16 @@
 
 Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
 
+## 2026-11-22 (cloud session) - 1.0.2
+
+- Fixes from the 1.0.1 real-user report, with the owner's decisions: Link 1.0.15 (D45), the hash at equal versions
+  (D38), a rollback copy for the one-step update that stays managed (D39), slow engine checks (D40, root cause of the
+  "things need attention" flicker: found by reproducing it after a fresh login), fading errors (D41), the Linux
+  Tesseract dialog (D42), rc build labels (D43), the tray mark's edge (D44).
+- Not changed: an app that restarts itself keeps the environment it was started with (an inherited
+  `ARCADE_UNPACKED=1` from a Tools before 1.0.1). "1" is the never-relaunch contract in every app; it clears at the
+  next start or login.
+
 ## 2026-11-22 (cloud session) - 1.0.1 released
 
 - **1.0.1 promoted from `v1.0.1-rc.4`** (b23b113) after both Gates runs passed every job: previous v1.0.0 with

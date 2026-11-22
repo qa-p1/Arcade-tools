@@ -1,6 +1,7 @@
 #![cfg(target_os = "linux")]
 //! "Download with Arcade" for Tesseract runs curl and the downloaded AppImage with the user's environment, not with
-//! Tools' AppImage libraries: Tools' bundled libnghttp2 broke the system curl ("symbol lookup error", D37).
+//! Tools' AppImage libraries: Tools' bundled libnghttp2 broke the system curl ("symbol lookup error", D37). Link 1.0.15's download does this;
+//! Tools calls it directly again.
 
 #[test]
 fn the_tesseract_download_runs_curl_without_the_tools_image_libraries() {
@@ -33,7 +34,7 @@ fn the_tesseract_download_runs_curl_without_the_tools_image_libraries() {
             "/tmp/.mount_ArcadeT00ls/usr/lib:/opt/keep/lib",
         );
     }
-    let Err(error) = arcade_tools_core::engines::download_tesseract() else {
+    let Err(error) = arcade_link::engines::download_tesseract() else {
         panic!("the fake curl fails the download");
     };
     assert!(error.contains("fake curl stops here"), "{error}");

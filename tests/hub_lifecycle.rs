@@ -470,6 +470,24 @@ fn hub_lifecycle_adopting_or_updating_a_pre_installer_copy_installs_the_release(
     assert_eq!(receipt.managed_by, ManagedBy::Tools);
     assert_eq!(receipt.version, "1.1.0");
     assert!(!manager.check(id).unwrap().update_available);
+    // The version it replaced is kept: Roll back returns to it, and Tools still manages the app (D39). 1.0.1 kept
+    // nothing, so the app could only be rolled back by downloading the old release by hand.
+    assert_eq!(
+        manager.rollback_version(id).unwrap().as_deref(),
+        Some("1.0.0")
+    );
+    let message = operate(&manager, id, Operation::Rollback).unwrap();
+    assert!(message.contains("1.0.0"), "{message}");
+    let receipt = manager.receipt(id).unwrap().unwrap();
+    assert_eq!(receipt.managed_by, ManagedBy::Tools);
+    assert_eq!(receipt.version, "1.0.0");
+    assert_eq!(manager.record(id).unwrap().unwrap().version, "1.0.0");
+    assert!(
+        manager.check(id).unwrap().update_available,
+        "1.1.0 is offered again"
+    );
+    operate(&manager, id, Operation::Update).unwrap();
+    assert_eq!(manager.receipt(id).unwrap().unwrap().version, "1.1.0");
 }
 
 #[test]

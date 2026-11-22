@@ -5,6 +5,30 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-11-22
+
+### Fixed
+- Updating an app that Tools didn't manage yet (one step: install the release and let Tools manage it) keeps the
+  version it replaced. Roll back returns to it, and Tools still manages the app afterwards. Before, the only way back
+  was downloading the old release by hand.
+- Home no longer says an engine is missing when its version check is merely slow. At login, with every app starting
+  at once, Tesseract took over 2 seconds to answer and Home said "Tesseract OCR is missing" until Check again; a check
+  that times out is now tried once more with a longer limit, and a check that still times out is not reported as
+  missing.
+- On Linux the Tesseract download dialog no longer says "On Windows, finish the installer that opens". It says
+  Arcade checks the download and sets it up.
+- Error messages fade after 12 seconds instead of staying until closed, and wait while the pointer or keyboard focus
+  is on them. A failed update or repair stays listed in Recent activity.
+- Tools' tray icon has a thin dark edge, so the white mark stays visible on a light panel.
+- A build of the same version installed outside Tools (an rc over the rc Tools installed) is no longer offered as an
+  update to itself ("1.0.1 → 1.0.1"). The installed file's hash decides, not just the version.
+- Recent activity and Previous versions name rc builds ("1.0.1-rc.3 → 1.0.1-rc.4", "Roll back to v1.0.1-rc.3")
+  instead of "v1.0.1 reinstalled" between two rcs. Only the test channel has rcs.
+
+### Changed
+- Arcade Link 1.0.15 (from 1.0.7). Tools' own Tesseract download and its removal of the unpacked-copy marker are gone:
+  Link does both now.
+
 ## [1.0.1] - 2026-11-22
 
 ### Fixed

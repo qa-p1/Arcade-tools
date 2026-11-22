@@ -242,7 +242,7 @@
             <button class="btn sm" type="button" disabled={busy} onclick={() => run(() => launchApp(installedApp!, 'background'), app.name)}>Open in background</button>
             {#if installedApp.managed}<button class="btn sm" type="button" disabled={busy} onclick={() => run(() => confirmOperation(installedApp!, 'repair'), app.name)}>Repair</button>{/if}
             {#if !installedApp.managed && installedApp.installationClass !== 'dev'}<button class="btn sm" type="button" disabled={busy} onclick={() => run(() => confirmOperation(installedApp!, 'adopt'), app.name)}>Let Tools manage it</button>{/if}
-            {#if installedApp.rollbackVersion}<button class="btn sm" type="button" disabled={busy} onclick={() => run(() => confirmOperation(installedApp!, 'rollback'), app.name)}>Roll back to {installedApp.rollbackVersion}</button>{/if}
+            {#if installedApp.rollbackVersion}<button class="btn sm" type="button" disabled={busy} onclick={() => run(() => confirmOperation(installedApp!, 'rollback'), app.name)}>Roll back to {installedApp.rollbackBuild ?? installedApp.rollbackVersion}</button>{/if}
             <button class="btn sm danger" type="button" disabled={busy || !installedApp?.installSupported} onclick={() => askToConfirm('uninstall')}>Uninstall</button>
           </div>
         </div>

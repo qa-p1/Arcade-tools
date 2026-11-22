@@ -527,6 +527,12 @@ pub struct HistoryEntry {
     pub app: String,
     pub from: Option<String>,
     pub to: Option<String>,
+    /// The rc builds, when they say more than the versions: every rc of a release carries the same version, and
+    /// Recent activity said "v1.0.1 reinstalled" between rc.3 and rc.4 (D43). Display only.
+    #[serde(default, rename = "fromBuild", skip_serializing_if = "Option::is_none")]
+    pub from_build: Option<String>,
+    #[serde(default, rename = "toBuild", skip_serializing_if = "Option::is_none")]
+    pub to_build: Option<String>,
     pub result: HistoryResult,
     #[serde(default)]
     pub reason: Option<String>,

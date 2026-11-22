@@ -662,3 +662,70 @@ runs peak at 268–312 MB at 2 s), and load time is held by the performance budg
   on the test desktop: the sanitized steps download the file (SHA-256 = the pinned one), unpack it, and Tesseract
   5.5.3 runs with eight languages. Test: `engine_download` (a fake curl records its environment) fails against Link's
   function. Link itself should sanitize there too (a Link PR); Tools can call it again once it moves to that Link.
+
+## D38 — The installed file's hash decides, even at an equal version (1.0.2)
+
+- **Found in the real-user run (1.0.1):** Tools installed rc.2; rc.3 and rc.4 were then installed by hand over it.
+  Released 1.0.1 (= rc.4) was offered as "1.0.1 → 1.0.1": at equal versions `Manager::record` kept the record without
+  comparing the file, so it still held rc.2's package hash, and at equal versions the hash is what shows an update.
+- **Decision:** the cached executable hash decides whenever the record has one; only a file that can't be hashed
+  (missing: Repair) or a record without a hash falls back to the version. A changed file drops the package hash, so
+  an equal version is not offered over it. Test: `a_hand_installed_build_of_the_same_version_is_not_offered_again`
+  fails without the change.
+
+## D39 — The one-step update keeps the version it replaced (1.0.2)
+
+- **Owner's call on D36's open item:** keep it, and keep the app managed after a rollback.
+- **Decision:** when Update installs the release over an app that installed itself (`adopt_inner` with a download),
+  Tools records the app as it was (from its own receipt) and keeps the snapshot as the previous installation, as a
+  managed update does; the app's own `.previous` copy wins when it made one. Roll back reinstalls that copy through
+  its own installer and claims the receipt, so Tools still manages the app. An app without a receipt (a manual file
+  that ignores `--install`) keeps nothing, as before: Tools could not reinstall it. A path Tools may not snapshot
+  leaves the update without a rollback copy rather than failing it. Test: the self-installed part of
+  `hub_lifecycle_adopting_or_updating_a_pre_installer_copy_installs_the_release` rolls back to 1.0.0, managed by
+  Tools, then updates again; it fails without the change ("no retained previous version").
+
+## D40 — A slow engine check is not a missing engine (1.0.2)
+
+- **Found in the real-user run (1.0.1):** Home briefly said "3 things need attention" and, after a fresh login on
+  2026-11-22, "Tesseract OCR is missing" with Tesseract installed and working; Check again cleared it. At login all
+  seven apps start together and Tesseract's first `--version` reads it from a cold disk; the 2 s check timed out and
+  Home counted the timeout as missing.
+- **Decision:** `Engine::detect_current` tries a timed-out check once more with 15 s (`detect_patiently`), and Home
+  does not report an engine whose check still timed out (the Engines page shows the error). A delay before counting
+  was considered and rejected: it hides the same false report a little later. Test:
+  `a_slow_engine_is_found_on_the_patient_second_try`.
+
+## D41 — Error messages fade (1.0.2)
+
+- **Found in the real-user run (1.0.1):** a failed download's message followed the user across pages for about ten
+  minutes, until closed.
+- **Decision:** an error fades after 12 s (a notice after 5 s), and neither fades while the pointer or focus is on it,
+  so it can be read and copied. A failed operation stays in Recent activity. UI check: "An error message fades on its
+  own, but not while the pointer is on it".
+
+## D42 — The Tesseract download dialog says what happens on this system (1.0.2)
+
+- Linux said "On Windows, finish the installer that opens". Windows keeps that sentence; macOS says it uses Homebrew;
+  Linux says Arcade checks the download and sets it up. UI check on the Engines tab.
+
+## D43 — rc builds are named in Recent activity and Previous versions (1.0.2)
+
+- Every rc of a release carries its version, so between two rcs Recent activity said "v1.0.1 reinstalled" and Previous
+  versions "Roll back to v1.0.1". History lines carry `fromBuild`/`toBuild` and the app view `rollbackBuild`: the
+  release tag without its "v" when it says more than the version ("1.0.1-rc.3"); stable releases have none, so
+  nothing changes there. Display only; `from`, `to` and `rollbackVersion` keep the versions the logic compares.
+
+## D44 — The tray mark has a dark edge (1.0.2)
+
+- Linux can't reliably ask a panel its colour, and the white mark disappeared on light panels (openbox's tint2 in
+  the real-user run, XFCE's default). The white mark keeps its pixels and gains a one-pixel translucent dark edge, so
+  it reads on light and dark panels alike. macOS (template image) and Windows (taskbar contrast) keep their marks.
+  Test: `the_white_mark_has_a_dark_edge_and_keeps_its_white`.
+
+## D45 — Link 1.0.15 (1.0.2)
+
+- Tools pinned Link 1.0.7. Link 1.0.11+ drops the unpacked-copy marker from children (D34's workaround removed) and
+  1.0.15's `engines::download_tesseract` runs every program with the user's environment (D37's copy removed; the
+  `engine_download` test now calls Link's function). Link 1.0.10's uninstall also removes the app's runtime copies,
+  which `runtime_gc` already tolerates (it removes only what exists).

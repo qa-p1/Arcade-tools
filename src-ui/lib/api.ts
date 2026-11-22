@@ -36,6 +36,8 @@ export interface AppView {
   /** Updating it installs the new release and lets Tools manage it in one step (Linux). */
   adoptsOnUpdate: boolean;
   rollbackVersion: string | null;
+  /** The kept rc build ("1.0.1-rc.3") when its version alone doesn't tell it apart. */
+  rollbackBuild: string | null;
   /** The channel of the installed build; differs from `channel` until a switch is installed (TL-9). */
   installedChannel: Channel | null;
   /** Why the installed release was withdrawn by the catalog, if it was. */
@@ -145,7 +147,7 @@ export interface HealthIssue {
   app: string; kind: string; path: string | null; reason: string; canFix: boolean;
   fixAction: 'repair' | 'adopt' | 'remove_stale_registry' | 'remove_stale_receipt' | 'open_settings' | 'check_updates' | 'open_engines' | 'open_shortcuts';
 }
-export interface HistoryEntry { time: number; app: string; from: string | null; to: string | null; result: string; reason: string | null }
+export interface HistoryEntry { time: number; app: string; from: string | null; to: string | null; fromBuild?: string; toBuild?: string; result: string; reason: string | null }
 export interface DiagnosticsReport { file: string; issueUrl: string; omitted: string[] }
 export interface BackupApp { id: string; version: string; channel: Channel; settings: string[]; notIncluded: string | null }
 export interface BackupReport { file: string; apps: BackupApp[] }

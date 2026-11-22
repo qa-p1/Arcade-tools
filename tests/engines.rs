@@ -92,3 +92,40 @@ fn fake_binaries_found_old_missing_alternative_and_timeout() {
     );
     assert!(start.elapsed() < Duration::from_secs(2));
 }
+/// At login every app starts at once and an engine's first start can take longer than the version check allows.
+/// A timeout is tried once more with the longer limit, so a slow engine is found, not reported missing (D40).
+#[cfg(unix)]
+#[test]
+fn a_slow_engine_is_found_on_the_patient_second_try() {
+    use std::os::unix::fs::PermissionsExt;
+    let root = tempfile::tempdir().unwrap();
+    let path = root.path().as_os_str();
+    let file = root.path().join("fake-engine");
+    std::fs::write(&file, "#!/bin/sh\nsleep 0.4\necho 'fake 5.2.0'\n").unwrap();
+    std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let engine = engine();
+    assert_eq!(
+        engine
+            .detect(path, Duration::from_millis(100))
+            .unwrap_err()
+            .code,
+        "timeout"
+    );
+    assert!(matches!(
+        engine
+            .detect_patiently(path, Duration::from_millis(100), Duration::from_secs(10))
+            .unwrap(),
+        EngineStatus::Found { version, .. } if version.as_deref() == Some("5.2.0")
+    ));
+    // An engine that never answers still ends in a timeout, after the longer limit.
+    std::fs::write(&file, "#!/bin/sh\nexec /bin/sleep 10\n").unwrap();
+    let start = Instant::now();
+    assert_eq!(
+        engine
+            .detect_patiently(path, Duration::from_millis(50), Duration::from_millis(200))
+            .unwrap_err()
+            .code,
+        "timeout"
+    );
+    assert!(start.elapsed() < Duration::from_secs(2));
+}
