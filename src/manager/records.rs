@@ -301,8 +301,19 @@ impl Manager {
 fn running_programs() -> Vec<PathBuf> {
     use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
     let mut system = System::new();
-    system.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::nothing().with_exe(UpdateKind::OnlyIfNotSet).without_tasks());
-    system.processes().values().filter_map(|p| p.exe()).map(|p| std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf())).collect()
+    system.refresh_processes_specifics(
+        ProcessesToUpdate::All,
+        true,
+        ProcessRefreshKind::nothing()
+            .with_exe(UpdateKind::OnlyIfNotSet)
+            .without_tasks(),
+    );
+    system
+        .processes()
+        .values()
+        .filter_map(|p| p.exe())
+        .map(|p| std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf()))
+        .collect()
 }
 /// The release tag of a record's package without its "v", when it says more than the version: "1.0.1-rc.4" for an
 /// rc of 1.0.1, none for the 1.0.1 release itself (D43).

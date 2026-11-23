@@ -128,10 +128,9 @@ impl TrayModel {
         items.push(Item::Separator);
         // Every app the catalog lists (the caller passes their cards), not a compiled list: a new app appears here
         // by publishing its card and its catalog entry. Its card's name wins.
-        for document in documents
-            .iter()
-            .filter(|document| ![ids::TOOLS, "arcade.helper"].contains(&document.manifest.id.as_str()))
-        {
+        for document in documents.iter().filter(|document| {
+            ![ids::TOOLS, "arcade.helper"].contains(&document.manifest.id.as_str())
+        }) {
             let id = document.manifest.id.as_str();
             let state = states.get(id).cloned().unwrap_or_default();
             let name = Some(document.manifest.name.trim())
@@ -297,11 +296,19 @@ mod tests {
 
     #[test]
     fn an_app_the_catalog_lists_appears_by_its_card_without_a_compiled_entry() {
-        let mut notes: ManifestDocument = Manifest::new("arcade.notes", "1", "/fixture/notes").into();
+        let mut notes: ManifestDocument =
+            Manifest::new("arcade.notes", "1", "/fixture/notes").into();
         notes.manifest.name = "Arcade Notes".into();
         // The Arcade helper has a card too, but it is not an app with a menu of its own.
-        let helper: ManifestDocument = Manifest::new("arcade.helper", "1", "/fixture/helper").into();
-        let model = TrayModel::build(&[notes, helper], &BTreeMap::new(), &Preferences::default(), 0, false);
+        let helper: ManifestDocument =
+            Manifest::new("arcade.helper", "1", "/fixture/helper").into();
+        let model = TrayModel::build(
+            &[notes, helper],
+            &BTreeMap::new(),
+            &Preferences::default(),
+            0,
+            false,
+        );
         let titles: Vec<_> = model
             .items
             .iter()

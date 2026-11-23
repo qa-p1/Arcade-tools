@@ -460,13 +460,33 @@ fn a_running_program_without_an_endpoint_is_starting() {
     let manager = Manager::new(paths.clone(), Source::test_server(&server.url).unwrap());
     // A real program as the app, so the process's executable is the installed file itself (as an AppImage's is).
     let program = fs::read("/bin/sleep").unwrap();
-    server.publish("arcade.look", "1.0.0", "stable", &[("Look_x64.AppImage", &program)], "nsis");
+    server.publish(
+        "arcade.look",
+        "1.0.0",
+        "stable",
+        &[("Look_x64.AppImage", &program)],
+        "nsis",
+    );
     manager
-        .operate(&request("arcade.look", Operation::Install), &AtomicBool::new(false), &mut |_| {})
+        .operate(
+            &request("arcade.look", Operation::Install),
+            &AtomicBool::new(false),
+            &mut |_| {},
+        )
         .unwrap();
-    let look = |manager: &Manager| manager.list(true).unwrap().into_iter().find(|a| a.id == "arcade.look").unwrap();
+    let look = |manager: &Manager| {
+        manager
+            .list(true)
+            .unwrap()
+            .into_iter()
+            .find(|a| a.id == "arcade.look")
+            .unwrap()
+    };
     let before = look(&manager);
-    assert!(before.installed && !before.running && !before.starting, "{before:?}");
+    assert!(
+        before.installed && !before.running && !before.starting,
+        "{before:?}"
+    );
     let exe = paths.executable("arcade.look", Os::Linux, false);
     let mut child = std::process::Command::new(&exe).arg("30").spawn().unwrap();
     let during = look(&manager);

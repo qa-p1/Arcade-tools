@@ -250,7 +250,15 @@ pub const MAX_PINS: usize = 8;
 
 /// Kinds of files whose one-click actions can be pinned, most common first (the helper's default pins use these).
 const PIN_KINDS: [&str; 9] = [
-    "file/image", "file/video", "file/audio", "file/pdf", "file/document", "file/spreadsheet", "file/archive", "file/text", "file/any",
+    "file/image",
+    "file/video",
+    "file/audio",
+    "file/pdf",
+    "file/document",
+    "file/spreadsheet",
+    "file/archive",
+    "file/text",
+    "file/any",
 ];
 
 #[derive(Debug, Clone, PartialEq, Default, Serialize, serde::Deserialize)]
@@ -303,7 +311,9 @@ pub struct Page {
 
 /// What the installed helper reports about itself (`arcade-helper status`).
 pub fn helper_state(paths: &Paths) -> HelperState {
-    let Some(shipped) = bundled() else { return HelperState::default() };
+    let Some(shipped) = bundled() else {
+        return HelperState::default();
+    };
     let program = installed(paths, &shipped);
     let program = if program.is_file() { program } else { shipped };
     let mut state = retry_busy(|| std::process::Command::new(&program).arg("status").output())
@@ -313,8 +323,12 @@ pub fn helper_state(paths: &Paths) -> HelperState {
         .map(|v| HelperState {
             shipped: v.get("version").and_then(Value::as_str).map(str::to_string),
             running: v.get("running").and_then(Value::as_str).map(str::to_string),
-            file_managers: serde_json::from_value(v.get("fileManagers").cloned().unwrap_or_default()).unwrap_or_default(),
-            browsers: serde_json::from_value(v.get("browsers").cloned().unwrap_or_default()).unwrap_or_default(),
+            file_managers: serde_json::from_value(
+                v.get("fileManagers").cloned().unwrap_or_default(),
+            )
+            .unwrap_or_default(),
+            browsers: serde_json::from_value(v.get("browsers").cloned().unwrap_or_default())
+                .unwrap_or_default(),
         })
         .unwrap_or_default();
     if state.shipped.is_none() {
@@ -329,20 +343,39 @@ pub fn page(paths: &Paths) -> Page {
     let registry = arcade_link::registry::Registry::load(&paths.link);
     let catalog = arcade_link::catalog::Catalog::load(&paths.link);
     let prefs = Prefs::load(&paths.link);
-    let row = |o: &offers::Offer| ActionRow { reference: o.reference(), title: o.title.clone(), app: catalog.name(&o.app) };
+    let row = |o: &offers::Offer| ActionRow {
+        reference: o.reference(),
+        title: o.title.clone(),
+        app: catalog.name(&o.app),
+    };
     let mut candidates: Vec<ActionRow> = Vec::new();
     let mut jobs: Vec<JobRow> = Vec::new();
     for kind in PIN_KINDS {
-        let list = offers::offers(&[Item::new(kind)], arcade_link::manifest::surface::FILE_MENU, registry.apps(), &catalog.rules, &prefs);
+        let list = offers::offers(
+            &[Item::new(kind)],
+            arcade_link::manifest::surface::FILE_MENU,
+            registry.apps(),
+            &catalog.rules,
+            &prefs,
+        );
         for o in list.iter().filter(|o| o.app != HELPER_ID) {
-            if o.enabled && o.one_click && !candidates.iter().any(|c| c.reference == o.reference()) {
+            if o.enabled && o.one_click && !candidates.iter().any(|c| c.reference == o.reference())
+            {
                 candidates.push(row(o));
             }
-            if let Some(job) = o.job.as_ref().filter(|_| o.choose || o.preferred || o.other) {
+            if let Some(job) = o
+                .job
+                .as_ref()
+                .filter(|_| o.choose || o.preferred || o.other)
+            {
                 let entry = match jobs.iter_mut().find(|j| &j.job == job) {
                     Some(entry) => entry,
                     None => {
-                        jobs.push(JobRow { job: job.clone(), choices: Vec::new(), chosen: prefs.defaults.get(job).cloned() });
+                        jobs.push(JobRow {
+                            job: job.clone(),
+                            choices: Vec::new(),
+                            chosen: prefs.defaults.get(job).cloned(),
+                        });
                         jobs.last_mut().expect("just pushed")
                     }
                 };
@@ -356,9 +389,20 @@ pub fn page(paths: &Paths) -> Page {
         .pinned
         .iter()
         .filter_map(|r| candidates.iter().find(|c| &c.reference == r))
-        .map(|c| PinRow { action: c.clone(), pinned: true })
+        .map(|c| PinRow {
+            action: c.clone(),
+            pinned: true,
+        })
         .collect();
-    pins.extend(candidates.into_iter().filter(|c| !prefs.pinned.contains(&c.reference)).map(|action| PinRow { action, pinned: false }));
+    pins.extend(
+        candidates
+            .into_iter()
+            .filter(|c| !prefs.pinned.contains(&c.reference))
+            .map(|action| PinRow {
+                action,
+                pinned: false,
+            }),
+    );
     jobs.retain(|j| j.choices.len() > 1);
     Page {
         helper: helper_state(paths),
@@ -379,7 +423,10 @@ pub enum Change {
     /// Where results go: a folder (empty for each action's own default), or ask every time.
     Output { folder: String, ask_where: bool },
     /// The default for a job, or `None` to show all its apps again.
-    JobDefault { job: String, reference: Option<String> },
+    JobDefault {
+        job: String,
+        reference: Option<String>,
+    },
 }
 
 pub fn change(paths: &Paths, change: Change) -> Result<Page> {
@@ -387,7 +434,10 @@ pub fn change(paths: &Paths, change: Change) -> Result<Page> {
     match change {
         Change::Pins { references } => {
             if references.len() > MAX_PINS {
-                return Err(Error::new("usage", format!("Pin at most {MAX_PINS} actions.")));
+                return Err(Error::new(
+                    "usage",
+                    format!("Pin at most {MAX_PINS} actions."),
+                ));
             }
             let mut unique = Vec::new();
             for r in references {
@@ -414,7 +464,9 @@ pub fn change(paths: &Paths, change: Change) -> Result<Page> {
             }
         },
     }
-    prefs.save(&paths.link).map_err(|e| Error::new("preferences", e.to_string()))?;
+    prefs
+        .save(&paths.link)
+        .map_err(|e| Error::new("preferences", e.to_string()))?;
     Ok(page(paths))
 }
 
@@ -494,7 +546,10 @@ mod tests {
         std::fs::create_dir_all(paths.link.catalog().parent().unwrap()).unwrap();
         std::fs::write(paths.link.catalog(), "{}").unwrap();
         remove(&paths, &tools).unwrap();
-        assert!(!paths.link.catalog().exists(), "the shared catalog copy stays");
+        assert!(
+            !paths.link.catalog().exists(),
+            "the shared catalog copy stays"
+        );
         // The installed copy (not the one beside Tools) ran `integrate --remove`, then was deleted.
         let ran = std::fs::read_to_string(paths.state().join("args")).unwrap();
         assert_eq!(ran.trim(), "integrate --remove");
@@ -532,42 +587,114 @@ mod tests {
         let root = root("page");
         let paths = Paths::under(&root.join("home"));
         std::fs::create_dir_all(&paths.link.registry).unwrap();
-        card(&paths, "arcade.box", "Arcade Box", serde_json::json!([
-            {"id": "box:image.webp", "title": "Convert to WebP", "accepts": ["file/image"], "oneClick": true, "rank": {"file/image": 80}},
-            {"id": "box:image.ocr", "title": "Read text (Box)", "accepts": ["file/image"], "oneClick": true, "job": "image.read-text"},
-            {"id": "box:edit", "title": "Edit image", "accepts": ["file/image"], "interactive": true}
-        ]));
-        card(&paths, "arcade.lens", "Arcade Lens", serde_json::json!([
-            {"id": "lens.recognize", "title": "Read text", "accepts": ["file/image"], "job": "image.read-text"}
-        ]));
+        card(
+            &paths,
+            "arcade.box",
+            "Arcade Box",
+            serde_json::json!([
+                {"id": "box:image.webp", "title": "Convert to WebP", "accepts": ["file/image"], "oneClick": true, "rank": {"file/image": 80}},
+                {"id": "box:image.ocr", "title": "Read text (Box)", "accepts": ["file/image"], "oneClick": true, "job": "image.read-text"},
+                {"id": "box:edit", "title": "Edit image", "accepts": ["file/image"], "interactive": true}
+            ]),
+        );
+        card(
+            &paths,
+            "arcade.lens",
+            "Arcade Lens",
+            serde_json::json!([
+                {"id": "lens.recognize", "title": "Read text", "accepts": ["file/image"], "job": "image.read-text"}
+            ]),
+        );
         let page = page(&paths);
-        let refs: Vec<_> = page.pins.iter().map(|p| p.action.reference.as_str()).collect();
-        assert_eq!(refs, ["arcade.box/box:image.webp", "arcade.box/box:image.ocr"], "one-click only");
+        let refs: Vec<_> = page
+            .pins
+            .iter()
+            .map(|p| p.action.reference.as_str())
+            .collect();
+        assert_eq!(
+            refs,
+            ["arcade.box/box:image.webp", "arcade.box/box:image.ocr"],
+            "one-click only"
+        );
         assert!(page.pins.iter().all(|p| !p.pinned));
         assert_eq!(page.jobs.len(), 1);
         assert_eq!(page.jobs[0].job, "image.read-text");
         assert_eq!(page.jobs[0].choices.len(), 2);
         assert_eq!(page.jobs[0].chosen, None);
 
-        let page = change(&paths, Change::Pins { references: vec!["arcade.box/box:image.ocr".into(), "arcade.box/box:image.ocr".into()] }).unwrap();
-        assert_eq!((page.pins[0].action.reference.as_str(), page.pins[0].pinned), ("arcade.box/box:image.ocr", true));
+        let page = change(
+            &paths,
+            Change::Pins {
+                references: vec![
+                    "arcade.box/box:image.ocr".into(),
+                    "arcade.box/box:image.ocr".into(),
+                ],
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            (page.pins[0].action.reference.as_str(), page.pins[0].pinned),
+            ("arcade.box/box:image.ocr", true)
+        );
         assert!(!page.pins[1].pinned);
         let too_many = (0..=MAX_PINS).map(|i| format!("a/{i}")).collect();
-        assert!(change(&paths, Change::Pins { references: too_many }).is_err());
+        assert!(change(
+            &paths,
+            Change::Pins {
+                references: too_many
+            }
+        )
+        .is_err());
 
-        let page = change(&paths, Change::JobDefault { job: "image.read-text".into(), reference: Some("arcade.lens/lens.recognize".into()) }).unwrap();
-        assert_eq!(page.jobs[0].chosen.as_deref(), Some("arcade.lens/lens.recognize"));
-        let page = change(&paths, Change::JobDefault { job: "image.read-text".into(), reference: None }).unwrap();
+        let page = change(
+            &paths,
+            Change::JobDefault {
+                job: "image.read-text".into(),
+                reference: Some("arcade.lens/lens.recognize".into()),
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            page.jobs[0].chosen.as_deref(),
+            Some("arcade.lens/lens.recognize")
+        );
+        let page = change(
+            &paths,
+            Change::JobDefault {
+                job: "image.read-text".into(),
+                reference: None,
+            },
+        )
+        .unwrap();
         assert_eq!(page.jobs[0].chosen, None);
 
-        assert!(change(&paths, Change::Output { folder: "relative/dir".into(), ask_where: false }).is_err());
+        assert!(change(
+            &paths,
+            Change::Output {
+                folder: "relative/dir".into(),
+                ask_where: false
+            }
+        )
+        .is_err());
         let folder = root.join("Results").to_string_lossy().into_owned();
-        let page = change(&paths, Change::Output { folder: folder.clone(), ask_where: true }).unwrap();
-        assert_eq!((page.output_folder.as_str(), page.ask_where), (folder.as_str(), true));
+        let page = change(
+            &paths,
+            Change::Output {
+                folder: folder.clone(),
+                ask_where: true,
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            (page.output_folder.as_str(), page.ask_where),
+            (folder.as_str(), true)
+        );
         // What the helper reads.
         let prefs = arcade_link::offers::Prefs::load(&paths.link);
-        assert_eq!((prefs.pinned.len(), prefs.output_folder.as_str()), (1, folder.as_str()));
+        assert_eq!(
+            (prefs.pinned.len(), prefs.output_folder.as_str()),
+            (1, folder.as_str())
+        );
         let _ = std::fs::remove_dir_all(root);
     }
-
 }
