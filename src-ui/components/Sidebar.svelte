@@ -12,7 +12,7 @@
   const visibleTabs = $derived(tabs.filter((tab) => tab.enabled || tab.id === active));
   const icons: Record<ShellTab, IconName> = {
     home: 'home', apps: 'apps', updates: 'updates', shortcuts: 'keyboard', learn: 'book',
-    connections: 'link', engines: 'engine', settings: 'settings', onboarding: 'sparkle',
+    connections: 'link', everywhere: 'globe', engines: 'engine', settings: 'settings', onboarding: 'sparkle',
   };
 
   function moveTab(event: KeyboardEvent, current: ShellTab): void {

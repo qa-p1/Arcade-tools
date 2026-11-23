@@ -258,6 +258,8 @@ impl Manager {
                 catalog.apps.push(tools);
             }
         }
+        // Programs that run, read once and only when an app's card may need "Starting…".
+        let mut programs: Option<Vec<PathBuf>> = None;
         catalog.apps.iter().map(|app| {
             let id = app.id.as_str();
             let record = if app.supported_install() { self.record(id)? } else { None };
@@ -269,6 +271,10 @@ impl Manager {
             let peer = registry.get(id);
             let executable = record.as_ref().map(|r| self.executable(r)).or_else(|| peer.map(|m| PathBuf::from(&m.executable)));
             let running = probe && Client::connect(&self.paths.link, id, &me()).is_ok();
+            let starting = probe && !running && peer.is_none_or(|m| m.settings.link_enabled) && executable.as_ref().is_some_and(|exe| {
+                let exe = std::fs::canonicalize(exe).unwrap_or_else(|_| exe.clone());
+                programs.get_or_insert_with(running_programs).iter().any(|p| p.starts_with(&exe))
+            });
             let healthy = executable.as_ref().is_some_and(|p| p.is_file());
             let reason = if class == InstallationClass::Dev { Some("Development build; launch is available, installation changes are disabled.".into()) }
                 else if super::adopts_on_update(id, class) && (peer.is_some() || receipt.is_some()) { Some("Installed outside Arcade Tools. Updating it lets Tools manage it from then on.".into()) }
@@ -278,7 +284,7 @@ impl Manager {
                 else { record.as_ref().and_then(first_update_rollback_notice).map(str::to_owned) };
             Ok(AppView { id: id.to_string(), name: app.name.clone(), pitch: app.pitch.clone(), tagline: app.display_tagline(), releases_url: app.releases_url(),
                 version: record.as_ref().map(|r| r.version.clone()).or_else(|| peer.map(|m| m.version.clone())), managed: matches!(class, InstallationClass::Managed | InstallationClass::LegacyManaged) || (id == ids::TOOLS && class == InstallationClass::SelfInstalled), installed: healthy,
-                running, channel: prefs.channels.get(id).copied().or(record.as_ref().map(|r| r.channel)).unwrap_or_default(),
+                running, starting, channel: prefs.channels.get(id).copied().or(record.as_ref().map(|r| r.channel)).unwrap_or_default(),
                 installed_channel: record.as_ref().map(|r| r.channel).or_else(|| receipt.as_ref().and_then(|r| receipt_channel(r).ok())), healthy,
                 start_at_login: platform::autostart_enabled(&self.paths, id), login_supported: app.supported_install() && platform::login_supported(id, Os::current()), executable: executable.map(|p| p.display().to_string()),
                 data_folders: self.paths.data_folders(id, Os::current()).iter().map(|p| p.display().to_string()).collect(), reason,
@@ -289,6 +295,14 @@ impl Manager {
                 withdrawn: record.as_ref().and_then(|r| r.package.as_ref()?.tag.as_deref()).and_then(|tag| app.withdrawn_reason(tag)).map(str::to_owned) })
         }).collect()
     }
+}
+/// The executables of the processes that run now (canonical paths). An AppImage's runtime process runs the AppImage
+/// file itself; a macOS app's program sits inside the `.app` the record points at, hence `starts_with` above.
+fn running_programs() -> Vec<PathBuf> {
+    use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
+    let mut system = System::new();
+    system.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::nothing().with_exe(UpdateKind::OnlyIfNotSet).without_tasks());
+    system.processes().values().filter_map(|p| p.exe()).map(|p| std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf())).collect()
 }
 /// The release tag of a record's package without its "v", when it says more than the version: "1.0.1-rc.4" for an
 /// rc of 1.0.1, none for the 1.0.1 release itself (D43).

@@ -194,7 +194,7 @@ export async function checkUpdatesOnWindowOpen(): Promise<void> {
 
 /** Start every stopped app in the background, like the tray's Start all. */
 export async function launchAll(): Promise<void> {
-  const stopped = ui.apps.filter((app) => app.installed && !app.running);
+  const stopped = ui.apps.filter((app) => app.installed && !app.running && !app.starting);
   const failed: string[] = [];
   for (const app of stopped) {
     try { await api.launchApp(app.id, 'background'); }

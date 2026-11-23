@@ -19,10 +19,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "THIRD_PARTY_NOTICES.md"
-SHIPPED = ("arcade-tools", "arcade-tools-overlay")
+SHIPPED = ("arcade-tools", "arcade-tools-overlay", "arcade-tools-helper")
 BUNDLED_JS = ("svelte", "@tauri-apps/api")
 STANDARD = ROOT / "scripts" / "licences"
-PREFERRED = ("MIT", "Apache-2.0", "Zlib", "BSD-3-Clause", "MPL-2.0", "Unlicense")
+PREFERRED = ("MIT", "Apache-2.0", "Zlib", "BSD-3-Clause", "BSL-1.0", "MPL-2.0", "Unlicense", "CC0-1.0")
 LICENCE_FILE = re.compile(r"^(licen[cs]e|copying|notice|copyright)([-._].*)?$", re.I)
 
 
@@ -44,6 +44,9 @@ def licence_texts(folder, declared=None):
         sub = folder / "LICENSES"
         if sub.is_dir():
             files += sorted(p for p in sub.iterdir() if p.is_file())
+        # epaint_default_fonts (the helper's progress window) keeps each font's licence next to it.
+        if (folder / "fonts").is_dir():
+            files += sorted(p for p in (folder / "fonts").iterdir() if p.is_file() and p.suffix == ".txt")
     seen, texts = set(), []
     for path in files:
         if path.resolve() in seen or not path.is_file():

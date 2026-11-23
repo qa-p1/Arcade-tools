@@ -8,20 +8,20 @@ publish = false
 description = "Verified per-user installation and lifecycle management for the Arcade apps"
 
 [workspace]
-members = [".", "src-tauri", "crates/arcade-shortcuts", "crates/arcade-tools-overlay"]
+members = [".", "src-tauri", "crates/arcade-shortcuts", "crates/arcade-tools-overlay", "crates/arcade-tools-helper"]
 default-members = [".", "src-tauri"]
 resolver = "2"
 
 # The one version source; scripts/check-versions.py keeps npm and Tauri in step.
 [workspace.package]
-version = "1.0.2"
+version = "1.1.0"
 
 [dependencies]
 # Released Link installer, engines and tray contracts. To build
 # against a local checkout instead, add to .cargo/config.toml (not committed):
 #   [patch."https://github.com/qa-p1/Arcade-Link"]
 #   arcade-link = { path = "<path to>/Arcade-link/crates/arcade-link" }
-arcade-link = { git = "https://github.com/qa-p1/Arcade-Link", tag = "v1.0.15", features = ["watch", "install", "engines", "trayhost", "release"] }
+arcade-link = { git = "https://github.com/qa-p1/Arcade-Link", tag = "v1.1.0", features = ["watch", "install", "engines", "trayhost", "release"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 reqwest = { version = "0.13", default-features = false, features = ["blocking", "rustls"] }
@@ -36,7 +36,7 @@ ammonia = "4"
 regex = "1"
 base64 = "0.22"
 zip = { version = "9.4", default-features = false, features = ["deflate-flate2-zlib-rs"] }
-sysinfo = { version = "0.35", default-features = false, features = ["system"] }
+sysinfo = { version = "0.38", default-features = false, features = ["system"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 libc = "0.2"

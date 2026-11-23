@@ -1,7 +1,8 @@
 {
   "bundle": {
     "externalBin": [
-      "binaries/arcade-tools-overlay"
+      "binaries/arcade-tools-overlay",
+      "binaries/arcade-helper"
     ],
     "linux": {
       "appimage": {

@@ -15,7 +15,7 @@ const INDEX = JSON.parse(readFileSync(new URL('../../src-ui/fixtures/shortcuts-i
 const docs = Boolean(process.env.SCREENS_DOCS);
 const states = Boolean(process.env.SCREENS_STATES);
 const out = docs ? 'docs/user/images' : (process.env.SCREENS_DIR ?? 'target/ui-screens');
-const tabs = docs ? ['home', 'apps', 'updates'] : ['home', 'apps', 'updates', 'shortcuts', 'learn', 'connections', 'engines', 'settings'];
+const tabs = docs ? ['home', 'apps', 'updates'] : ['home', 'apps', 'updates', 'shortcuts', 'learn', 'connections', 'everywhere', 'engines', 'settings'];
 const themes = docs ? ['light'] : ['light', 'dark'];
 const sizes = docs ? [[1100, 760]] : [[1100, 760], [700, 600]];
 

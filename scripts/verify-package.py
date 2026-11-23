@@ -108,6 +108,9 @@ with tempfile.TemporaryDirectory(prefix='arcade-tools-package-') as temporary:
         def installed(destination, login, desktop_shortcut):
             executable = destination / 'arcade-tools.exe'
             assert executable.is_file() and (destination / 'arcade-tools-overlay.exe').is_file()
+            helper = destination / 'arcade-helper.exe'
+            assert helper.is_file(), 'the Arcade helper ships beside Tools'
+            assert subprocess.run([str(helper), '--version'], env=environment, capture_output=True, text=True, check=True, timeout=10).stdout.startswith('arcade-helper ')
             receipt = json.loads(receipt_path.read_text(encoding='utf-8'))
             assert receipt['method'] == 'windows-installer' and receipt['version'] == version
             assert same(receipt['path'], executable), receipt['path']
@@ -129,6 +132,7 @@ with tempfile.TemporaryDirectory(prefix='arcade-tools-package-') as temporary:
             uninstaller = destination / 'uninstall.exe'
             subprocess.run(f'"{uninstaller}" /S _?={destination}', env=environment, check=True, timeout=180)
             assert not (destination / 'arcade-tools.exe').exists()
+            assert not (destination / 'arcade-helper.exe').exists()
             assert not receipt_path.exists()
             for key in ('cli', 'desktopEntry', 'autostart', 'desktopShortcut'):
                 if receipt['integration'].get(key):
@@ -156,8 +160,8 @@ with tempfile.TemporaryDirectory(prefix='arcade-tools-package-') as temporary:
             assert (mount / 'Applications').is_symlink()
             assert os.readlink(mount / 'Applications') == '/Applications'
             binaries = apps[0] / 'Contents' / 'MacOS'
-            assert (binaries / 'arcade-tools-overlay').is_file()
-            for name in ['arcade-tools', 'arcade-tools-overlay']:
+            assert (binaries / 'arcade-tools-overlay').is_file() and (binaries / 'arcade-helper').is_file()
+            for name in ['arcade-tools', 'arcade-tools-overlay', 'arcade-helper']:
                 executable = binaries / name
                 subprocess.run([str(executable),'--version'], env=environment,check=True,timeout=10)
                 if args.target == 'universal-apple-darwin' or 'universal' in package.name:
@@ -169,6 +173,7 @@ with tempfile.TemporaryDirectory(prefix='arcade-tools-package-') as temporary:
             installed = target / 'Contents' / 'MacOS' / 'arcade-tools'
             assert filecmp.cmp(binaries / 'arcade-tools', installed, shallow=False)
             assert (target / 'Contents' / 'MacOS' / 'arcade-tools-overlay').is_file()
+            assert (target / 'Contents' / 'MacOS' / 'arcade-helper').is_file()
             receipt_path = root / 'arcade' / 'installs' / 'arcade.tools.json'
             receipt = json.loads(receipt_path.read_text(encoding='utf-8'))
             assert receipt['method'] == 'macos-bundle' and receipt['version'] == version
@@ -193,6 +198,9 @@ with tempfile.TemporaryDirectory(prefix='arcade-tools-package-') as temporary:
         subprocess.run([str(staged_package),'--appimage-extract'],cwd=root,env=environment,stdout=subprocess.DEVNULL,check=True,timeout=90)
         binaries = root / 'squashfs-root' / 'usr' / 'bin'
         assert (binaries / 'arcade-tools-overlay').is_file()
+        # The Arcade helper ships beside Tools; Tools copies it out of the image to a folder that stays put.
+        helper = subprocess.run([str(binaries / 'arcade-helper'), '--version'], env=environment, capture_output=True, text=True, check=True, timeout=10)
+        assert helper.stdout.startswith('arcade-helper '), helper.stdout
         # A bundled Ubuntu libwayland-client breaks the host Mesa EGL on newer
         # distributions (WebKit aborts with EGL_BAD_PARAMETER, blank window).
         bundled = sorted(p.name for p in (root / 'squashfs-root').rglob('libwayland-client.so*'))

@@ -10,6 +10,7 @@ pub mod diagnostics;
 pub mod diagnostics_archive;
 pub mod docs;
 pub mod engines;
+pub mod everywhere;
 pub mod health;
 pub mod installation;
 pub mod link;

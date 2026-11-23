@@ -49,15 +49,15 @@ jobs:
       CARGO_PROFILE_RELEASE_LTO: 'false'
       CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: Arcade-tools
       # Only for tools/e2e.py, the disposable desktop session the tests run
       # in; the crate itself comes from the commit pinned in Cargo.toml.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: qa-p1/Arcade-Link
-          ref: v1.0.15
+          ref: v1.1.0
           path: Arcade-link
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -69,12 +69,12 @@ jobs:
           # PRs and tags restore main's cache; uploading their private caches
           # delays completion and cannot warm the next main/release build.
           save-if: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version-file: Arcade-tools/.nvmrc
           cache: npm
           cache-dependency-path: Arcade-tools/package-lock.json
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Linux dependencies and isolation tools
@@ -113,7 +113,7 @@ jobs:
       - name: Restore the published apps' Link CLIs
         id: n1-cache
         if: runner.os == 'Linux'
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: ~/.arcade-link-n1
           key: arcade-link-n1-${{ runner.os }}-v0.4.4-v0.4.15
@@ -130,7 +130,7 @@ jobs:
           done
       - name: Save the published apps' Link CLIs
         if: runner.os == 'Linux' && steps.n1-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: ~/.arcade-link-n1
           key: ${{ steps.n1-cache.outputs.cache-primary-key }}
@@ -151,7 +151,7 @@ jobs:
       - name: Restore Tauri's bundler tools
         id: bundler-cache
         if: ${{ !inputs.skip_packages }}
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: |
             ~/.cache/tauri
@@ -172,7 +172,7 @@ jobs:
           exit 1
       - name: Save Tauri's bundler tools
         if: ${{ !inputs.skip_packages && steps.bundler-cache.outputs.cache-hit != 'true' }}
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: |
             ~/.cache/tauri
@@ -180,7 +180,7 @@ jobs:
           key: ${{ steps.bundler-cache.outputs.cache-primary-key }}
       # The AppImage this run builds, for the desktop jobs below (Link's Tier 1 and Tier 2 harness); uploaded
       # before the checks so a failing check still leaves the desktop gates their file.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: runner.os == 'Linux' && !inputs.skip_packages
         with:
           name: tools-appimage
@@ -197,7 +197,7 @@ jobs:
         if: runner.os == 'Linux' && !inputs.skip_packages
         timeout-minutes: 5
         run: python3 scripts/native-notices.py --check target/${{ matrix.target }}/release/bundle/appimage/*.AppImage
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure() && steps.native.outcome == 'failure'
         with:
           name: native-notices
@@ -226,7 +226,7 @@ jobs:
         run: |
           xvfb-run -a python3 scripts/open-memory.py ../Arcade-link/tools/fleet target/budget/Arcade-Tools.AppImage \
             --label "ci ${{ github.sha }}" | tee target/budget/open-memory.jsonl
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always() && (steps.memory.outcome == 'success' || steps.memory.outcome == 'failure')
         with:
           name: memory-budget
@@ -258,7 +258,7 @@ jobs:
           done
           python3 scripts/arcade-release.py --id arcade.tools --version "$(python3 scripts/check-versions.py --print)" \
             --channel nightly --notes "https://github.com/${{ github.repository }}/commit/${{ github.sha }}" target/ci-installer
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: runner.os == 'Linux' && github.event_name == 'push' && github.ref == 'refs/heads/main' && !inputs.skip_packages
         with:
           name: tools-installer-ubuntu-${{ github.sha }}
@@ -275,7 +275,7 @@ jobs:
           done
           # -eq: macOS wc pads the count with spaces.
           [ "$(ls target/release-files | wc -l)" -eq 1 ]
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && !inputs.skip_packages
         with:
           name: release-${{ runner.os }}
@@ -289,29 +289,29 @@ jobs:
     needs: check
     # Its own gate: reports even when another check step failed, as long as the AppImage was uploaded.
     if: ${{ !cancelled() && !inputs.skip_packages }}
-    uses: qa-p1/Arcade-Link/.github/workflows/desktop-e2e.yml@v1.0.15
+    uses: qa-p1/Arcade-Link/.github/workflows/desktop-e2e.yml@v1.1.0
     with:
       name: tools
       test: tests/desktop/tools_desktop.py
       args: '"$APP"'
       artifact: tools-appimage
-      link-ref: v1.0.15
+      link-ref: v1.1.0
   desktop-tier2:
     needs: check
     # Its own gate: reports even when another check step failed, as long as the AppImage was uploaded.
     if: ${{ !cancelled() && !inputs.skip_packages }}
-    uses: qa-p1/Arcade-Link/.github/workflows/desktop-tier2.yml@v1.0.15
+    uses: qa-p1/Arcade-Link/.github/workflows/desktop-tier2.yml@v1.1.0
     with:
       artifact: tools-appimage
       show: --settings
-      link-ref: v1.0.15
+      link-ref: v1.1.0
 
   deny:
     name: cargo deny (advisories, licences, bans, sources)
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # --workspace: the root manifest is itself a package, and without it cargo deny checks only that crate, not
       # the desktop app's dependencies (D20).
       - uses: EmbarkStudios/cargo-deny-action@v2
@@ -334,7 +334,7 @@ jobs:
     env:
       PYTHONUTF8: '1'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: Arcade-tools
       - uses: dtolnay/rust-toolchain@stable
@@ -345,7 +345,7 @@ jobs:
         with:
           workspaces: Arcade-tools
           save-if: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Linux overlay and isolated render dependencies
@@ -362,7 +362,7 @@ jobs:
       - name: Render and lifecycle in a private Xvfb session
         if: runner.os == 'Linux'
         run: python3 crates/arcade-tools-overlay/tests/render_headless.py
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: runner.os == 'Linux' && always()
         with:
           name: overlay-render

@@ -1,6 +1,6 @@
 ---
 title: Troubleshooting
-order: 7
+order: 8
 since: 0.2.0
 ---
 

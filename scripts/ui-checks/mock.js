@@ -11,7 +11,7 @@
     const entry = CATALOG.apps.find((a) => a.id === id);
     return {
       id, name: entry.name, pitch: entry.pitch, tagline: entry.tagline ?? entry.pitch, releasesUrl: `https://github.com/${entry.repo}/releases`,
-      version: '1.0.0', managed: true, installed: true, running: false, channel: 'stable', healthy: true,
+      version: '1.0.0', managed: true, installed: true, running: false, starting: false, channel: 'stable', healthy: true,
       startAtLogin: false, loginSupported: true, executable: `/home/u/Applications/Arcade/${id}.AppImage`,
       dataFolders: [`/home/u/.config/${id}`], reason: null, description: entry.description, category: entry.category,
       icon: entry.icon, platforms: entry.platforms, minTools: entry.minTools, installReason: null,
@@ -25,6 +25,23 @@
       notificationsEnabled: true, theme: 'light', onboardingComplete: true,
     },
     updates: { schema: 1, lastCheck: null, lastSuccess: null, lastFailure: null, apps: {} },
+  };
+  // The Everywhere page: helper shipped but stopped, two pinned actions, one job two apps offer.
+  const action = (reference, title, app) => ({ reference, title, app });
+  const EVERYWHERE = {
+    helper: { shipped: '1.1.0', running: null, fileManagers: ['Files (Nautilus)', 'Dolphin'], browsers: [] },
+    actions: [
+      action('arcade.box/compress', 'Compress', 'Arcade Box'), action('arcade.box/extract', 'Extract here', 'Arcade Box'),
+      action('arcade.lens/text', 'Copy text from image', 'Arcade Lens'), action('arcade.look/convert', 'Convert image', 'Arcade Look'),
+      action('arcade.find/search', 'Search in folder', 'Arcade Find'),
+    ],
+    pinned: ['arcade.box/extract', 'arcade.box/compress'], maxPins: 8, outputFolder: '/home/u/Arcade', askWhere: false,
+    jobs: [{ job: 'image.text', choices: [action('arcade.lens/text', 'Copy text from image', 'Arcade Lens'), action('arcade.look/text', 'Copy text from image', 'Arcade Look')], chosen: null }],
+  };
+  const everywhere = () => {
+    const E = EVERYWHERE;
+    const pins = [...E.pinned.map((r) => ({ ...E.actions.find((a) => a.reference === r), pinned: true })), ...E.actions.filter((a) => !E.pinned.includes(a.reference)).map((a) => ({ ...a, pinned: false }))];
+    return { helper: { ...E.helper }, pins, maxPins: E.maxPins, outputFolder: E.outputFolder, askWhere: E.askWhere, jobs: structuredClone(E.jobs) };
   };
   const defaults = {
     initialize: () => ({ apps: state.apps, preferences: state.preferences, updates: state.updates, selected: null, diagnostics: [], testing: false }),
@@ -42,6 +59,15 @@
     tray_get_settings: () => ({ preferences: { hostIcons: true, excluded: [], showUpdateBadge: true, startAtLogin: true, shortcutsEnabled: true, shortcut: 'Super+Slash' }, apps: [], loginAvailable: true, defaultShortcut: 'Super+/', shortcutStatus: { accelerator: 'Super+Slash', available: true, via: null, hint: null, error: null } }),
     update_history: () => [],
     list_connections: () => ({ linkEnabled: true, peers: [] }),
+    everywhere_page: () => everywhere(),
+    everywhere_start: () => { EVERYWHERE.helper.running = EVERYWHERE.helper.shipped; return everywhere(); },
+    everywhere_choose_folder: () => '/home/user/Arcade results',
+    everywhere_change: ({ change }) => {
+      if (change.kind === 'pins') EVERYWHERE.pinned = change.references;
+      if (change.kind === 'output') Object.assign(EVERYWHERE, { outputFolder: change.folder, askWhere: change.askWhere });
+      if (change.kind === 'jobDefault') EVERYWHERE.jobs.find((job) => job.job === change.job).chosen = change.reference;
+      return everywhere();
+    },
     dashboard: () => ({ apps: [], totalMemoryBytes: 0, totalCpuPercent: 0 }),
     health: () => [],
     list_learn_apps: () => CATALOG.apps.map((a) => ({ id: a.id, name: a.name, installedVersion: '1.0.0', docsVersion: '1.0.0', available: true, source: 'bundled', needsFetch: false, docsUrl: '' })),

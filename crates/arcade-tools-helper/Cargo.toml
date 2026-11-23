@@ -1,0 +1,16 @@
+[package]
+name = "arcade-tools-helper"
+version.workspace = true
+edition = "2021"
+rust-version = "1.88"
+license = "MIT"
+publish = false
+description = "The Arcade helper as Tools ships it: Arcade's actions in the file manager menus and the browser"
+
+# The program is Link's `arcade-helper`, built here so Tools' lockfile, audits and licence notices cover it.
+[[bin]]
+name = "arcade-helper"
+path = "src/main.rs"
+
+[dependencies]
+arcade-helper = { git = "https://github.com/qa-p1/Arcade-Link", tag = "v1.1.0" }

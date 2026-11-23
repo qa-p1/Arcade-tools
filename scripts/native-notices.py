@@ -21,7 +21,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 NATIVE = ROOT / "packaging" / "linux" / "native"
-OWN = ("usr/bin/arcade-tools", "usr/bin/arcade-tools-overlay", "usr/lib/libarcade-trim.so",
+OWN = ("usr/bin/arcade-tools", "usr/bin/arcade-tools-overlay", "usr/bin/arcade-helper", "usr/lib/libarcade-trim.so",
        # linuxdeploy's AppRun; it and the AppImage runtime are listed by scripts/notices.py (Packaging).
        "AppRun.wrapped")
 LIB_DIRS = ("/usr/lib/x86_64-linux-gnu", "/lib/x86_64-linux-gnu", "/usr/lib", "/lib")

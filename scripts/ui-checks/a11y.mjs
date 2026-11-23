@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 
 const AXE = createRequire(import.meta.url).resolve('axe-core/axe.min.js');
 const INDEX = JSON.parse(readFileSync(new URL('../../src-ui/fixtures/shortcuts-index.json', import.meta.url)));
-const TABS = ['home', 'apps', 'updates', 'shortcuts', 'learn', 'connections', 'engines', 'settings'];
+const TABS = ['home', 'apps', 'updates', 'shortcuts', 'learn', 'connections', 'everywhere', 'engines', 'settings'];
 const assert = (ok, message) => { if (!ok) throw new Error(message); };
 
 async function ready(page) {

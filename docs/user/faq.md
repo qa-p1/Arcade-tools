@@ -1,6 +1,6 @@
 ---
 title: Frequently asked questions
-order: 6
+order: 7
 since: 0.2.0
 ---
 
