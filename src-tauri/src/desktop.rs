@@ -789,6 +789,19 @@ fn initialize_desktop(app: &AppHandle) -> Result<Arc<Manager>> {
                 }
             });
         }
+        // Arcade's actions in the file managers and the browser: install the shipped helper and start it.
+        let helper_paths = manager.paths.clone();
+        std::thread::spawn(move || {
+            match arcade_tools_core::everywhere::ensure_running(&helper_paths) {
+                Ok(Some((_, arcade_tools_core::everywhere::Installed::Busy))) => {
+                    eprintln!(
+                        "The Arcade helper is busy; it is updated the next time Tools starts."
+                    )
+                }
+                Ok(_) => {}
+                Err(error) => eprintln!("Arcade helper: {}", error.message),
+            }
+        });
         hub::start_updates(app.clone(), state.clone(), manager)?;
     }
     state.manager()
@@ -896,6 +909,51 @@ async fn list_engines(app: AppHandle, refresh: bool) -> Result<Vec<EngineView>> 
                 })
             })
             .collect()
+    })
+    .await
+}
+/// The Everywhere page: the helper, pinned menu actions, where results go, same-job defaults.
+#[tauri::command]
+async fn everywhere_page(app: AppHandle) -> Result<arcade_tools_core::everywhere::Page> {
+    worker(move || {
+        Ok(arcade_tools_core::everywhere::page(
+            &desktop(&app).manager()?.paths,
+        ))
+    })
+    .await
+}
+#[tauri::command]
+async fn everywhere_change(
+    app: AppHandle,
+    change: arcade_tools_core::everywhere::Change,
+) -> Result<arcade_tools_core::everywhere::Page> {
+    worker(move || arcade_tools_core::everywhere::change(&desktop(&app).manager()?.paths, change))
+        .await
+}
+/// Starts the helper again (the page's "Start" when it isn't running).
+#[tauri::command]
+async fn everywhere_start(app: AppHandle) -> Result<arcade_tools_core::everywhere::Page> {
+    worker(move || {
+        let paths = desktop(&app).manager()?.paths.clone();
+        arcade_tools_core::everywhere::ensure_running(&paths)?;
+        // Give it a moment to answer before the page asks.
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        Ok(arcade_tools_core::everywhere::page(&paths))
+    })
+    .await
+}
+/// Asks for the folder Arcade's file-menu actions save into; None when the person cancels.
+#[tauri::command]
+async fn everywhere_choose_folder(app: AppHandle) -> Result<Option<String>> {
+    use tauri_plugin_dialog::DialogExt;
+    worker(move || {
+        Ok(app
+            .dialog()
+            .file()
+            .set_title("Save results to")
+            .blocking_pick_folder()
+            .and_then(|f| f.into_path().ok())
+            .map(|p| p.to_string_lossy().into_owned()))
     })
     .await
 }
@@ -1407,6 +1465,10 @@ pub fn run(background: bool, quit: bool) {
             list_bundles,
             list_engines,
             list_connections,
+            everywhere_page,
+            everywhere_change,
+            everywhere_start,
+            everywhere_choose_folder,
             list_learn_apps,
             search_docs,
             fetch_docs,

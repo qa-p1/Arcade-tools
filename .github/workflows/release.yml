@@ -29,9 +29,9 @@ jobs:
       tag: ${{ steps.release.outputs.tag }}
       version: ${{ steps.release.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # check-versions.py reads Cargo.toml with tomllib (Python 3.11+); ubuntu-22.04's system Python is 3.10.
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: The tag is this version's release candidate
@@ -68,7 +68,7 @@ jobs:
     env:
       CARGO_BUILD_JOBS: 3
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: Arcade-tools
       - uses: dtolnay/rust-toolchain@stable
@@ -77,7 +77,7 @@ jobs:
       - name: Both macOS architectures
         if: runner.os == 'macOS'
         run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version-file: Arcade-tools/.nvmrc
           cache: npm
@@ -90,7 +90,7 @@ jobs:
             sudo apt-get update -o Acquire::Retries=3 && sudo apt-get install -y -o Acquire::Retries=3 libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libssl-dev patchelf libwayland-dev libxkbcommon-dev libxkbcommon-x11-0 xvfb dbus-x11 desktop-file-utils xdotool && break
             sleep $((i * 15))
           done
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - run: npm ci
@@ -137,7 +137,7 @@ jobs:
           ls target/release-files
           # -eq: macOS wc pads the count with spaces.
           [ "$(ls target/release-files | wc -l)" -eq 1 ]
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: release-${{ runner.os }}
           path: Arcade-tools/target/release-files/*
@@ -147,10 +147,10 @@ jobs:
     needs: [prepare, bundle, ci]
     permissions:
       contents: write
-    uses: qa-p1/Arcade-Link/.github/workflows/app-publish.yml@v1.0.15
+    uses: qa-p1/Arcade-Link/.github/workflows/app-publish.yml@v1.1.0
     with:
       app: arcade.tools
       version: ${{ needs.prepare.outputs.version }}
       tag: ${{ needs.prepare.outputs.tag }}
       channel: test
-      link-ref: v1.0.15
+      link-ref: v1.1.0

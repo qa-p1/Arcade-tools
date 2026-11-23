@@ -5,6 +5,29 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **Everywhere:** Arcade's actions in your file manager's right-click menu (Linux: Open With in every file manager,
+  plus Files, Caja, Dolphin, Nemo and Thunar; Windows: File Explorer). Tools ships the Arcade helper that provides
+  them, starts it at login, replaces it when Tools updates (after its running jobs finish) and removes it, with its
+  menu entries, when Tools is uninstalled.
+- An **Everywhere** page: whether the helper runs (with Start), the file managers and browsers it reached, up to 8
+  pinned actions in your order, where results are saved (or ask every time), and which app to use when two do the
+  same job.
+- Tools shares the catalog it downloads with the helper, so the helper can suggest installing an app an action needs.
+
+### Fixed
+- An app that is starting (its program runs but it hasn't connected yet, for example right after login) shows
+  "Starting…" on Home and its card instead of "Not running", and "Open all stopped apps" leaves it alone.
+
+### Changed
+- Arcade Link 1.1.0 (from 1.0.15).
+- The tray lists every app in the catalog by its card's name instead of a list built into Tools, so a new Arcade app
+  shows up without a Tools release.
+- Dependencies: sysinfo 0.38, tiny-skia 0.12, x11rb 0.14, getrandom 0.4, zip 9.7, notify 8.2.2 and other patch
+  updates; Svelte 5.58, Vite 8.3.8, Playwright 1.65; GitHub Actions checkout, setup-python, setup-node and
+  upload-artifact v7, download-artifact v8, cache v6. Tauri stays on 2.11 (2.12 needs Rust 1.90; Arcade builds with
+  1.88) and TypeScript on 6 (svelte-check doesn't support TypeScript 7 yet).
+
 ## [1.0.2] - 2026-11-22
 
 ### Fixed

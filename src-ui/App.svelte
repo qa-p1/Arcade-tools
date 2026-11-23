@@ -26,10 +26,12 @@
   let revision = 0;
   let LearnView = $state<typeof import('./tabs/Learn.svelte').default | null>(null);
   let ConnectionsView = $state<typeof import('./tabs/Connections.svelte').default | null>(null);
+  let EverywhereView = $state<typeof import('./tabs/Everywhere.svelte').default | null>(null);
   let ShortcutsView = $state<typeof import('./tabs/Shortcuts.svelte').default | null>(null);
   $effect(() => {
     if (ui.tab === 'learn' && !LearnView) void import('./tabs/Learn.svelte').then((module) => LearnView = module.default);
     if (ui.tab === 'connections' && !ConnectionsView) void import('./tabs/Connections.svelte').then((module) => ConnectionsView = module.default);
+    if (ui.tab === 'everywhere' && !EverywhereView) void import('./tabs/Everywhere.svelte').then((module) => EverywhereView = module.default);
     if (ui.tab === 'shortcuts' && !ShortcutsView) void import('./tabs/Shortcuts.svelte').then((module) => ShortcutsView = module.default);
   });
   let installProposal = $state<{ title: string; copy: string; installed: boolean; primary: string; secondary: string; options: boolean } | null>(null);
@@ -349,6 +351,7 @@
       />
       {#if LearnView}<LearnView active={ui.tab === 'learn'} target={ui.learnTarget} {run} />{/if}
       {#if ConnectionsView}<ConnectionsView active={ui.tab === 'connections'} onSettings={() => selectTab('settings')} onLearn={openLearn} {run} />{/if}
+      {#if EverywhereView}<EverywhereView active={ui.tab === 'everywhere'} {run} />{/if}
       <Engines active={ui.tab === 'engines'} {run} />
       <Settings
         active={ui.tab === 'settings'}

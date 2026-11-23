@@ -155,6 +155,9 @@ pub struct AppView {
     pub managed: bool,
     pub installed: bool,
     pub running: bool,
+    /// Its program runs but hasn't answered over the Link yet (just started, at login): cards say "Starting…", not
+    /// "Not running".
+    pub starting: bool,
     /// The selected channel (what the next update follows).
     pub channel: Channel,
     /// The channel of the installed build; differs from `channel` until the switch has been installed (TL-9).

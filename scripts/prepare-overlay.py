@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Build what the package bundles besides Tools itself: the overlay companion (Tauri's externalBin) and, on
+"""Build what the package bundles besides Tools itself: the overlay companion and the Arcade helper (Tauri's
+externalBin; the helper is Link's `arcade-helper`, built from this workspace so its lockfile covers it) and, on
 Linux, libarcade-trim.so, which trims WebKit's helper processes (OPEN1; tauri.bundle.conf.json puts it in the
 AppImage's usr/lib)."""
 import argparse
@@ -21,26 +22,32 @@ def main():
     environment = dict(os.environ, CARGO_BUILD_JOBS="3")
     targets = ["aarch64-apple-darwin", "x86_64-apple-darwin"] if target == "universal-apple-darwin" else [target]
     suffix = ".exe" if "windows" in target else ""
+    # (package, program name, Cargo profile): each becomes binaries/<program>-<target>, which Tauri puts beside
+    # Tools. The helper has its own size-optimised profile (Cargo.toml).
+    companions = [("arcade-tools-overlay", "arcade-tools-overlay", "release"), ("arcade-tools-helper", "arcade-helper", "helper")]
     for architecture in targets:
-        subprocess.run(["cargo", "build", "--release", "--locked", "-p", "arcade-tools-overlay", "--target", architecture], cwd=root, env=environment, check=True)
-    destination = root / "src-tauri/binaries" / f"arcade-tools-overlay-{target}{suffix}"
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    if destination.is_symlink():
-        raise SystemExit("The generated companion destination is a symlink")
-    sources = [root / "target" / architecture / "release" / f"arcade-tools-overlay{suffix}" for architecture in targets]
-    if len(sources) == 2:
-        subprocess.run(["lipo", "-create", *map(str, sources), "-output", str(destination)], check=True)
-        # Tauri's universal build compiles each architecture separately and
-        # checks externalBin for that architecture's triple as well.
-        for architecture, source in zip(targets, sources):
-            single = destination.with_name(f"arcade-tools-overlay-{architecture}")
-            if single.is_symlink():
-                raise SystemExit("The generated companion destination is a symlink")
-            shutil.copy2(source, single)
-            print(f"Prepared {single.relative_to(root)}")
-    else:
-        shutil.copy2(sources[0], destination)
-    print(f"Prepared {destination.relative_to(root)}")
+        for package, _, profile in companions:
+            subprocess.run(["cargo", "build", "--profile", profile, "--locked", "-p", package, "--target", architecture],
+                           cwd=root, env=environment, check=True)
+    for _, program, profile in companions:
+        destination = root / "src-tauri/binaries" / f"{program}-{target}{suffix}"
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        if destination.is_symlink():
+            raise SystemExit("The generated companion destination is a symlink")
+        sources = [root / "target" / architecture / profile / f"{program}{suffix}" for architecture in targets]
+        if len(sources) == 2:
+            subprocess.run(["lipo", "-create", *map(str, sources), "-output", str(destination)], check=True)
+            # Tauri's universal build compiles each architecture separately and
+            # checks externalBin for that architecture's triple as well.
+            for architecture, source in zip(targets, sources):
+                single = destination.with_name(f"{program}-{architecture}")
+                if single.is_symlink():
+                    raise SystemExit("The generated companion destination is a symlink")
+                shutil.copy2(source, single)
+                print(f"Prepared {single.relative_to(root)}")
+        else:
+            shutil.copy2(sources[0], destination)
+        print(f"Prepared {destination.relative_to(root)}")
     if "linux" in target:
         trimmer = root / "src-tauri/binaries/libarcade-trim.so"
         if trimmer.is_symlink():

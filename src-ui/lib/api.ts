@@ -18,6 +18,8 @@ export interface AppView {
   managed: boolean;
   installed: boolean;
   running: boolean;
+  /** Its program runs but hasn't answered over the Link yet. */
+  starting: boolean;
   channel: Channel;
   healthy: boolean;
   startAtLogin: boolean;
@@ -230,6 +232,23 @@ export interface ManagerFailure {
   message: string;
 }
 
+/** The Arcade helper and Arcade's actions in the file managers and browsers (Everywhere page). */
+export interface EverywhereAction { reference: string; title: string; app: string }
+export interface EverywherePin extends EverywhereAction { pinned: boolean }
+export interface EverywhereJob { job: string; choices: EverywhereAction[]; chosen: string | null }
+export interface EverywherePage {
+  helper: { shipped: string | null; running: string | null; fileManagers: string[]; browsers: string[] };
+  pins: EverywherePin[];
+  maxPins: number;
+  outputFolder: string;
+  askWhere: boolean;
+  jobs: EverywhereJob[];
+}
+export type EverywhereChange =
+  | { kind: 'pins'; references: string[] }
+  | { kind: 'output'; folder: string; askWhere: boolean }
+  | { kind: 'jobDefault'; job: string; reference: string | null };
+
 export const api = {
   initialize: () => invoke<Bootstrap>('initialize'),
   listApps: () => invoke<AppView[]>('list_apps'),
@@ -255,6 +274,10 @@ export const api = {
   listBundles: () => invoke<Bundle[]>('list_bundles'),
   listEngines: (refresh: boolean) => invoke<EngineView[]>('list_engines', { refresh }),
   listConnections: () => invoke<ConnectionsView>('list_connections'),
+  everywherePage: () => invoke<EverywherePage>('everywhere_page'),
+  everywhereChange: (change: EverywhereChange) => invoke<EverywherePage>('everywhere_change', { change }),
+  everywhereStart: () => invoke<EverywherePage>('everywhere_start'),
+  everywhereChooseFolder: () => invoke<string | null>('everywhere_choose_folder'),
   listLearnApps: () => invoke<LearnApp[]>('list_learn_apps'),
   searchDocs: (query: string) => invoke<DocsSearchHit[]>('search_docs', { query }),
   fetchDocs: (id: string, version: string) => invoke<void>('fetch_docs', { id, version }),

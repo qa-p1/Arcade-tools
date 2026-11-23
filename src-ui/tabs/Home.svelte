@@ -28,7 +28,7 @@
   const running = $derived(installed.filter((app) => app.running));
   const updatesAvailable = $derived(apps.filter((app) => listsUpdates(app) && updates?.apps[app.id]?.updateAvailable && !updates.apps[app.id]?.heldBack));
   const lastChecked = $derived(updates?.lastCheck ? relativeInSentence(updates.lastCheck * 1000) : null);
-  const stopped = $derived(installed.filter((app) => !app.running));
+  const stopped = $derived(installed.filter((app) => !app.running && !app.starting));
   let showIssues = $state(false);
   const appName = (id: string) => apps.find((app) => app.id === id)?.name ?? (id === 'arcade.tools' ? 'Arcade Tools' : id);
   const fixLabels: Record<HealthIssue['fixAction'], string> = {
@@ -156,11 +156,11 @@
               <span class="glyph-tile"><img src={glyph(app.id)} alt="" width="18" height="18" /></span>
               <div class="row-main">
                 <div class="row-title">{app.name}</div>
-                <div class="row-sub"><span class="dot" class:ok={app.running}></span> {app.running ? 'Running' : 'Not running'}{app.running && usage?.memoryBytes ? ` · ${formatSize(usage.memoryBytes)}` : ''}</div>
+                <div class="row-sub"><span class="dot" class:ok={app.running}></span> {app.running ? 'Running' : app.starting ? 'Starting…' : 'Not running'}{app.running && usage?.memoryBytes ? ` · ${formatSize(usage.memoryBytes)}` : ''}</div>
               </div>
             </div>
             <div class="home-tile-actions">
-              <button type="button" class="btn sm" class:primary={!app.running} disabled={busy} onclick={() => run(() => onOpen(app), app.name)}>{app.running ? 'Open' : 'Start'}</button>
+              <button type="button" class="btn sm" class:primary={!app.running} disabled={busy || app.starting} onclick={() => run(() => onOpen(app), app.name)}>{app.running ? 'Open' : 'Start'}</button>
               <span class="spacer"></span>
               {#if app.running}<button type="button" class="btn ghost icon-only sm" title="Restart" aria-label="Restart {app.name}" disabled={busy} onclick={() => run(() => api.restartApp(app.id), app.name)}><Icon name="restart" size={15} /></button>{/if}
               <button type="button" class="btn ghost icon-only sm" title="Settings" aria-label="{app.name} settings" disabled={busy} onclick={() => run(() => api.openAppSettings(app.id), app.name)}><Icon name="settings" size={15} /></button>

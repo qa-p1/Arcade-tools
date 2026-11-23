@@ -271,6 +271,20 @@ impl Manager {
             }
             std::thread::sleep(Duration::from_millis(50));
         }
+        // Windows can't replace a running program: the helper beside Tools stops first, after its jobs.
+        if cfg!(windows) {
+            let deadline = Instant::now() + Duration::from_secs(30);
+            while !crate::everywhere::stop(&self.paths)? {
+                check_cancel(cancel)?;
+                if Instant::now() >= deadline {
+                    return Err(Error::new(
+                        "busy",
+                        "The Arcade helper is still working on files; update Tools when it has finished.",
+                    ));
+                }
+                std::thread::sleep(Duration::from_millis(500));
+            }
+        }
         let old = self.record(ids::TOOLS)?.ok_or_else(|| {
             Error::new("unmanaged", "Tools installation disappeared after staging.")
         })?;

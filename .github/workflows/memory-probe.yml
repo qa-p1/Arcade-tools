@@ -45,11 +45,11 @@ jobs:
       run:
         working-directory: Arcade-tools
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { path: Arcade-tools }
-      - uses: actions/checkout@v4
-        with: { repository: qa-p1/Arcade-Link, ref: "${{ inputs.link-ref || 'v1.0.15' }}", path: Arcade-link }
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+        with: { repository: qa-p1/Arcade-Link, ref: "${{ inputs.link-ref || 'v1.1.0' }}", path: Arcade-link }
+      - uses: actions/setup-python@v7
         with: { python-version: '3.12' }
       - name: Linux dependencies (as the budget gate)
         timeout-minutes: 10
@@ -112,7 +112,7 @@ jobs:
           print("at the end: web process", end["pss"], end["by_kind"])
           print("seconds:PSS/web file-backed", " ".join("%s:%.0f/%.0f" % (t, total, file) for t, total, _, file in d["timeline"]))' \
             | tee -a "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: open-memory-${{ matrix.runner }}
           path: Arcade-tools/target/open-memory.jsonl

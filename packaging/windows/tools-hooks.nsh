@@ -24,11 +24,31 @@
   ${EndIf}
 !macroend
 
+; The Arcade helper (arcade-helper.exe, Arcade's actions in Explorer and the browser) runs from this folder, and
+; Windows can't replace or delete a running program. Tools' own self-update stops it once its jobs are done; a
+; manual reinstall or an uninstall stops it regardless.
+!macro ArcadeStopHelper
+  ${If} ${FileExists} "$INSTDIR\arcade-helper.exe"
+    nsExec::Exec '"$INSTDIR\arcade-helper.exe" quit --force'
+    Pop $R9
+  ${EndIf}
+!macroend
+
+!macro NSIS_HOOK_PREINSTALL
+  !insertmacro ArcadeStopHelper
+!macroend
+
 !macro NSIS_HOOK_PREUNINSTALL
   ; Updates keep shared integration in place; normal uninstall is receipt-owned.
   ${If} $UpdateMode == 1
     StrCpy $ArcadeExitCode 0
   ${Else}
+    ; Its Explorer menu, browser connections and card go first, while it can still say what it wrote.
+    ${If} ${FileExists} "$INSTDIR\arcade-helper.exe"
+      nsExec::Exec '"$INSTDIR\arcade-helper.exe" integrate --remove'
+      Pop $R9
+    ${EndIf}
     !insertmacro ArcadeUninstall
   ${EndIf}
+  !insertmacro ArcadeStopHelper
 !macroend

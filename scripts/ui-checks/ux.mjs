@@ -369,6 +369,47 @@ export default {
     await sleep(300);
     assert(await page.locator('.crash-notice').count() === 0, 'the dismissed report is still listed');
   },
+  async 'Everywhere pins, reorders, starts the helper and sets defaults'(page) {
+    await tab(page, 'everywhere');
+    await page.waitForSelector('#panel-everywhere .switch', { timeout: 3000 });
+    const changes = () => page.evaluate(() => window.__mock.calls.filter(([c]) => c === 'everywhere_change').map(([, a]) => a.change));
+    const titles = () => page.$$eval('section[aria-labelledby="everywhere-pins-heading"] .row-title', (rows) => rows.map((r) => r.textContent.trim()));
+    assert(/Not running/.test(await text(page, '#panel-everywhere .section')), 'the stopped helper is not shown as stopped');
+    await page.click('#panel-everywhere button:has-text("Start")');
+    await page.waitForSelector('#panel-everywhere >> text=Running · 1.1.0', { timeout: 3000 });
+    await page.click('[aria-label="Pin Copy text from image"]');
+    await sleep(200);
+    assert(JSON.stringify((await changes()).at(-1)) === JSON.stringify({ kind: 'pins', references: ['arcade.box/extract', 'arcade.box/compress', 'arcade.lens/text'] }), JSON.stringify(await changes()));
+    await page.click('[aria-label="Move Compress down"]');
+    await sleep(200);
+    const order = await titles();
+    assert(order.slice(0, 3).join('|') === 'Extract here|Copy text from image|Compress', order.join('|'));
+    await page.click('[aria-label="Pin Extract here"]');
+    await sleep(200);
+    assert(!(await titles()).slice(0, 2).includes('Extract here'), 'an unpinned action stays at the top');
+    await page.selectOption('[aria-label="Default for image.text"]', 'arcade.look/text');
+    await sleep(200);
+    assert(JSON.stringify((await changes()).at(-1)) === JSON.stringify({ kind: 'jobDefault', job: 'image.text', reference: 'arcade.look/text' }), JSON.stringify(await changes()));
+    await page.click('#panel-everywhere button:has-text("Choose…")');
+    await sleep(200);
+    assert(await text(page, '#panel-everywhere .mono') === '/home/user/Arcade results', 'the chosen folder is not shown');
+    await page.click('[aria-label="Ask where to save every time"]');
+    await sleep(200);
+    assert(JSON.stringify((await changes()).at(-1)) === JSON.stringify({ kind: 'output', folder: '/home/user/Arcade results', askWhere: true }), JSON.stringify(await changes()));
+  },
+  async 'An app whose program runs but has not answered yet says Starting…, not Not running'(page) {
+    await page.evaluate(() => {
+      const m = window.__mock;
+      m.state.apps = m.state.apps.map((a) => (a.id === 'arcade.look' ? { ...a, starting: true } : a));
+      m.emit('registry-changed', null);
+    });
+    await tab(page, 'apps');
+    await tab(page, 'home');
+    await page.waitForFunction(() => document.body.textContent.includes('Starting…'), null, { timeout: 3000 });
+    const row = page.locator('.home-tile', { hasText: 'Arcade Look' }).filter({ hasText: 'Starting…' });
+    assert(await row.count() >= 1, 'Look is not shown as starting');
+    assert(await row.first().locator('button:has-text("Start")').isDisabled(), 'Start is offered for an app that is starting');
+  },
   async 'Home shows no crash notice when there are no reports'(page) {
     await tab(page, 'home');
     await sleep(300);

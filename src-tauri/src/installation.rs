@@ -395,6 +395,11 @@ pub fn run(args: &[String]) -> Option<Result<()>> {
                         format!("Arcade Tools did not quit ({error}); nothing was removed."),
                     ));
                 }
+                if let Err(error) =
+                    arcade_tools_core::everywhere::remove(&paths, &std::env::current_exe()?)
+                {
+                    eprintln!("Removing the Arcade helper: {}", error.message);
+                }
                 let folders =
                     paths.data_folders("arcade.tools", arcade_tools_core::release::Os::current());
                 #[cfg(target_os = "macos")]

@@ -275,6 +275,10 @@ impl Manager {
             ));
         }
         check_cancel(cancel)?;
+        // The menu entries and browser files would otherwise call a program that is gone.
+        if let Err(error) = crate::everywhere::remove(&self.paths, &plan.expected_path) {
+            eprintln!("Removing the Arcade helper: {}", error.message);
+        }
         let result = self.uninstall(&record, plan.remove_data)?;
         if plan.remove_data {
             let cache = self.paths.cache.join("arcade/tools");

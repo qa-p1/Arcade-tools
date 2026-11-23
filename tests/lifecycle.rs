@@ -421,10 +421,12 @@ fn uninstalling_with_data_leaves_nothing_of_the_app_in_a_fresh_home() {
     remove.remove_data = true;
     manager.operate(&remove, &cancel, &mut |_| {}).unwrap();
 
-    // Tools' own state and caches (its catalog and release records) stay: Tools is still installed.
+    // Tools' own state and caches (its catalog and release records, and the copy of the catalog it shares with the
+    // Arcade helper) stay: Tools is still installed.
     let own = [
         paths.state(),
         paths.catalog().parent().unwrap().to_path_buf(),
+        paths.link.catalog(),
     ];
     let mut left = Vec::new();
     let mut stack = vec![home.clone()];
@@ -446,4 +448,53 @@ fn uninstalling_with_data_leaves_nothing_of_the_app_in_a_fresh_home() {
         left.is_empty(),
         "left behind after removing Look with its data: {left:#?}"
     );
+}
+
+/// Look's card said "Not running" for seconds after login while Look started: a program that runs but hasn't put up
+/// its Link endpoint yet is "starting", and stops being so once it ends.
+#[test]
+fn a_running_program_without_an_endpoint_is_starting() {
+    require_isolated_runner();
+    let server = FakeRelease::new();
+    let paths = Paths::under(&server.root.path().join("user"));
+    let manager = Manager::new(paths.clone(), Source::test_server(&server.url).unwrap());
+    // A real program as the app, so the process's executable is the installed file itself (as an AppImage's is).
+    let program = fs::read("/bin/sleep").unwrap();
+    server.publish(
+        "arcade.look",
+        "1.0.0",
+        "stable",
+        &[("Look_x64.AppImage", &program)],
+        "nsis",
+    );
+    manager
+        .operate(
+            &request("arcade.look", Operation::Install),
+            &AtomicBool::new(false),
+            &mut |_| {},
+        )
+        .unwrap();
+    let look = |manager: &Manager| {
+        manager
+            .list(true)
+            .unwrap()
+            .into_iter()
+            .find(|a| a.id == "arcade.look")
+            .unwrap()
+    };
+    let before = look(&manager);
+    assert!(
+        before.installed && !before.running && !before.starting,
+        "{before:?}"
+    );
+    let exe = paths.executable("arcade.look", Os::Linux, false);
+    let mut child = std::process::Command::new(&exe).arg("30").spawn().unwrap();
+    let during = look(&manager);
+    assert!(!during.running && during.starting, "{during:?}");
+    // Not probing (the quick list) never says starting.
+    assert!(!manager.list(false).unwrap().iter().any(|a| a.starting));
+    child.kill().unwrap();
+    child.wait().unwrap();
+    let after = look(&manager);
+    assert!(!after.running && !after.starting, "{after:?}");
 }

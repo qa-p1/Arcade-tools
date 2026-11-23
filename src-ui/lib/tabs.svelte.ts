@@ -1,4 +1,4 @@
-export type ShellTab = 'home' | 'apps' | 'updates' | 'shortcuts' | 'learn' | 'connections' | 'engines' | 'settings' | 'onboarding';
+export type ShellTab = 'home' | 'apps' | 'updates' | 'shortcuts' | 'learn' | 'connections' | 'everywhere' | 'engines' | 'settings' | 'onboarding';
 interface ShellTabModel {
   id: ShellTab;
   label: string;
@@ -12,6 +12,7 @@ export const tabs: ShellTabModel[] = $state([
   { id: 'shortcuts', label: 'Shortcuts', enabled: true },
   { id: 'learn', label: 'Learn', enabled: true },
   { id: 'connections', label: 'Connections', enabled: true },
+  { id: 'everywhere', label: 'Everywhere', enabled: true },
   { id: 'engines', label: 'Engines', enabled: true },
   { id: 'settings', label: 'Settings', enabled: true },
   { id: 'onboarding', label: 'Onboarding', enabled: true },

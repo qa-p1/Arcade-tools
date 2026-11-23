@@ -382,10 +382,7 @@ impl<S: HttpSource> CatalogClient<S> {
     /// Disk read only, on a worker thread. Falls back to the built-in snapshot;
     /// never connects to the network.
     pub fn cached_catalog(&self) -> Catalog {
-        self.document("catalog.json", &self.url, Some(SNAPSHOT), false, |bytes| {
-            Catalog::parse(bytes, env!("CARGO_PKG_VERSION"))
-        })
-        .expect("validated built-in catalog")
+        self.catalog_document(false).0
     }
     /// Explicit network refresh and atomic cache write, on a worker thread.
     /// Offline/invalid responses preserve the last good catalog or snapshot.
@@ -395,10 +392,35 @@ impl<S: HttpSource> CatalogClient<S> {
     /// [`Self::refresh_catalog`], plus the error when it kept the last good
     /// copy instead, so the UI doesn't claim a refresh that didn't happen.
     pub fn refresh_catalog_reporting(&self) -> (Catalog, Option<Error>) {
-        self.document_reporting("catalog.json", &self.url, Some(SNAPSHOT), true, |bytes| {
-            Catalog::parse(bytes, env!("CARGO_PKG_VERSION"))
-        })
-        .expect("validated built-in catalog")
+        self.catalog_document(true)
+    }
+    /// The catalog, and the same text as Link's shared copy (`<registry>/../catalog.json`), so the apps, the
+    /// helper and the extension name apps the way Tools does without a release of their own.
+    fn catalog_document(&self, refresh: bool) -> (Catalog, Option<Error>) {
+        let used = std::cell::RefCell::new(None::<Vec<u8>>);
+        let result = self
+            .document_reporting(
+                "catalog.json",
+                &self.url,
+                Some(SNAPSHOT),
+                refresh,
+                |bytes| {
+                    let catalog = Catalog::parse(bytes, env!("CARGO_PKG_VERSION"))?;
+                    *used.borrow_mut() = Some(bytes.to_vec());
+                    Ok(catalog)
+                },
+            )
+            .expect("validated built-in catalog");
+        // The last text parsed is the one returned (fresh, cached or the built-in snapshot).
+        if let Some(text) = used
+            .into_inner()
+            .and_then(|bytes| String::from_utf8(bytes).ok())
+        {
+            if let Err(error) = crate::everywhere::share_catalog(&self.paths, &text) {
+                eprintln!("Shared catalog copy: {error}");
+            }
+        }
+        result
     }
     /// Disk/network I/O on a worker thread; refresh only when explicitly requested.
     pub fn engines(&self, refresh: bool) -> Result<crate::engines::EngineCatalog> {

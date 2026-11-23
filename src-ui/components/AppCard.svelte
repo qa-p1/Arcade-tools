@@ -25,7 +25,7 @@
     onOperation, onDetails, run,
   }: Props = $props();
 
-  const status = $derived(app.running ? 'Running' : app.installed ? 'Installed' : app.managed ? 'Needs repair' : null);
+  const status = $derived(app.running ? 'Running' : app.starting ? 'Starting…' : app.installed ? 'Installed' : app.managed ? 'Needs repair' : null);
   const tone = $derived(app.running ? 'ok' : app.managed && !app.installed ? 'warn' : '');
 </script>
 
