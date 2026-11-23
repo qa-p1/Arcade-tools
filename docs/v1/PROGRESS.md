@@ -2,6 +2,18 @@
 
 Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
 
+## 2026-11-23 (cloud session) - 1.1.0 released
+
+- 1.1.0 promoted from rc.2 (`9e01fa2`): Arcade Link 1.1.0, the Arcade helper (file manager menus on Linux and
+  Windows, the browser extension's host) and the Everywhere page. Promote run 45142987914; the AppImage, dmg,
+  installer and SHA256SUMS.txt are byte for byte the rc's, and the manifests differ only in channel, tag and notes.
+- rc.1 failed Gates `verify-helper`: menu entries were left after uninstall. Reproduced locally with timestamps:
+  the running helper rewrote them about 300 ms into the uninstall, after a catalog change. #65 stops the helper
+  before taking its menus away, with a test that fails on the old code (6/6) and passes on the new (18/18). Link
+  1.1.1 also makes the helper stop by itself when its card is removed.
+- rc.2 Gates passed every job (run 45140616999), with `update-from` v1.0.2-rc.2 and `previous` v1.0.2.
+- Next: Tools 1.1.1 with Link 1.1.1 (Finder Quick Actions on macOS).
+
 ## 2026-11-22 (cloud session) - 1.0.2
 
 - Fixes from the 1.0.1 real-user report, with the owner's decisions: Link 1.0.15 (D45), the hash at equal versions
