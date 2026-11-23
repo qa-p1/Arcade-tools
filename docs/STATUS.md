@@ -1,4 +1,20 @@
-# Arcade Tools 0.4.6 candidate
+# Arcade Tools: status
+
+## 2026-11-23: 1.1.1 released
+
+Current release: [1.1.1](https://github.com/qa-p1/Arcade-tools/releases/tag/v1.1.1), promoted from `v1.1.1-rc.1` after
+Gates passed every job on its published files (the delta update from 1.1.0 with signature and tampered-chunk checks,
+Linux conformance, package, upgrade, maintenance, tray, N-1 and self-update, memory and performance budgets, the
+Windows installer and macOS dmg smokes, and the desktop smokes on Hyprland, KWin, Mutter, Sway and X11). Earlier: 1.1.0
+(2026-11-23), 1.0.2 and 1.0.1 (2026-11-22), 1.0.0 (2026-11-15).
+
+1.1 added Everywhere: the Arcade helper and its file manager menus on Linux and Windows, Finder Quick Actions on macOS
+(1.1.1), and the Everywhere page (pins, output folder, a default per job).
+
+Not verified yet: the menus on a real Windows 10/11 and macOS desktop (CI covers the installers and, in isolated Linux
+desktops, the helper's menus), and the browser connection, which waits for the Arcade browser extension.
+
+The notes below are from the 0.4.6 candidate (2026-11-03).
 
 ## Stable resident process (2026-11-03)
 
