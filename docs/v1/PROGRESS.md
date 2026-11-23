@@ -2,6 +2,17 @@
 
 Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
 
+## 2026-11-23 (cloud session) - 1.1.1 released
+
+- 1.1.1 promoted from rc.1 (`3cb5543`, #67): Arcade Link 1.1.1 (Finder Quick Actions on macOS, the helper stops by
+  itself when its card is removed) and cookie 0.18.3 (RUSTSEC-2026-0594). Gates run 45175279614 passed every job, with
+  `previous` v1.1.0 and `update-from` v1.1.0-rc.2. Promote run 45178202926; the AppImage, dmg, installer and
+  SHA256SUMS.txt are byte for byte the rc's, and the manifests differ only in channel, tag and notes.
+- #67's CI: one of the eight memory probes (a diagnostic that ran because the PR changed its workflow) timed out
+  installing packages: the Azure Ubuntu mirror didn't answer and apt then stalled on archive.ubuntu.com. The other
+  seven ran the same steps and passed; its one re-run passed.
+- Not run here: the Finder Quick Actions on a real Mac (`LOCAL-PROMPTS.md` prompt D).
+
 ## 2026-11-23 (cloud session) - 1.1.0 released
 
 - 1.1.0 promoted from rc.2 (`9e01fa2`): Arcade Link 1.1.0, the Arcade helper (file manager menus on Linux and
