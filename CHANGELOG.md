@@ -5,6 +5,8 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-23
+
 ### Added
 - **Everywhere:** Arcade's actions in your file manager's right-click menu (Linux: Open With in every file manager,
   plus Files, Caja, Dolphin, Nemo and Thunar; Windows: File Explorer). Tools ships the Arcade helper that provides
