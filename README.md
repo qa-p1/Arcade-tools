@@ -41,6 +41,7 @@ Version tags publish stable packages; other builds go to the rolling **nightly**
 - **Apps:** catalog details, bundles, install, update, repair, rollback, adoption, uninstall and app settings. Existing manual or self-installed apps can be adopted; development builds are left in place.
 - **Updates:** compatibility holds, sanitized notes, history, and opt-in automatic updates per app that respect busy state and wait ten minutes since last use. Tools can also update itself.
 - **Shortcuts:** Arcade globals, in-app keys, desktop binds and catalog sheets; rebind supported Arcade globals after conflict review.
+- **Everywhere:** the Arcade helper puts every installed app's actions in your file manager's right-click menu (Linux, Windows, and Finder's Quick Actions on macOS); pin up to 8, choose where results go and which app does a job two apps share.
 - **Learn:** app guides, readable offline. **Connections** explains content flows between apps. **Engines** detects system programs and gives copyable install guidance.
 - **Settings:** tray hosting, per-app opt-outs, update notifications, theme, diagnostics, backup/restore and **Uninstall everything**.
 - **Safe by default:** Tools asks before installs, adoption, updates, uninstall, restore and shortcut changes. Downloads are restricted to trusted GitHub HTTPS hosts and verified against release SHA-256 and size metadata before execution. Diagnostics stay in a local redacted ZIP for you to attach to an issue.
@@ -49,7 +50,7 @@ More in [Features](docs/user/features.md).
 
 ## Works with other Arcade apps
 
-Tools manages the other Arcade apps over peer-to-peer Arcade Link, pinned to **v0.4.0**. The apps never need Tools: each one works alone and connects to the others automatically.
+Tools manages the other Arcade apps over peer-to-peer Arcade Link (**1.1.1**). The apps never need Tools: each one works alone and connects to the others automatically.
 
 - **Tray hosting:** Tools hosts each app's tray menu (Open, Settings, Restart, Quit and app extras) in one Arcade icon. Hosting is optional and each app can keep its own icon. Apps restore their own tray icon as soon as Tools quits, crashes or disconnects.
 - **Quit all** asks once when an app is busy.
@@ -57,6 +58,16 @@ Tools manages the other Arcade apps over peer-to-peer Arcade Link, pinned to **v
 - **Backup and restore** use each app's portable settings handoff; unsupported apps are listed as not included.
 
 See [With other apps](docs/user/with-other-apps.md).
+
+## Use it from anywhere
+
+Tools ships the **Arcade helper**, which puts the actions of every installed Arcade app in your file manager's
+right-click menu, without opening the apps: "Open With" in every Linux file manager plus Files, Caja, Dolphin, Nemo and
+Thunar menus, File Explorer on Windows (under "Show more options" on Windows 11), and Finder's Quick Actions and
+Services menu on macOS. Right-click files, choose **Arcade…** or a pinned action, and a small progress window shows the
+job. Tools starts the helper at login, updates it with Tools and removes it, with its menu entries, when Tools is
+uninstalled. The Arcade browser extension, which brings the same actions to web pages, comes in a later update. See
+[Everywhere](docs/user/everywhere.md).
 
 ## Usage
 
