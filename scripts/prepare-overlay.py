@@ -22,17 +22,19 @@ def main():
     environment = dict(os.environ, CARGO_BUILD_JOBS="3")
     targets = ["aarch64-apple-darwin", "x86_64-apple-darwin"] if target == "universal-apple-darwin" else [target]
     suffix = ".exe" if "windows" in target else ""
-    # (package, program name): each becomes binaries/<program>-<target>, which Tauri puts beside Tools.
-    companions = [("arcade-tools-overlay", "arcade-tools-overlay"), ("arcade-tools-helper", "arcade-helper")]
+    # (package, program name, Cargo profile): each becomes binaries/<program>-<target>, which Tauri puts beside
+    # Tools. The helper has its own size-optimised profile (Cargo.toml).
+    companions = [("arcade-tools-overlay", "arcade-tools-overlay", "release"), ("arcade-tools-helper", "arcade-helper", "helper")]
     for architecture in targets:
-        packages = [arg for package, _ in companions for arg in ("-p", package)]
-        subprocess.run(["cargo", "build", "--release", "--locked", *packages, "--target", architecture], cwd=root, env=environment, check=True)
-    for _, program in companions:
+        for package, _, profile in companions:
+            subprocess.run(["cargo", "build", "--profile", profile, "--locked", "-p", package, "--target", architecture],
+                           cwd=root, env=environment, check=True)
+    for _, program, profile in companions:
         destination = root / "src-tauri/binaries" / f"{program}-{target}{suffix}"
         destination.parent.mkdir(parents=True, exist_ok=True)
         if destination.is_symlink():
             raise SystemExit("The generated companion destination is a symlink")
-        sources = [root / "target" / architecture / "release" / f"{program}{suffix}" for architecture in targets]
+        sources = [root / "target" / architecture / profile / f"{program}{suffix}" for architecture in targets]
         if len(sources) == 2:
             subprocess.run(["lipo", "-create", *map(str, sources), "-output", str(destination)], check=True)
             # Tauri's universal build compiles each architecture separately and

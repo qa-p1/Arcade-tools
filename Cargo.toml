@@ -48,3 +48,12 @@ windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_
 codegen-units = 1
 lto = true
 strip = true
+
+# The Arcade helper (scripts/prepare-overlay.py): a small menu and chooser program that the profile holds twice
+# (the unpacked package and the installed copy), so it is built for size. lto and codegen-units are set here, not
+# inherited, so CI's faster release settings (CARGO_PROFILE_RELEASE_LTO=false) measure the size users get.
+[profile.helper]
+inherits = "release"
+opt-level = "z"
+lto = true
+codegen-units = 1
