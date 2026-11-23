@@ -14,3 +14,9 @@ path = "src/main.rs"
 
 [dependencies]
 arcade-helper = { git = "https://github.com/qa-p1/Arcade-Link", tag = "v1.1.0" }
+
+[dev-dependencies]
+# The removal test runs the real helper against Tools' own `everywhere::remove`.
+arcade-tools-core = { path = "../.." }
+arcade-link = { git = "https://github.com/qa-p1/Arcade-Link", tag = "v1.1.0" }
+serde_json = "1"
