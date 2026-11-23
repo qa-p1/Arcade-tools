@@ -5,6 +5,20 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-11-23
+
+### Added
+- **Everywhere on macOS:** Arcade's actions in Finder, as Quick Actions in the right-click menu (and the Services
+  menu): "Arcade…" and each pinned action. They follow your pins and the apps you install, like on Linux and
+  Windows, and uninstalling Tools removes them.
+
+### Fixed
+- The Arcade helper stops by itself when its card is removed (for example when Tools is uninstalled while the helper
+  is busy), instead of running on with no menus to serve.
+
+### Changed
+- Arcade Link 1.1.1 (from 1.1.0).
+
 ## [1.1.0] - 2026-11-23
 
 ### Added

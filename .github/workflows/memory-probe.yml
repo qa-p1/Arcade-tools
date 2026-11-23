@@ -48,7 +48,7 @@ jobs:
       - uses: actions/checkout@v7
         with: { path: Arcade-tools }
       - uses: actions/checkout@v7
-        with: { repository: qa-p1/Arcade-Link, ref: "${{ inputs.link-ref || 'v1.1.0' }}", path: Arcade-link }
+        with: { repository: qa-p1/Arcade-Link, ref: "${{ inputs.link-ref || 'v1.1.1' }}", path: Arcade-link }
       - uses: actions/setup-python@v7
         with: { python-version: '3.12' }
       - name: Linux dependencies (as the budget gate)

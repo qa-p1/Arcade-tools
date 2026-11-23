@@ -28,7 +28,7 @@ asks first.
 |---|---|
 | Linux | "Open With" in every file manager, plus Files (Nautilus), Caja, Dolphin, Nemo and Thunar menus |
 | Windows | File Explorer's right-click menu (under "Show more options" on Windows 11) |
-| macOS | Coming in a later update |
+| macOS | Finder: right-click → Quick Actions (and the Services menu), one entry for "Arcade…" and one per pinned action |
 
 Browsers need the Arcade browser extension, which comes in a later update.
 
