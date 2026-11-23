@@ -18,6 +18,8 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ### Changed
 - Arcade Link 1.1.1 (from 1.1.0).
+- The cookie library is updated to 0.18.3 for RUSTSEC-2026-0594 (private cookie nonces could repeat in processes
+  that fork). Tools doesn't use private cookies; the update keeps the dependency check clean.
 
 ## [1.1.0] - 2026-11-23
 
