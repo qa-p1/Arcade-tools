@@ -190,6 +190,18 @@ pub fn ensure_running(paths: &Paths) -> Result<Option<(PathBuf, Installed)>> {
 /// Before Tools is removed: every menu entry and browser file the helper wrote, its card, the running helper and
 /// (Linux) its installed copy. `tools` is the installed Tools program, beside which the helper was shipped.
 pub fn remove(paths: &Paths, tools: &Path) -> Result<()> {
+    // Its card is going and Tools is going: stop it first, even mid-job. A running helper rewrites its menus when
+    // the catalog or a card changes (resident::watch), so removing them under it put them straight back, and
+    // `integrate --remove` deletes its card.
+    // A refresh it already scheduled (it coalesces changes for 300 ms) runs until the process is gone, and
+    // quit_running returns once its endpoint is: wait for the process itself.
+    let pid = arcade_link::endpoint::read(&paths.link, HELPER_ID)
+        .ok()
+        .map(|e| e.pid);
+    let quit = arcade_link::install::quit_running(&paths.link, HELPER_ID, Duration::from_secs(10));
+    if let (Ok(true), Some(pid)) = (quit, pid) {
+        let _ = crate::manager::wait_for_exit(pid);
+    }
     // Nothing else keeps the shared copy of the catalog up to date once Tools is gone; apps fall back to the list
     // they were built with.
     let _ = std::fs::remove_file(paths.link.catalog());
@@ -220,8 +232,6 @@ pub fn remove(paths: &Paths, tools: &Path) -> Result<()> {
             ),
         ));
     }
-    // Its card is gone and Tools is going: stop it even mid-job.
-    let _ = arcade_link::install::quit_running(&paths.link, HELPER_ID, Duration::from_secs(10));
     // Only the Linux copy lives outside Tools' own install, which Tools' removal deletes.
     if cfg!(target_os = "linux") {
         if let Some(dir) = copy
