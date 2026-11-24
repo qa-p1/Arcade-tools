@@ -1,18 +1,22 @@
 # Arcade Tools: status
 
-## 2026-11-23: 1.1.1 released
+## 2026-11-24: 1.1.2 released
 
-Current release: [1.1.1](https://github.com/qa-p1/Arcade-tools/releases/tag/v1.1.1), promoted from `v1.1.1-rc.1` after
-Gates passed every job on its published files (the delta update from 1.1.0 with signature and tampered-chunk checks,
+Current release: [1.1.2](https://github.com/qa-p1/Arcade-tools/releases/tag/v1.1.2), promoted from `v1.1.2-rc.1` after
+Gates passed every job on its published files (the delta update from 1.1.1 with signature and tampered-chunk checks,
 Linux conformance, package, upgrade, maintenance, tray, N-1 and self-update, memory and performance budgets, the
-Windows installer and macOS dmg smokes, and the desktop smokes on Hyprland, KWin, Mutter, Sway and X11). Earlier: 1.1.0
-(2026-11-23), 1.0.2 and 1.0.1 (2026-11-22), 1.0.0 (2026-11-15).
+Windows installer and macOS dmg smokes, and the desktop smokes on Hyprland, KWin, Mutter, Sway and X11). Earlier: 1.1.1
+and 1.1.0 (2026-11-23), 1.0.2 and 1.0.1 (2026-11-22), 1.0.0 (2026-11-15).
+
+1.1.2 is Arcade Link 1.1.2: the helper runs actions that take no input when the browser extension asks, announces
+browser jobs once, and shows a moving bar when an app can't measure a step (instead of a bar at 0).
 
 1.1 added Everywhere: the Arcade helper and its file manager menus on Linux and Windows, Finder Quick Actions on macOS
 (1.1.1), and the Everywhere page (pins, output folder, a default per job).
 
 Not verified yet: the menus on a real Windows 10/11 and macOS desktop (CI covers the installers and, in isolated Linux
-desktops, the helper's menus), and the browser connection, which waits for the Arcade browser extension.
+desktops, the helper's menus), and the browser connection on a real desktop (the Arcade browser extension isn't released yet; its CI runs it against
+the released helper).
 
 The notes below are from the 0.4.6 candidate (2026-11-03).
 
