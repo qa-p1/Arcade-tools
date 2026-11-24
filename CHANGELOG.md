@@ -5,6 +5,19 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-11-24
+
+### Fixed
+- The Arcade helper runs actions that take no input (Box's password generator, timer, IP, loan calculator…) when
+  the browser extension asks for one, instead of answering "nothing to run on".
+- Jobs started from the browser are announced once: the extension shows its own notification, so the helper's
+  progress window no longer sends a second one.
+- A job whose app can't measure a step yet (Box looking up a video, joining video and audio) shows a moving bar in
+  the helper's progress window and the browser extension, instead of one sitting at 0.
+
+### Changed
+- Arcade Link 1.1.2 (from 1.1.1).
+
 ## [1.1.1] - 2026-11-23
 
 ### Added
