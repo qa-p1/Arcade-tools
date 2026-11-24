@@ -2,6 +2,16 @@
 
 Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
 
+## 2026-11-24 (cloud session) - 1.1.2 released
+
+- 1.1.2 promoted from rc.1 (`66799c5`, #70): Arcade Link 1.1.2 (no-input actions from the browser, one notification
+  for browser jobs, a moving bar for progress with no number). Release run 45404048970; Gates run 45410396686 passed
+  every job, with `previous` v1.1.1 and `update-from` v1.1.1-rc.1. Promote run 45413768741; the AppImage, dmg,
+  installer and SHA256SUMS.txt are byte for byte the rc's, and the manifests differ only in channel, tag and notes.
+- Main's CI on `66799c5`: the Sway desktop smoke failed before testing anything: that runner's `apt-get update`
+  reached only packages.microsoft.com, so no Ubuntu package (sway, mutter, openbox, ...) could be found. Its one
+  re-run passed.
+
 ## 2026-11-23 (cloud session) - 1.1.1 released
 
 - 1.1.1 promoted from rc.1 (`3cb5543`, #67): Arcade Link 1.1.1 (Finder Quick Actions on macOS, the helper stops by
