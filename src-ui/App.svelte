@@ -14,7 +14,6 @@
   import Apps from './tabs/Apps.svelte';
   import Engines from './tabs/Engines.svelte';
   import Home from './tabs/Home.svelte';
-  import Onboarding from './tabs/Onboarding.svelte';
   import Settings from './tabs/Settings.svelte';
   import Updates from './tabs/Updates.svelte';
   import { ui, type Theme } from './lib/state.svelte';
@@ -28,10 +27,12 @@
   let ConnectionsView = $state<typeof import('./tabs/Connections.svelte').default | null>(null);
   let EverywhereView = $state<typeof import('./tabs/Everywhere.svelte').default | null>(null);
   let ShortcutsView = $state<typeof import('./tabs/Shortcuts.svelte').default | null>(null);
+  let OnboardingView = $state<typeof import('./tabs/Onboarding.svelte').default | null>(null);
   $effect(() => {
     if (ui.tab === 'learn' && !LearnView) void import('./tabs/Learn.svelte').then((module) => LearnView = module.default);
     if (ui.tab === 'connections' && !ConnectionsView) void import('./tabs/Connections.svelte').then((module) => ConnectionsView = module.default);
     if (ui.tab === 'everywhere' && !EverywhereView) void import('./tabs/Everywhere.svelte').then((module) => EverywhereView = module.default);
+    if (ui.tab === 'onboarding' && !OnboardingView) void import('./tabs/Onboarding.svelte').then((module) => OnboardingView = module.default);
     if (ui.tab === 'shortcuts' && !ShortcutsView) void import('./tabs/Shortcuts.svelte').then((module) => ShortcutsView = module.default);
   });
   let installProposal = $state<{ title: string; copy: string; installed: boolean; primary: string; secondary: string; options: boolean } | null>(null);
@@ -370,15 +371,17 @@
         onLink={setLink}
         {run}
       />
-      <Onboarding
-        active={ui.tab === 'onboarding'}
-        apps={ui.apps}
-        onInstall={install}
-        onComplete={() => selectTab('home')}
-        onSelectTab={selectTab}
-        shortcuts={ui.shortcutsIndex}
-        {run}
-      />
+      {#if OnboardingView}
+        <OnboardingView
+          active={ui.tab === 'onboarding'}
+          apps={ui.apps}
+          onInstall={install}
+          onComplete={() => selectTab('home')}
+          onSelectTab={selectTab}
+          shortcuts={ui.shortcutsIndex}
+          {run}
+        />
+      {/if}
       {#if ShortcutsView}
         <ShortcutsView
           active={ui.tab === 'shortcuts'}

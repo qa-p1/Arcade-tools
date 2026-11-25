@@ -9,5 +9,10 @@ export default defineConfig({
   define: { __TOOLS_VERSION__: JSON.stringify(version) },
   clearScreen: false,
   server: { port: 1421, strictPort: true, watch: { ignored: ['**/src-tauri/**', '**/target/**', '**/src/**'] } },
-  build: { manifest: true, target: ['es2021', 'safari15'], sourcemap: false, modulePreload: { polyfill: false } },
+  build: {
+    manifest: true,
+    // The coloured app icons load as their own small files, so they don't count against the shell budget.
+    assetsInlineLimit: (file) => (file.includes('/design/app-icons/') ? false : undefined),
+    target: ['es2021', 'safari15'], sourcemap: false, modulePreload: { polyfill: false },
+  },
 });
