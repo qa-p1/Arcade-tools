@@ -854,7 +854,19 @@ fn hub_lifecycle_health_and_reviewed_uninstall_all() {
     manifest.settings.link_enabled = false;
     manifest.link.protocol = vec![2];
     arcade_link::manifest::write_manifest(&manager.paths.link, &manifest).unwrap();
+    // The Arcade helper is never an app with problems, wherever it runs from and whatever the catalog lists.
+    let helper = manager.paths.home.join("Downloads/arcade-helper");
+    fs::write(&helper, "helper").unwrap();
+    arcade_link::manifest::write_manifest(
+        &manager.paths.link,
+        &Manifest::new("arcade.helper", "1.1.2", helper.to_str().unwrap()),
+    )
+    .unwrap();
     let issues = manager.health().unwrap();
+    assert!(
+        issues.iter().all(|issue| issue.app != "arcade.helper"),
+        "{issues:?}"
+    );
     for kind in [
         HealthKind::StaleRegistry,
         HealthKind::TemporaryExecutable,

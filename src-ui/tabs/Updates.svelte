@@ -1,8 +1,8 @@
 <script lang="ts">
+  import AppMark from '../components/AppMark.svelte';
   import { asFailure } from '../lib/controller';
   import { formatRelative } from '../design/format';
   import { relativeInSentence } from '../lib/format';
-  import { glyph } from '../lib/glyphs';
   import Icon from '../components/Icon.svelte';
   import { api, type AppView, type AppUpdate, type ChannelUpdate, type HistoryEntry, type UpdateState } from '../lib/api';
 
@@ -122,7 +122,7 @@
         {@const key = notesKey(row)}
         <section class="update-card" aria-labelledby="update-{row.app.id}">
           <div class="row">
-            <span class="glyph-tile"><img src={glyph(row.app.id)} alt="" width="18" height="18" /></span>
+            <AppMark id={row.app.id} />
             <div class="row-main">
               <h2 class="row-title" id="update-{row.app.id}">{row.app.name}</h2>
               <div class="row-sub">{row.state.installedVersion ?? row.app.version ?? '?'} → <strong class="to-version">{row.latest?.latestVersion ?? 'new version'}</strong>{row.state.channel !== 'stable' ? ` · ${row.state.channel}` : ''}{outside(row.app) ? ' · installed outside Tools' : ''}</div>
@@ -169,7 +169,7 @@
       <div class="list">
         {#each managedApps as app (app.id)}
           <label class="row compact">
-            <span class="glyph-tile sm"><img src={glyph(app.id)} alt="" width="15" height="15" /></span>
+            <AppMark id={app.id} size="sm" />
             <span class="row-main">{app.name}</span>
             <input class="switch" type="checkbox" aria-label="Update {app.name} automatically" checked={autoUpdate[app.id] ?? false} disabled={busy} onchange={(event) => run(() => onAutoUpdate(app, event.currentTarget.checked), app.name)} />
           </label>
@@ -185,7 +185,7 @@
       <div class="list">
         {#each withdrawn as app (app.id)}
           <div class="row compact">
-            <span class="glyph-tile sm"><img src={glyph(app.id)} alt="" width="15" height="15" /></span>
+            <AppMark id={app.id} size="sm" />
             <div class="row-main"><div class="row-title">{app.name} v{app.version ?? '?'}</div><div class="row-sub">{app.withdrawn}</div></div>
             {#if app.managed && app.rollbackVersion}<button type="button" class="btn sm" disabled={busy || checking} onclick={() => run(() => onRollback(app), app.name)}>{rollbackLabel(app)}</button>{/if}
           </div>
@@ -200,7 +200,7 @@
       <div class="list">
         {#each rollbacks as app (app.id)}
           <div class="row compact">
-            <span class="glyph-tile sm"><img src={glyph(app.id)} alt="" width="15" height="15" /></span>
+            <AppMark id={app.id} size="sm" />
             <div class="row-main"><div class="row-title">{app.name}</div><div class="row-sub">v{app.version ?? '?'} now · v{app.rollbackVersion} kept</div></div>
             <button type="button" class="btn sm" disabled={busy || checking} onclick={() => run(() => onRollback(app), app.name)}>{rollbackLabel(app)}</button>
           </div>

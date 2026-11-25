@@ -1,6 +1,6 @@
 <script lang="ts">
+  import AppMark from '../components/AppMark.svelte';
   import { asFailure } from '../lib/controller';
-  import { glyph } from '../lib/glyphs';
   import Icon from '../components/Icon.svelte';
   import { api, type EverywhereChange, type EverywherePage } from '../lib/api';
 
@@ -97,7 +97,7 @@
       <div class="list">
         {#each pinned as pin, index (pin.reference)}
           <div class="row">
-            <span class="glyph-tile"><img src={glyph(pin.app)} alt="" width="18" height="18" /></span>
+            <AppMark id={pin.app} />
             <span class="row-main"><span class="row-title">{pin.title}</span><span class="row-sub">{short(pin.app)}</span></span>
             <button type="button" class="btn sm icon-only" aria-label={`Move ${pin.title} up`} disabled={index === 0} onclick={() => run(() => move(index, -1))}><span class="flip"><Icon name="chevronDown" size={14} /></span></button>
             <button type="button" class="btn sm icon-only" aria-label={`Move ${pin.title} down`} disabled={index === pinned.length - 1} onclick={() => run(() => move(index, 1))}><Icon name="chevronDown" size={14} /></button>
@@ -106,7 +106,7 @@
         {/each}
         {#each unpinned as pin (pin.reference)}
           <div class="row">
-            <span class="glyph-tile"><img src={glyph(pin.app)} alt="" width="18" height="18" /></span>
+            <AppMark id={pin.app} />
             <span class="row-main"><span class="row-title">{pin.title}</span><span class="row-sub">{short(pin.app)}</span></span>
             <input class="switch" type="checkbox" aria-label={`Pin ${pin.title}`} checked={false} disabled={full} title={full ? `Up to ${page.maxPins} pins` : undefined} onchange={() => run(() => setPins([...pinned.map((other) => other.reference), pin.reference]))} />
           </div>

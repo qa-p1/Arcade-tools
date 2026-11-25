@@ -95,6 +95,10 @@ pub fn inspect(paths: &Paths, catalog: &Catalog) -> Result<Vec<HealthIssue>> {
             if path.file_stem().is_none_or(|name| name != peer.id.as_str()) {
                 continue;
             }
+            // The Arcade helper registers like an app but isn't one: the Everywhere page owns its state.
+            if peer.id == crate::everywhere::HELPER_ID {
+                continue;
+            }
             let native = crate::apps::APPS.contains(&peer.id.as_str()) || peer.id == ids::TOOLS;
             let dev = document.additions.install == Some(InstallMethod::Dev)
                 || arcade_link::install::is_dev_build(Path::new(&peer.executable));

@@ -1,7 +1,7 @@
 <script lang="ts">
+  import AppMark from '../components/AppMark.svelte';
   import { formatSize } from '../design/format';
   import { relativeInSentence } from '../lib/format';
-  import { glyph } from '../lib/glyphs';
   import { ui } from '../lib/state.svelte';
   import { refresh } from '../lib/controller';
   import { api, listsUpdates, type AppView, type CrashSummary, type Dashboard, type HealthIssue, type Operation, type UpdateState } from '../lib/api';
@@ -153,7 +153,7 @@
           {@const usage = dashboard?.apps.find((entry) => entry.id === app.id)}
           <div class="card home-tile">
             <div class="home-tile-top">
-              <span class="glyph-tile"><img src={glyph(app.id)} alt="" width="18" height="18" /></span>
+              <AppMark id={app.id} />
               <div class="row-main">
                 <div class="row-title">{app.name}</div>
                 <div class="row-sub"><span class="dot" class:ok={app.running}></span> {app.running ? 'Running' : app.starting ? 'Starting…' : 'Not running'}{app.running && usage?.memoryBytes ? ` · ${formatSize(usage.memoryBytes)}` : ''}</div>

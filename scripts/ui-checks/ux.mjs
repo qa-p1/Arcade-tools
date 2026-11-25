@@ -34,8 +34,41 @@ async function userTabSurvivesSlowStart(page) {
   assert(context.endsWith('Settings'), `the window switched pages by itself: ${context}`);
 }
 
+// First run: the apps picked install after one confirmation, then each is shown with its shortcut.
+async function setupInstallsAllAtOnce(page) {
+  await page.addInitScript((index) => {
+    const m = window.__mock;
+    m.state.preferences.onboardingComplete = false;
+    for (const id of ['arcade.find', 'arcade.look']) Object.assign(m.state.apps.find((a) => a.id === id), { installed: false, managed: false, installationClass: 'none' });
+    m.on('list_bundles', () => [{ id: 'everything', title: 'Everything', description: 'Every app.', apps: '*' }]);
+    m.on('shortcuts_index', () => index);
+    m.on('install_catalog_bundle', ({ appIds }) => {
+      for (const id of appIds) Object.assign(m.state.apps.find((a) => a.id === id), { installed: true, managed: true, installationClass: 'managed' });
+      return appIds.map((id) => `Installed ${id}.`);
+    });
+  }, INDEX);
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.click('#panel-onboarding button:has-text("Choose apps")');
+  for (const name of ['Arcade Find', 'Arcade Look']) await page.locator('#panel-onboarding label.row', { hasText: name }).locator('input').check();
+  await page.click('#panel-onboarding button:has-text("Continue with 2")');
+  await page.click('#panel-onboarding .footer button:has-text("Continue")');
+  assert(await page.locator('#panel-onboarding button:has-text("Review & install")').count() === 0, 'each app still has its own install button');
+  await page.click('#panel-onboarding button:has-text("Install 2 apps")');
+  const dialog = page.locator('dialog[open]');
+  await dialog.waitFor();
+  assert(/Install 2 apps\?/.test(await dialog.textContent()), 'the confirmation does not name both apps');
+  await dialog.locator('button:has-text("Install")').click();
+  await page.waitForSelector('#panel-onboarding .try-list');
+  const installs = await page.evaluate(() => window.__mock.calls.filter(([cmd]) => cmd === 'install_catalog_bundle'));
+  assert(installs.length === 1 && installs[0][1].appIds.join() === 'arcade.find,arcade.look', `installs: ${JSON.stringify(installs)}`);
+  const find = (await text(page, '#panel-onboarding .try-list .row:has-text("Arcade Find")'));
+  assert(find.includes('Ctrl') && find.includes('Try it'), `Find's row: ${find}`);
+  assert(await page.locator('#panel-onboarding .try-list .row').count() === 2, 'not every new app is offered to try');
+}
+
 export default {
   'A page chosen while Tools starts is kept': userTabSurvivesSlowStart,
+  'Setup installs the picked apps with one confirmation, then shows how to try each': setupInstallsAllAtOnce,
   async 'No "none bindings" without a window manager'(page) {
     const row = await shortcutsPage(page, 'none');
     const t = await row.textContent();

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { glyph } from '../lib/glyphs';
+  import AppMark from './AppMark.svelte';
   import { confirmOperation, changeChannel, changeLogin, launchApp } from '../lib/controller';
   import { invoke } from '@tauri-apps/api/core';
   import { tick } from 'svelte';
@@ -109,7 +109,7 @@
 <section class="catalog-detail" aria-labelledby="catalog-detail-title">
   <button class="btn ghost sm back-button" type="button" onclick={onBack}>← Back to apps</button>
   <header class="detail-head">
-    <span class="glyph-tile lg"><img src={glyph(app.id)} alt="" width="26" height="26" /></span>
+    <AppMark id={app.id} size="lg" />
     <div class="row-main">
       <h1 id="catalog-detail-title">{app.name}{#if installedApp?.installedChannel === 'nightly'}<span class="badge accent channel-badge">Nightly</span>{/if}</h1>
       <p class="sub">{app.tagline}</p>

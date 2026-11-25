@@ -33,6 +33,9 @@ FILES = [
     ("design/fonts/OFL.txt", "src-ui/design/fonts/OFL.txt"),
     ("design/glyphs/", "src-ui/design/glyphs/"),
     ("design/app-icons/tools/tauri/", "src-tauri/icons/"),
+    # Each app's own coloured icon, so Home, Apps and setup show the apps the way the desktop does.
+    *[(f"design/app-icons/{app}/icon.svg", f"src-ui/design/app-icons/arcade.{app}.svg")
+      for app in ("box", "clipboard", "find", "lens", "look", "shelf", "tools", "wheel")],
     # The Linux identity (ARCADE_APP.md ID-1/ID-3): the app icon, and the monochrome glyph the tray already draws
     # as the symbolic icon; both go into the AppImage's usr/share/icons (tauri.bundle.conf.json).
     ("design/app-icons/tools/icon.svg", "packaging/linux/dev.arcade.Tools.svg"),

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { glyph } from '../lib/glyphs';
+  import AppMark from './AppMark.svelte';
   import type { Snippet } from 'svelte';
   import Icon, { type IconName } from './Icon.svelte';
   import { tabs, type ShellTab } from '../lib/tabs.svelte';
@@ -29,7 +29,7 @@
 
 <aside class="sidebar" aria-label="Arcade Tools">
   <a class="brand" href="#home" aria-label="Arcade Tools home" onclick={(event) => { event.preventDefault(); onSelect('home'); }}>
-    <span class="brand-mark" aria-hidden="true"><img src={glyph('arcade.tools')} alt="" width="16" height="16" /></span>
+    <span class="brand-icon" aria-hidden="true"><AppMark id="arcade.tools" size="sm" /></span>
     <span>Arcade Tools</span>
   </a>
   <div class="tab-list" role="tablist" aria-label="Arcade Tools sections" aria-orientation="vertical">

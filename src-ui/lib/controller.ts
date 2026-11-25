@@ -367,8 +367,8 @@ async function withBusy(action: () => Promise<void>, phase: string): Promise<voi
   try { await action(); }
   finally { ui.busy = false; await refresh(); }
 }
-export async function installBundle(bundleId: string, ids: string[]): Promise<void> {
-  await withBusy(async () => { const messages = await api.installCatalogBundle(bundleId, ids); setMessage(messages.join(' ')); }, 'Installing bundle');
+export async function installBundle(bundleId: string, ids: string[], phase = 'Installing bundle'): Promise<void> {
+  await withBusy(async () => { const messages = await api.installCatalogBundle(bundleId, ids); setMessage(messages.join(' ')); }, phase);
 }
 export function openLearn(id: string): Promise<void> {
   ui.learnTarget = { id, serial: ui.learnTarget.serial + 1 };

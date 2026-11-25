@@ -69,5 +69,13 @@ src-tauri/icons/StoreLogo.png  sha256:fea8fb8fc849300cc5ca3b76822566c4bd498e50b8
 src-tauri/icons/icon.icns  sha256:ed2963f2fb047df7fd9f72062aea47074baa2cbc1bee26fd0a3bc6d6b2e2ea29  source:design/app-icons/tools/tauri/icon.icns
 src-tauri/icons/icon.ico  sha256:ec289a932515e848306eac69becf3b63f16364f9b7d78e9aaf12001b977b1473  source:design/app-icons/tools/tauri/icon.ico
 src-tauri/icons/icon.png  sha256:9447bf05b011f8afb971f8f58fd53f333706a456724c6970a28b6ff68ac8b081  source:design/app-icons/tools/tauri/icon.png
+src-ui/design/app-icons/arcade.box.svg  sha256:afebfc174401274c785ece5a75dfc8fb4cc669fbaf3465ab11f5246bc898dbd1  source:design/app-icons/box/icon.svg
+src-ui/design/app-icons/arcade.clipboard.svg  sha256:63fb05cc120d1fc08f9fec9df73c8cfe44362b48dfd9746f4bdb8f4b064ab265  source:design/app-icons/clipboard/icon.svg
+src-ui/design/app-icons/arcade.find.svg  sha256:65f265bb6fffa0e770976d69f7e7324bc27009c70a08c5dc31c7b04deed5d83a  source:design/app-icons/find/icon.svg
+src-ui/design/app-icons/arcade.lens.svg  sha256:fcbc1b29fdae3943eacad6a30b85267742537bdef08d00d576479de1b24d470b  source:design/app-icons/lens/icon.svg
+src-ui/design/app-icons/arcade.look.svg  sha256:57dfa7e1db9e82005ef7820a2ae1b9a4b2abd19e5f4b5a69e003cda5582032e2  source:design/app-icons/look/icon.svg
+src-ui/design/app-icons/arcade.shelf.svg  sha256:c7428b971ce6da52c69c4f69f0584fa45715a5af8ef181a5a0f4c76b56ecce0e  source:design/app-icons/shelf/icon.svg
+src-ui/design/app-icons/arcade.tools.svg  sha256:e7361be913b4f0405e23d872e378e496f5fb8725e5d9c9a032c05a79a31068bf  source:design/app-icons/tools/icon.svg
+src-ui/design/app-icons/arcade.wheel.svg  sha256:1ca037e69244aa07f0361843229e6d0bddd36f6a7f8e009f228de3b0372b787b  source:design/app-icons/wheel/icon.svg
 packaging/linux/dev.arcade.Tools.svg  sha256:e7361be913b4f0405e23d872e378e496f5fb8725e5d9c9a032c05a79a31068bf  source:design/app-icons/tools/icon.svg
 packaging/linux/dev.arcade.Tools-symbolic.svg  sha256:dd2aa2c70bb8ebe8b597eb8440dfc032a548ff43f90f2ffd08ec00cd02b4fac2  source:design/glyphs/arcade.tools.svg
