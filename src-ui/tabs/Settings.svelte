@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { glyph } from '../lib/glyphs';
+  import AppMark from '../components/AppMark.svelte';
   import { api, type AppView, type BackupReport, type DiagnosticsReport, type RestorePlan, type RestoreResult, type UninstallPlan } from '../lib/api';
   import { askForConfirmation, ui, type Theme } from '../lib/state.svelte';
   import { checkAllUpdates, copyText, openLearn } from '../lib/controller';
@@ -245,7 +245,7 @@
     <div class="section-head"><h2 id="about-heading">About</h2></div>
     <div class="list">
       <div class="row">
-        <span class="glyph-tile"><img src={glyph('arcade.tools')} alt="" width="18" height="18" /></span>
+        <AppMark id={'arcade.tools'} />
         <div class="row-main">
           <div class="row-title about-version selectable">Version {toolsApp?.version ?? __TOOLS_VERSION__}</div>
           <div class="row-sub">{channelName ? `${channelName} · ` : ''}The optional home for the Arcade apps.</div>

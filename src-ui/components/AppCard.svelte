@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { glyph } from '../lib/glyphs';
+  import AppMark from './AppMark.svelte';
   import { updatesHere, type AppView, type Channel, type Operation, type Release } from '../lib/api';
   import Icon from './Icon.svelte';
   import { tooltip } from '../lib/tooltip';
@@ -31,7 +31,7 @@
 
 <article id={app.id} class="card app-card" class:selected aria-label={app.name}>
   <div class="app-card-head">
-    <span class="glyph-tile"><img src={glyph(app.id)} alt="" width="18" height="18" /></span>
+    <AppMark id={app.id} />
     <div class="row-main">
       <h2><button type="button" class="title-button" disabled={busy} onclick={() => onDetails(app)}>{app.name}</button>{#if app.installedChannel === 'nightly'}<span class="badge accent channel-badge">Nightly</span>{/if}</h2>
       <p class="pitch">{app.tagline}</p>

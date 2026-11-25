@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { glyph } from '../lib/glyphs';
+  import AppMark from '../components/AppMark.svelte';
   import { tick } from 'svelte';
   import { escapeGoesBack } from '../lib/escape';
   import AppCard from '../components/AppCard.svelte';
@@ -287,7 +287,7 @@
         {@const reason = app.installReason ?? appView(app.id)?.installReason}
         <label class="row">
           <input type="checkbox" checked={selectedBundleApps.includes(app.id)} disabled={busy || !canInstallFromCatalog(app)} onchange={(event) => toggleBundleApp(app.id, event.currentTarget.checked)} />
-          <span class="glyph-tile sm"><img src={glyph(app.id)} alt="" width="15" height="15" /></span>
+          <AppMark id={app.id} size="sm" />
           <span class="row-main"><span class="row-title">{app.name}</span><span class="row-sub">{reason ?? app.tagline}</span></span>
           {#if isInstalled(app.id)}<span class="badge">Installed</span>{/if}
         </label>

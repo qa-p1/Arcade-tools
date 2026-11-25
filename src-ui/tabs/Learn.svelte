@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { glyph } from '../lib/glyphs';
+  import AppMark from '../components/AppMark.svelte';
   import { escapeGoesBack } from '../lib/escape';
   import { api, type DocPage, type DocsSearchHit, type LearnApp } from '../lib/api';
   import { onDestroy } from 'svelte';
@@ -180,7 +180,7 @@
           <ul class="list docs-results">
             {#each hits as hit (`${hit.app}:${hit.version}:${hit.path}`)}
               <li><button type="button" class="row docs-hit" onclick={() => run(() => openReader(hit.app, hit.path))}>
-                <span class="glyph-tile sm"><img src={glyph(hit.app)} alt="" width="15" height="15" /></span>
+                <AppMark id={hit.app} size="sm" />
                 <span class="row-main"><span class="row-title">{hit.title}</span>{#if hit.snippet}<span class="row-sub">{hit.snippet}</span>{/if}</span>
                 <span class="faint">{apps.find((app) => app.id === hit.app)?.name ?? hit.app}</span>
                 <Icon name="chevronRight" />
@@ -200,13 +200,13 @@
       {:else if apps.length}
         <div class="card-grid">
           <div class="card learn-app-row guide">
-            <span class="glyph-tile"><img src={glyph('arcade.tools')} alt="" width="18" height="18" /></span>
+            <AppMark id={'arcade.tools'} />
             <div class="row-main"><div class="row-title">Getting started with Arcade</div><div class="row-sub">What the apps do and how they work together</div></div>
             <div class="row-end"><button type="button" class="btn sm" onclick={() => run(() => openReader('arcade.ecosystem'))}>Read</button></div>
           </div>
           {#each apps as app (app.id)}
             <div class="card learn-app-row guide">
-              <span class="glyph-tile"><img src={glyph(app.id)} alt="" width="18" height="18" /></span>
+              <AppMark id={app.id} />
               <div class="row-main">
                 <div class="row-title">{app.name}</div>
                 <div class="row-sub">{app.available ? `Offline${app.docsVersion ? ` · v${app.docsVersion}` : ''}` : 'Online only'}{app.installedVersion && app.needsFetch ? ' · older than your version' : ''}</div>

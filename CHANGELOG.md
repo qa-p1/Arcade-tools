@@ -5,6 +5,21 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.1.3] - 2026-11-25
+
+### Changed
+- Every app shows its own coloured icon (Home, Apps, Updates, setup, Learn, Everywhere), the same one the desktop
+  and Arcade Wheel show, instead of the same grey line icon for all of them.
+- Setup installs the apps you picked with one confirmation, one after another, instead of a separate "Review &
+  install" and confirmation for each.
+- Setup ends with "Try your apps": each new app with its shortcut and a Try it button, instead of only "You're all
+  set".
+
+### Fixed
+- Home no longer says "things need attention" because of the Arcade helper. The helper registers like an app, so
+  every computer with a 1.1 app showed "arcade.helper: This app is absent from the catalog", which nothing could fix.
+  The Everywhere page shows the helper's state.
+
 ## [1.1.2] - 2026-11-24
 
 ### Fixed

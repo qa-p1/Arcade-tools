@@ -1,6 +1,6 @@
 <script lang="ts">
+  import AppMark from '../components/AppMark.svelte';
   import { asFailure } from '../lib/controller';
-  import { glyph } from '../lib/glyphs';
   import Icon from '../components/Icon.svelte';
   import { api, type ConnectionPeer, type ConnectionsView } from '../lib/api';
 
@@ -64,7 +64,7 @@
           {@const open = expanded === peer.id}
           <section class="peer" aria-label={peer.name}>
             <button type="button" class="row peer-row" aria-expanded={open} onclick={() => expanded = open ? null : peer.id}>
-              <span class="glyph-tile"><img src={glyph(peer.id)} alt="" width="18" height="18" /></span>
+              <AppMark id={peer.id} />
               <span class="row-main">
                 <span class="row-title">{peer.name}</span>
                 <span class="row-sub">{peer.actions.length ? `Offers ${peer.actions.length} ${peer.actions.length === 1 ? 'action' : 'actions'}` : 'Offers no actions'}{targets.length ? ` · sends to ${[...new Set(targets.map((flow) => flow.target.name.replace(/^Arcade /, '')))].join(', ')}` : ''}</span>

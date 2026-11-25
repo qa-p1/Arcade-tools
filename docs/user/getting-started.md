@@ -30,4 +30,4 @@ Start at login is a Tools setting. On Windows, an installed copy toggles the Sta
 
 ## First steps
 
-Open Onboarding, choose apps or a bundle, review shortcut conflicts and tray/login preferences, then confirm installs. Existing manual or self-installed apps can be adopted; development builds are left in place. Open Learn for app guides.
+Open Onboarding, choose apps or a bundle, review shortcut conflicts and tray/login preferences, then install everything you picked with one confirmation. Setup ends with **Try your apps**: each new app with its shortcut and a **Try it** button. Existing manual or self-installed apps can be adopted; development builds are left in place. Open Learn for app guides.
