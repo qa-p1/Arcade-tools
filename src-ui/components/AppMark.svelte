@@ -14,7 +14,7 @@
 {/if}
 
 <style>
-  .app-mark { display: block; flex: none; width: var(--tile); height: var(--tile); filter: drop-shadow(0 1px 1.5px rgb(0 0 0 / .14)); }
+  .app-mark { display: block; flex: none; width: var(--tile); height: var(--tile); }
   .app-mark.sm { width: var(--tile-sm); height: var(--tile-sm); }
   .app-mark.lg { width: var(--tile-lg); height: var(--tile-lg); }
 </style>
