@@ -2,6 +2,16 @@
 
 Detail for `qa-p1/Arcade-catalog` › `dev/v1/PROGRESS.md`. Newest first.
 
+## 2026-11-25 (cloud session) - 1.1.3 released
+
+- 1.1.3 promoted from rc.1 (`e34ba77`, #72): coloured app icons, one confirmation for the setup installs, "Try your
+  apps" at the end of setup, the helper out of health. The UI shell stays at 235 KB of its 240 KB budget: the icons
+  load as their own files and the setup screen loads when it opens. Release run 45609323132; Gates run 45614961587
+  passed every job, with `previous` v1.1.2 and `update-from` v1.1.2-rc.1 (a first run, 45614763487, stopped at its
+  first job because `update-from` was given the stable v1.1.2, which is not a prerelease). Promote run 45616174809;
+  the AppImage, dmg, installer and SHA256SUMS.txt are byte for byte the rc's, and the manifests differ only in
+  channel, tag and notes.
+
 ## 2026-11-24 (cloud session) - 1.1.2 released
 
 - 1.1.2 promoted from rc.1 (`66799c5`, #70): Arcade Link 1.1.2 (no-input actions from the browser, one notification
