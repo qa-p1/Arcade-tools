@@ -1,12 +1,16 @@
 # Arcade Tools: status
 
-## 2026-11-24: 1.1.2 released
+## 2026-11-25: 1.1.3 released
 
-Current release: [1.1.2](https://github.com/qa-p1/Arcade-tools/releases/tag/v1.1.2), promoted from `v1.1.2-rc.1` after
-Gates passed every job on its published files (the delta update from 1.1.1 with signature and tampered-chunk checks,
+Current release: [1.1.3](https://github.com/qa-p1/Arcade-tools/releases/tag/v1.1.3), promoted from `v1.1.3-rc.1` after
+Gates passed every job on its published files (the delta update from 1.1.2 with signature and tampered-chunk checks,
 Linux conformance, package, upgrade, maintenance, tray, N-1 and self-update, memory and performance budgets, the
-Windows installer and macOS dmg smokes, and the desktop smokes on Hyprland, KWin, Mutter, Sway and X11). Earlier: 1.1.1
-and 1.1.0 (2026-11-23), 1.0.2 and 1.0.1 (2026-11-22), 1.0.0 (2026-11-15).
+Windows installer and macOS dmg smokes, and the desktop smokes on Hyprland, KWin, Mutter, Sway and X11). Earlier: 1.1.2
+(2026-11-24), 1.1.1 and 1.1.0 (2026-11-23), 1.0.2 and 1.0.1 (2026-11-22), 1.0.0 (2026-11-15).
+
+1.1.3 shows each app with its own coloured icon, installs the apps picked in setup after one confirmation and ends
+setup with "Try your apps" (each app's shortcut and a Try it button), and no longer lists the Arcade helper as a
+health problem.
 
 1.1.2 is Arcade Link 1.1.2: the helper runs actions that take no input when the browser extension asks, announces
 browser jobs once, and shows a moving bar when an app can't measure a step (instead of a bar at 0).
